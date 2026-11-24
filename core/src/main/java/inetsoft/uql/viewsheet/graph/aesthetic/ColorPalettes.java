@@ -91,15 +91,30 @@ public class ColorPalettes {
          ? null : getPalette(name + COMPANION_SUFFIX);
    }
 
-   // names carrying the reserved suffix are companions, not selectable palettes. Enforced here
-   // rather than at each caller so the reservation lives in one place.
+   /**
+    * The token set of a named palette, or null when none is declared. A token set holds the
+    * non-series colors the modern look needs beside a palette, by slot: the direction colors, the
+    * card background and the dark text. Like companions, token sets are reached only through here
+    * and are filtered out of getPaletteNames().
+    */
+   public static CategoricalColorFrame getTokenPalette(String name) {
+      return name == null || reserved(name) ? null : getPalette(name + TOKEN_SUFFIX);
+   }
+
+   // names carrying a reserved suffix are companions or token sets, not selectable palettes.
+   // Enforced here rather than at each caller so the reservation lives in one place.
    private static Collection<String> selectable(Collection<String> names) {
       return names.stream()
-         .filter(name -> !name.endsWith(COMPANION_SUFFIX))
+         .filter(name -> !reserved(name))
          .collect(Collectors.toCollection(LinkedHashSet::new));
    }
 
+   private static boolean reserved(String name) {
+      return name.endsWith(COMPANION_SUFFIX) || name.endsWith(TOKEN_SUFFIX);
+   }
+
    public static final String COMPANION_SUFFIX = "-soft";
+   public static final String TOKEN_SUFFIX = "-tokens";
 
    private void loadPalettes() {
       loadPalettes(null, false);

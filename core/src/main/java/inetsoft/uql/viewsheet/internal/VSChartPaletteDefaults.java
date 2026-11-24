@@ -244,22 +244,68 @@ public final class VSChartPaletteDefaults {
 
    /** The colour of a rising candle, stock bar or waterfall step on the mark's card. */
    public static Color directionUp(VizContext ctx) {
-      return ctx != null && ctx.dark ? DIRECTION_UP_DARK : DIRECTION_UP;
+      boolean dark = ctx != null && ctx.dark;
+      return token(dark, TOKEN_UP, dark ? DIRECTION_UP_DARK : DIRECTION_UP);
    }
 
    /** The colour of a falling candle, stock bar or waterfall step on the mark's card. */
    public static Color directionDown(VizContext ctx) {
-      return ctx != null && ctx.dark ? DIRECTION_DOWN_DARK : DIRECTION_DOWN;
+      boolean dark = ctx != null && ctx.dark;
+      return token(dark, TOKEN_DOWN, dark ? DIRECTION_DOWN_DARK : DIRECTION_DOWN);
    }
 
    /** The neutral colour, such as a waterfall Total, on the mark's card. */
    public static Color directionNeutral(VizContext ctx) {
-      return ctx != null && ctx.dark ? DIRECTION_NEUTRAL_DARK : DIRECTION_NEUTRAL;
+      boolean dark = ctx != null && ctx.dark;
+      return token(dark, TOKEN_NEUTRAL, dark ? DIRECTION_NEUTRAL_DARK : DIRECTION_NEUTRAL);
    }
 
    /** True for either neutral token. */
    public static boolean isNeutralToken(Color c) {
-      return DIRECTION_NEUTRAL.equals(c) || DIRECTION_NEUTRAL_DARK.equals(c);
+      return token(false, TOKEN_NEUTRAL, DIRECTION_NEUTRAL).equals(c) ||
+         token(true, TOKEN_NEUTRAL, DIRECTION_NEUTRAL_DARK).equals(c);
+   }
+
+   /**
+    * A non-series color of the modern look, by slot, from the mark's "Modern-tokens" or
+    * "Modern Dark-tokens" set in defaults.css or an org's format.css. The fallback is what the
+    * code seeded before the set existed, used when the rule or its slot is missing or unreadable.
+    */
+   static Color token(boolean dark, int slot, Color fallback) {
+      Color[] tokens = resolveTokens(dark ? DARK_NAME : MODERN_NAME);
+      Color color = slot >= 1 && slot <= tokens.length ? tokens[slot - 1] : null;
+      return color != null ? color : fallback;
+   }
+
+   /**
+    * A token set's slots, memoized per org until the CSS changes, with a hole where a slot is not
+    * declared. Shares resolve()'s memo for the same reasons: getPalette locks on its own class,
+    * and a broken format.css must not fail the render.
+    */
+   private static Color[] resolveTokens(String name) {
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      long ts = CSSDictionary.getOrgScopedCSSLastModified(CSSDictionary.getDictionary());
+      String memoKey = orgID + "|tokens|" + name;
+      String stamp = memoKey + "|" + ts;
+      Memo memo = MEMO.get(memoKey);
+
+      if(memo != null && memo.stamp().equals(stamp)) {
+         return memo.colors();
+      }
+
+      CategoricalColorFrame frame = getTokenPaletteSafely(name);
+      Color[] resolved = NO_COMPANIONS;
+
+      if(frame != null) {
+         resolved = new Color[frame.getColorCount()];
+
+         for(int i = 0; i < resolved.length; i++) {
+            resolved[i] = frame.getDefaultColor(i);
+         }
+      }
+
+      MEMO.put(memoKey, new Memo(stamp, resolved));
+      return resolved;
    }
 
    /**
@@ -462,6 +508,17 @@ public final class VSChartPaletteDefaults {
       }
    }
 
+   /** The same guard for a token set. */
+   private static CategoricalColorFrame getTokenPaletteSafely(String name) {
+      try {
+         return ColorPalettes.getTokenPalette(name);
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to resolve token palette " + name, ex);
+         return null;
+      }
+   }
+
    static void clearMemo() {
       MEMO.clear();
    }
@@ -482,6 +539,12 @@ public final class VSChartPaletteDefaults {
    private static final Color DIRECTION_NEUTRAL = new Color(0x767676);
    private static final Color DIRECTION_NEUTRAL_DARK = new Color(0xA8A5AD);
    private static final Color[] NO_COMPANIONS = new Color[0];
+   // the slots of a token set
+   static final int TOKEN_UP = 1;
+   static final int TOKEN_DOWN = 2;
+   static final int TOKEN_NEUTRAL = 3;
+   static final int TOKEN_CARD = 4;
+   static final int TOKEN_TEXT = 5;
    private static final Color[] LEGACY_FALLBACK =
       CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]);
    private static final Logger LOG = LoggerFactory.getLogger(VSChartPaletteDefaults.class);
