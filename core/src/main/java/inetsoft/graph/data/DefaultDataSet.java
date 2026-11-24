@@ -164,7 +164,10 @@ public class DefaultDataSet extends AbstractDataSet {
     */
    public void setComparator(String col, Comparator comp) {
       ColInfo info = colmap.get(col);
-      info.setComparator(comp);
+
+      if(info != null) {
+         info.setComparator(comp);
+      }
    }
 
    /**

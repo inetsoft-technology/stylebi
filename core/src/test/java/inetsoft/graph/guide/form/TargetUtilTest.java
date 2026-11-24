@@ -117,7 +117,6 @@ class TargetUtilTest {
 
    @org.junit.jupiter.params.ParameterizedTest(name = "percentile {0}")
    @org.junit.jupiter.params.provider.ValueSource(doubles = { 0, -5 })
-   @Disabled("Bug #82146: Percentile target with a value of 0 or less throws OutOfRangeException")
    @DisplayName("percentile of zero or below is clamped without an exception and gives the minimum")
    void percentileBelowRangeGivesMinimum(double percentile) {
       PercentileStrategy strategy = new PercentileStrategy(Arrays.asList(percentile));
@@ -133,5 +132,23 @@ class TargetUtilTest {
       double[] at150 = new PercentileStrategy(Arrays.asList(150.0)).calculateBoundaries(data);
       assertArrayEquals(new double[] { 10.0 }, at100, 1e-9);
       assertArrayEquals(at100, at150, 1e-9);
+   }
+
+   @Test
+   void nonPositivePercentileIsClampedToMinimum() {
+      double[] values = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+
+      for(double arg : new double[] { 0, -5 }) {
+         double[] result = assertDoesNotThrow(
+            () -> TargetUtil.getPercentiles(values, new double[] { arg }));
+         assertEquals(1, result.length);
+         assertEquals(1.0, result[0], 1e-9);
+      }
+   }
+
+   @Test
+   void percentileAboveHundredIsClampedToMaximum() {
+      double[] values = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+      assertEquals(10.0, TargetUtil.getPercentiles(values, new double[] { 150 })[0], 1e-9);
    }
 }

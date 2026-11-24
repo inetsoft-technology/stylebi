@@ -449,7 +449,9 @@ public class GraphTypes {
    public static boolean isRadarOne(ChartInfo info) {
       if(isRadar(info.getChartType()) && info.getRTGroupFields().length == 1) {
          ChartRef[] yrefs = info.getRTYFields();
-         return Arrays.stream(yrefs).filter(r -> GraphUtil.isMeasure(r)).count() == 1;
+         // by name: the generator draws a repeated measure once
+         return Arrays.stream(yrefs).filter(r -> GraphUtil.isMeasure(r))
+            .map(GraphUtil::getName).distinct().count() == 1;
       }
 
       return false;

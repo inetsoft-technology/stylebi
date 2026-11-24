@@ -45,8 +45,10 @@ import static org.mockito.Mockito.*;
 
 /**
  * The MV options read when a viewsheet looks for the MV of a table
- * ({@link MVManager#findRuntimeMV}): {@code mv.required}, {@code mv.metadata} and
- * {@code mv.ondemand}, and the runtime MV made for an association MV (Bug #62332).
+ * ({@link MVManager#findRuntimeMV}): {@code mv.required}, {@code mv.metadata},
+ * {@code mv.ondemand}, {@code mv.freshness} and {@code mv.maxAge}, and the runtime MV made for
+ * an association MV (Bug #62332). A background rebuild is seen through the sandbox: the rebuild
+ * calls {@code updateAssemblies} on it before it creates the MV.
  * The manager's own lookups ({@code findMV}, {@code getSubMV}) are stubbed, so that a table has
  * the MV a case gives it; the rest of the method is the product's.
  *
@@ -236,6 +238,27 @@ class MVManagerFindRuntimeMVTest {
       assertNoJob(entry, true);
    }
 
+   @Test
+   void aStaleMVIsStillUsedWithoutTheMaterializationPermission() {
+      // Bug #82140: the permission only gates the rebuild, not the use of the existing MV
+      SreeEnv.setProperty("mv.ondemand", "true");
+      SreeEnv.setProperty("mv.freshness", "1000");
+      vs.getViewsheetInfo().setMVOnDemand(true);
+      MVDef def = def("mv-orders", false);
+      when(def.getLastUpdateTime()).thenReturn(1L);
+      doReturn(def).when(manager).findMV(any(), eq("Orders"), any(), any(), any());
+      AssetEntry entry = entry();
+
+      try(MockedStatic<SecurityEngine> security = permission(false)) {
+         RuntimeMV rmv = manager.findRuntimeMV(entry, vs, "", "Orders", user, box, true);
+
+         assertNotNull(rmv);
+         assertEquals("mv-orders", rmv.getMV());
+      }
+
+      assertFalse(manager.isPending(entry, user), "no rebuild without the permission");
+   }
+
    // ---------------------------------------------------------------- the runtime MV
 
    @Test
@@ -287,17 +310,115 @@ class MVManagerFindRuntimeMVTest {
       assertNull(manager.findRuntimeMV(entry(), null, "", "Mirror1", user, box, true, true));
    }
 
+   // ---------------------------------------------------------------- mv.freshness, mv.maxAge
+
+   @Test
+   void aStaleMVIsUsedWhileItIsRebuiltInTheBackground() throws Exception {
+      SreeEnv.setProperty("mv.freshness", "60000");
+      AssetEntry entry = entry();
+      staleMV(entry);
+
+      RuntimeMV rmv;
+
+      try(MockedStatic<SecurityEngine> security = permission(true)) {
+         rmv = manager.findRuntimeMV(entry, vs, "", "Orders", user, box, true);
+      }
+
+      assertNotNull(rmv);
+      assertEquals("mv-orders", rmv.getMV());
+      verify(box, timeout(30000L)).updateAssemblies();
+      waitUntilIdle(entry);
+   }
+
+   @Test
+   void aFreshMVIsNotRebuilt() throws Exception {
+      SreeEnv.setProperty("mv.freshness", "3600000");
+      AssetEntry entry = entry();
+      MVDef def = def("mv-orders", false);
+      when(def.getLastUpdateTime()).thenReturn(System.currentTimeMillis());
+      doReturn(def).when(manager).findMV(any(), eq("Orders"), any(), any(), any());
+
+      assertEquals("mv-orders", findWithPermission(entry, true).getMV());
+      assertNoRebuild(entry);
+   }
+
+   @Test
+   void theDesignerDoesNotRebuildAStaleMV() throws Exception {
+      // freshness is for viewers only
+      SreeEnv.setProperty("mv.freshness", "60000");
+      AssetEntry entry = entry();
+      staleMV(entry);
+
+      assertEquals("mv-orders", findWithPermission(entry, false).getMV());
+      assertNoRebuild(entry);
+   }
+
+   @Test
+   void aStaleMVIsNotRebuiltTwice() throws Exception {
+      SreeEnv.setProperty("mv.freshness", "60000");
+      AssetEntry entry = entry();
+      staleMV(entry);
+      pending().put(entry + ":" + user, mock(MVCreator.class));
+
+      assertEquals("mv-orders", findWithPermission(entry, true).getMV());
+      verify(box, after(500L).never()).updateAssemblies();
+   }
+
+   @Test
+   void anMVOlderThanTheMaxAgeHoldsTheViewerUntilItIsRebuilt() throws Exception {
+      SreeEnv.setProperty("mv.freshness", "60000");
+      SreeEnv.setProperty("mv.maxAge", "60000");
+      AssetEntry entry = entry();
+      staleMV(entry);
+
+      try(MockedStatic<SecurityEngine> security = permission(true)) {
+         ConfirmException wait = assertThrows(ConfirmException.class, () ->
+            manager.findRuntimeMV(entry, vs, "", "Orders", user, box, true));
+         assertEquals(ConfirmException.PROGRESS, wait.getLevel());
+         assertInstanceOf(CheckMissingMVEvent.class, wait.getEvent());
+      }
+
+      verify(box, timeout(30000L)).updateAssemblies();
+      waitUntilIdle(entry);
+   }
+
+   @Test
+   void theMaxAgeAloneDoesNotRebuildAnMVThatIsStillThere() throws Exception {
+      // pinned: only mv.freshness starts a rebuild here; with mv.maxAge alone the expired MV is
+      // used until MVRule.cleanup removes it, and then it is rebuilt as a missing MV
+      SreeEnv.setProperty("mv.maxAge", "60000");
+      AssetEntry entry = entry();
+      staleMV(entry);
+
+      assertEquals("mv-orders", findWithPermission(entry, true).getMV());
+      assertNoRebuild(entry);
+   }
+
+   @Test
+   void aStaleMVIsUsedButNotRebuiltForAUserWithoutTheMaterializationPermission()
+      throws Exception
+   {
+      // the permission gates only the rebuild; the stale MV is still used
+      SreeEnv.setProperty("mv.freshness", "60000");
+      AssetEntry entry = entry();
+      staleMV(entry);
+
+      try(MockedStatic<SecurityEngine> security = permission(false)) {
+         RuntimeMV rmv = manager.findRuntimeMV(entry, vs, "", "Orders", user, box, true);
+         assertNotNull(rmv);
+         assertEquals("mv-orders", rmv.getMV());
+      }
+
+      assertNoRebuild(entry);
+   }
+
    // ---------------------------------------------------------------- the pending job
 
    @Test
    void cancellingAPendingJobStopsIt() throws Exception {
       AssetEntry entry = entry();
       MVCreator job = mock(MVCreator.class);
-      Field field = MVManager.class.getDeclaredField("pending");
-      field.setAccessible(true);
-      @SuppressWarnings("unchecked")
-      Map<Object, MVCreator> pending = (Map<Object, MVCreator>) field.get(manager);
-      pending.put(entry + ":" + user, job);
+      pending().put(entry + ":" + user, job);
       XPrincipal other = new XPrincipal(
          new IdentityID("other", Organization.getDefaultOrganizationID()));
 
@@ -351,6 +472,38 @@ class MVManagerFindRuntimeMVTest {
       }
 
       assertFalse(manager.isPending(entry, user));
+   }
+
+   /**
+    * The table Orders has an MV last updated an hour ago. The hourly MVRule.cleanup that the
+    * background rebuild may start is marked as just done, so that it does not run.
+    */
+   private void staleMV(AssetEntry entry) throws Exception {
+      MVDef def = def("mv-orders", false);
+      when(def.getLastUpdateTime()).thenReturn(System.currentTimeMillis() - 3600000L);
+      doReturn(def).when(manager).findMV(any(), eq("Orders"), any(), any(), any());
+      Field field = MVManager.class.getDeclaredField("lastCleanup");
+      field.setAccessible(true);
+      field.setLong(manager, System.currentTimeMillis());
+   }
+
+   private RuntimeMV findWithPermission(AssetEntry entry, boolean runtime) {
+      try(MockedStatic<SecurityEngine> security = permission(true)) {
+         return manager.findRuntimeMV(entry, vs, "", "Orders", user, box, runtime);
+      }
+   }
+
+   /** No background rebuild was started for the entry. */
+   private void assertNoRebuild(AssetEntry entry) throws Exception {
+      assertFalse(manager.isPending(entry, user));
+      verify(box, after(500L).never()).updateAssemblies();
+   }
+
+   @SuppressWarnings("unchecked")
+   private Map<Object, MVCreator> pending() throws Exception {
+      Field field = MVManager.class.getDeclaredField("pending");
+      field.setAccessible(true);
+      return (Map<Object, MVCreator>) field.get(manager);
    }
 
    private static AssetEntry entry() {

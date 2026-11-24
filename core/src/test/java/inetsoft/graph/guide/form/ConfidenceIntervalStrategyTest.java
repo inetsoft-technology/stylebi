@@ -72,21 +72,18 @@ class ConfidenceIntervalStrategyTest {
    }
 
    @Test
-   @Disabled("Bug #82145: Confidence Interval target counts null cells in n and degrees of freedom")
    @DisplayName("null cells are ignored: [N,1..5,N] gives the interval of [1..5]")
    void nullCellsAreIgnoredForFiveValues() {
       assertArrayEquals(CI95_OF_ONE_TO_FIVE, bounds(95, N, 1, 2, 3, 4, 5, N), 1e-4);
    }
 
    @Test
-   @Disabled("Bug #82145: Confidence Interval target counts null cells in n and degrees of freedom")
    @DisplayName("null cells are ignored: [N,10,N,20] gives the interval of [10,20]")
    void nullCellsAreIgnoredForTwoValues() {
       assertArrayEquals(new double[] { -48.5310, 78.5310 }, bounds(95, N, 10, N, 20), 1e-4);
    }
 
    @Test
-   @Disabled("Bug #82145: Confidence Interval target counts null cells in n and degrees of freedom")
    @DisplayName("one non-null value among nulls gives no interval")
    void oneNonNullValueGivesNoInterval() {
       double[] result = bounds(95, N, N, 5);
@@ -94,7 +91,6 @@ class ConfidenceIntervalStrategyTest {
    }
 
    @Test
-   @Disabled("Bug #82145: Confidence Interval target counts null cells in n and degrees of freedom")
    @DisplayName("all-null data gives an empty result without NaN")
    void allNullGivesEmpty() {
       double[] result = bounds(95, N, N, N);

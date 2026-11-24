@@ -200,7 +200,40 @@ class RestQuotaManagerTest {
       assertTrue(elapsed < 2500, "six calls took " + elapsed + " ms, with the rate of the old type");
    }
 
-   /** Runs the calls on separate threads and returns the most that were inside at once. */
+   @Test
+   void theRateLimitFlagDoesNotLeakIntoTheQuotaOfAnotherSetting() throws Exception {
+      String previous = System.getProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY);
+
+      try {
+         // a quota created while the limit is disabled must not be reused once it is enabled again
+         System.setProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY, "true");
+         long start = System.nanoTime();
+
+         for(int i = 0; i < 4; i++) {
+            RestQuotaManager.withQuota(limited("quota-flag", 2, -1), () -> "ok");
+         }
+
+         assertTrue(millisSince(start) < 1000, "the rate limit was not disabled by the flag");
+
+         System.clearProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY);
+         start = System.nanoTime();
+
+         for(int i = 0; i < 4; i++) {
+            RestQuotaManager.withQuota(limited("quota-flag", 2, -1), () -> "ok");
+         }
+
+         assertTrue(millisSince(start) >= 1400, "the rate limit stayed disabled after the flag was cleared");
+      }
+      finally {
+         if(previous == null) {
+            System.clearProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY);
+         }
+         else {
+            System.setProperty(RestQuotaManager.DISABLE_RATE_LIMIT_PROPERTY, previous);
+         }
+      }
+   }
+
    /**
     * Runs {@code calls} calls at once and returns the most that were inside together. Each call
     * stays inside until {@code expected} calls are inside (or three seconds pass), so the peak does

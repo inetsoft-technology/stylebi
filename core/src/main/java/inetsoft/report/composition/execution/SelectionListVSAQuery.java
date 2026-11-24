@@ -24,10 +24,13 @@ import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XTable;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.xmla.MemberObject;
 import inetsoft.util.Tool;
+import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -335,8 +338,40 @@ public class SelectionListVSAQuery extends AbstractSelectionVSAQuery {
     */
    @Override
    protected void refreshViewSelectionValue0() throws Exception {
-      super.refreshViewSelectionValue0();
+      ScriptException scriptError = null;
 
+      try {
+         super.refreshViewSelectionValue0();
+      }
+      catch(ScriptException ex) {
+         // a stop (timeout/cancel) or a failed table load ends the refresh now
+         ScriptTimeoutGuard.rethrowStop(ex);
+         TableLoadException.rethrow(ex);
+         // an ordinary script error still gets the values sorted and formatted, so a
+         // failing script does not leave them without a format (Bug #82105)
+         scriptError = ex;
+      }
+
+      try {
+         refreshViewSortAndFormat();
+      }
+      catch(Exception ex) {
+         if(scriptError == null) {
+            throw ex;
+         }
+
+         scriptError.addSuppressed(ex);
+      }
+
+      if(scriptError != null) {
+         throw scriptError;
+      }
+   }
+
+   /**
+    * Sort the selection values and apply the cell format to each of them.
+    */
+   private void refreshViewSortAndFormat() throws Exception {
       SelectionListVSAssembly assembly = (SelectionListVSAssembly) getAssembly();
 
       if(assembly == null) {

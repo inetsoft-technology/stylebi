@@ -90,6 +90,7 @@ public class TeamDeskQuery extends EndpointJsonQuery<TeamDeskEndpoint> {
          paginationSpec = PaginationSpec.builder()
             .type(PaginationType.OFFSET)
             .offsetParam(PaginationParamType.QUERY, "skip")
+            .zeroBasedPageIndex(true)
             .maxResultsPerPageParam(PaginationParamType.QUERY, "top")
             .maxResultsPerPage(200)
             .recordCountPath("$.length()")

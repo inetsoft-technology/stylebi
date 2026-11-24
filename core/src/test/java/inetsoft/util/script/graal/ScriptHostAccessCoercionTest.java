@@ -156,7 +156,8 @@ class ScriptHostAccessCoercionTest {
    @Test
    void plainObjectToStringOnly() {
       assertEquals("S:[object Object]", str("t.onlyS({})"));
-      refused("t.onlyS(new Date(0))");
+      // #82093: a Date now converts to its JS toString text (see ScriptHostAccessNarrowNumberDateTest)
+      assertEquals("S:" + str("String(new Date(0))"), str("t.onlyS(new Date(0))"));
       refused("t.onlyS(/a/)");
       refused("t.onlyS(new Map())");
       refused("t.onlyS(function() {})");

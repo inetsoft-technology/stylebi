@@ -199,6 +199,17 @@ class DataSourceRegistryConnectionTestQueryTest {
                  "the renamed data source shows a deleted data source's test query");
    }
 
+   // Bug #82097, removing a JDBC data source must release its connection pools on every node
+   @Test
+   void removeOfAJdbcDataSourceNotifiesTheNodesToCloseItsConnectionPools() {
+      addSource("ds");
+      doNothing().when(registry).fireConnectionChangeEvent();
+
+      registry.removeDataSource("ds");
+
+      verify(registry, times(1)).fireConnectionChangeEvent();
+   }
+
    @Test
    void removeRemovesTheKeyAndTheAdditionalConnectionKeys() {
       asOrg("orga");
