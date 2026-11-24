@@ -438,6 +438,84 @@ class CrossTabFilterMaxRowsCutTest {
       assertEquals(-1, fits.getAppliedMaxRows());
    }
 
+   /**
+    * Two row and two column levels with every group total and subtotal shown (or every grand
+    * total suppressed). A cut grid must be exactly the grid of the source rows before the cut
+    * with no limit, and the next source row must not have fit, so the tuples counted before a
+    * source row is applied match what that row really adds in every total branch.
+    */
+   @Test
+   void withSubtotalsAndColumnGroupTotalsACutIsExactlyAPrefixOfTheSourceRows() {
+      List<Object[]> rows = new ArrayList<>();
+      rows.add(new Object[] { "Group", "Cat", "Quarter", "Month", "V" });
+
+      for(int month = 1; month <= 4; month++) {
+         for(int cat = 1; cat <= 4; cat++) {
+            rows.add(new Object[] { cat <= 2 ? "g1" : "g2", "c" + cat,
+                                    month <= 2 ? "q1" : "q2", "m" + month,
+                                    (double) (cat * 10 + month) });
+         }
+      }
+
+      for(boolean grandTotals : new boolean[] { true, false }) {
+         int full = shownRowTuples(allTotals(rows, rows.size() - 1, 0, grandTotals));
+         boolean cutSeen = false;
+
+         for(int limit = 1; limit <= full + 1; limit++) {
+            CrossTabFilter f = allTotals(rows, rows.size() - 1, limit, grandTotals);
+            String what = "grand totals " + grandTotals + ", limit " + limit + "\n" +
+               String.join("\n", dump(f));
+            assertTrue(shownRowTuples(f) <= limit, what);
+
+            if(limit >= full) {
+               assertEquals(-1, f.getAppliedMaxRows(), what);
+               assertEquals(cells(allTotals(rows, rows.size() - 1, 0, grandTotals)), cells(f),
+                            what);
+               continue;
+            }
+
+            assertEquals(limit, f.getAppliedMaxRows(), what);
+            cutSeen = true;
+            List<List<Object>> grid = cells(f);
+            int prefix = -1;
+
+            for(int k = 0; k < rows.size(); k++) {
+               if(cells(allTotals(rows, k, 0, grandTotals)).equals(grid)) {
+                  prefix = k;
+                  break;
+               }
+            }
+
+            assertTrue(prefix >= 0, "not the grid of any prefix of the source rows: " + what);
+            assertTrue(shownRowTuples(allTotals(rows, prefix + 1, 0, grandTotals)) > limit,
+                       "source row " + (prefix + 1) + " would have fit: " + what);
+         }
+
+         assertTrue(cutSeen, "grand totals " + grandTotals);
+      }
+   }
+
+   /** The first {@code count} source rows with every total shown and the given limit. */
+   private static CrossTabFilter allTotals(List<Object[]> rows, int count, int maxRows,
+                                           boolean grandTotals)
+   {
+      SreeEnv.setProperty(PROPERTY, String.valueOf(maxRows));
+      Object[][] data = rows.subList(0, count + 1).toArray(new Object[0][]);
+      CrossTabFilter f = new CrossTabFilter(new DefaultTableLens(data), new int[] { 0, 1 },
+                                            new int[] { 2, 3 }, new int[] { 4 },
+                                            new Formula[] { new SumFormula() });
+      f.setRowHeaders(List.of("Group", "Cat"));
+      f.setColHeaders(List.of("Quarter", "Month"));
+      f.setSuppressRowGroupTotal(false, 0);
+      f.setSuppressColumnGroupTotal(false, 0);
+      f.setSuppressRowSubtotal(false);
+      f.setSuppressColumnSubtotal(false);
+      f.setSuppressRowGrandTotal(!grandTotals);
+      f.setSuppressColumnGrandTotal(!grandTotals);
+      f.moreRows(Integer.MAX_VALUE);
+      return f;
+   }
+
    /** A limit that cuts nothing gives exactly the grid of no limit. */
    @Test
    void aLimitThatDoesNotCutGivesTheSameGridAsNoLimit() {
