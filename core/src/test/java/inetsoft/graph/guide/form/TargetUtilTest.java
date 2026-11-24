@@ -17,9 +17,14 @@
  */
 package inetsoft.graph.guide.form;
 
+import inetsoft.test.*;
 import inetsoft.util.Tool;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.Arrays;
 
@@ -29,6 +34,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * Bug #79662: null cells (Tool.NULL_DOUBLE) must not be ranked as the lowest value by the
  * Percentile and Quantile targets.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class TargetUtilTest {
    private static final double N = Tool.NULL_DOUBLE;
@@ -97,6 +106,34 @@ class TargetUtilTest {
             assertEquals(0, strategy.generateLabels(boundaries, null, "f", null, false, false).length);
          });
       }
+   }
+
+   @Test
+   @DisplayName("getNonNulls drops null entries and keeps the order")
+   void nonNullsDropsNulls() {
+      assertArrayEquals(new double[] { 1, 2 },
+                        TargetUtil.getNonNulls(new Double[] { 1.0, null, 2.0, null }), 0);
+      assertEquals(0, TargetUtil.getNonNulls(new Double[] { null }).length);
+      assertEquals(0, TargetUtil.getNonNulls(new Double[0]).length);
+   }
+
+   @ParameterizedTest(name = "percentile {0}")
+   @ValueSource(doubles = { 0, -5 })
+   @DisplayName("percentile of zero or below is clamped without an exception and gives the minimum")
+   void percentileBelowRangeGivesMinimum(double percentile) {
+      PercentileStrategy strategy = new PercentileStrategy(Arrays.asList(percentile));
+      double[] data = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+      assertArrayEquals(new double[] { 1.0 }, strategy.calculateBoundaries(data), 1e-9);
+   }
+
+   @Test
+   @DisplayName("percentile above 100 gives the same line as 100, the maximum")
+   void percentileAboveRangeGivesMaximum() {
+      double[] data = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+      double[] at100 = new PercentileStrategy(Arrays.asList(100.0)).calculateBoundaries(data);
+      double[] at150 = new PercentileStrategy(Arrays.asList(150.0)).calculateBoundaries(data);
+      assertArrayEquals(new double[] { 10.0 }, at100, 1e-9);
+      assertArrayEquals(at100, at150, 1e-9);
    }
 
    @Test
