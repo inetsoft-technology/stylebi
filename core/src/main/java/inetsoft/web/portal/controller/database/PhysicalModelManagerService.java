@@ -267,7 +267,7 @@ public class PhysicalModelManagerService {
 
          if(parentModel != null) {
             partition.setBaseParitition(parentModel);
-            parentModel.addPartition(partition, false);
+            parentModel.addPartitionOrThrow(partition);
          }
       }
 

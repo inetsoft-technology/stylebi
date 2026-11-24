@@ -1047,24 +1047,20 @@ class WizDataModelBridgeTest {
    }
 
    @Test
-   void aStorageFailureIsARetryableFailureWithPlainText() throws Exception {
+   void aStorageFailureIsARetryableFailureAndADatabaseTimeoutIsNot() throws Exception {
       Failure typed = ok(WizDataModelErrors.run(() -> {
          throw new inetsoft.uql.service.DataSourceStorageException("not saved; retry the call");
       }), Failure.class);
       assertEquals(STORAGE_UNAVAILABLE, typed.reason());
       assertEquals("not saved; retry the call", typed.message());
 
-      for(Exception cause : new Exception[] {
-         new java.io.IOException("Failed to create directory jdbc:mysql://u:Sup3rSecret@h/x"),
-         new java.util.concurrent.TimeoutException("Sup3rSecret") })
-      {
-         Failure wrapped = ok(WizDataModelErrors.run(() -> {
-            throw new RuntimeException("save failed", cause);
-         }), Failure.class);
-         assertEquals(STORAGE_UNAVAILABLE, wrapped.reason());
-         assertFalse(wrapped.message().contains("Sup3rSecret"), wrapped.message());
-         assertTrue(wrapped.message().contains("retry"), wrapped.message());
-      }
+      // a timeout of the customer's database is not a storage failure of the server
+      Failure database = ok(WizDataModelErrors.run(() -> {
+         throw new RuntimeException("load failed", new java.net.SocketTimeoutException(
+            "Read timed out jdbc:mysql://u:Sup3rSecret@h/x"));
+      }), Failure.class);
+      assertEquals(UNKNOWN, database.reason());
+      assertFalse(database.message().contains("Sup3rSecret"), database.message());
    }
 
    @Test

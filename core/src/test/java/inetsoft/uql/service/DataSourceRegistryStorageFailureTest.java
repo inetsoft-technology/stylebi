@@ -88,8 +88,7 @@ class DataSourceRegistryStorageFailureTest {
       ThreadContext.setContextPrincipal(principal());
       storage = spy(indexedStorage);
       Cluster node = mock(Cluster.class, AdditionalAnswers.delegatesTo(cluster));
-      Lock lock = new ReentrantLock();
-      doReturn(lock).when(node).getLock(anyString());
+      doReturn(new HookedLock()).when(node).getLock(anyString());
       registry = new DataSourceRegistry(storage, config, node);
       registry.init();
    }
@@ -124,6 +123,51 @@ class DataSourceRegistryStorageFailureTest {
       assertTrue(root().containsEntry(later));
       assertFalse(root().containsEntry(failed),
                   "a later save stored the entry of the object that was never written");
+   }
+
+   @Test
+   void cachedRootIsDroppedWhileTheLockIsStillHeld() throws Exception {
+      AssetEntry failed = folderEntry("phantomLocked");
+      registry.setObject(folderEntry("warmUp2"), folder("warmUp2"));
+      assertTrue(cachedRootCount() > 0, "the root is cached before the failed save");
+      failRootWriteOnce();
+      // what another writer would see the moment the failed one releases the lock
+      int[] cachedAtUnlock = { -1 };
+      onFirstUnlock = () -> cachedAtUnlock[0] = cachedRootCount();
+
+      assertThrows(DataSourceStorageException.class,
+                   () -> registry.setObjectOrThrow(failed, folder("phantomLocked"), true));
+
+      assertEquals(0, cachedAtUnlock[0], "the changed root was still cached when the lock was released");
+   }
+
+   @SuppressWarnings("unchecked")
+   private int cachedRootCount() {
+      try {
+         java.lang.reflect.Field field = DataSourceRegistry.class.getDeclaredField("cachemap");
+         field.setAccessible(true);
+         return (int) ((java.util.Map<Object, Object>) field.get(registry)).keySet().stream()
+            .filter(k -> k instanceof AssetEntry e &&
+                    e.getType() == AssetEntry.Type.DATA_SOURCE_FOLDER && "/".equals(e.getPath()))
+            .count();
+      }
+      catch(ReflectiveOperationException e) {
+         throw new IllegalStateException(e);
+      }
+   }
+
+   @Test
+   void aFailedNotificationAfterTheSaveIsNotAFailedSave() throws Exception {
+      DataSourceRegistry noisy = new DataSourceRegistry(storage, config, null) {
+         @Override
+         protected void fireModifiedEvent(String orgId) {
+            throw new IllegalStateException("notification failed");
+         }
+      };
+      AssetEntry saved = folderEntry("notifyFails");
+
+      assertDoesNotThrow(() -> noisy.setObjectOrThrow(saved, folder("notifyFails"), true));
+      assertTrue(root().containsEntry(saved));
    }
 
    @Test
@@ -164,7 +208,23 @@ class DataSourceRegistryStorageFailureTest {
                              0L);
    }
 
+   /** A lock that runs a hook once, right before it is released. */
+   private final class HookedLock extends ReentrantLock {
+      @Override
+      public void unlock() {
+         Runnable hook = onFirstUnlock;
+         onFirstUnlock = null;
+
+         if(hook != null) {
+            hook.run();
+         }
+
+         super.unlock();
+      }
+   }
+
    private static final String ORG = "org82205";
+   private Runnable onFirstUnlock;
    @Autowired Cluster cluster;
    @Autowired IndexedStorage indexedStorage;
    @Autowired Config config;

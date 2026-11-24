@@ -3187,10 +3187,28 @@ public class DataSourceRegistry implements MessageListener {
 
             indexedStorage.putXMLSerializable(entry.toIdentifier(), obj);
          }
+         catch(Exception e) {
+            // the cached root is shared and was changed before it was written, a later
+            // successful save would store the entry of an object that was never written; it is
+            // dropped while the lock is held so no other writer can store it first
+            evictCachedRoot(entry.getOrgID());
+            throw e;
+         }
          finally {
             unlockRoot(lock);
          }
+      }
+      catch(Exception e) {
+         throw new DataSourceStorageException(
+            "The object " + entry.getPath() + " was not saved because the storage failed or " +
+            "did not respond in time; retry the same call", e);
+      }
+      finally {
+         indexedStorage.close();
+      }
 
+      // the object is stored, a failed notification is not a failed save
+      try {
          clearCache2();
          sendClearDataSourceCacheEvent();
 
@@ -3207,15 +3225,7 @@ public class DataSourceRegistry implements MessageListener {
          }
       }
       catch(Exception e) {
-         // the cached root is shared and was changed before it was written, a later successful
-         // save would store the entry of an object that was never written
-         evictCachedRoot(entry.getOrgID());
-         throw new DataSourceStorageException(
-            "The object " + entry.getPath() + " was not saved because the storage failed or " +
-            "did not respond in time; retry the same call", e);
-      }
-      finally {
-         indexedStorage.close();
+         LOG.error("Failed to notify after setting object: " + entry.getPath(), e);
       }
    }
 
@@ -4299,10 +4309,7 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
-    * Drops the cached root if the stored root was changed after it was cached, so that the next
-    * read loads it from the storage. The registry timestamp that {@code getCachedObject} checks
-    * first is only moved by an asynchronous event from the other node, so it is not used here.
-    * A cached root that a failed save left changed is kept, as before.
+    * Drops the cached root of an organization so that the next read loads it from the storage.
     */
    private void evictCachedRoot(String orgId) {
       AssetEntry plain = getRootEntry();
@@ -4312,6 +4319,12 @@ public class DataSourceRegistry implements MessageListener {
       cachemap.remove(withOrg);
    }
 
+   /**
+    * Drops the cached root if the stored root was changed after it was cached, so that the next
+    * read loads it from the storage. The registry timestamp that {@code getCachedObject} checks
+    * first is only moved by an asynchronous event from the other node, so it is not used here.
+    * A cached root that a failed save left changed is dropped by {@link #setObjectOrThrow}.
+    */
    private void dropCachedRootIfStale() {
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
       AssetEntry plain = getRootEntry();
