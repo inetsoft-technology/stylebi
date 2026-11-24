@@ -145,7 +145,7 @@ class RRuntimeTest {
       }
 
       assertTrue(command[0].matches(
-         "write\.csv\(budget_wide, 'inetsoft-[0-9a-f-]+\.csv', row\.names = FALSE, na = \"\"\)"),
+         "write\\.csv\\(budget_wide, 'inetsoft-[0-9a-f-]+\\.csv', row\\.names = FALSE, na = \"\"\\)"),
          command[0]);
    }
 }
