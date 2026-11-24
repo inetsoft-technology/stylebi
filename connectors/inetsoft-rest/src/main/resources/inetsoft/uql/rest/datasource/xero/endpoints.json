@@ -478,7 +478,7 @@
     {
       "name": "Contact Groups",
       "paged": false,
-      "suffix": "/api.xro/2.0/ContactGroups/{ContactGroup ID?}?&where={Filter?}",
+      "suffix": "/api.xro/2.0/ContactGroups/{ContactGroup ID?}?where={Filter?}",
       "description": "The groups contacts are organised into, with their members. Contact groups are Xero's only native segmentation of customers, so they are the axis available for grouping receivables by anything other than the contact itself.",
       "responseSchema": {
         "ContactGroups": [
@@ -1843,7 +1843,7 @@
       "name": "Quotes",
       "paged": true,
       "paginationPath": "$.Quotes.length()",
-      "suffix": "/api.xro/2.0/Quotes/{Quote ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&Status={Status?}&&DateFrom={From Date?:yyyy-MM-dd}&DateTo={To Date?:yyyy-MM-dd}&&ExpiryDateFrom={From Expiry Date?:yyyy-MM-dd}&ExpiryDateTo={To Expiry Date?:yyyy-MM-dd}&ContactID={Contact ID?}",
+      "suffix": "/api.xro/2.0/Quotes/{Quote ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&Status={Status?}&DateFrom={From Date?:yyyy-MM-dd}&DateTo={To Date?:yyyy-MM-dd}&ExpiryDateFrom={From Expiry Date?:yyyy-MM-dd}&ExpiryDateTo={To Expiry Date?:yyyy-MM-dd}&ContactID={Contact ID?}",
       "description": "Quotes issued to customers, with the contact, dates, expiry, status and totals. The pipeline before an invoice exists: a quote's status (DRAFT, SENT, ACCEPTED, DECLINED, INVOICED) is the closest thing Xero has to a sales funnel.",
       "responseSchema": {
         "Quotes": [
@@ -2112,7 +2112,7 @@
     {
       "name": "Repeating Invoices",
       "paged": false,
-      "suffix": "/api.xro/2.0/RepeatingInvoices/{Repeating Invoice ID?}?&where={Filter?}",
+      "suffix": "/api.xro/2.0/RepeatingInvoices/{Repeating Invoice ID?}?where={Filter?}",
       "description": "The templates that generate invoices on a schedule, with the contact, the repeat interval, the next scheduled date, the end date and the amounts. Not invoices themselves -- these are what will produce them, so forward revenue commitments are here while the invoices they created are in the invoice table.",
       "responseSchema": {
         "RepeatingInvoices": [
@@ -2356,7 +2356,7 @@
     {
       "name": "Aged Receivables By Contact",
       "paged": false,
-      "suffix": "/api.xro/2.0/Reports/AgedReceivablesByContact?contactID={Contact ID}&&date={Date?:yyyy-MM-dd}&fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}",
+      "suffix": "/api.xro/2.0/Reports/AgedReceivablesByContact?contactID={Contact ID}&date={Date?:yyyy-MM-dd}&fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}",
       "description": "What each customer owes, bucketed by how overdue it is. Requires a contact id, or runs across contacts for the ageing summary. The collections table -- Contacts carries a single outstanding balance while this says how old it is, which is what distinguishes a slow payer from a bad debt.",
       "responseSchema": {
         "Reports": [

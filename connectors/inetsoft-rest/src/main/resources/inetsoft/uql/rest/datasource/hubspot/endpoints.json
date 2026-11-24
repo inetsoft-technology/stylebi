@@ -1519,7 +1519,7 @@
     {
       "name": "Contacts Informations",
       "pageType": 0,
-      "suffix": "/contacts/v1/contact/vids/batch?&&vid={Contact ID}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}&includeDeletes={Include Deletes?:true|false}",
+      "suffix": "/contacts/v1/contact/vids/batch?vid={Contact ID}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}&includeDeletes={Include Deletes?:true|false}",
       "description": "Several contacts by vid, in one request. The efficient way to hydrate a known set rather than fetching one at a time.",
       "responseSchema": {
         "*": {
@@ -3281,7 +3281,7 @@
     {
       "name": "Blog Posts",
       "pageType": 1,
-      "suffix": "/content/api/v2/blog-posts?archived={Archived?:true|false}&blog_author_id={Blog Author ID?}&campaign={Campaign GUID?}&content_group_id={Content Group ID?}&&created={Created?:milliseconds }&deleted_at={Deleted At?:milliseconds}&name={Name?}&slug={Slug?}&updated={Updated?:milliseconds}&state={Comment State?:DRAFT|PUBLISHED|SCHEDULED}",
+      "suffix": "/content/api/v2/blog-posts?archived={Archived?:true|false}&blog_author_id={Blog Author ID?}&campaign={Campaign GUID?}&content_group_id={Content Group ID?}&created={Created?:milliseconds }&deleted_at={Deleted At?:milliseconds}&name={Name?}&slug={Slug?}&updated={Updated?:milliseconds}&state={Comment State?:DRAFT|PUBLISHED|SCHEDULED}",
       "lookups": [
         {
           "endpoint": "Blog Posts Buffer Contents",
