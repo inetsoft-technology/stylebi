@@ -7915,6 +7915,38 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #81983 (BUG-77): the imported table's canvas size is the default node size, not a height
+    * derived from its row count, so a large import does not push every later assembly far down
+    * the worksheet canvas.
+    */
+   @Test
+   void importCsvGivesALargeTableTheDefaultCanvasSize() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-CSV-BIG");
+
+      StringBuilder csv = new StringBuilder("a,b\n");
+
+      for(int i = 0; i < 500; i++) {
+         csv.append(i).append(",x\n");
+      }
+
+      ctrl.importCsv("TOK-CSV-BIG",
+         new WorksheetAgentController.ImportCsvRequest("Big", csv.toString()), agent);
+      ctrl.importCsv("TOK-CSV-BIG",
+         new WorksheetAgentController.ImportCsvRequest("After", "a,b\n1,x\n2,y"), agent);
+
+      java.awt.Dimension expected =
+         new EmbeddedTableAssembly(new Worksheet(), "probe").getPixelSize();
+      EmbeddedTableAssembly big = importedTable(ws, "Big");
+      EmbeddedTableAssembly after = importedTable(ws, "After");
+
+      assertEquals(inetsoft.uql.asset.internal.AssetUtil.defw, big.getPixelSize().width);
+      assertEquals(expected.height, big.getPixelSize().height);
+      assertEquals(big.getPixelOffset().y + expected.height + 10, after.getPixelOffset().y);
+   }
+
+   /**
     * PR #4901 round-2 review follow-up: an audit for other bypasses of the round-1
     * {@code requireStorableName} guard (added for {@code placeAssembly}/{@code renameTable}/
     * {@code addJoin}/{@code duplicateAssembly}/{@code renameVariable}) turned up a third site:
