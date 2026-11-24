@@ -137,6 +137,35 @@ gap is one rule in `login.css`.
   surface). It sits tight against the search field and can read as a bordered box. Spacing it 1-2px
   from the field is a layout change, left as a follow-up with Bug #81489 (focus-ring polish).
 
+### Follow-up: a thin ring, and a filled primary button
+
+D2's solid 2px ring read as a heavy border on fields (the field's own border already turns the
+primary orange on focus, and the 2px ring sat against it). The colour is what carries the 3:1, so the
+width was reduced and the colours kept.
+
+- **Fields and the rest of the shell:** `--inet-focus-ring-width` is 1px in the light and the dark
+  shell. The ring colours are unchanged, so the contrast figures above are too (4.51, 3.92 and 3.21:1
+  in light, 7.62:1 in dark). Dashboard content and themed pages keep the 2px ring: the content pin
+  re-declares the width. The static pages follow it: `layout.css` through the token, `login.css`
+  through `--ln-focus-width`, which stays 2px on a themed login page.
+- **Modern primary button:** on keyboard focus it has no ring and no gap. Its fill becomes the ring
+  colour and its label the surface colour (4.51:1 on the fill in light, 7.62:1 in dark). It applies
+  to `.viz-shell` only, outside dashboard content and custom-themed pages, and only on
+  `:focus-visible`, so a mouse click or a dialog's automatic focus keeps today's deeper tint.
+- **Other buttons:** secondary, default and classic primary keep their 2px ring and danger and
+  classic primary keep the 2px gap, with the width fixed in the rule so the thin shared ring does not
+  reach them.
+- **Checked checkboxes, radios and switches:** unchanged. Their own rule (Bug #81489) draws a 2px gap
+  and a 2px ring in the text colour, because a checked border is the same orange as its fill.
+- **Considered and not taken:** a soft halo around the thin ring (about 5px across with the border,
+  heavier than the button's ring, and it adds nothing to the contrast); the old faint 28% ring on the
+  primary button (1.34:1); filling the button with the field orange `#D97A1A` (3.11:1 on white,
+  2.71:1 on beige, 2.21:1 on a selected row); filling it with the text colour (13.5:1, but a heavy
+  dark block).
+- **Overturning it:** the width is one token value per shell (`inet-shell-state-tokens` and the dark
+  block); the button's fill is one rule in `_bootstrap-override.scss`, after the filled-button gap
+  rule.
+
 ## D4 and D5. Kept as they are
 
 - **D4.** The dark neutrals are based on Material 3's dark baseline (uncited). Most text and border

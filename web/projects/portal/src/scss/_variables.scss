@@ -704,6 +704,10 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
   // 3.92, selected 3.21) (D2). Not on the navbar (2.02 on $shell-chrome-dark), whose ring takes the
   // navbar text colour (_themeable.scss). Dashboard content re-declares the .28 ring below.
   --inet-focus-ring-color: #B4610F;
+  // thin: 1px, so a focused field reads as the thin primary edge its border already turns to, not as
+  // a thick ring. The colour carries the 3:1; the width is only how heavy it looks. Dashboard content
+  // keeps the 2px ring below.
+  --inet-focus-ring-width: 1px;
 
   // white label on this fill is 5.98:1 (D1)
   --inet-danger-hover-bg-color: #B03A3A;
@@ -740,6 +744,7 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
 // inherits.
 :where(:root:not(.custom-theme)) :where(#{$dashboard-content}, #{$content-popup}, #{$annotation-tooltip}):where(:not(.dropdown-datepicker.viz-dark)) {
   // focus ring
+  --inet-focus-ring-width: 2px;
   --inet-focus-ring-color: rgba(217, 122, 26, 0.28);
   --inet-focus-ring: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
 
@@ -788,6 +793,7 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
 // declares none of these.
 :where(:root:not(.custom-theme):not(.shell-dark)) .dropdown-datepicker.viz-dark {
   // focus ring
+  --inet-focus-ring-width: 2px;
   --inet-focus-ring-color: rgba(217, 122, 26, 0.28);
   --inet-focus-ring: 0 0 0 var(--inet-focus-ring-width) rgba(217, 122, 26, 0.28);
 
