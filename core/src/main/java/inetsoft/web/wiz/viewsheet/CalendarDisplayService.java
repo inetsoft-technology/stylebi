@@ -133,7 +133,8 @@ public class CalendarDisplayService {
             doubleCalendar != null ? doubleCalendar :
                info.getViewMode() == CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE,
             yearView != null ? yearView : info.isYearView(),
-            datesAfterToggles, info.getRange(), date1, date2, assemblyName);
+            datesAfterToggles, info.getRange(), date1, date2,
+            rvs.getViewsheet().getViewsheetInfo().getDesignMaxRows(), assemblyName);
 
          result.put("assembly", assemblyName);
          result.put("changed", plan.changed());
@@ -275,6 +276,7 @@ public class CalendarDisplayService {
 
          String[] requested = dates.toArray(new String[0]);
          validateInRange(requested, info.checkDates(requested), info.getRange(),
+                         rvs.getViewsheet().getViewsheetInfo().getDesignMaxRows(),
                          assemblyName);
 
          String[] previous = info.getDates();
@@ -333,11 +335,14 @@ public class CalendarDisplayService {
     *                     end is open; null when unbound.
     * @param current1     the stored first position, to compare a lone secondMonth/month with.
     * @param current2     the stored second position.
+    * @param designMaxRows the viewsheet's design-mode sample size ({@code maxRows}, 0 for all
+    *                     rows); only worded into a range refusal.
     * @return null when neither month was asked for.
     */
    static Navigation resolveNavigation(String month, String secondMonth, boolean dual,
                                        boolean yearView, boolean hasDates, String[] range,
-                                       String current1, String current2, String assemblyName)
+                                       String current1, String current2, int designMaxRows,
+                                       String assemblyName)
    {
       boolean wantsFirst = !isBlank(month);
       boolean wantsSecond = !isBlank(secondMonth);
@@ -369,11 +374,11 @@ public class CalendarDisplayService {
          dual ? parseStored(current2, yearView) : null;
 
       if(wantsFirst) {
-         checkRange("month", first, range, yearView, assemblyName);
+         checkRange("month", first, range, yearView, designMaxRows, assemblyName);
       }
 
       if(wantsSecond) {
-         checkRange("secondMonth", second, range, yearView, assemblyName);
+         checkRange("secondMonth", second, range, yearView, designMaxRows, assemblyName);
       }
 
       if(dual && first != null && second != null && (wantsFirst || wantsSecond) &&
@@ -434,7 +439,7 @@ public class CalendarDisplayService {
    }
 
    private static void checkRange(String field, int[] value, String[] range, boolean yearView,
-                                  String assemblyName)
+                                  int designMaxRows, String assemblyName)
    {
       if(range == null || range.length != 2) {
          return;
@@ -453,9 +458,8 @@ public class CalendarDisplayService {
          throw new IllegalArgumentException(
             "'" + field + "' " + iso(value, yearView) + " is outside the selectable range of '" +
             assemblyName + "' (" + (min == null ? "open" : iso(min, yearView)) + " to " +
-            (max == null ? "open" : iso(max, yearView)) + "), which covers the bound column's " +
-            "data and any min/max set on the calendar; the calendar would move to the nearest " +
-            "end of it. Nothing was changed.");
+            (max == null ? "open" : iso(max, yearView)) + ")" + rangeBasis(designMaxRows) +
+            " The calendar would move to the nearest end of it. Nothing was changed.");
       }
    }
 
@@ -682,9 +686,11 @@ public class CalendarDisplayService {
     * @param checked   the same dates after {@code checkDates}, which returns an entry unchanged
     *                  exactly when it is in range.
     * @param range     the selectable range, for the message.
+    * @param designMaxRows the viewsheet's design-mode sample size ({@code maxRows}, 0 for all
+    *                  rows), for the message.
     */
    static void validateInRange(String[] requested, String[] checked, String[] range,
-                               String assemblyName)
+                               int designMaxRows, String assemblyName)
    {
       if(checked == null || checked.length != requested.length) {
          return;
@@ -705,11 +711,31 @@ public class CalendarDisplayService {
 
          throw new IllegalArgumentException(
             "'" + assemblyName + "' cannot select " + String.join(", ", outside) + ": " +
-            (outside.size() == 1 ? "it is" : "they are") + " outside " + bounds + ", which " +
-            "covers the bound column's data and any min/max set on the calendar. The calendar " +
-            "would silently move " + (outside.size() == 1 ? "it" : "them") + " to the nearest " +
-            "end of that range instead.");
+            (outside.size() == 1 ? "it is" : "they are") + " outside " + bounds +
+            rangeBasis(designMaxRows) + " The calendar would silently move " +
+            (outside.size() == 1 ? "it" : "them") + " to the nearest end of that range instead.");
       }
+   }
+
+   /**
+    * Says what the selectable range is made of. While a viewsheet is being designed the range is
+    * computed from only its first {@code designMaxRows} source rows (0 reads them all), so on a
+    * larger table the range stops short of the table's later dates; the message names that limit
+    * and the property that widens it, and does not claim the table was cut, which the range (only
+    * a minimum and a maximum) cannot show.
+    *
+    * @return text that follows the range and ends with a period.
+    */
+   static String rangeBasis(int designMaxRows) {
+      if(designMaxRows <= 0) {
+         return ", which covers the bound column's data and any min/max set on the calendar.";
+      }
+
+      return ". While the dashboard is being designed the range is computed from only the first " +
+         designMaxRows + " rows of the source (the viewsheet's maxRows, 'Design mode sample data " +
+         "size') and any min/max set on the calendar, so a date that appears only after row " +
+         designMaxRows + " falls outside it even if the table has it. Raise maxRows, or set it to " +
+         "0 for all rows, with set_viewsheet_properties to widen the range.";
    }
 
    /**
