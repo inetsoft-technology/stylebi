@@ -19,6 +19,7 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.calc.ValueOfCalc;
+import inetsoft.report.internal.Util;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
 import inetsoft.web.binding.model.graph.calc.ValueOfCalcInfo;
 import inetsoft.uql.asset.SourceInfo;
@@ -144,6 +145,7 @@ public final class TableBindingMutator {
                                DataRefModelFactoryService refModelService)
       throws Exception
    {
+      requireColumnLimit(model, requireShelf(model, shelf), fields == null ? 0 : fields.size());
       setShelf(model, shelf, fields, null, null, rvs, source, refModelService);
    }
 
@@ -285,6 +287,45 @@ public final class TableBindingMutator {
       }
    }
 
+   /**
+    * Refuses a shelf write that would push the table's or crosstab's total column count past
+    * {@code Util.getOrganizationMaxColumn()}, the limit a drag-drop add already enforces
+    * ({@code VSTableDndService}, {@code VSCrosstabDndService}). The total is the shown details
+    * of a table, or rows + cols + aggregates of a crosstab; a table's {@code groups} shelf is not
+    * part of it, as in the drag-drop count.
+    *
+    * <p>Only the public {@code setShelf} and {@code addField} call this, never {@code moveField}
+    * (total-neutral) or {@code removeField}, and it fires only on net growth of the edited shelf,
+    * so a table already over the limit can still be shrunk or reshuffled.
+    */
+   private static void requireColumnLimit(BaseTableBindingModel model, String shelf,
+                                          int newShelfCount)
+   {
+      boolean counted = model instanceof CrosstabBindingModel || "details".equals(shelf);
+      int oldShelfCount = read(model, shelf).size();
+
+      if(!counted || newShelfCount <= oldShelfCount) {
+         return;
+      }
+
+      int total = newShelfCount - oldShelfCount;
+
+      if(model instanceof CrosstabBindingModel crosstab) {
+         total += size(crosstab.getRows()) + size(crosstab.getCols()) + size(model.getAggregates());
+      }
+      else {
+         total += size(((TableBindingModel) model).getDetails());
+      }
+
+      if(total > Util.getOrganizationMaxColumn()) {
+         throw new IllegalArgumentException(Util.getColumnLimitMessage());
+      }
+   }
+
+   private static int size(List<?> list) {
+      return list == null ? 0 : list.size();
+   }
+
    public static void addField(BaseTableBindingModel model, String shelf, FieldRef field,
                                Integer position)
    {
@@ -322,6 +363,7 @@ public final class TableBindingMutator {
             current.size() + " field(s). Valid positions are 0 to " + current.size() + ".");
       }
 
+      requireColumnLimit(model, name, current.size() + 1);
       current.add(index, field);
       List<BDimensionRefModel> carried = carriedModels(model, name);
       List<BAggregateRefModel> carriedAggregates = carriedAggregateModels(model, name);
