@@ -1534,12 +1534,13 @@ public final class ScriptHostAccess {
          && d >= min && d <= max;
    }
 
-   /** Whether a numeric string parses to a finite double that a float holds unchanged. */
+   /** Whether a number is a finite whole value that fits epoch millis (a long). */
    private static boolean wholeEpochMillis(double n) {
       return !Double.isNaN(n) && !Double.isInfinite(n) && n == Math.floor(n) &&
          Math.abs(n) < 9.2e18;
    }
 
+   /** Whether a numeric string parses to a finite double that a float holds unchanged. */
    private static boolean exactFloatString(String str) {
       Number n = JavaClassProxy.toNumber(str);
 

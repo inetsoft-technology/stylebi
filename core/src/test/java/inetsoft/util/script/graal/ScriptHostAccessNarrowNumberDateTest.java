@@ -225,7 +225,11 @@ class ScriptHostAccessNarrowNumberDateTest {
       assertEquals("D:45000", str("d.ms(45000)"));
       assertEquals("D:-5", str("d.ms(-5)"));
       assertEquals("D:1700000000000", str("d.ms(1.7e12)"));
-      assertEquals("D:true", str("'D:' + (d.ms(Date.now()).length > 2)"));
+      assertEquals("D:" + 1700000000000L, str("d.ms(1700000000000)"));
+      assertEquals("D:0", str("d.ms(-0)"));
+      assertEquals("D:9199999999999998976", str("d.ms(9.199999999999999e18)"));
+      // above 2^53 an integral double is still whole and converts exactly
+      assertEquals("D:" + (1L << 60), str("d.ms(Math.pow(2, 60))"));
       assertEquals("D:0", str("d.ms(new Date(0))"));
    }
 
@@ -236,6 +240,8 @@ class ScriptHostAccessNarrowNumberDateTest {
       refused("d.e(-Infinity)");
       refused("d.e(1.5)");
       refused("d.e(1e30)");
+      refused("d.e(9.2e18)");
+      refused("d.e(-9.2e18)");
    }
 
    @Test
@@ -278,6 +284,8 @@ class ScriptHostAccessNarrowNumberDateTest {
       assertEquals("VA", str("d.t('a', 'b')"));
       assertEquals("VA", str("d.t('2024-03-05', '2024-03-06')"));
       assertEquals("VA", str("d.t(1.5, 2.5)"));
+      // pinned: a Date with a non-number stays on String... (no loud error)
+      assertEquals("VA", str("d.t(new Date(0), 'x')"));
    }
 
    @Test
