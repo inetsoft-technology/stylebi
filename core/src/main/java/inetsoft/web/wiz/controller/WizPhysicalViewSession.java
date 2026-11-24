@@ -22,6 +22,7 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.XNode;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.erm.AutoAlias;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.uql.jdbc.JDBCDataSource;
@@ -407,6 +408,118 @@ final class WizPhysicalViewSession {
 
          // 6. joins
          applyJoins(plan);
+
+         // 7. auto aliases: each is derived from a join, so after the joins
+         applyAutoAliases(plan);
+         restoreKeptAutoAliases(start, plan);
+      }
+
+      /**
+       * A table whose auto aliases the request did not mention keeps them. The Portal drops an
+       * auto alias together with the last join it is derived from and restores it when the same
+       * pair is joined again in the same session; that memory is not something to rely on, so
+       * any kept auto alias that the runtime lost although its pair is still joined (the plan
+       * refuses the update otherwise) is set again from the stored view.
+       */
+      private void restoreKeptAutoAliases(View start, Plan plan) {
+         XPartition partition = runtimes.getPartition(id);
+
+         if(partition == null) {
+            throw expired();
+         }
+
+         Set<String> skip = new HashSet<>();
+         plan.autoAliasChanges.forEach(c -> skip.add(c.table()));
+         plan.removeTables.forEach(t -> skip.add(t.name()));
+         Map<String, String> oldToNew = new HashMap<>();
+         renamedFrom.forEach((now, was) -> oldToNew.put(was, now));
+
+         for(TableDef table : start.tables()) {
+            if(table.kind() != Kind.PLAIN || table.baseElement() || skip.contains(table.name()) ||
+               table.autoAliases() == null || table.autoAliases().isEmpty())
+            {
+               continue;
+            }
+
+            String name = translateName(table.name());
+            AutoAlias now = partition.getAutoAlias(name);
+            List<AutoAliasJoinModel> rows = new ArrayList<>();
+            boolean lost = false;
+
+            for(AutoAliasDef entry : table.autoAliases()) {
+               String from = translateName(oldToNew.getOrDefault(entry.from(), entry.from()));
+               lost = lost || !hasIncomingJoin(now, from);
+               AutoAliasJoinModel row = new AutoAliasJoinModel();
+               row.setForeignTable(from);
+               row.setAlias(entry.alias());
+               row.setKeepOutgoing(entry.keepOutgoing());
+               row.setPrefix(entry.keepOutgoing() ? entry.prefix() : null);
+               row.setSelected(true);
+               rows.add(row);
+            }
+
+            if(lost) {
+               PhysicalTableModel model = new PhysicalTableModel();
+               model.setName(name);
+               model.setQualifiedName(name);
+               model.setAutoAliases(rows);
+               model.setAutoAliasesEnabled(true);
+               manager.updateAutoAliasing(id, model);
+            }
+         }
+      }
+
+      private boolean hasIncomingJoin(AutoAlias autoAlias, String sourceTable) {
+         for(int i = 0; autoAlias != null && i < autoAlias.getIncomingJoinCount(); i++) {
+            if(sourceTable.equals(autoAlias.getIncomingJoin(i).getSourceTable())) {
+               return true;
+            }
+         }
+
+         return false;
+      }
+
+      /**
+       * Sets or clears the auto aliases of each changed table through the Portal's own service
+       * (the same call its Auto Alias dialog makes), whose rules carry over: it also forgets the
+       * incoming joins it remembered for a restore, so the set given here is the whole set.
+       */
+      private void applyAutoAliases(Plan plan) {
+         for(AutoAliasChange change : plan.autoAliasChanges) {
+            String table = translateName(change.table());
+            Set<String> own = new HashSet<>();
+            change.stored().forEach(a -> own.add(a.alias()));
+            List<AutoAliasJoinModel> rows = new ArrayList<>();
+
+            for(int i = 0; i < change.desired().size(); i++) {
+               AutoAliasDef entry = change.desired().get(i);
+
+               // an alias this table already holds is not a new name: the check would see the
+               // table's own auto alias as a duplicate
+               String message = own.contains(entry.alias()) ? null :
+                  manager.checkAliasValid(id, entry.alias(), null);
+
+               if(message != null) {
+                  throw invalid("tables[" + change.table() + "].autoAliases[" + i + "].alias",
+                                "AUTO_ALIAS_INVALID", message);
+               }
+
+               AutoAliasJoinModel row = new AutoAliasJoinModel();
+               row.setForeignTable(translateName(entry.from()));
+               row.setAlias(entry.alias());
+               row.setKeepOutgoing(entry.keepOutgoing());
+               row.setPrefix(entry.keepOutgoing() ? entry.prefix() : null);
+               row.setSelected(true);
+               rows.add(row);
+            }
+
+            PhysicalTableModel model = new PhysicalTableModel();
+            model.setName(table);
+            model.setQualifiedName(table);
+            model.setAutoAliases(rows);
+            model.setAutoAliasesEnabled(!rows.isEmpty());
+            manager.updateAutoAliasing(id, model);
+         }
       }
 
       private void applyMetadata(View want, Plan plan) {
@@ -771,10 +884,20 @@ final class WizPhysicalViewSession {
          List<TableDef> tables = new ArrayList<>();
 
          for(TableDef table : view.tables()) {
-            tables.add(new TableDef(
-               translateName(table.name()), table.kind(), table.schema(), table.catalog(),
-               table.aliasOf() == null ? null : translateName(table.aliasOf()), table.sql(),
-               table.oldName(), table.baseElement()));
+            List<AutoAliasDef> autoAliases = null;
+
+            if(table.autoAliases() != null) {
+               autoAliases = new ArrayList<>();
+
+               for(AutoAliasDef entry : table.autoAliases()) {
+                  autoAliases.add(new AutoAliasDef(translateName(entry.from()), entry.alias(),
+                                                   entry.keepOutgoing(), entry.prefix()));
+               }
+            }
+
+            tables.add(table.withNames(
+               translateName(table.name()),
+               table.aliasOf() == null ? null : translateName(table.aliasOf()), autoAliases));
          }
 
          List<JoinDef> joins = new ArrayList<>();

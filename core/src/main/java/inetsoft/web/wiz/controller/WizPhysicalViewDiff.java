@@ -32,7 +32,9 @@ import java.util.*;
  *
  * <p>Tables are keyed by the name the view references them by; joins by their unordered pair of
  * endpoints. {@code tables} and {@code joins} are complete lists: a stored element that the
- * submitted list lacks is removed, unless the list was not sent at all.</p>
+ * submitted list lacks is removed, unless the list was not sent at all. The auto aliases of a
+ * table follow the same rule one level down: a list replaces the table's set, an empty list
+ * clears it, an absent key keeps it.</p>
  */
 final class WizPhysicalViewDiff {
    private WizPhysicalViewDiff() {
@@ -44,6 +46,10 @@ final class WizPhysicalViewDiff {
 
    /** A join whose attributes change in place. */
    record JoinChange(JoinDef stored, JoinDef desired) {
+   }
+
+   /** The auto aliases of one table that an update sets (replaces) or clears. */
+   record AutoAliasChange(String table, List<AutoAliasDef> stored, List<AutoAliasDef> desired) {
    }
 
    /** The ordered operations of an update (or create) plus the metadata changes. */
@@ -61,6 +67,8 @@ final class WizPhysicalViewDiff {
       final List<TableDef> addAliases = new ArrayList<>();
       final List<JoinDef> addJoins = new ArrayList<>();
       final List<JoinChange> changeJoins = new ArrayList<>();
+      /** Applied last: an auto alias is derived from a join, so the joins come first. */
+      final List<AutoAliasChange> autoAliasChanges = new ArrayList<>();
       boolean descriptionChanged;
       boolean folderChanged;
       boolean connectionChanged;
@@ -68,7 +76,8 @@ final class WizPhysicalViewDiff {
       boolean structureEmpty() {
          return removeJoins.isEmpty() && removeTables.isEmpty() && renames.isEmpty() &&
             updateViews.isEmpty() && addPlain.isEmpty() && addViews.isEmpty() &&
-            addAliases.isEmpty() && addJoins.isEmpty() && changeJoins.isEmpty();
+            addAliases.isEmpty() && addJoins.isEmpty() && changeJoins.isEmpty() &&
+            autoAliasChanges.isEmpty();
       }
 
       boolean isEmpty() {
@@ -266,6 +275,12 @@ final class WizPhysicalViewDiff {
          planJoins(stored, want, creating, plan);
       }
 
+      planAutoAliases(stored, desired, creating, storedTables, wantTables, plan, errors);
+
+      if(!errors.isEmpty()) {
+         throw WizPhysicalViewMapper.invalid(errors);
+      }
+
       if(desired.hasDescription() && !Tool.equals(
          WizPhysicalViewMapper.blankToNull(want.description()),
          WizPhysicalViewMapper.blankToNull(stored.description())))
@@ -386,6 +401,164 @@ final class WizPhysicalViewDiff {
             plan.addJoins.add(wantJoins.get(old.key()));
          }
       }
+   }
+
+   /**
+    * Plans the auto aliases of every table and checks the final view's auto aliases against its
+    * final joins. The Portal checks none of this on the server (its dialog does), and the server
+    * silently drops an auto alias whose join is gone, so each rule is enforced here and named:
+    * only a plain table of the view's own can carry one (setting one on an alias table would
+    * delete that alias, an inherited table ignores it), it is derived for a table joined to it,
+    * its name collides with no table and no other auto alias, a prefix goes with keepOutgoing.
+    * An update that leaves a table's auto aliases unmentioned keeps them, so one that removes the
+    * last join (or table) they are derived from is refused instead of dropping them quietly.
+    */
+   private static void planAutoAliases(View stored, Desired desired, boolean creating,
+                                       Map<String, TableDef> storedTables,
+                                       Map<String, TableDef> wantTables, Plan plan,
+                                       List<Err> errors)
+   {
+      Set<String> removed = new HashSet<>();
+      plan.removeTables.forEach(t -> removed.add(t.name()));
+      Map<String, String> oldToNew = new HashMap<>();
+      plan.renamedFrom().forEach((now, was) -> oldToNew.put(was, now));
+      Set<String> pairs = joinedPairs(stored, desired, creating, wantTables, oldToNew);
+      Set<String> allNames = new HashSet<>(wantTables.keySet());
+      Map<String, String> aliasOwner = new HashMap<>();
+
+      for(TableDef now : wantTables.values()) {
+         TableDef old = storedTables.get(now.name());
+         boolean fresh = old == null || removed.contains(now.name());
+         List<AutoAliasDef> storedList = fresh ? List.of() :
+            canonical(old.autoAliases(), oldToNew);
+         boolean explicit = desired.hasTables() && now.autoAliases() != null;
+         List<AutoAliasDef> wanted = explicit ? canonical(now.autoAliases(), Map.of()) :
+            storedList;
+         // validated in the order the caller sent, so a path names the entry it sent
+         List<AutoAliasDef> listed = explicit ? now.autoAliases() : storedList;
+         String path = "tables[" + now.name() + "].autoAliases";
+
+         if(explicit && !sameAutoAliases(storedList, wanted)) {
+            if(old != null && old.baseElement() && !fresh) {
+               throw baseReadOnly(path);
+            }
+
+            if(now.kind() != Kind.PLAIN) {
+               errors.add(new Err(path, "auto aliases can be set only on a plain table of the " +
+                  "view; \"" + now.name() + "\" is " + (now.kind() == Kind.ALIAS ?
+                  "an alias table (setting one would delete the alias itself)" :
+                  "an inline view"), "AUTO_ALIAS_INVALID"));
+               continue;
+            }
+
+            plan.autoAliasChanges.add(new AutoAliasChange(now.name(), storedList, wanted));
+         }
+
+         Set<String> froms = new HashSet<>();
+
+         for(int i = 0; i < listed.size(); i++) {
+            AutoAliasDef entry = listed.get(i);
+            String entryPath = path + "[" + i + "]";
+
+            if(!froms.add(entry.from())) {
+               errors.add(new Err(entryPath + ".from", "table \"" + entry.from() +
+                  "\" is listed twice; a table has one auto alias per joined table",
+                  "AUTO_ALIAS_INVALID"));
+            }
+
+            if(entry.from().equals(now.name())) {
+               errors.add(new Err(entryPath + ".from", "an auto alias is derived for another " +
+                  "table joined to \"" + now.name() + "\", not for itself", "AUTO_ALIAS_INVALID"));
+            }
+            else if(!wantTables.containsKey(entry.from())) {
+               errors.add(new Err(entryPath + ".from", explicit ?
+                  "no table named \"" + entry.from() + "\" in this view" :
+                  "the update removes table \"" + entry.from() + "\", which the auto alias \"" +
+                     entry.alias() + "\" of \"" + now.name() + "\" is derived for; send " +
+                     path + " without it (or [] to remove them all) to confirm",
+                  explicit ? "AUTO_ALIAS_INVALID" : "AUTO_ALIAS_DROPPED"));
+            }
+            else if(!pairs.contains(pairKey(now.name(), entry.from()))) {
+               errors.add(new Err(entryPath + ".from", explicit ?
+                  "no join between \"" + now.name() + "\" and \"" + entry.from() + "\" in the " +
+                     "view; an auto alias is derived from a join" :
+                  "the update removes the last join between \"" + now.name() + "\" and \"" +
+                     entry.from() + "\", which drops the auto alias \"" + entry.alias() +
+                     "\"; send " + path + " without it (or [] to remove them all) to confirm, " +
+                     "or keep the join", explicit ? "AUTO_ALIAS_INVALID" : "AUTO_ALIAS_DROPPED"));
+            }
+
+            if(allNames.contains(entry.alias())) {
+               errors.add(new Err(entryPath + ".alias", "the alias \"" + entry.alias() +
+                  "\" is already the name of a table of the view", "AUTO_ALIAS_INVALID"));
+            }
+            else {
+               String other = aliasOwner.put(entry.alias(), entryPath);
+
+               if(other != null) {
+                  errors.add(new Err(entryPath + ".alias", "the alias \"" + entry.alias() +
+                     "\" is used by another auto alias (" + other +
+                     "); alias names are unique in a view", "AUTO_ALIAS_INVALID"));
+               }
+            }
+         }
+      }
+   }
+
+   /** The unordered table pairs the final view joins. */
+   private static Set<String> joinedPairs(View stored, Desired desired, boolean creating,
+                                          Map<String, TableDef> wantTables,
+                                          Map<String, String> oldToNew)
+   {
+      Set<String> pairs = new HashSet<>();
+
+      if(desired.hasJoins()) {
+         desired.view().joins().forEach(j -> pairs.add(pairKey(j.fromTable(), j.toTable())));
+
+         if(creating) {
+            stored.joins().stream().filter(JoinDef::baseElement)
+               .forEach(j -> pairs.add(pairKey(j.fromTable(), j.toTable())));
+         }
+      }
+      else {
+         for(JoinDef join : stored.joins()) {
+            String from = oldToNew.getOrDefault(join.fromTable(), join.fromTable());
+            String to = oldToNew.getOrDefault(join.toTable(), join.toTable());
+
+            if(wantTables.containsKey(from) && wantTables.containsKey(to)) {
+               pairs.add(pairKey(from, to));
+            }
+         }
+      }
+
+      return pairs;
+   }
+
+   private static String pairKey(String a, String b) {
+      return a.compareTo(b) <= 0 ? a + "\u0001" + b : b + "\u0001" + a;
+   }
+
+   /**
+    * The comparable form of a list of auto aliases: unused prefixes dropped, sorted by the table
+    * they are derived for, {@code from} mapped through the renames of the same plan.
+    */
+   static List<AutoAliasDef> canonical(List<AutoAliasDef> list, Map<String, String> renamed) {
+      List<AutoAliasDef> result = new ArrayList<>();
+
+      if(list != null) {
+         for(AutoAliasDef entry : list) {
+            result.add(new AutoAliasDef(renamed.getOrDefault(entry.from(), entry.from()),
+                                        entry.alias(), entry.keepOutgoing(),
+                                        entry.prefix()).canonical());
+         }
+      }
+
+      result.sort(Comparator.comparing(AutoAliasDef::from));
+      return result;
+   }
+
+   static boolean sameAutoAliases(List<AutoAliasDef> a, List<AutoAliasDef> b) {
+      return canonical(a, Map.of()).equals(canonical(b, Map.of()));
    }
 
    /** Whether every specified attribute of the desired join equals the stored one. */
@@ -580,6 +753,12 @@ final class WizPhysicalViewDiff {
 
             if(!sameTable(now, table, true)) {
                return "tables[" + table.name() + "]";
+            }
+
+            if(table.autoAliases() != null &&
+               !sameAutoAliases(now.autoAliases(), table.autoAliases()))
+            {
+               return "tables[" + table.name() + "].autoAliases";
             }
          }
 
