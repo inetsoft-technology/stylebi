@@ -17,15 +17,19 @@
  */
 package inetsoft.web.wiz.controller;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 
 import java.io.IOException;
 
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -151,11 +155,77 @@ public final class WizLogicalModelWire {
    }
 
    /**
-    * A drill path's worksheet sub-query: the worksheet entry as its identifier string (it
-    * round-trips exactly) and the parameter bindings.
+    * A drill path's worksheet sub-query: the worksheet entry and the parameter bindings.
+    *
+    * <p>A request names the worksheet by {@code entry}: its asset identifier, the
+    * {@code ws:<scope>:<path>} runQuery string, or the {@code {path, scope}} object the
+    * worksheet list returns as {@code attach} (kept in {@link #attach}, resolved by the
+    * validator because a user-scope worksheet is the caller's own). The validator rewrites the
+    * entry to the asset identifier and clears {@code attach}, so a stored model and a response
+    * only ever carry the identifier string.</p>
     */
    @JsonIgnoreProperties(ignoreUnknown = false)
-   public record DrillQuery(String entry, List<DrillQueryParam> params) {
+   public record DrillQuery(String entry,
+                            @JsonInclude(JsonInclude.Include.NON_NULL) WorksheetAttach attach,
+                            List<DrillQueryParam> params)
+   {
+      public DrillQuery(String entry, List<DrillQueryParam> params) {
+         this(entry, null, params);
+      }
+
+      @JsonCreator
+      static DrillQuery fromJson(@JsonProperty("entry") JsonNode entry,
+                                 @JsonProperty("attach") JsonNode attach,
+                                 @JsonProperty("params") List<DrillQueryParam> params)
+      {
+         if(attach != null && !attach.isNull()) {
+            throw new IllegalArgumentException(
+               "query.attach is not a field; give the {path, scope} object as query.entry");
+         }
+
+         if(entry == null || entry.isNull()) {
+            return new DrillQuery(null, null, params);
+         }
+
+         if(entry.isTextual()) {
+            return new DrillQuery(entry.textValue(), null, params);
+         }
+
+         if(entry.isObject()) {
+            JsonNode path = entry.get("path");
+            JsonNode scope = entry.get("scope");
+            Iterator<String> keys = entry.fieldNames();
+
+            while(keys.hasNext()) {
+               String key = keys.next();
+
+               if(!"path".equals(key) && !"scope".equals(key)) {
+                  throw new IllegalArgumentException(
+                     "query.entry: the object form takes only \"path\" and \"scope\", not \"" +
+                        key + "\"");
+               }
+            }
+
+            if(path == null || !path.isTextual() || path.textValue().isBlank() ||
+               scope == null || !scope.isTextual())
+            {
+               throw new IllegalArgumentException(
+                  "query.entry: the object form is {\"path\": <worksheet path>, \"scope\": " +
+                     "\"global\" or \"user\"}");
+            }
+
+            return new DrillQuery(null, new WorksheetAttach(path.textValue(), scope.textValue()),
+                                  params);
+         }
+
+         throw new IllegalArgumentException(
+            "query.entry must be a string (an asset identifier or a ws:<scope>:<path> string) " +
+               "or a {path, scope} object");
+      }
+   }
+
+   /** A worksheet named by its repository path and scope ({@code global} or {@code user}). */
+   public record WorksheetAttach(String path, String scope) {
    }
 
    @JsonIgnoreProperties(ignoreUnknown = false)

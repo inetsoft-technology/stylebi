@@ -17,9 +17,11 @@
  */
 package inetsoft.web.wiz.controller;
 
+import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.DrillPath;
 import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.sqlparser.SQLLexer;
@@ -94,6 +96,16 @@ final class WizLogicalModelValidator {
        */
       default String resolveViewsheet(String link) {
          return link;
+      }
+
+      /** The caller, the owner of a user-scope worksheet; {@code null} when not known. */
+      default IdentityID caller() {
+         return null;
+      }
+
+      /** Whether the worksheet {@code entry} exists and the caller may read it. */
+      default boolean worksheetReadable(AssetEntry entry) {
+         return true;
       }
    }
 
@@ -774,27 +786,166 @@ final class WizLogicalModelValidator {
                    DRILL_INVALID);
             }
 
-            if(drillPath.query() != null) {
-               AssetEntry entry = null;
-
-               try {
-                  entry = blank(drillPath.query().entry()) ? null :
-                     AssetEntry.createAssetEntry(drillPath.query().entry());
-               }
-               catch(RuntimeException e) {
-                  // reported below
-               }
-
-               if(entry == null) {
-                  add(ppath + ".query.entry", "the worksheet entry identifier cannot be read",
-                      DRILL_INVALID);
-               }
-            }
-
-            resolved.add(resolveViewsheetLink(drillPath, ppath, storedAttribute));
+            resolved.add(resolveQuery(resolveViewsheetLink(drillPath, ppath, storedAttribute),
+                                      ppath, storedAttribute));
          }
 
          return new Drill(resolved);
+      }
+
+      private static final String QUERY_ENTRY_FORMS =
+         "give the worksheet as its asset identifier, as a ws:global:<path> or " +
+         "ws:<user>:<path> string, or as the {\"path\", \"scope\"} object the worksheet " +
+         "list returns as attach";
+
+      /**
+       * A drill's worksheet query is stored by the asset identifier of the worksheet, as the
+       * Portal stores the one picked from the worksheet tree: a runQuery string or an attach
+       * object is resolved to it, so what is written is what is stored, and a worksheet that does
+       * not exist (or the caller cannot read) is refused. A stored query left as it is is not
+       * looked at again, so a model whose worksheet was deleted later can still be edited
+       * elsewhere.
+       */
+      private WizLogicalModelWire.DrillPath resolveQuery(
+         WizLogicalModelWire.DrillPath drillPath, String ppath, XAttribute storedAttribute)
+      {
+         DrillQuery query = drillPath.query();
+
+         if(query == null) {
+            return drillPath;
+         }
+
+         String field = ppath + ".query.entry";
+         AssetEntry entry = queryEntry(query, field);
+
+         if(entry == null) {
+            return drillPath;
+         }
+
+         String identifier = entry.toIdentifier();
+
+         if(!storedQueryEntry(storedAttribute, drillPath, identifier) &&
+            !env.worksheetReadable(entry))
+         {
+            add(field, "the worksheet \"" + entry.getPath() + "\" does not exist or cannot be " +
+               "read; a drill query must name an existing worksheet (" + QUERY_ENTRY_FORMS + ")",
+               DRILL_INVALID);
+            return drillPath;
+         }
+
+         return new WizLogicalModelWire.DrillPath(
+            drillPath.name(), drillPath.linkType(), drillPath.link(), drillPath.targetFrame(),
+            drillPath.tip(), drillPath.passParams(), drillPath.disablePrompting(),
+            drillPath.params(), new DrillQuery(identifier, null, query.params()),
+            drillPath.queryFields());
+      }
+
+      /** The worksheet entry the query names, {@code null} (and an error added) when none. */
+      private AssetEntry queryEntry(DrillQuery query, String field) {
+         AssetEntry entry;
+
+         if(query.attach() != null) {
+            entry = attachEntry(query.attach(), field);
+
+            if(entry == null) {
+               return null;
+            }
+         }
+         else if(blank(query.entry())) {
+            add(field, "the worksheet of a drill query is needed (" + QUERY_ENTRY_FORMS + ")",
+                DRILL_INVALID);
+            return null;
+         }
+         else {
+            try {
+               entry = AssetEntry.createAssetEntry(query.entry());
+            }
+            catch(RuntimeException e) {
+               entry = null;
+            }
+
+            if(entry == null) {
+               add(field, "\"" + query.entry() + "\" is not a worksheet entry (" +
+                  QUERY_ENTRY_FORMS + ")", DRILL_INVALID);
+               return null;
+            }
+         }
+
+         if(entry.getType() != AssetEntry.Type.WORKSHEET) {
+            add(field, "the entry \"" + entry.getPath() + "\" is not a worksheet (" +
+               QUERY_ENTRY_FORMS + ")", DRILL_INVALID);
+            return null;
+         }
+
+         if(entry.getScope() != AssetRepository.GLOBAL_SCOPE &&
+            entry.getScope() != AssetRepository.USER_SCOPE)
+         {
+            add(field, "the worksheet must be in the global or the user scope (" +
+               QUERY_ENTRY_FORMS + ")", DRILL_INVALID);
+            return null;
+         }
+
+         if(!blank(entry.getProperty("table.name"))) {
+            add(field, "a table of the worksheet cannot be stored in a drill query; name the " +
+               "worksheet without the :" + entry.getProperty("table.name") + " table segment",
+               DRILL_INVALID);
+            return null;
+         }
+
+         return entry;
+      }
+
+      private AssetEntry attachEntry(WizLogicalModelWire.WorksheetAttach attach, String field) {
+         String scope = attach.scope() == null ? "" : attach.scope().trim().toLowerCase();
+
+         if(scope.equals("global")) {
+            return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                  attach.path(), null);
+         }
+
+         if(scope.equals("user")) {
+            IdentityID caller = env.caller();
+
+            if(caller == null) {
+               add(field, "a user-scope worksheet cannot be resolved without the caller (" +
+                  QUERY_ENTRY_FORMS + ")", DRILL_INVALID);
+               return null;
+            }
+
+            return new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.WORKSHEET,
+                                  attach.path(), caller);
+         }
+
+         add(field, "the scope \"" + attach.scope() + "\" must be \"global\" or \"user\"",
+             DRILL_INVALID);
+         return null;
+      }
+
+      /** Whether the stored attribute already has this drill path with this worksheet. */
+      private boolean storedQueryEntry(XAttribute storedAttribute,
+                                       WizLogicalModelWire.DrillPath drillPath, String identifier)
+      {
+         if(mode != Mode.UPDATE || storedAttribute == null ||
+            storedAttribute.getXMetaInfo() == null ||
+            storedAttribute.getXMetaInfo().getXDrillInfo() == null)
+         {
+            return false;
+         }
+
+         Enumeration<?> paths = storedAttribute.getXMetaInfo().getXDrillInfo().getDrillPaths();
+
+         while(paths.hasMoreElements()) {
+            DrillPath stored = (DrillPath) paths.nextElement();
+
+            if(Tool.equals(stored.getName(), drillPath.name()) && stored.getQuery() != null &&
+               stored.getQuery().getWsEntry() != null &&
+               identifier.equals(stored.getQuery().getWsEntry().toIdentifier()))
+            {
+               return true;
+            }
+         }
+
+         return false;
       }
 
       /**
