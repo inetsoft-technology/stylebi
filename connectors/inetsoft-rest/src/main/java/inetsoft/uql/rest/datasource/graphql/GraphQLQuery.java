@@ -86,7 +86,7 @@ import java.util.*;
    @View1(value = "expandedPath", visibleMethod = "isExpandedPathEnabled"),
    @View1(value = "timeout"),
 })
-public class GraphQLQuery extends RestJsonQuery {
+public class GraphQLQuery extends RestJsonQuery implements DerivedRequestBodyQuery {
    public GraphQLQuery() {
       super(GraphQLDataSource.TYPE);
       setJsonPath("$");

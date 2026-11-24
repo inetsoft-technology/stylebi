@@ -18,6 +18,7 @@
 
 package inetsoft.web.wiz.service;
 
+import inetsoft.uql.tabular.DerivedRequestBodyQuery;
 import inetsoft.uql.tabular.PropertyMeta;
 import inetsoft.uql.tabular.TabularQuery;
 import inetsoft.uql.tabular.TabularQuerySchema;
@@ -184,7 +185,25 @@ public final class TabularQueryContractSupport {
       List<String> order = topologicalSort(queryParams.keySet(), schema, dsName);
       List<String> applied = new ArrayList<>();
 
+      // A GraphQL query is POST-only in practice (monday.com answers a GET with 404), so a caller
+      // that did not name requestType gets POST here. Only this path defaults it: GET stays a
+      // valid mode when asked for, and the connector's own constructor default is left alone.
+      PropertyMeta defaultTypeProp = pmap.get("requestType");
+
+      if(query instanceof DerivedRequestBodyQuery && defaultTypeProp != null &&
+         defaultTypeProp.getDescriptor().getWriteMethod() != null &&
+         isBlank(queryParams.get("requestType")))
+      {
+         invokeWriteMethod(defaultTypeProp, query, "POST");
+      }
+
       for(String name : order) {
+         if(query instanceof DerivedRequestBodyQuery && "requestType".equals(name) &&
+            isBlank(queryParams.get(name)))
+         {
+            continue;
+         }
+
          TabularQuerySchema.Param param = schema.getParam(name);
          PropertyMeta prop = pmap.get(name);
          Object value = canonicalStaticTag(param, name, queryParams.get(name), dsName);
@@ -270,7 +289,9 @@ public final class TabularQueryContractSupport {
                "body comes from a template that only the connector's own dialog populates.");
          }
 
-         if(!hasPlainRequestBody(pmap.get("requestBody"))) {
+         if(!(query instanceof DerivedRequestBodyQuery) &&
+            !hasPlainRequestBody(pmap.get("requestBody")))
+         {
             throw new IllegalArgumentException(
                subject + " is a POST query whose request body is built from other properties of " +
                "the query rather than set directly, which cannot be created this way yet.");
@@ -278,6 +299,10 @@ public final class TabularQueryContractSupport {
       }
 
       return String.join(", ", applied);
+   }
+
+   private static boolean isBlank(Object value) {
+      return value == null || text(value).isBlank();
    }
 
    private static final Set<String> STATIC_TAG_PARAMS = Set.of("requestType", "contentType");
