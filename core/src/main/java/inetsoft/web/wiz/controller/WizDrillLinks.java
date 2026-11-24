@@ -17,8 +17,12 @@
  */
 package inetsoft.web.wiz.controller;
 
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.util.MessageException;
 import inetsoft.web.wiz.viewsheet.AssemblyHyperlinkService;
 
 import java.security.Principal;
@@ -28,7 +32,8 @@ import java.security.Principal;
  * identifier the runtime opens it by. The Portal stores the identifier a user picked from the
  * repository tree; a drill whose link is a plain path cannot be opened by the viewer, so the
  * data model bridge resolves a path the same way {@code set_hyperlink} does and stores the
- * identifier.
+ * identifier. It also answers what the validator needs to resolve the worksheet of a drill's
+ * query selection.
  */
 final class WizDrillLinks {
    private WizDrillLinks() {
@@ -55,5 +60,58 @@ final class WizDrillLinks {
          throw new IllegalStateException("The viewsheet \"" + link + "\" could not be checked: " +
                                             e.getMessage(), e);
       }
+   }
+
+   /**
+    * What the validator asks of the repository to resolve the worksheet a drill query names: who
+    * the caller is (the owner of a user-scope worksheet) and whether a worksheet exists and may
+    * be read by the caller.
+    */
+   interface Worksheets {
+      IdentityID caller();
+
+      boolean readable(AssetEntry entry);
+   }
+
+   /** The repository's answers for {@code principal}. */
+   static Worksheets worksheets(Principal principal) {
+      return new Worksheets() {
+         @Override
+         public IdentityID caller() {
+            return IdentityID.getIdentityIDFromKey(principal.getName());
+         }
+
+         @Override
+         public boolean readable(AssetEntry entry) {
+            try {
+               AssetRepository repository = AssetUtil.getAssetRepository(false);
+
+               // another user's private worksheet counts as unreadable for every caller, as the
+               // viewsheet drill link does
+               if(entry.getScope() == AssetRepository.USER_SCOPE &&
+                  !caller().equals(entry.getUser()))
+               {
+                  return false;
+               }
+
+               if(!repository.containsEntry(entry)) {
+                  return false;
+               }
+
+               repository.checkAssetPermission(principal, entry, ResourceAction.READ, true);
+               return true;
+            }
+            catch(MessageException e) {
+               return false;
+            }
+            catch(RuntimeException e) {
+               throw e;
+            }
+            catch(Exception e) {
+               throw new IllegalStateException("The worksheet \"" + entry.getPath() +
+                                                  "\" could not be checked: " + e.getMessage(), e);
+            }
+         }
+      };
    }
 }

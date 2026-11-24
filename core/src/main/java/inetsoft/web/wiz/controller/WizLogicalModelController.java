@@ -174,7 +174,8 @@ public class WizLogicalModelController {
          false);
       WizLogicalModelValidator.Result result = validator.validate(
          new WizLogicalModelEnv(database, dataModel, dataSourceService,
-                                link -> WizDrillLinks.resolve(link, principal)), definition,
+                                link -> WizDrillLinks.resolve(link, principal),
+                                WizDrillLinks.worksheets(principal)), definition,
          WizLogicalModelValidator.Mode.CREATE, null,
          baseModel == null ? null :
             new WizLogicalModelValidator.Extended(baseModel, baseWire, false));
@@ -318,7 +319,8 @@ public class WizLogicalModelController {
       }
       WizLogicalModelValidator.Result result = validator.validate(
          new WizLogicalModelEnv(database, dataModel, dataSourceService,
-                                link -> WizDrillLinks.resolve(link, principal)), submitted,
+                                link -> WizDrillLinks.resolve(link, principal),
+                                WizDrillLinks.worksheets(principal)), submitted,
          WizLogicalModelValidator.Mode.UPDATE, stored,
          baseModel == null ? null : new WizLogicalModelValidator.Extended(
             baseModel, inheritedOnly(currentWire), true));
