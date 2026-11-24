@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.geom.*;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -445,7 +446,7 @@ public class FreeHelper extends LabelHelper {
       Point2D center1 = getCenter();
       Point2D center2 = helper.getCenter();
       VLabel label = getLabel();
-      double shake = Math.random() * 0.01;
+      double shake = getRandom().nextDouble() * 0.01;
 
       // randomize the overlapped position so we don't move two overlapped text
       // in the same direction together. For example, if t1 and t2 both are
@@ -462,6 +463,24 @@ public class FreeHelper extends LabelHelper {
          Point2D pos = label.getPosition();
          label.setPosition(new Point2D.Double(pos.getX(), pos.getY() - shake));
       }
+   }
+
+   /**
+    * Set the random sequence used to separate overlapping labels. TextLayoutManager gives every
+    * helper of a layout the same instance, so the offsets stay distinct across labels and the
+    * layout is the same on every render.
+    */
+   public void setRandom(Random random) {
+      this.random = random;
+   }
+
+   private Random getRandom() {
+      // fallback for a helper built outside TextLayoutManager, still deterministic
+      if(random == null) {
+         random = new Random(0);
+      }
+
+      return random;
    }
 
    @Override
@@ -540,6 +559,7 @@ public class FreeHelper extends LabelHelper {
    private final boolean maxStepsFromProperty;
    private boolean inPlot = true;
    private boolean outside = false;
+   private Random random;
    private int sameLocDir = 3; // direction (down) to move if two labels fall on exact same point
 
    private static final Set<String> loggedBadMaxSteps = ConcurrentHashMap.newKeySet();
