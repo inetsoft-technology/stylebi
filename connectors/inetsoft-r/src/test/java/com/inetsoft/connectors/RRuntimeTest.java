@@ -144,8 +144,8 @@ class RRuntimeTest {
          assertThrows(RuntimeException.class, () -> RRuntime.transferTable(connection, "budget_wide"));
       }
 
-      assertEquals(
-         "write.csv(budget_wide, '" + command[0].split("'")[1] +
-         "', row.names = FALSE, na = \"\")", command[0]);
+      assertTrue(command[0].matches(
+         "write\.csv\(budget_wide, 'inetsoft-[0-9a-f-]+\.csv', row\.names = FALSE, na = \"\"\)"),
+         command[0]);
    }
 }
