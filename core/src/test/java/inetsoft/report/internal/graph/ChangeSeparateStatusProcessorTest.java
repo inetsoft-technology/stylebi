@@ -247,10 +247,9 @@ class ChangeSeparateStatusProcessorTest {
     * descriptors of the fields back into the shape and size legends).
     */
    @Test
-   @Disabled("Not filed (in the code since the initial import, nobody reported it): switching to "
-      + "multiple styles gives the shape and size fields a clone of the COLOR legend descriptor "
-      + "(legends.getColorLegendDescriptor() in all three branches); the other direction reads "
-      + "the shape and size descriptors back into the shape and size legends")
+   @Disabled("Bug #81993: switching to multiple styles gives the shape and size fields a clone of "
+      + "the COLOR legend descriptor (legends.getColorLegendDescriptor() in all three branches); "
+      + "reported fixed in PR #2819 on epic-test-coverage, still present on main")
    void multiStylesCopiesTheShapeAndSizeLegendsToTheirOwnFields() {
       LegendsDescriptor legends = cdesc.getLegendsDescriptor();
       LegendDescriptor colorLegend = new LegendDescriptor();
