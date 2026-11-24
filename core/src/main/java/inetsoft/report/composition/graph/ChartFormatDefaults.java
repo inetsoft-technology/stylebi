@@ -407,6 +407,11 @@ public final class ChartFormatDefaults {
          ccf.setParentParams(parentParams);
          VSChartPaletteDefaults.applyModernPalette(ccf, ctx);
       }
+      // the wrapper rebuilds this frame, with the classic default, whenever it is opened or
+      // edited, and the seeding only runs on a transition, so the fallback is set every render
+      else if(ref.getVisualFrame() instanceof ColorValueColorFrame) {
+         VSChartPaletteDefaults.applyModernPalette((ColorValueColorFrame) ref.getVisualFrame(), ctx);
+      }
       else if(ref.getVisualFrame() instanceof GradientColorFrame) {
          ((GradientColorFrame) ref.getVisualFrame()).setParentParams(parentParams);
       }

@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.graph.aesthetic.ColorValueColorFrame;
 import inetsoft.graph.aesthetic.LinearColorFrame;
 import inetsoft.graph.aesthetic.TealColorFrame;
 import inetsoft.sree.security.OrganizationManager;
@@ -172,6 +173,17 @@ public final class VSChartPaletteDefaults {
    public static void applyModernPalette(CategoricalColorFrame frame, VizContext ctx) {
       if(frame != null && ctx.modern) {
          frame.setDefaultColors(activePalette(ctx));
+      }
+   }
+
+   /**
+    * The fallback of a "use column values as colors" frame, for a value that is not a color, is
+    * the first slot of a modern chart's palette. Like the categorical overload, it acts only on a
+    * modern chart; a classic chart keeps the frame's own default.
+    */
+   public static void applyModernPalette(ColorValueColorFrame frame, VizContext ctx) {
+      if(frame != null && ctx.modern) {
+         frame.setDefaultColor(activePalette(ctx)[0]);
       }
    }
 

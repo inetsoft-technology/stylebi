@@ -420,7 +420,9 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          // palette have to go or they keep rendering for the rest of the session
          ccf.clearDerivedColors();
       }
-      // "use column values as colors": a value that is not a color falls back to the first slot
+      // "use column values as colors": a value that is not a color falls back to the first slot.
+      // The frame is not saved, so a reopened chart gets the fallback from ChartFormatDefaults
+      // at render; this keeps it right in the session, and puts the classic one back on a Revert
       else if(ref != null && ref.getVisualFrame() instanceof ColorValueColorFrame) {
          ((ColorValueColorFrame) ref.getVisualFrame()).setDefaultColor(
             VSChartPaletteDefaults.seedPalette(ctx)[0]);
