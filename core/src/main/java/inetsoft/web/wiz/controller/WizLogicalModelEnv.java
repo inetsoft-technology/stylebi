@@ -38,9 +38,25 @@ import java.util.Map;
  */
 final class WizLogicalModelEnv implements WizLogicalModelValidator.Env {
    WizLogicalModelEnv(String database, XDataModel dataModel, DataSourceService dataSourceService) {
+      this(database, dataModel, dataSourceService, link -> link);
+   }
+
+   /**
+    * @param viewsheets resolves a viewsheet drill link to its asset identifier, {@code null} when
+    *                   no readable viewsheet is named
+    */
+   WizLogicalModelEnv(String database, XDataModel dataModel, DataSourceService dataSourceService,
+                      java.util.function.UnaryOperator<String> viewsheets)
+   {
       this.database = database;
       this.dataModel = dataModel;
       this.dataSourceService = dataSourceService;
+      this.viewsheets = viewsheets;
+   }
+
+   @Override
+   public String resolveViewsheet(String link) {
+      return viewsheets.apply(link);
    }
 
    @Override
@@ -124,4 +140,5 @@ final class WizLogicalModelEnv implements WizLogicalModelValidator.Env {
    private final String database;
    private final XDataModel dataModel;
    private final DataSourceService dataSourceService;
+   private final java.util.function.UnaryOperator<String> viewsheets;
 }
