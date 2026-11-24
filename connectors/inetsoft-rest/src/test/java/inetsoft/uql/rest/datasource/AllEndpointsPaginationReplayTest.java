@@ -46,11 +46,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("core")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AllEndpointsPaginationReplayTest {
-   /**
-    * OFFSET paging that starts at offset 1 instead of 0: ServiceNow #80276.
-    */
-   private static final Set<String> OFFSET_STARTS_AT_ONE = Set.of("ServiceNowQuery");
-
    /** OFFSET paging that never ends at an empty page; none since Bug #81958 and #81879. */
    private static final Set<String> NEVER_ENDS = Set.of();
 
@@ -122,7 +117,7 @@ class AllEndpointsPaginationReplayTest {
             DataSourceFiller.fillUrl(query.getDataSource());
             skipped.addAll(DataSourceFiller.fill(query.getDataSource(), Set.of()));
             String where = simple + "/" + name;
-            boolean checkOffsets = offsetValues || !OFFSET_STARTS_AT_ONE.contains(simple);
+            boolean checkOffsets = offsetValues;
 
             try {
                PaginationReplay.Result result = PaginationReplay.run(
@@ -176,30 +171,12 @@ class AllEndpointsPaginationReplayTest {
                  "their tests: " + stale);
    }
 
-   // An exemption must go when its bug is fixed, otherwise the sweep stays blind to the source.
-   // This runs after the full sweep: replaying the failing OFFSET sources first slows it down.
+   // OFFSET paging is zero-based for every connector: the first record is at offset 0.
+   // This runs after the full sweep: replaying every OFFSET source with value checks is slower.
    @Test
    @Order(2)
-   void offsetStartsAtOneExemptionsAreStillNeeded() throws Exception {
-      Set<String> failing = new TreeSet<>();
-
-      for(String problem : sweep(true, OFFSET_STARTS_AT_ONE)) {
-         int slash = problem.indexOf('/');
-         assertTrue(slash > 0, "unexpected problem format, no 'source/endpoint' prefix: " + problem);
-         failing.add(problem.substring(0, slash));
-      }
-
-      Set<String> stale = new TreeSet<>(OFFSET_STARTS_AT_ONE);
-      stale.removeAll(failing);
-      assertTrue(stale.isEmpty(), "OFFSET paging is now zero-based, remove from " +
-                 "OFFSET_STARTS_AT_ONE and enable offsetPagingStartsAtZero: " + stale);
-   }
-
-   // OFFSET paging is zero-based here: the first record is at offset 0
-   @Test
-   @Disabled("Bug #82126 (HubSpot), #82127 (ServiceNow), #82124 (TeamDesk): OFFSET paging starts at offset 1 and skips the first record; already fixed in 13.8 as #81836, #80276, #81880, not yet in 2.1.0, enable when the fix reaches main")
    void offsetPagingStartsAtZero() throws Exception {
-      List<String> problems = sweep(true, OFFSET_STARTS_AT_ONE);
+      List<String> problems = sweep(true, null);
       assertTrue(problems.isEmpty(), problems.size() + " problem(s):\n" +
                  String.join("\n", problems));
    }
