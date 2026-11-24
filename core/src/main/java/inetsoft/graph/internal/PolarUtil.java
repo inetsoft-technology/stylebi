@@ -32,6 +32,7 @@ import java.awt.font.FontRenderContext;
 import java.awt.font.GlyphVector;
 import java.awt.geom.*;
 import java.util.List;
+import java.util.function.ToDoubleFunction;
 
 /**
  * Common functions for pie.
@@ -340,7 +341,7 @@ public class PolarUtil {
       double max = start + extent / 2 + Math.PI / 90; // allow slight out of bounds?
       FontMetrics fm = g.getFontMetrics();
       radius -= fm.getDescent();
-      final double scaleX = 1.1;
+      final double scaleX = ARC_SCALE_X;
       double stringWidth = fm.stringWidth(content) * scaleX;
       double stringRadian = stringWidth / radius;
       Font font = g.getFont();
@@ -394,6 +395,48 @@ public class PolarUtil {
       }
    }
 
+   /**
+    * Get the text drawString fits on an arc: the text itself if it fits the extent, else its
+    * longest head that fits followed by an ellipsis.
+    * @param g the graphics the text is drawn on, with the text font set.
+    * @param extent range of angles the text must fit in.
+    * @param radius the radius passed to drawString.
+    * @return the text to draw, or null if not one character fits with the ellipsis.
+    */
+   public static String fitString(Graphics2D g, double extent, double radius, String content) {
+      // measured as drawString lays the glyphs out
+      FontMetrics fm = g.getFontMetrics();
+      double room = extent * (radius - fm.getDescent());
+      return fitText(content, room, s -> fm.stringWidth(s) * ARC_SCALE_X);
+   }
+
+   /**
+    * Get the text if it fits the room, else its longest head that fits followed by an
+    * ellipsis.
+    * @param width the width of a string as it is drawn.
+    * @return the text to draw, or null if not one character fits with the ellipsis.
+    */
+   public static String fitText(String text, double room, ToDoubleFunction<String> width) {
+      if(width.applyAsDouble(text) <= room) {
+         return text;
+      }
+
+      for(int n = text.length() - 1; n > 0; n--) {
+         // keep a surrogate pair whole
+         if(Character.isHighSurrogate(text.charAt(n - 1))) {
+            continue;
+         }
+
+         String cut = text.substring(0, n) + ELLIPSIS;
+
+         if(width.applyAsDouble(cut) <= room) {
+            return cut;
+         }
+      }
+
+      return null;
+   }
+
    private static Point2D calculatePoint(Point2D center, double radius, double radian) {
       Point2D.Double point = new Point2D.Double();
       point.x = center.getX() + Math.cos(radian) * radius;
@@ -444,4 +487,7 @@ public class PolarUtil {
    }
 
    private static final int MIN_RADIUS = 20;
+   // glyph spacing of text drawn on an arc
+   private static final double ARC_SCALE_X = 1.1;
+   private static final String ELLIPSIS = "…";
 }
