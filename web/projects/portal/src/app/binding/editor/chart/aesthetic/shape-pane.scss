@@ -159,3 +159,7 @@ button.sp-btn.dropdown-toggle {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.sp-categorical {
+  width: min(352px, calc(100vw - 44px));
+}
