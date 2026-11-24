@@ -54,7 +54,7 @@ class ClusterChangePlanServiceTest {
    private MockedStatic<Tool> tool;
 
    @BeforeEach void setUp() {
-      service = new ClusterChangePlanService(clusterService, () -> client);
+      service = new ClusterChangePlanService(clusterService, clientsOf(client));
       lenient().when(clusterService.getClusterEnabled())
          .thenReturn(ClusterEnabledModel.builder().enabled(true).pauseEnabled(true).build());
       tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
@@ -307,5 +307,14 @@ class ClusterChangePlanServiceTest {
       req.setTask(task);
       req.setChanges(changes);
       return req;
+   }
+
+   private static ClusterClientFactory clientsOf(ServerClusterClient client) {
+      return new ClusterClientFactory(null) {
+         @Override
+         public ServerClusterClient create() {
+            return client;
+         }
+      };
    }
 }

@@ -62,8 +62,8 @@ class ClusterChangesetApplyServiceTest {
    private MockedStatic<Tool> tool;
 
    @BeforeEach void setUp() {
-      planService = new ClusterChangePlanService(clusterService, () -> client);
-      service = new ClusterChangesetApplyService(planService, clusterService, () -> client);
+      planService = new ClusterChangePlanService(clusterService, clientsOf(client));
+      service = new ClusterChangesetApplyService(planService, clusterService, clientsOf(client));
       lenient().when(clusterService.getClusterEnabled())
          .thenReturn(ClusterEnabledModel.builder().enabled(true).pauseEnabled(true).build());
       lenient().when(client.getConfiguredServers()).thenReturn(Set.of("s1", "s2"));
@@ -428,5 +428,14 @@ class ClusterChangesetApplyServiceTest {
       req.setReviewOutcome(reviewOutcome);
       req.setTaskToken(TaskAuditToken.issue(planHash, task));
       return req;
+   }
+
+   private static ClusterClientFactory clientsOf(ServerClusterClient client) {
+      return new ClusterClientFactory(null) {
+         @Override
+         public ServerClusterClient create() {
+            return client;
+         }
+      };
    }
 }

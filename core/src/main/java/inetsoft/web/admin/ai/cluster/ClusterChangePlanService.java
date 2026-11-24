@@ -17,7 +17,6 @@
  */
 package inetsoft.web.admin.ai.cluster;
 
-import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -32,7 +31,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
-import java.util.function.Supplier;
 
 /**
  * Resolves a requested list of cluster pause/resume changes into a {@link ResolvedPlan} and hashes
@@ -65,15 +63,10 @@ import java.util.function.Supplier;
  */
 @Component
 public class ClusterChangePlanService {
-   /** Takes the {@link Cluster}, not the shared {@code ServerClusterClient} bean, so that every
-    * resolve reads the live node list and node statuses through a new client (bugs #82187, #82189);
-    * see {@code AdminClusterController}. */
+   /** Every resolve reads the live node list and node statuses through a new
+    * {@code ServerClusterClient}; see {@link ClusterClientFactory}. */
    @Autowired
-   public ClusterChangePlanService(ClusterService clusterService, Cluster cluster) {
-      this(clusterService, () -> new ServerClusterClient(false, cluster));
-   }
-
-   ClusterChangePlanService(ClusterService clusterService, Supplier<ServerClusterClient> clients) {
+   public ClusterChangePlanService(ClusterService clusterService, ClusterClientFactory clients) {
       this.clusterService = clusterService;
       this.clients = clients;
    }
@@ -99,7 +92,7 @@ public class ClusterChangePlanService {
          throw new IllegalArgumentException("changes: at least one change is required");
       }
 
-      ServerClusterClient client = clients.get();
+      ServerClusterClient client = clients.create();
       Set<String> configured = client.getConfiguredServers();
       List<PlanChange> changes = new ArrayList<>();
       Map<String, String> seenServerVerb = new LinkedHashMap<>();
@@ -286,5 +279,5 @@ public class ClusterChangePlanService {
     * the way providers needed). */
    private static final String NOT_ORG_SCOPED = null;
    private final ClusterService clusterService;
-   private final Supplier<ServerClusterClient> clients;
+   private final ClusterClientFactory clients;
 }

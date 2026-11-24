@@ -183,11 +183,12 @@ class ClusterLiveNodeListTest {
    // ----------------------------------------------------------------- helpers
 
    private Services services() {
-      ClusterChangePlanService planService = new ClusterChangePlanService(clusterService, cluster);
+      ClusterClientFactory clients = new ClusterClientFactory(cluster);
+      ClusterChangePlanService planService = new ClusterChangePlanService(clusterService, clients);
       ClusterChangesetApplyService applyService =
-         new ClusterChangesetApplyService(planService, clusterService, cluster);
+         new ClusterChangesetApplyService(planService, clusterService, clients);
       AdminClusterController controller =
-         new AdminClusterController(planService, applyService, cluster);
+         new AdminClusterController(planService, applyService, clients);
       return new Services(controller, planService, applyService);
    }
 

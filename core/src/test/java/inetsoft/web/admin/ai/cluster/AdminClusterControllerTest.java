@@ -49,7 +49,7 @@ class AdminClusterControllerTest {
    private AdminClusterController controller;
 
    @BeforeEach void setUp() {
-      controller = new AdminClusterController(planService, applyService, () -> client);
+      controller = new AdminClusterController(planService, applyService, clientsOf(client));
    }
 
    @Test void handleTaskTokenMismatchReturnsConflictStatusWithCurrentPlan() {
@@ -77,5 +77,14 @@ class AdminClusterControllerTest {
 
       assertNotNull(annotation, "handleTaskTokenMismatch must be annotated @ResponseStatus");
       assertEquals(HttpStatus.CONFLICT, annotation.value());
+   }
+
+   private static ClusterClientFactory clientsOf(ServerClusterClient client) {
+      return new ClusterClientFactory(null) {
+         @Override
+         public ServerClusterClient create() {
+            return client;
+         }
+      };
    }
 }

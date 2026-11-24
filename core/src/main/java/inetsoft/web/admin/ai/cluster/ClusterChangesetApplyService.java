@@ -17,7 +17,6 @@
  */
 package inetsoft.web.admin.ai.cluster;
 
-import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
@@ -38,7 +37,6 @@ import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Supplier;
 
 /**
  * Applies a whole cluster pause/resume changeset and audits every attempt -- the cluster analog of
@@ -77,18 +75,10 @@ public class ClusterChangesetApplyService {
    public static final String STATUS_APPLIED = AdminChangesetApplyService.STATUS_APPLIED;
    public static final String STATUS_FAILED = AdminChangeRecord.STATUS_FAILED;
 
-   /** Reads back through a new {@code ServerClusterClient}, not the shared bean, whose cached node
-    * address keeps returning a departed node's last status-map entry (bug #82189); see
-    * {@code AdminClusterController}. */
+   /** Reads back through a new {@code ServerClusterClient}; see {@link ClusterClientFactory}. */
    @Autowired
    public ClusterChangesetApplyService(ClusterChangePlanService planService,
-                                       ClusterService clusterService, Cluster cluster)
-   {
-      this(planService, clusterService, () -> new ServerClusterClient(false, cluster));
-   }
-
-   ClusterChangesetApplyService(ClusterChangePlanService planService, ClusterService clusterService,
-                                Supplier<ServerClusterClient> clients)
+                                       ClusterService clusterService, ClusterClientFactory clients)
    {
       this.planService = planService;
       this.clusterService = clusterService;
@@ -223,7 +213,7 @@ public class ClusterChangesetApplyService {
     * keep looking before settling.
     */
    private ServerClusterStatus readBackWithRetry(String server, String proposedLabel) {
-      ServerClusterClient client = clients.get();
+      ServerClusterClient client = clients.create();
       ServerClusterStatus status = client.getStatus(server);
 
       for(int attempt = 1;
@@ -323,5 +313,5 @@ public class ClusterChangesetApplyService {
    private static final ReentrantLock APPLY_LOCK = new ReentrantLock();
    private final ClusterChangePlanService planService;
    private final ClusterService clusterService;
-   private final Supplier<ServerClusterClient> clients;
+   private final ClusterClientFactory clients;
 }

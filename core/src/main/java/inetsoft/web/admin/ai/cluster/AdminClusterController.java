@@ -17,7 +17,6 @@
  */
 package inetsoft.web.admin.ai.cluster;
 
-import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
@@ -33,7 +32,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.*;
-import java.util.function.Supplier;
 
 /**
  * REST controller for the cluster admin-plugin area (01-spec.md section 10). Placed in
@@ -53,20 +51,12 @@ import java.util.function.Supplier;
  */
 @RestController
 public class AdminClusterController {
-   /** Reads the node list through a new {@code ServerClusterClient} per request, as EM's
-    * {@code ClusterService} does: the shared {@code ServerClusterClient} bean keeps the node list it
-    * saw at startup and caches node addresses, so it never lists a node that joined later and keeps
-    * reporting a departed node from its last status-map entry (bugs #82187, #82189). */
+   /** Reads the cluster through a new {@code ServerClusterClient} per request; see
+    * {@link ClusterClientFactory}. */
    @Autowired
    public AdminClusterController(ClusterChangePlanService planService,
-                                 ClusterChangesetApplyService applyService, Cluster cluster)
-   {
-      this(planService, applyService, () -> new ServerClusterClient(false, cluster));
-   }
-
-   AdminClusterController(ClusterChangePlanService planService,
-                          ClusterChangesetApplyService applyService,
-                          Supplier<ServerClusterClient> clients)
+                                 ClusterChangesetApplyService applyService,
+                                 ClusterClientFactory clients)
    {
       this.planService = planService;
       this.applyService = applyService;
@@ -82,7 +72,7 @@ public class AdminClusterController {
    @GetMapping("/api/wiz/v1/admin/cluster/nodes")
    public List<ClusterNodeStatus> listClusterNodes(Principal user) {
       requireSiteAdmin(user);
-      ServerClusterClient client = clients.get();
+      ServerClusterClient client = clients.create();
       List<ClusterNodeStatus> nodes = new ArrayList<>();
 
       for(String server : client.getConfiguredServers()) {
@@ -104,7 +94,7 @@ public class AdminClusterController {
    @GetMapping("/api/wiz/v1/admin/cluster/nodes/{server}")
    public ClusterNodeStatus getClusterNode(@PathVariable("server") String server, Principal user) {
       requireSiteAdmin(user);
-      ServerClusterClient client = clients.get();
+      ServerClusterClient client = clients.create();
       requireExists(server, client.getConfiguredServers());
       return projection(client, server);
    }
@@ -193,5 +183,5 @@ public class AdminClusterController {
 
    private final ClusterChangePlanService planService;
    private final ClusterChangesetApplyService applyService;
-   private final Supplier<ServerClusterClient> clients;
+   private final ClusterClientFactory clients;
 }
