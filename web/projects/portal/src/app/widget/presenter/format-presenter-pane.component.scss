@@ -21,9 +21,17 @@
     right: 5px;
 }
 
+// The dropdown and the property button sit side by side with a gap. They are not an input group:
+// Bootstrap's input group pulls its second child back by a pixel to share a border, which put the
+// button over the dropdown's right border and its focus ring.
+.presenter-controls > tree-dropdown {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 // the presenter's property button: a bordered square like the other icon buttons beside a combo,
 // so the bare glyph does not read as a label
-.input-group > button.format-control {
+.presenter-controls > button.format-control {
   box-sizing: border-box;
   flex: none;
   display: flex;
