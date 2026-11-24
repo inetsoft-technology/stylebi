@@ -24,27 +24,25 @@ package inetsoft.web.wiz.pairing;
  *                      for a whole-sheet ("Connect to Claude" toolbar) grant
  * @param runtimeKind   what the minting node saw the runtime to be (Redmine #80547), derived
  *                      server-side at mint and never from a client field; {@code null} when the
- *                      runtime could not be resolved there. Carried so the join can gate a
- *                      session whose runtime lives on another cluster node.
- * @param mintNode      the cluster node that minted (the one holding the page's STOMP socket), or
- *                      {@code null} when unknown; the join's socket check only means something there
+ *                      runtime could not be resolved there. Defence in depth: lets the join gate a
+ *                      session whose runtime it cannot resolve itself.
  */
 public record PairingGrant(String code, String runtimeId, String ownerIdentity,
                            String socketSessionId, String socketUserName,
                            long createdAt, long ttlMillis,
                            SheetType sheetType, EditorContext editorContext,
-                           RuntimeKind runtimeKind, String mintNode) {
+                           RuntimeKind runtimeKind) {
    /** What the runtime was when the code was minted. */
    public enum RuntimeKind { VIEWER, DESIGN }
 
-   /** A grant that recorded nothing about its runtime (runtimeKind and mintNode null). */
+   /** A grant that recorded nothing about its runtime (runtimeKind null). */
    public PairingGrant(String code, String runtimeId, String ownerIdentity,
                        String socketSessionId, String socketUserName,
                        long createdAt, long ttlMillis,
                        SheetType sheetType, EditorContext editorContext)
    {
       this(code, runtimeId, ownerIdentity, socketSessionId, socketUserName, createdAt, ttlMillis,
-           sheetType, editorContext, null, null);
+           sheetType, editorContext, null);
    }
 
    public boolean isExpired(long now) { return now - createdAt > ttlMillis; }

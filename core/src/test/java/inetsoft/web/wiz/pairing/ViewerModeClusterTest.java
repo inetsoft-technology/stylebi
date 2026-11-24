@@ -32,7 +32,6 @@ import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -41,8 +40,9 @@ import static org.mockito.Mockito.when;
 
 /**
  * The viewer gate must fail closed in a cluster (review of #8572): the mode is derived once at
- * mint, on the node that holds the page's socket, and carried in the grant; the join's node-local
- * runtime lookup may add "viewer" but can never remove it.
+ * mint and carried in the grant; the join's node-local
+ * runtime lookup may add "viewer" but can never remove it. (Grants are node-local, so a join on
+ * another node is an invalid code; this is defence in depth for an unresolvable runtime.)
  */
 @Tag("core")
 class ViewerModeClusterTest {
@@ -51,7 +51,6 @@ class ViewerModeClusterTest {
 
    /** What the minting node sees for each runtime id; absent means unresolvable there. */
    private final Map<String, RuntimeSheet> mintSide = new HashMap<>();
-   private final AtomicReference<String> node = new AtomicReference<>("node-A");
    private SheetPairingService pairing;
    private SheetSessionService sessions;
    private SheetRuntimeAccess joinSide;
@@ -59,8 +58,7 @@ class ViewerModeClusterTest {
 
    @BeforeEach
    void setUp() {
-      pairing = new SheetPairingService(() -> 1_000_000L, mintSide::get, mintSide::get,
-                                        node::get);
+      pairing = new SheetPairingService(() -> 1_000_000L, mintSide::get, mintSide::get);
       sessions = new SheetSessionService(() -> 1_000_000L);
       joinSide = mock(SheetRuntimeAccess.class);
       feature = mock(SheetAgentFeature.class);
@@ -100,11 +98,10 @@ class ViewerModeClusterTest {
    }
 
    @Test
-   void mintOnAnUnresolvableViewsheetRecordsNothingAndTheNodeIsRecorded() throws Exception {
+   void mintOnAnUnresolvableViewsheetRecordsNothing() throws Exception {
       PairingGrant g = pairing.peek(mintVs());
 
       assertNull(g.runtimeKind());
-      assertEquals("node-A", g.mintNode());
    }
 
    @Test
@@ -131,7 +128,6 @@ class ViewerModeClusterTest {
          new PairingGrant("C", "r", "o", "s", null, 0L, 1L, SheetType.VIEWSHEET, null);
 
       assertNull(g.runtimeKind());
-      assertNull(g.mintNode());
    }
 
    // ---- join: the local lookup may add viewer, never remove it -----------------------------
@@ -189,22 +185,5 @@ class ViewerModeClusterTest {
 
       assertEquals(JoinSession.ConnectionMode.VIEWER,
                    join(id -> true).join(code, ALICE).session().connectionMode());
-   }
-
-   // ---- the page-socket check is node-local ------------------------------------------------
-
-   @Test
-   void theSocketCheckRunsOnTheMintingNodeAndIsSkippedOnAnother() throws Exception {
-      mintSide.put("vs-1", vs(true));
-      String onMintNode = mintVs();
-      String offNode = mintVs();
-
-      assertEquals(PairingException.Kind.SESSION_EXPIRED,
-         assertThrows(PairingException.class, () -> join(id -> false).join(onMintNode, ALICE))
-            .getKind());
-
-      node.set("node-B");   // this node is no longer the one that minted
-      assertEquals(JoinSession.ConnectionMode.VIEWER,
-                   join(id -> false).join(offNode, ALICE).session().connectionMode());
    }
 }

@@ -229,11 +229,11 @@ public class SheetJoinService {
       // mode from the live runtime on every call, so an unresolved runtime is still gated once it
       // resolves as a viewer.
       //
-      // The grant's runtimeKind (derived at mint, on the node that holds the page's socket) also
-      // counts: either source saying viewer makes a VIEWER session. A runtime hosted on another
-      // cluster node resolves to null here, so the local lookup alone must never decide PAIRED: a
-      // viewsheet that cannot be resolved here is only PAIRED when the mint recorded design,
-      // otherwise the join is refused rather than guessed.
+      // The grant's runtimeKind (derived at mint) also counts: either source saying viewer makes a
+      // VIEWER session. The lookup here is null for a runtime this node cannot resolve, so it alone
+      // must never decide PAIRED: an unresolved viewsheet is only PAIRED when the mint recorded
+      // design, otherwise the join is refused rather than guessed. (Grants are node-local, so the
+      // join runs on the minting node; this is defence in depth.)
       boolean viewer = grant.runtimeKind() == PairingGrant.RuntimeKind.VIEWER ||
          ViewerModePolicy.isViewerRuntime(runtimeSheet);
 
@@ -258,10 +258,8 @@ public class SheetJoinService {
       // whose keep-alive holds the orphaned runtime open (C7). Refuse it with the same text an
       // already-reaped viewer session gets. Design (PAIRED) sessions are not subject to this: they
       // deliberately survive a socket drop. The code is spent; the user clicks Connect again.
-      // The STOMP registry is node-local, so the check runs only on the node that minted the grant
-      // (known cluster limit, C7: off that node a closed page is not detected at join).
       if(mode == JoinSession.ConnectionMode.VIEWER && grant.socketSessionId() != null &&
-         pairing.isMintNode(grant) && !socketConnected.test(grant.socketSessionId()))
+         !socketConnected.test(grant.socketSessionId()))
       {
          LOG.warn("Sheet agent pairing join rejected: viewer page socket is gone " +
                   "(runtimeId={}, agent={})", grant.runtimeId(), PairingUtil.label(agentUser));
