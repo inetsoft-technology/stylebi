@@ -276,6 +276,17 @@ class TabularQueryContractSupportTest {
    }
 
    @Test
+   void aMarkedQueryTreatsABlankOrNullRequestTypeAsOmitted() throws Exception {
+      for(Object blank : new Object[] {"", "  ", null}) {
+         FakeGraphQlLikeQuery query = new FakeGraphQlLikeQuery();
+
+         apply(query, params("suffix", "/v2", "requestType", blank, "queryString", "{ me { id } }"));
+
+         assertEquals("POST", query.getRequestType());
+      }
+   }
+
+   @Test
    void aMarkedQueryKeepsAnExplicitGet() throws Exception {
       FakeGraphQlLikeQuery query = new FakeGraphQlLikeQuery();
 

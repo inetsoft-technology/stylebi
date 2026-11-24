@@ -192,12 +192,18 @@ public final class TabularQueryContractSupport {
 
       if(query instanceof DerivedRequestBodyQuery && defaultTypeProp != null &&
          defaultTypeProp.getDescriptor().getWriteMethod() != null &&
-         !queryParams.containsKey("requestType"))
+         isBlank(queryParams.get("requestType")))
       {
          invokeWriteMethod(defaultTypeProp, query, "POST");
       }
 
       for(String name : order) {
+         if(query instanceof DerivedRequestBodyQuery && "requestType".equals(name) &&
+            isBlank(queryParams.get(name)))
+         {
+            continue;
+         }
+
          TabularQuerySchema.Param param = schema.getParam(name);
          PropertyMeta prop = pmap.get(name);
          Object value = canonicalStaticTag(param, name, queryParams.get(name), dsName);
@@ -293,6 +299,10 @@ public final class TabularQueryContractSupport {
       }
 
       return String.join(", ", applied);
+   }
+
+   private static boolean isBlank(Object value) {
+      return value == null || text(value).isBlank();
    }
 
    private static final Set<String> STATIC_TAG_PARAMS = Set.of("requestType", "contentType");

@@ -22,7 +22,9 @@ package inetsoft.uql.tabular;
  * through the query contract (for example GraphQL: the body is {@code {query, variables}} built
  * from {@code queryString} and {@code variables}). Such a POST query can be created by writing
  * those properties, so the contract's "derived body" refusal does not apply to it. The body
- * itself is not a settable property of the query.
+ * itself is not a settable property of the query. A marked class must therefore NOT put
+ * {@code @Property} on {@code requestBody}: a caller-supplied {@code requestBody} is refused as an
+ * unknown parameter only because it is not part of the query's schema.
  */
 public interface DerivedRequestBodyQuery {
 }
