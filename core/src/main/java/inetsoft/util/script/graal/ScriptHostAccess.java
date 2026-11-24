@@ -902,20 +902,12 @@ public final class ScriptHostAccess {
                                      str -> str != null && exactFloatString(str),
                                      str -> JavaClassProxy.toNumber(str).floatValue(),
                                      HostAccess.TargetMappingPrecedence.LOWEST)
-                  // #82139: a whole JS number given to a java.util.Date parameter is
-                  // epoch millis (like JS new Date(n)); Rhino coerced it. LOWEST, so
-                  // an exact long/int/double/Object overload still wins. Whole numbers
-                  // only: a fractional value must keep binding a (long|Date) or
-                  // (int|Date) pair's numeric overload instead of turning ambiguous.
-                  // Documented decisions: a String is deliberately NOT converted to
-                  // a Date (no timezone/format policy; pass new Date(...) or the
-                  // epoch millis), and a (Date|String) pair given a number reports
-                  // "Multiple applicable overloads" (both sit on the LOWEST tier),
-                  // as for the boolean collisions above.
-                  .targetTypeMapping(Number.class, java.util.Date.class,
-                                     n -> n != null && wholeEpochMillis(n.doubleValue()),
-                                     n -> new java.util.Date(n.longValue()),
-                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  // #82139: a number or a string is deliberately NOT converted to a
+                  // java.util.Date parameter; pass new Date(n) or a JS Date. GraalJS
+                  // host instanceof shares the conversion path, so a Number -> Date
+                  // mapping would make 0 instanceof java.util.Date true. Rhino 13.8
+                  // did not convert either: new TimeScale(date, 45000) fell back to the
+                  // String... fields overload (a silent 0 range); use new Date(45000).
                   // a JS or host Date has the JS toString text (Rhino did the same);
                   // only a String parameter, Object/Date/Instant overloads still win.
                   // LOWEST, not LOW: the Date -> Instant conversion sits on the LOW
@@ -1532,12 +1524,6 @@ public final class ScriptHostAccess {
       double d = n.doubleValue();
       return !Double.isNaN(d) && !Double.isInfinite(d) && d == Math.rint(d)
          && d >= min && d <= max;
-   }
-
-   /** Whether a number is a finite whole value that fits epoch millis (a long). */
-   private static boolean wholeEpochMillis(double n) {
-      return !Double.isNaN(n) && !Double.isInfinite(n) && n == Math.floor(n) &&
-         Math.abs(n) < 9.2e18;
    }
 
    /** Whether a numeric string parses to a finite double that a float holds unchanged. */

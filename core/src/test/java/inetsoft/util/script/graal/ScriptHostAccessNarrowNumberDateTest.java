@@ -61,17 +61,6 @@ class ScriptHostAccessNarrowNumberDateTest {
       public String of(float f) { return "F"; }
       public String sd(String s) { return "S"; }
       public String sd(double s) { return "D"; }
-      public String lg(long s) { return "L"; }
-      public String lg(java.util.Date s) { return "D"; }
-      public String it(int s) { return "I"; }
-      public String it(java.util.Date s) { return "D"; }
-      public String db(double s) { return "DBL"; }
-      public String db(java.util.Date s) { return "D"; }
-      public String ob(Object s) { return "O"; }
-      public String ob(java.util.Date s) { return "D"; }
-      public String t(java.util.Date a, java.util.Date b) { return "DD"; }
-      public String t(String... f) { return "VA"; }
-      public String ms(java.util.Date s) { return "D:" + s.getTime(); }
    }
 
    private String str(String js) {
@@ -220,78 +209,42 @@ class ScriptHostAccessNarrowNumberDateTest {
    }
 
    @Test
-   void numberToDateIsEpochMillis() {
-      assertEquals("D", str("d.e(45000)"));
-      assertEquals("D:45000", str("d.ms(45000)"));
-      assertEquals("D:-5", str("d.ms(-5)"));
-      assertEquals("D:1700000000000", str("d.ms(1.7e12)"));
-      assertEquals("D:" + 1700000000000L, str("d.ms(1700000000000)"));
-      assertEquals("D:0", str("d.ms(-0)"));
-      assertEquals("D:9199999999999998976", str("d.ms(9.199999999999999e18)"));
-      // above 2^53 an integral double is still whole and converts exactly
-      assertEquals("D:" + (1L << 60), str("d.ms(Math.pow(2, 60))"));
-      assertEquals("D:0", str("d.ms(new Date(0))"));
-   }
-
-   @Test
-   void numberToDateRefusesNonWholeValues() {
-      refused("d.e(NaN)");
-      refused("d.e(Infinity)");
-      refused("d.e(-Infinity)");
+   void numberAndStringAreNotConvertedToDate() {
+      // #82139: documented refusal, pass new Date(n) instead
+      refused("d.e(45000)");
       refused("d.e(1.5)");
-      refused("d.e(1e30)");
-      refused("d.e(9.2e18)");
-      refused("d.e(-9.2e18)");
-   }
-
-   @Test
-   void stringIsNotConvertedToDate() {
+      refused("d.e(NaN)");
       refused("d.e('2024-03-05')");
-      refused("d.e('45000')");
+      assertEquals("D", str("d.e(new Date(45000))"));
    }
 
    @Test
-   void fractionalNumberKeepsNumericOverload() {
-      assertEquals("L", str("d.lg(5.5)"));
-      assertEquals("I", str("d.it(5.5)"));
+   void numberIsNotInstanceOfDate() {
+      assertEquals("false", str("0 instanceof Java.type('java.util.Date')"));
+      assertEquals("false", str("45000 instanceof Java.type('java.util.Date')"));
+      assertEquals("true", str("new (Java.type('java.util.Date'))(0) instanceof " +
+                               "Java.type('java.util.Date')"));
    }
 
    @Test
-   void exactNumericOverloadsStillWin() {
-      assertEquals("L", str("d.lg(5)"));
-      assertEquals("L", str("d.lg(Date.now())"));
-      assertEquals("I", str("d.it(5)"));
-      assertEquals("DBL", str("d.db(5)"));
-      assertEquals("DBL", str("d.db(5.5)"));
-      assertEquals("O", str("d.ob(5)"));
-      assertEquals("D", str("d.ob(new Date(0))"));
+   void timeScaleWithNumberFallsBackToFieldsNotARange() {
+      // on current main (Date->String and Number->String at LOWEST) the call binds the
+      // String... overload: a scale over fields, min/max never set, no Date range
+      String ts = "new (Java.type('inetsoft.graph.scale.TimeScale'))(new Date(0), 45000)";
+      assertEquals("0", str(ts + ".getMax()"));
+      assertNotEquals("45000", str(ts + ".getMax()"));
    }
 
    @Test
-   void dateAndStringPairGivenNumberIsAmbiguous() {
-      PolyglotException ex = assertThrows(PolyglotException.class, () -> str("d.c(45000)"));
-      assertTrue(ex.getMessage().contains("Multiple applicable overloads"),
-                 ex.getMessage());
-      assertEquals("D", str("d.c(new Date(0))"));
-      assertEquals("S", str("d.c('x')"));
-   }
-
-   @Test
-   void dateRangeOverloadBeatsVarargsForNumbers() {
-      assertEquals("DD", str("d.t(new Date(0), 45000)"));
-      assertEquals("DD", str("d.t(45000, new Date(0))"));
-      assertEquals("DD", str("d.t(1, 2)"));
-      assertEquals("VA", str("d.t('a', 'b')"));
-      assertEquals("VA", str("d.t('2024-03-05', '2024-03-06')"));
-      assertEquals("VA", str("d.t(1.5, 2.5)"));
-      // pinned: a Date with a non-number stays on String... (no loud error)
-      assertEquals("VA", str("d.t(new Date(0), 'x')"));
-   }
-
-   @Test
-   void timeScaleGetsRealRange() {
+   void timeScaleWithDatesIsTheWorkaround() {
       assertEquals("45000", str(
-         "new (Java.type('inetsoft.graph.scale.TimeScale'))(new Date(0), 45000)" +
-         ".getMax()"));
+         "new (Java.type('inetsoft.graph.scale.TimeScale'))(new Date(0), " +
+         "new Date(45000)).getMax()"));
+   }
+
+   @Test
+   void dateAndStringPairKeepsStringForNumber() {
+      assertEquals("S", str("d.c(45000)"));
+      assertEquals("D", str("d.c(new Date(0))"));
    }
 }
