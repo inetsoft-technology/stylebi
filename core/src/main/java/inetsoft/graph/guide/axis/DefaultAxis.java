@@ -814,6 +814,30 @@ public class DefaultAxis extends Axis {
    }
 
    /**
+    * Get the label at value 0 when this axis has a zero line and crosses zero, or null.
+    */
+   private VDimensionLabel getZeroLineLabel(List<VDimensionLabel> labels) {
+      Scale scale = getScale();
+
+      if(scale.getAxisSpec().getZeroLineColor() == null || !crossesZero(scale)) {
+         return null;
+      }
+
+      // a tick summed from a decimal increment can miss 0 by a rounding error
+      double tolerance = Math.abs(scale.getMax() - scale.getMin()) * 1E-9;
+
+      for(VDimensionLabel label : labels) {
+         if(label.getValue() instanceof Number value &&
+            Math.abs(value.doubleValue()) <= tolerance)
+         {
+            return label;
+         }
+      }
+
+      return null;
+   }
+
+   /**
     * Get the zero line of this axis.
     * @hidden
     */
@@ -2462,6 +2486,8 @@ public class DefaultAxis extends Axis {
       // don't remove alternate labels if weighted or ticks are not for same intervals (TimeScale),
       // remove individual labels.
       boolean uniformTicks = scale.isUniformInterval();
+      // the 0 label of an axis with a zero line, which the thinning below keeps
+      VDimensionLabel zeroLabel = getZeroLineLabel(vlabelList);
 
       while(true) {
          boolean changed = false;
@@ -2553,8 +2579,16 @@ public class DefaultAxis extends Axis {
                }
                */
 
+               int start = first + 1;
+               int zeroIdx = zeroLabel == null ? -1 : vlabelList.indexOf(zeroLabel);
+
+               // start one label earlier so the alternate labels keep 0
+               if(zeroIdx >= start && (zeroIdx - start) % 2 == 0) {
+                  start = first;
+               }
+
                // preserve the last label. (53091)
-               for(int k = first + 1; k < areaList.size() - (keepLast ? 1 : 0); k++) {
+               for(int k = start; k < areaList.size() - (keepLast ? 1 : 0); k++) {
                   removeLabel(k, vlabelList, areaList);
                }
             }
@@ -2564,12 +2598,13 @@ public class DefaultAxis extends Axis {
             // instead.
             // try to preserve last label so the end of the range is visible (otherwise
             // it may be hard to tell). (53091)
+            // the 0 label stays, its neighbour goes instead
             else if(maxWeight > 1 || isKeepingLast) {
-               removeLabel(i, vlabelList, areaList);
+               removeLabel(vlabelList.get(i) == zeroLabel ? i + 1 : i, vlabelList, areaList);
             }
             // remove overlapped label
             else {
-               removeLabel(i + 1, vlabelList, areaList);
+               removeLabel(vlabelList.get(i + 1) == zeroLabel ? i : i + 1, vlabelList, areaList);
             }
 
             removed = true;
