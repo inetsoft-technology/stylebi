@@ -48,7 +48,6 @@ import { CategoricalFramePane } from "./categorical-frame-pane";
 import { ChartEditorService } from "../../../services/chart/chart-editor.service";
 import { StaticColorEditor } from "./static-color-editor.component";
 import { FormsModule } from "@angular/forms";
-import { NgClass } from "@angular/common";
 
 const COLOR_PALETTES_URI: string = "../api/composer/chart/colorpalettes";
 const COLOR_MAPPING_URI: string = "../api/composer/vs/getColorMappingDialogModel";
@@ -57,7 +56,7 @@ const COLOR_MAPPING_URI: string = "../api/composer/vs/getColorMappingDialogModel
     selector: "categorical-color-pane",
     templateUrl: "categorical-color-pane.component.html",
     styleUrls: ["categorical-pane.scss", "categorical-color-pane.component.scss"],
-    imports: [FormsModule, NgClass, StaticColorEditor, PaletteDialog]
+    imports: [FormsModule, StaticColorEditor, PaletteDialog]
 })
 export class CategoricalColorPane extends CategoricalFramePane implements OnInit {
    @Input() vsId: string;
@@ -73,6 +72,8 @@ export class CategoricalColorPane extends CategoricalFramePane implements OnInit
    @Output() apply: EventEmitter<any> = new EventEmitter<any>();
    @Output() resetted: EventEmitter<any> = new EventEmitter<any>();
    customChartFrames: string[];
+   // null until the user opens or closes "More colors"; then it follows moreColorsOpen
+   private moreColorsToggled: boolean | null = null;
 
    constructor(private modalService: NgbModal, private modelService: ModelService,
                private uiContextService: UIContextService,
@@ -238,6 +239,63 @@ export class CategoricalColorPane extends CategoricalFramePane implements OnInit
       }
 
       return this.frameModel.colors.length;
+   }
+
+   /**
+    * The swatches that are always shown: the first NUM_EDITORS colors. A modern palette designs
+    * these; the rest of its list is derived from them.
+    */
+   get baseIndices(): number[] {
+      return this.range(0, Math.min(this.NUM_EDITORS, this.getNumItems()));
+   }
+
+   /** The swatches behind the "More colors" row. */
+   get moreIndices(): number[] {
+      return this.range(this.NUM_EDITORS, this.getNumItems());
+   }
+
+   get hasMoreColors(): boolean {
+      return this.getNumItems() > this.NUM_EDITORS;
+   }
+
+   /** The positions the "More colors" row covers, e.g. "9–40". */
+   get moreColorsRange(): string {
+      return (this.NUM_EDITORS + 1) + "–" + this.getNumItems();
+   }
+
+   /**
+    * Whether the "More colors" swatches are shown. Closed unless the user opened it, but open by
+    * itself when a color past the first NUM_EDITORS has been customized, so it can be edited or
+    * reset.
+    */
+   get moreColorsOpen(): boolean {
+      return this.moreColorsToggled ?? this.hasCustomMoreColors();
+   }
+
+   toggleMoreColors(): void {
+      this.moreColorsToggled = !this.moreColorsOpen;
+   }
+
+   /** True when a color past the first NUM_EDITORS differs from the palette's own. */
+   hasCustomMoreColors(): boolean {
+      if(!this.frameModel || !this.frameModel.colors) {
+         return false;
+      }
+
+      for(let i = this.NUM_EDITORS; i < this.frameModel.colors.length; i++) {
+         const ocolor = this.frameModel.cssColors?.[i] ?
+            this.frameModel.cssColors[i] : this.frameModel.defaultColors?.[i];
+
+         if(ocolor != this.frameModel.colors[i]) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private range(from: number, to: number): number[] {
+      return Array.from({ length: Math.max(0, to - from) }, (_, i) => from + i);
    }
 
    changeColor(ncolor: string, idx: number) {
