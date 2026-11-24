@@ -738,8 +738,7 @@ public class Scheduler {
    }
 
    /**
-    * Checks that there are sufficient licenses to start another scheduler
-    * instance.
+    * Checks that this is the only dedicated scheduler instance in the cluster.
     */
    private void checkLicense() {
       Cluster cluster = Cluster.getInstance();
@@ -747,19 +746,25 @@ public class Scheduler {
       lock.lock();
 
       try {
-         int schedulerCount = 0;
+         List<String> schedulerNodes = new ArrayList<>();
 
          for(String node : cluster.getClusterNodes()) {
             if(Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler"))) {
-               ++schedulerCount;
+               schedulerNodes.add(node);
             }
          }
 
-         // a single instance is included with a valid server key, more than one
-         // instance require supplemental keys
-         if(schedulerCount > 1) {
+         // at most one dedicated scheduler instance (a node started with
+         // -DScheduleServer=true) may run in a cluster, in every edition; no license key
+         // raises this limit. The nodes publish the "scheduler" property when they join,
+         // so this node is already counted.
+         if(schedulerNodes.size() > 1) {
+            Collections.sort(schedulerNodes);
             throw new LicenseException(
-               "Only one scheduler instance is allowed with the Community Edition");
+               "Only one scheduler instance is allowed in a cluster, but " +
+               schedulerNodes.size() + " scheduler instances are running: " +
+               String.join(", ", schedulerNodes) +
+               ". Stop the extra scheduler instances so that only one remains.");
          }
       }
       finally {
