@@ -898,7 +898,7 @@ public final class ScriptHostAccess {
                                                           Byte.MAX_VALUE),
                                      str -> JavaClassProxy.toNumber(str).byteValue(),
                                      HostAccess.TargetMappingPrecedence.LOWEST)
-                                    .targetTypeMapping(String.class, Float.class,
+                  .targetTypeMapping(String.class, Float.class,
                                      str -> str != null && exactFloatString(str),
                                      str -> JavaClassProxy.toNumber(str).floatValue(),
                                      HostAccess.TargetMappingPrecedence.LOWEST)
@@ -916,7 +916,7 @@ public final class ScriptHostAccess {
                                      n -> n != null && wholeEpochMillis(n.doubleValue()),
                                      n -> new java.util.Date(n.longValue()),
                                      HostAccess.TargetMappingPrecedence.LOWEST)
-// a JS or host Date has the JS toString text (Rhino did the same);
+                  // a JS or host Date has the JS toString text (Rhino did the same);
                   // only a String parameter, Object/Date/Instant overloads still win.
                   // LOWEST, not LOW: the Date -> Instant conversion sits on the LOW
                   // tier, so at LOW a (String|Instant) pair would turn ambiguous.
