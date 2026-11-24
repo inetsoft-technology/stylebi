@@ -116,4 +116,36 @@ class RRuntimeTest {
       assertEquals(1, env.getMetrics().getCleans());
       verify(connection).close();
    }
+
+   /**
+    * Bug #82218: a frame returned by name must match the one returned by value, so the R
+    * write.csv call must not emit row names and must write NA as an empty cell, which the CSV
+    * reader loads as null (the literal "NA" would turn a numeric column into text). Only the
+    * command sent to R is asserted: loading the CSV into a swappable table needs the Spring
+    * context, so the read is cut short after the command is captured.
+    */
+   @Test
+   void testTransferTableByNameDropsRowNamesAndNa() throws Exception {
+      RConnection connection = mock(RConnection.class);
+      String[] command = new String[1];
+      doAnswer(inv -> {
+         command[0] = inv.getArgument(0);
+         return null;
+      }).when(connection).voidEval(anyString());
+      when(connection.openFile(anyString())).thenThrow(new RuntimeException("stop after write"));
+
+      inetsoft.util.FileSystemService fs = mock(inetsoft.util.FileSystemService.class);
+      when(fs.getCacheTempFile(anyString(), anyString())).thenReturn(new File("target/r82218.csv"));
+
+      try(org.mockito.MockedStatic<inetsoft.util.FileSystemService> st =
+             mockStatic(inetsoft.util.FileSystemService.class))
+      {
+         st.when(inetsoft.util.FileSystemService::getInstance).thenReturn(fs);
+         assertThrows(RuntimeException.class, () -> RRuntime.transferTable(connection, "budget_wide"));
+      }
+
+      assertEquals(
+         "write.csv(budget_wide, '" + command[0].split("'")[1] +
+         "', row.names = FALSE, na = \"\")", command[0]);
+   }
 }
