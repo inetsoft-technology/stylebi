@@ -30,6 +30,7 @@ import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.geom.RectangularShape;
 import java.awt.geom.RoundRectangle2D;
+import java.text.Format;
 
 /**
  * Legend item.
@@ -70,6 +71,25 @@ public abstract class LegendItem extends BoundedContainer {
       vlabel.setAlignmentX(GraphConstants.LEFT_ALIGNMENT);
       vlabel.setAlignmentY(GraphConstants.MIDDLE_ALIGNMENT);
       addVisual(vlabel);
+      initSizes();
+   }
+
+   /**
+    * Set the format of a label that shows its value. An alias label stays unformatted.
+    */
+   void setLabelFormat(Format fmt) {
+      TextSpec spec = vlabel.getTextSpec();
+
+      if(spec.getFormat() == null) {
+         return;
+      }
+
+      spec = spec.clone();
+      spec.setFormat(fmt);
+      vlabel.setTextSpec(spec);
+      // drop the text and sizes measured with the old format
+      vlabel.setLabel(vlabel.getLabel());
+      vlabel.invalidate();
       initSizes();
    }
 

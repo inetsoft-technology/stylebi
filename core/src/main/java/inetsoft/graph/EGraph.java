@@ -280,6 +280,22 @@ public class EGraph implements Cloneable, Serializable {
    }
 
    /**
+    * Check whether numeric legend labels that would read the same, such as "2K" next to "2K",
+    * are formatted at the step between the values shown.
+    */
+   public boolean isLegendDistinctLabels() {
+      return legendDistinctLabels;
+   }
+
+   /**
+    * Set whether numeric legend labels that would read the same, such as "2K" next to "2K",
+    * are formatted at the step between the values shown.
+    */
+   public void setLegendDistinctLabels(boolean distinctLabels) {
+      this.legendDistinctLabels = distinctLabels;
+   }
+
+   /**
     * Get the space in pixels kept empty above the graph content.
     * @hidden
     */
@@ -619,6 +635,7 @@ public class EGraph implements Cloneable, Serializable {
       legendMaxRatio = 0;
       legendAlignment = 0;
       legendInMarkOrder = false;
+      legendDistinctLabels = false;
       topInset = 0;
       xTitleSpec = new TitleSpec();
       yTitleSpec = new TitleSpec();
@@ -722,6 +739,7 @@ public class EGraph implements Cloneable, Serializable {
    private double legendMaxRatio;
    private int legendAlignment;
    private boolean legendInMarkOrder;
+   private boolean legendDistinctLabels;
    private double topInset;
    private TitleSpec xTitleSpec;
    private TitleSpec yTitleSpec;

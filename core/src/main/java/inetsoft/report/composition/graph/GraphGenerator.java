@@ -1332,6 +1332,7 @@ public abstract class GraphGenerator {
          // only a top or bottom row aligns
          graph.setLegendAlignment(row ? legends.getAlignment() : 0);
          graph.setLegendInMarkOrder(vizContext.modern);
+         graph.setLegendDistinctLabels(vizContext.modern);
       }
 
       // for separator chart, we must use measure to get chart type

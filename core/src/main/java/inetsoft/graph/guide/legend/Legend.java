@@ -28,12 +28,14 @@ import inetsoft.graph.internal.GTool;
 import inetsoft.graph.scale.LinearScale;
 import inetsoft.report.internal.Common;
 import inetsoft.util.CoreTool;
+import inetsoft.util.ExtendedDecimalFormat;
 import inetsoft.util.Tool;
 
 import java.awt.*;
 import java.awt.geom.Dimension2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.geom.RoundRectangle2D;
+import java.text.Format;
 import java.util.List;
 import java.util.*;
 
@@ -631,6 +633,11 @@ public abstract class Legend extends BoundedContainer {
 
       spec = (TextSpec) spec.clone();
       spec.setBackground(null); // background will be filled by content area
+      Format stepFormat = getStepFormat(spec, new Object[] { first, last });
+
+      if(stepFormat != null) {
+         spec.setFormat(stepFormat);
+      }
 
       band = new ColorLegendBand((LinearColorFrame) frame);
 
@@ -723,6 +730,8 @@ public abstract class Legend extends BoundedContainer {
       String mstr = GTool.getProperty("graph.legend.maxcount",
                                       GDefaults.LEGEND_MAX_COUNT + "");
       int cnt = Math.min(labels.length, Integer.parseInt(mstr));
+      Format stepFormat = getStepFormat(frame.getLegendSpec().getTextSpec(),
+                                        Arrays.copyOf(values, cnt));
 
       for(int i = 0; i < cnt; i++) {
          labels[i] = labels[i] == null ? values[i] : labels[i];
@@ -748,6 +757,11 @@ public abstract class Legend extends BoundedContainer {
          }
 
          LegendItem item = createLegendItem(labels[i], values[i]);
+
+         if(stepFormat != null) {
+            item.setLabelFormat(stepFormat);
+         }
+
          Color itemColor = getElementColor(values[i]);
 
          if(itemColor != null) {
@@ -768,6 +782,57 @@ public abstract class Legend extends BoundedContainer {
          items.add(item);
          addVisual(item);
       }
+   }
+
+   /**
+    * Get the format that tells apart numeric labels a K/M/B format would print the same,
+    * e.g. "2K" for both 2024 and 2025. It sets the step between the shown values as the
+    * format's increment, as an axis does.
+    * @param spec the label spec.
+    * @param shown the values shown, in order.
+    * @return the format, or null to keep the label spec's format.
+    */
+   private Format getStepFormat(TextSpec spec, Object[] shown) {
+      if(!graph.isLegendDistinctLabels() || spec == null ||
+         !(spec.getFormat() instanceof ExtendedDecimalFormat) ||
+         !(frame.getScale() instanceof LinearScale))
+      {
+         return null;
+      }
+
+      ExtendedDecimalFormat fmt = (ExtendedDecimalFormat) spec.getFormat();
+      char zero = fmt.getDecimalFormatSymbols().getZeroDigit();
+      boolean same = false;
+      double step = 0;
+
+      for(int i = 1; i < shown.length; i++) {
+         if(!(shown[i - 1] instanceof Number) || !(shown[i] instanceof Number)) {
+            return null;
+         }
+
+         double gap = Math.abs(((Number) shown[i]).doubleValue() -
+                                  ((Number) shown[i - 1]).doubleValue());
+
+         if(gap > 0 && (step == 0 || gap < step)) {
+            step = gap;
+         }
+
+         same = same || isSameText(GTool.format(fmt, shown[i - 1]),
+                                   GTool.format(fmt, shown[i]), zero);
+      }
+
+      return same && step > 0 ? fmt.setIncrement(step) : null;
+   }
+
+   // equal text, or "-0" next to "0"
+   private static boolean isSameText(String text0, String text1, char zero) {
+      return text0.equals(text1) || isZeroText(text0, zero) && isZeroText(text1, zero);
+   }
+
+   // every digit is a zero
+   private static boolean isZeroText(String text, char zero) {
+      return text.chars().anyMatch(Character::isDigit) &&
+         text.chars().allMatch(c -> !Character.isDigit(c) || c == zero);
    }
 
    /**
