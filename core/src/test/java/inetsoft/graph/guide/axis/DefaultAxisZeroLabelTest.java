@@ -138,14 +138,10 @@ class DefaultAxisZeroLabelTest {
    @Test
    void theOneByOneRemovalNeverDropsZero() {
       // the moved-in end label overlaps 0 once the alternate labels are gone
-      for(int h : new int[] { 58, 61, 64 }) {
-         // ticks -100..150 by 50
-         assertEquals(List.of(-100.0, 100.0), shown(bar(-75, 125, null, 300, h)), "height " + h);
-         assertKeepsZero(bar(-75, 125, ZERO, 300, h), "height " + h);
-         // ticks -200..400 by 100
-         assertEquals(List.of(-200.0, 200.0), shown(bar(-120, 380, null, 300, h)), "height " + h);
-         assertKeepsZero(bar(-120, 380, ZERO, 300, h), "height " + h);
-      }
+      // ticks -100..150 by 50
+      assertKeepsZeroWhereClassicShows(-75, 125, List.of(-100.0, 100.0));
+      // ticks -200..400 by 100
+      assertKeepsZeroWhereClassicShows(-120, 380, List.of(-200.0, 200.0));
    }
 
    @Test
@@ -219,6 +215,24 @@ class DefaultAxisZeroLabelTest {
          assertEquals(shown(hbar(min, max, null, w)), shown(hbar(min, max, ZERO, w)),
                       "width " + w);
       }
+   }
+
+   // modern keeps 0 at every height where classic shows only these labels; scanned, since
+   // those heights shift with the font's line height
+   private static void assertKeepsZeroWhereClassicShows(double min, double max,
+                                                        List<Double> classic)
+   {
+      int found = 0;
+
+      for(int h = 40; h <= 90; h++) {
+         if(classic.equals(shown(bar(min, max, null, 300, h)))) {
+            assertKeepsZero(bar(min, max, ZERO, 300, h), min + ".." + max + " height " + h);
+            found++;
+         }
+      }
+
+      assertTrue(found > 0, "premise: classic shows " + classic + " for " + min + ".." + max +
+                 " at some height from 40 to 90");
    }
 
    // 0 is among the shown labels
