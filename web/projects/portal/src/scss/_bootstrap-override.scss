@@ -1068,7 +1068,8 @@ a:not([href]) {
 }
 
 // The modern primary button's keyboard focus is a fill, not a ring: its fill becomes the focus ring's
-// own solid orange and its label takes the surface colour, so there is no ring to draw and no gap to
+// own solid orange and its label takes the shell's default surface colour (not the gap token, which a
+// beige container re-declares as beige: 3.9:1 on the fill), so there is no ring to draw and no gap to
 // leave. The fill is 4.51:1 on white, 3.92:1 on beige and 3.21:1 on a selected row in the light shell
 // and 7.62:1 on the dark surface; the label is 4.51:1 on it in the light shell and 7.62:1 in the dark.
 // Only for pages without a custom theme, whose ring colour is the faint one. The hover rule outranks
@@ -1076,7 +1077,7 @@ a:not([href]) {
 :where(:root:not(.custom-theme)) .viz-shell .btn.btn-primary#{$outside-content} {
   &:focus-visible,
   &:focus-visible:hover:not(:disabled) {
-    color: var(--inet-focus-ring-gap-color);
+    color: var(--inet-shell-surface-default);
     background-color: var(--inet-focus-ring-color);
     border-color: var(--inet-focus-ring-color);
     box-shadow: none;

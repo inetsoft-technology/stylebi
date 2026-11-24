@@ -486,7 +486,9 @@ describe("solid, keyboard-only focus ring", () => {
       expect(rule[0]).toContain("&:focus-visible, &:focus-visible:hover:not(:disabled)");
       expect(rule[0]).toContain("background-color: var(--inet-focus-ring-color)");
       expect(rule[0]).toContain("border-color: var(--inet-focus-ring-color)");
-      expect(rule[0]).toContain("color: var(--inet-focus-ring-gap-color)");
+      // the label is the default surface, never the gap token, which a beige container re-declares as beige
+      expect(rule[0]).toContain("color: var(--inet-shell-surface-default)");
+      expect(rule[0]).not.toContain("color: var(--inet-focus-ring-gap-color)");
       expect(rule[0]).toContain("box-shadow: none");
    });
 

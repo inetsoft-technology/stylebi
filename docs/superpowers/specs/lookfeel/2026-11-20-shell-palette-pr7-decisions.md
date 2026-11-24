@@ -149,7 +149,8 @@ width was reduced and the colours kept.
   re-declares the width. The static pages follow it: `layout.css` through the token, `login.css`
   through `--ln-focus-width`, which stays 2px on a themed login page.
 - **Modern primary button:** on keyboard focus it has no ring and no gap. Its fill becomes the ring
-  colour and its label the surface colour (4.51:1 on the fill in light, 7.62:1 in dark). It applies
+  colour and its label the shell's default surface colour (4.51:1 on the fill in light, 7.62:1 in dark;
+  not the gap token, which a beige container re-declares as beige). It applies
   to `.viz-shell` only, outside dashboard content and custom-themed pages, and only on
   `:focus-visible`, so a mouse click or a dialog's automatic focus keeps today's deeper tint.
 - **Other buttons:** secondary, default and classic primary keep their 2px ring and danger and
