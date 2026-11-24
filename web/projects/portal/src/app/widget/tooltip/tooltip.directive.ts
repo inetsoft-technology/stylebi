@@ -53,6 +53,11 @@ export class TooltipDirective implements OnChanges, OnInit, OnDestroy {
    @Input() tailAxis: TailAxis = "vertical";
    /** Supplies the hovered mark's middle and edges; the tail is suppressed when it yields null. */
    @Input() tailAnchor: () => TailAnchor | null = null;
+   /**
+    * The look of the chart this tooltip describes, passed by a caller that knows the chart's own
+    * mark. Null leaves it to the shell. Body-attached, the tooltip cannot read the chart's class.
+    */
+   @Input() tooltipModern: boolean | null = null;
    private tooltipRef: ComponentRef<TooltipComponent>;
    private mousePosition: Point;
    private lastAnchorKey: string = null;
@@ -197,6 +202,7 @@ export class TooltipDirective implements OnChanges, OnInit, OnDestroy {
       tooltip.content = tooltipStr;
       tooltip.tooltipCSS = this.tooltipCSS;
       tooltip.dark = this.resolveDark();
+      tooltip.modern = this.tooltipModern;
       this.tooltipRef.instance.updateView();
       this.positionTooltipWithinViewport();
    }
@@ -302,7 +308,8 @@ export class TooltipDirective implements OnChanges, OnInit, OnDestroy {
          hostWidth: bounds.width,
          hostHeight: bounds.height,
          container: Rectangle.fromClientRect(container.getBoundingClientRect()),
-         axis: this.tailAxis
+         axis: this.tailAxis,
+         modern: this.tooltipModern
       });
 
       if(!placement) {

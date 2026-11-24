@@ -292,6 +292,30 @@ describe("ChartArea — ngOnChanges", () => {
          vi.useRealTimers();
       }
    });
+
+   it("gives a card tooltip a tail only when this chart's plot is inline SVG", () => {
+      const tail = (inlineSvg: boolean) => {
+         const { comp } = createComponent({ model: makeModel({ tooltipStyle: "CARD", inlineSvg }) });
+         comp.ngOnChanges({ modelTS: modelTSChange });
+         return comp.tooltipTail;
+      };
+
+      expect(tail(true)).toBe(true);
+      expect(tail(false)).toBe(false);
+   });
+
+   it("styles the tooltip from this chart's own mark", () => {
+      const modern = (vizModern: boolean) => {
+         const model = makeModel();
+         (model as any).vizModern = vizModern;
+         const { comp } = createComponent({ model });
+         comp.ngOnChanges({ modelTS: modelTSChange });
+         return comp.tooltipModern;
+      };
+
+      expect(modern(true)).toBe(true);
+      expect(modern(false)).toBe(false);
+   });
 });
 
 // ---------------------------------------------------------------------------

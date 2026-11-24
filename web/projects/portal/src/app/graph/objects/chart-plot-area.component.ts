@@ -51,7 +51,6 @@ import { FlyoverInfo } from "../model/flyover-info";
 import { Plot } from "../model/plot";
 import { PlotScaleInfo } from "../model/plot-scale-info";
 import { TooltipInfo } from "../model/tooltip-info";
-import { ChartConfigService } from "../services/chart-config.service";
 import { ChartInlineSvgDirective } from "./chart-inline-svg.directive";
 import { ChartService } from "../services/chart.service";
 import { ChartObjectAreaBase } from "./chart-object-area-base";
@@ -187,14 +186,13 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
                private http: HttpClient,
                private modal: NgbModal,
                scaleService: ScaleService,
-               private contextProvider: ContextProvider,
-               private chartConfigService: ChartConfigService)
+               private contextProvider: ContextProvider)
    {
       super(chartService, scaleService);
    }
 
    get inlineSvg(): boolean {
-      return this.chartConfigService.inlineSvg;
+      return !!this.model?.inlineSvg;
    }
 
    ngOnChanges(changes: SimpleChanges) {

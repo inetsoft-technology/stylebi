@@ -24,10 +24,12 @@ import { TailAnchor } from "./tooltip-tail-placement";
    standalone: true,
    imports: [TooltipDirective],
    template: `<div [wTooltip]="'hover text'" [showTail]="showTail" [tailAxis]="'vertical'"
-                   [tailAnchor]="anchor" [followCursor]="true" [waitTime]="0"></div>`
+                   [tailAnchor]="anchor" [tooltipModern]="modern" [followCursor]="true"
+                   [waitTime]="0"></div>`
 })
 class HostComponent {
    showTail = true;
+   modern: boolean | null = null;
    mark: TailAnchor | null = { x: 510, y: 410 };
    anchor = () => this.mark;
 }
@@ -134,6 +136,37 @@ describe("TooltipDirective tail placement", () => {
       expect(tip.style.left).toBe("135px");
       expect(tip.style.top).toBe("135px");
       expect(tip.querySelector(".tooltip-chrome")).toBeNull();
+   });
+
+   it("draws a classic chart's tail with the classic radius in a gate-on org", () => {
+      document.body.classList.add("viz-shell");
+
+      try {
+         fixture.componentInstance.modern = false;
+         fixture.detectChanges();
+         const tip = hover(120, 120);
+         expect(tip.querySelector(".tooltip-chrome__outline").getAttribute("d"))
+            .toContain("Q12,12 20,12");
+         expect(tip.querySelector(".widget__tooltip--classic")).not.toBeNull();
+      }
+      finally {
+         document.body.classList.remove("viz-shell");
+      }
+   });
+
+   it("draws a modern chart's tail with the modern radius in a gate-off org", () => {
+      fixture.componentInstance.modern = true;
+      fixture.detectChanges();
+      const tip = hover(120, 120);
+      expect(tip.querySelector(".tooltip-chrome__outline").getAttribute("d"))
+         .toContain("Q12,12 18,12");
+      expect(tip.querySelector(".widget__tooltip--modern")).not.toBeNull();
+   });
+
+   it("marks neither look when the caller has no chart", () => {
+      const tip = hover(120, 120);
+      expect(tip.querySelector(".widget__tooltip--modern")).toBeNull();
+      expect(tip.querySelector(".widget__tooltip--classic")).toBeNull();
    });
 });
 

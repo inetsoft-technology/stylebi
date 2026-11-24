@@ -1538,6 +1538,12 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
     * @return the chart data info.
     */
    public VSChartInfo getVSChartInfo() {
+      // stamped on read, so every route that replaces cinfo, and every Modernize or Revert,
+      // still resolves the AUTO tooltip style from this chart's own mark
+      if(cinfo != null) {
+         cinfo.setOwnerModern(getVizMark() != null);
+      }
+
       return cinfo;
    }
 

@@ -73,11 +73,9 @@ public final class VizContext {
     * Revert action is the only route back. Density still comes from the org: the mark decides
     * whether an assembly honours density, not which density is in force.
     *
-    * Three reads outside this context still follow the gate, each a documented accepted cost:
-    * AbstractChartInfo.getTooltipStyle's AUTO resolution, VSChartInteractionDefaults.isInlineSvg,
-    * and the viz-shell / viz-shell-dark shell body classes. A marked assembly in a gate-off org
-    * takes a legacy tooltip style, loses inline-SVG animation and hover dimming, and sits in an
-    * unthemed shell.
+    * The viz-shell / viz-shell-dark shell body classes still follow the gate, so a marked assembly
+    * in a gate-off org sits in an unthemed shell. Chart tooltips and inline SVG follow the mark;
+    * AbstractChartInfo.getTooltipStyle reads the gate only for a chart info no assembly owns.
     */
    public static VizContext of(VizMark mark) {
       boolean modern = mark != null;

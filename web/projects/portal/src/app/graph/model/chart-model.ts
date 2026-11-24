@@ -68,4 +68,6 @@ export interface ChartModel {
    // server-resolved effective style; never "AUTO" (the design-only default is resolved server-side)
    tooltipStyle?: "DEFAULT" | "CARD";
    snapTooltip?: boolean;
+   // server-resolved per chart: graph.svg.inline if set, else the chart's own mark
+   inlineSvg?: boolean;
 }

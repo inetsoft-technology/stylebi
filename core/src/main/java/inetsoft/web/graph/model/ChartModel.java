@@ -84,4 +84,6 @@ public interface ChartModel {
    public void setTooltipStyle(String tooltipStyle);
    public boolean isSnapTooltip();
    public void setSnapTooltip(boolean snapTooltip);
+   public boolean isInlineSvg();
+   public void setInlineSvg(boolean inlineSvg);
 }

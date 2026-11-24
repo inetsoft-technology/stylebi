@@ -55,6 +55,11 @@ export class TooltipComponent {
     * tooltip off the shell drew a light tooltip on a dark chart and a dark one on a light chart.
     */
    @Input() dark = false;
+   /**
+    * The look of the chart this tooltip describes, from the chart's own mark; null when there is
+    * no chart, and the shell's viz-shell class decides.
+    */
+   @Input() modern: boolean | null = null;
    @Input() tailSide: TailSide | null = null;
    @Input() tailOffset = 0;
    @Input() boxSize: { width: number, height: number } | null = null;
@@ -74,7 +79,8 @@ export class TooltipComponent {
 
    get chrome(): ChromeGeometry | null {
       return !!this.tailSide && !!this.boxSize
-         ? buildChromePaths(this.boxSize.width, this.boxSize.height, this.tailSide, this.tailOffset)
+         ? buildChromePaths(this.boxSize.width, this.boxSize.height, this.tailSide,
+                            this.tailOffset, this.modern)
          : null;
    }
 }

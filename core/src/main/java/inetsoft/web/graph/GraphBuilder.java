@@ -145,6 +145,8 @@ public class GraphBuilder {
       this.model.setMultiStyles(cinfo.isMultiStyles());
       this.model.setShowValues(isShowValues());
       this.model.setTooltipStyle(cinfo.getTooltipStyle().name());
+      this.model.setInlineSvg(VSChartInteractionDefaults.isInlineSvg(assembly == null ?
+         VizContext.LEGACY : VizContext.of(assembly.getVSAssemblyInfo())));
       // Catches snap=true persisted on a chart later switched to an
       // unsupported shape without re-opening the dialog.
       this.model.setSnapTooltip(cinfo.isSnapTooltip() && cinfo.isTooltipVisible()
