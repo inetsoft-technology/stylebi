@@ -244,7 +244,10 @@ class WizPhysicalViewMapperTest {
 
       assertFalse(json.contains("RUNTIMEID"), json);
       assertFalse(json.contains("\"id\""), json);
-      assertFalse(json.contains("bounds"), json);
+      // the position is stored layout, not server state: it is read in stored units
+      assertTrue(json.contains("\"bounds\":{\"x\":1,\"y\":2,\"width\":3,\"height\":4}"), json);
+      assertFalse(new ObjectMapper().writeValueAsString(WizPhysicalViewMapper.toRevisionForm(view))
+                     .contains("bounds"));
       assertFalse(json.contains("cols"), json);
       assertFalse(json.contains("path"), json);
       assertFalse(json.contains("autoAlias"), json);

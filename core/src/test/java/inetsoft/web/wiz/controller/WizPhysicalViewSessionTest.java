@@ -217,7 +217,19 @@ class WizPhysicalViewSessionTest extends WizPhysicalViewTestBase {
       createView(definition("v", tables(plain("T1"))));
       GetResponse got = getView("v");
 
-      assertEquals(WizDataModelRevision.of(got.definition()), got.revision());
+      // the revision is over the definition without its layout (a moved table keeps it)
+      Map<String, Object> noLayout = new LinkedHashMap<>(got.definition());
+      List<Map<String, Object>> shown = new ArrayList<>();
+
+      for(Object table : (List<?>) got.definition().get("tables")) {
+         @SuppressWarnings("unchecked")
+         Map<String, Object> copy = new LinkedHashMap<>((Map<String, Object>) table);
+         copy.remove("bounds");
+         shown.add(copy);
+      }
+
+      noLayout.put("tables", shown);
+      assertEquals(WizDataModelRevision.of(noLayout), got.revision());
       assertTrue(got.revision().matches("[0-9a-f]{64}"));
    }
 
