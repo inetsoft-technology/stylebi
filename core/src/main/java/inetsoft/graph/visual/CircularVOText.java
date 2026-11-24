@@ -18,6 +18,7 @@
 package inetsoft.graph.visual;
 
 import inetsoft.graph.data.DataSet;
+import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.geometry.Geometry;
 import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.internal.*;
@@ -36,6 +37,12 @@ import java.util.Arrays;
  * @author InetSoft Technology
  */
 public class CircularVOText extends VOText {
+   /**
+    * Element hint ("true") to cut a label too long for its segment and end it with an
+    * ellipsis, instead of clipping it.
+    */
+   public static final String HINT_ELLIPSIS = "_ring_ellipsis_";
+
    /**
     * Constructor.
     * @param label the output string.
@@ -136,11 +143,27 @@ public class CircularVOText extends VOText {
 
       Shape oclip = g.getClip();
       double radius = (outerR + innerR) / 2;
+      String text = getText();
+      double textW = fm.stringWidth(text);
+
+      // a label too long for its arc is cut to fit and ends with an ellipsis
+      if(isFitText()) {
+         g.setFont(getFont());
+         text = PolarUtil.fitString(g, extent, radius, text);
+
+         if(text == null) {
+            return;
+         }
+
+         // the clip below follows the text font
+         textW = GTool.getFontMetrics(getFont()).stringWidth(text);
+      }
+
       Color bg = getTextSpec().getBackground();
       double innerR = Math.round(radius - fontH / 2 - 1);
       double outerR = Math.round(radius + fontH / 2 + 1);
       double mid = angle + extent / 2;
-      double maxExtent = Math.asin(fm.stringWidth(getText()) * 1.5 / radius);
+      double maxExtent = Math.asin(textW * 1.5 / radius);
       double extent2 = Double.isNaN(maxExtent) ? extent : Math.min(extent, maxExtent);
       Donut donut = new Donut(cx - outerR, cy - outerR, outerR * 2, outerR * 2,
                               innerR * 2, innerR * 2, Math.toDegrees(mid - extent2 / 2),
@@ -156,7 +179,7 @@ public class CircularVOText extends VOText {
       g.setColor(getColor());
       g.setFont(getFont());
       PolarUtil.drawString(g, new Point2D.Double(cx, cy), angle + extent / 2, extent,
-                           radius, getText());
+                           radius, text);
       g.setClip(oclip);
    }
 
@@ -167,9 +190,17 @@ public class CircularVOText extends VOText {
       g.setColor(getColor());
       FontMetrics fm = GTool.getFontMetrics(g.getFont());
       boolean leftSide = 100 * Math.cos(angle + extent / 2) <= 0;
-      double strWidth = GTool.stringWidth(new String[] { getText() }, g.getFont());
+      Font font = g.getFont();
+      String text = getText();
       double outerR = this.outerR - 2;
       double innerR = this.innerR + 2;
+
+      // a label too long for its ring is cut to fit and ends with an ellipsis
+      if(isFitText()) {
+         text = PolarUtil.fitText(text, outerR - innerR,
+                                  s -> GTool.stringWidth(new String[] { s }, font));
+      }
+
       // mid point of the middle of the string
       double midR = innerR + (outerR - innerR) / 2;
       // the height of the space available at the middle of the string
@@ -177,10 +208,12 @@ public class CircularVOText extends VOText {
       double fontH = fm.getHeight();
 
       // ignore label if the space is too small.
-      if(midH < fontH * 0.95) {
+      if(text == null || midH < fontH * 0.95) {
          g.dispose();
          return;
       }
+
+      double strWidth = GTool.stringWidth(new String[] { text }, font);
 
       g.clip(new Donut(cx - outerR, cy - outerR, outerR * 2, outerR * 2, innerR * 2, innerR * 2));
       g.translate(cx, cy);
@@ -196,8 +229,14 @@ public class CircularVOText extends VOText {
          g.rotate(Math.PI);
       }
 
-      GTool.drawString(g, getText(), 0, 0);
+      GTool.drawString(g, text, 0, 0);
       g.dispose();
+   }
+
+   // check if a label too long for its segment is cut to fit instead of clipped
+   private boolean isFitText() {
+      GraphElement elem = getGraphElement();
+      return elem != null && "true".equals(elem.getHint(HINT_ELLIPSIS));
    }
 
    // get the bounding polygon

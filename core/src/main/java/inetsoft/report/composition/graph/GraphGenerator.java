@@ -30,6 +30,7 @@ import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.internal.GTool;
 import inetsoft.graph.scale.*;
 import inetsoft.graph.schema.*;
+import inetsoft.graph.visual.CircularVOText;
 import inetsoft.graph.visual.ElementVO;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.composition.execution.VSAQuery;
@@ -5387,6 +5388,11 @@ public abstract class GraphGenerator {
       {
          treemap.setLevelStep(getLevelStepBase(treemap),
                               VSObjectChromeDefaults.cardComposite(vizContext));
+
+         // a ring label too long for its segment is cut and ends with an ellipsis
+         if(treemap.getMapType() == TreemapElement.Type.SUNBURST) {
+            treemap.setHint(CircularVOText.HINT_ELLIPSIS, "true");
+         }
       }
    }
 
