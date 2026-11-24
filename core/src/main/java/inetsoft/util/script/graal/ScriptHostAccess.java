@@ -898,11 +898,18 @@ public final class ScriptHostAccess {
                                                           Byte.MAX_VALUE),
                                      str -> JavaClassProxy.toNumber(str).byteValue(),
                                      HostAccess.TargetMappingPrecedence.LOWEST)
-                                    .targetTypeMapping(String.class, Float.class,
+                  .targetTypeMapping(String.class, Float.class,
                                      str -> str != null && exactFloatString(str),
                                      str -> JavaClassProxy.toNumber(str).floatValue(),
                                      HostAccess.TargetMappingPrecedence.LOWEST)
-// a JS or host Date has the JS toString text (Rhino did the same);
+                  // #82139: a number or a string is deliberately NOT converted to a
+                  // java.util.Date parameter; pass new Date(n) or a JS Date. GraalJS
+                  // host instanceof shares the conversion path, so a Number -> Date
+                  // mapping would make 0 instanceof java.util.Date true. 13.8 returned
+                  // 0 for new TimeScale(date, 45000), which appears to be the same
+                  // String... fields fallback (not verified on Rhino); use new Date(45000).
+                  //
+                  // a JS or host Date has the JS toString text (Rhino did the same);
                   // only a String parameter, Object/Date/Instant overloads still win.
                   // LOWEST, not LOW: the Date -> Instant conversion sits on the LOW
                   // tier, so at LOW a (String|Instant) pair would turn ambiguous.
