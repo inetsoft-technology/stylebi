@@ -268,14 +268,99 @@ class HighlightDialogServiceListedMeasureNameTest {
       assertNull(HighlightDialogService.listedMeasureNames(f.lens, path, 3));
    }
 
-   @Test
-   void refusalListsTheNamesThatResolve() throws Exception {
-      Fixture f = build(false, sum(null), sum(percent()));
-      List<String> names =
-         HighlightDialogService.resolvableMeasureNames(f.aggregates, f.listedNames());
+   /**
+    * The runtime shape of an aggregate of an aggregated crosstab. The design aggregate's data ref
+    * is the column aliased to the aggregate's name ({@code VSAggregateRef#update} with aalias);
+    * {@code AbstractCrosstabVSAQuery#createAggregates} carries that ref forward and gives the new
+    * aggregate the parent formula, so its full name wraps the aggregated name again.
+    */
+   private static VSAggregateRef asRuntime(VSAggregateRef design) {
+      VSAggregateRef runtime = new VSAggregateRef();
+      AggregateFormula formula = design.getFormula();
+      String aliased = design.getFullName(false);
+      ColumnRef alias = new ColumnRef(
+         new AliasDataRef(aliased, new ColumnRef(new AttributeRef(ENTITY, "DISCOUNT"))));
+      runtime.setColumnValue(aliased);
+      runtime.setFormulaValue(formula.getParentFormula() == null
+                                 ? AggregateFormula.SUM.getName()
+                                 : formula.getParentFormula().getName());
+      runtime.setCalculator(design.getCalculator());
+      runtime.setDataRef(alias);
+      return runtime;
+   }
 
-      assertTrue(names.contains("'Sum(DISCOUNT)'"), names.toString());
-      assertTrue(names.contains("'" + PERCENT_LISTED + "'"), names.toString());
-      assertTrue(names.contains("'% of total: Sum(DISCOUNT)'"), names.toString());
+   private static DataRef[] asRuntime(DataRef[] design) {
+      DataRef[] runtime = new DataRef[design.length];
+
+      for(int i = 0; i < design.length; i++) {
+         runtime[i] = asRuntime((VSAggregateRef) design[i]);
+      }
+
+      return runtime;
+   }
+
+   @Test
+   void liveRuntimeShapeWrapsTheAggregatedColumnTwice() throws Exception {
+      Fixture f = build(false, sum(null), sum(percent()));
+      DataRef[] runtime = asRuntime(f.aggregates);
+
+      assertEquals("Sum(Sum(DISCOUNT))", ((VSAggregateRef) runtime[0]).getFullName());
+      assertEquals("% of total: Sum(Sum(DISCOUNT))", ((VSAggregateRef) runtime[1]).getFullName());
+   }
+
+   @Test
+   void refusalListsOnlyTheListedNamesWhenTheLensListsThem() throws Exception {
+      Fixture f = build(false, sum(null), sum(percent()));
+      f.aggregates = asRuntime(f.aggregates);
+
+      assertEquals(Arrays.asList("'DISCOUNT'", "'" + PERCENT_LISTED + "'"),
+                   HighlightDialogService.resolvableMeasureNames(f.aggregates, f.listedNames()));
+   }
+
+   @Test
+   void everyNameTheRefusalListsResolves() throws Exception {
+      Fixture f = build(false, sum(null), sum(percent()));
+      f.aggregates = asRuntime(f.aggregates);
+
+      for(String quoted : HighlightDialogService.resolvableMeasureNames(f.aggregates,
+                                                                       f.listedNames()))
+      {
+         String name = quoted.substring(1, quoted.length() - 1);
+         assertNotNull(f.resolve(name), name);
+      }
+   }
+
+   @Test
+   void theFormerDoubleWrappedNamesStillResolve() throws Exception {
+      Fixture f = build(false, sum(null), sum(percent()));
+      f.aggregates = asRuntime(f.aggregates);
+
+      assertArrayEquals(cell(f, 0), f.resolve("Sum(Sum(DISCOUNT))"));
+      assertArrayEquals(cell(f, 1), f.resolve("% of total: Sum(Sum(DISCOUNT))"));
+   }
+
+   @Test
+   void refusalListsTheFullNamesWhenThereIsNoLensListing() throws Exception {
+      Fixture f = build(false, sum(null), sum(percent()));
+      f.aggregates = asRuntime(f.aggregates);
+      f.listed = null;
+
+      assertEquals(Arrays.asList("'Sum(Sum(DISCOUNT))'", "'% of total: Sum(Sum(DISCOUNT))'"),
+                   HighlightDialogService.resolvableMeasureNames(f.aggregates, f.listedNames()));
+   }
+
+   @Test
+   void refusalListsOneNameForASingleMeasureAndTheSuffixedNameForADuplicate() throws Exception {
+      Fixture single = build(false, sum(null));
+      single.aggregates = asRuntime(single.aggregates);
+      assertEquals(Arrays.asList("'DISCOUNT'"),
+                   HighlightDialogService.resolvableMeasureNames(single.aggregates,
+                                                                 single.listedNames()));
+
+      Fixture twice = build(false, sum(null), sum(null));
+      twice.aggregates = asRuntime(twice.aggregates);
+      assertEquals(Arrays.asList("'DISCOUNT'", "'DISCOUNT.1'"),
+                   HighlightDialogService.resolvableMeasureNames(twice.aggregates,
+                                                                 twice.listedNames()));
    }
 }

@@ -594,22 +594,27 @@ public class HighlightDialogService {
       return names;
    }
 
-   /** The measure names a crosstab {@code colName} resolves to a data cell, for an error message. */
+   /**
+    * The measure names a crosstab {@code colName} resolves to a data cell, for an error message.
+    * When the lens lists one name per runtime aggregate these are the names
+    * {@code list_highlights} advertises; a runtime aggregate's own full name is then not offered,
+    * as it wraps the already-aggregated column again ("Sum(Sum(X))"). Without that listing the
+    * full name is the only spelling that addresses a calculator copy, so it stays.
+    */
    static List<String> resolvableMeasureNames(DataRef[] runtimeAggregates,
                                               Supplier<String[]> listedNames)
    {
       Set<String> names = new LinkedHashSet<>();
       String[] listed = listedNames == null ? null : listedNames.get();
+      boolean useListed = listed != null && runtimeAggregates != null &&
+         listed.length == runtimeAggregates.length;
 
       for(int i = 0; runtimeAggregates != null && i < runtimeAggregates.length; i++) {
          if(runtimeAggregates[i] instanceof VSAggregateRef &&
             !VSUtil.isFake(runtimeAggregates[i]))
          {
-            names.add("'" + ((VSAggregateRef) runtimeAggregates[i]).getFullName() + "'");
-
-            if(listed != null && listed.length == runtimeAggregates.length) {
-               names.add("'" + listed[i] + "'");
-            }
+            names.add("'" + (useListed ? listed[i]
+               : ((VSAggregateRef) runtimeAggregates[i]).getFullName()) + "'");
          }
       }
 
