@@ -1305,6 +1305,133 @@ class TableBindingMutatorTest {
                    model.getRows().get(0).getRankingOption());
    }
 
+   // ── Bug #81983 (BUG-52 part B): rank by a calculator-prefixed measure name ──
+   //
+   // VSAssemblyInfoHandler.validateTopN keeps a ranking only when it equals the aggregate's
+   // getFullName(true): for a percent measure that carries the calculator prefix. Any other
+   // spelling silently falls back to the first aggregate, so the prefixed name must be accepted
+   // for ranking (and only for ranking: a sort resolves the plain column name).
+
+   private static FieldRef percentWithPrefix(String column, String aggregate, String prefix,
+                                             boolean supportSortByValue)
+   {
+      PercentCalcInfo info = new PercentCalcInfo();
+      info.setPrefix(prefix);
+      info.setSupportSortByValue(supportSortByValue);
+      return new FieldRef(column, "measure", aggregate, null, null, null, null, null,
+                          info, null, null, null, null, null, null);
+   }
+
+   private static CrosstabBindingModel rowsWithAggregates(FieldRef... aggregates) {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Team")));
+      TableBindingMutator.setShelf(model, "aggregates", List.of(aggregates));
+      TableBindingMutator.drainNotes();
+      return model;
+   }
+
+   @Test
+   void rankingAcceptsThePrefixedNameOfAPercentMeasureAtAnyPosition() {
+      String prefixed = "% of total by row: Sum(Net Amount)";
+      CrosstabBindingModel later = rowsWithAggregates(
+         measure("Quantity", "Sum"),
+         percentWithPrefix("Net Amount", "Sum", "% of total by row: ", true));
+      CrosstabBindingModel first = rowsWithAggregates(
+         percentWithPrefix("Net Amount", "Sum", "% of total by row: ", true),
+         measure("Quantity", "Sum"));
+
+      TableBindingMutator.setRanking(later, "rows", "Team", null,
+         new DimensionSortRanking.Ranking("top", 3, prefixed, null));
+      TableBindingMutator.setRanking(first, "rows", "Team", null,
+         new DimensionSortRanking.Ranking("top", 3, prefixed, null));
+
+      assertEquals(prefixed, later.getRows().get(0).getRankingCol());
+      assertEquals(prefixed, first.getRows().get(0).getRankingCol());
+   }
+
+   @Test
+   void sortStillRefusesThePrefixedNameAndSaysToUseTheColumnName() {
+      CrosstabBindingModel model = rowsWithAggregates(
+         measure("Quantity", "Sum"),
+         percentWithPrefix("Net Amount", "Sum", "% of total by row: ", true));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setSort(model, "rows", "Team", null,
+            new DimensionSortRanking.Sort("value_desc", "% of total by row: Sum(Net Amount)", null)));
+
+      assertTrue(thrown.getMessage().contains("only when ranking"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("'Net Amount'"), thrown.getMessage());
+   }
+
+   @Test
+   void aCalculatorThatDoesNotSortByValueKeepsRefusingThePrefixedName() {
+      CrosstabBindingModel model = rowsWithAggregates(
+         percentWithPrefix("Net Amount", "Sum", "% of total by row: ", false));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setRanking(model, "rows", "Team", null,
+            new DimensionSortRanking.Ranking("top", 3, "% of total by row: Sum(Net Amount)",
+                                             null)));
+      TableBindingMutator.setRanking(model, "rows", "Team", null,
+         new DimensionSortRanking.Ranking("top", 3, "Sum(Net Amount)", null));
+
+      assertTrue(thrown.getMessage().contains("not a bound aggregate"), thrown.getMessage());
+      assertEquals("Sum(Net Amount)", model.getRows().get(0).getRankingCol(),
+                   "the plain full name stays accepted exactly as before");
+   }
+
+   @Test
+   void thePrefixedNameFollowsTheLiveCalculatorNotAConstant() {
+      CrosstabBindingModel model = rowsWithAggregates(
+         percentWithPrefix("Net Amount", "Sum", "% of total: ", true));
+
+      TableBindingMutator.setRanking(model, "rows", "Team", null,
+         new DimensionSortRanking.Ranking("top", 3, "% of total: Sum(Net Amount)", null));
+      Exception stale = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setRanking(model, "rows", "Team", null,
+            new DimensionSortRanking.Ranking("top", 3, "% of total by row: Sum(Net Amount)",
+                                             null)));
+
+      assertEquals("% of total: Sum(Net Amount)", model.getRows().get(0).getRankingCol());
+      assertTrue(stale.getMessage().contains("not a bound aggregate"), stale.getMessage());
+      assertTrue(stale.getMessage().contains("% of total: Sum(Net Amount)"),
+                 "names the spelling that is accepted now: " + stale.getMessage());
+   }
+
+   @Test
+   void anUnknownPrefixedNameIsStillRefused() {
+      CrosstabBindingModel model = rowsWithAggregates(
+         percentWithPrefix("Net Amount", "Sum", "% of total by row: ", true));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setRanking(model, "rows", "Team", null,
+            new DimensionSortRanking.Ranking("top", 3, "% of total by row: Sum(Nope)", null)));
+
+      assertTrue(thrown.getMessage().contains("% of total by row: Sum(Nope)"));
+      assertTrue(thrown.getMessage().contains("not a bound aggregate"), thrown.getMessage());
+   }
+
+   @Test
+   void aStoredPrefixedRankingIsReportedWhenItsAggregateIsRemoved() {
+      CrosstabBindingModel model = rowsWithAggregates(
+         measure("Quantity", "Sum"),
+         percentWithPrefix("Net Amount", "Sum", "% of total by row: ", true));
+      TableBindingMutator.setRanking(model, "rows", "Team", null,
+         new DimensionSortRanking.Ranking("top", 3, "% of total by row: Sum(Net Amount)", null));
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Quantity", "Sum")));
+
+      assertNull(model.getRows().get(0).getRankingCol());
+      List<String> notes = resetNotes();
+      assertEquals(1, notes.size(), notes.toString());
+      assertTrue(notes.get(0).contains("the ranking of 'Team' on rows by '% of total by row: " +
+                                       "Sum(Net Amount)' was removed"), notes.get(0));
+   }
+
    // ── calculateInfo survives an aggregates shelf rewrite (bug #76881) ────────
    //
    // aggregates() used to build a brand-new BAggregateRefModel on every write with no previous

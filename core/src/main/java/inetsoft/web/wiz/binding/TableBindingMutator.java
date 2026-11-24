@@ -1823,7 +1823,7 @@ public final class TableBindingMutator {
       BDimensionRefModel dimension = requireDimension(model, shelf, column, index);
 
       if(sort != null && !blank(sort.sortByField())) {
-         requireKnownMeasure(model, sort.sortByField(), "sortByField");
+         requireKnownMeasure(model, sort.sortByField(), "sortByField", false);
       }
 
       if(dimension.isTimeSeries() && ChartBindingMutator.overridesAscending(sort) &&
@@ -1852,7 +1852,7 @@ public final class TableBindingMutator {
       if(ranking != null && !"none".equalsIgnoreCase(ranking.mode()) &&
          !blank(ranking.measure()))
       {
-         requireKnownMeasure(model, ranking.measure(), "measure");
+         requireKnownMeasure(model, ranking.measure(), "measure", true);
       }
 
       DimensionSortRanking.applyRanking(dimension, ranking);
@@ -2246,7 +2246,7 @@ public final class TableBindingMutator {
             continue;
          }
 
-         if(field.column().equalsIgnoreCase(measure)) {
+         if(field.column().equalsIgnoreCase(measure) || namesRankableCalculator(field, measure)) {
             return true;
          }
 
@@ -2297,6 +2297,33 @@ public final class TableBindingMutator {
       "nthmostfrequent", "pthpercentile", "first", "last");
 
    /**
+    * The name {@code VSAggregateRef.getFullName(true)} renders for a measure whose calculator
+    * sorts by value (percent of total), up to but not including the closing parenthesis, or
+    * {@code null} for any other measure. A ranking is kept by {@code VSAssemblyInfoHandler
+    * .validateTopN} only when it equals this name; any other spelling silently falls back to the
+    * first aggregate. The prefix depends on the crosstab's current {@code percentageBy}, so it is
+    * read from the live calculator, never assumed.
+    */
+   private static String rankableCalculatorBase(FieldRef field) {
+      CalculateInfo calc = field.calculateInfo();
+
+      return calc != null && calc.isSupportSortByValue() && !blank(calc.getPrefix()) &&
+         field.aggregate() != null && field.column() != null
+         ? calc.getPrefix() + field.aggregate() + "(" + field.column() : null;
+   }
+
+   /** Whether {@code measure} is the calculator-prefixed full name of {@code field}. */
+   private static boolean namesRankableCalculator(FieldRef field, String measure) {
+      String base = rankableCalculatorBase(field);
+
+      return base != null && measure != null &&
+         ((base + ")").equalsIgnoreCase(measure) ||
+          MULTI_ARG_FORMULA_NAMES.contains(field.aggregate().toLowerCase()) &&
+          measure.regionMatches(true, 0, base + ",", 0, base.length() + 1) &&
+          measure.trim().endsWith(")"));
+   }
+
+   /**
     * Refuses a {@code sortByField}/{@code measure} that names no aggregate bound on this
     * assembly's aggregates shelf. Ranking or sorting by an unresolvable measure is accepted
     * silently downstream and renders a plausible-but-arbitrary result (the ranking condition
@@ -2310,6 +2337,12 @@ public final class TableBindingMutator {
     * FieldRef} carries no second-column or N value to reconstruct the exact full name the
     * product would render.
     *
+    * <p>A fourth shape is accepted for {@code ranking} only: the calculator-prefixed full name
+    * of a measure whose calculator sorts by value (e.g. {@code "% of total by row: Sum(Qty)"},
+    * see {@link #rankableCalculatorBase}), the one spelling {@code validateTopN} keeps. A sort
+    * resolves the plain column name instead, so the prefixed name is refused there with that
+    * hint.
+    *
     * <p>A {@code "$(ComponentName)"} dynamic value (bug #76766) is exempt from all of this: it
     * resolves against a live Form component's value at render time, not against this assembly's
     * bound aggregates now, and {@code BDimensionRefModel.createDataRef()} already writes it into
@@ -2321,7 +2354,7 @@ public final class TableBindingMutator {
     * catching an accidental {@code "="}-prefixed value the same way it always has.
     */
    private static void requireKnownMeasure(BaseTableBindingModel model, String measure,
-                                           String param)
+                                           String param, boolean ranking)
    {
       if(!shelvesOf(model).contains("aggregates")) {
          throw new IllegalArgumentException(
@@ -2345,6 +2378,22 @@ public final class TableBindingMutator {
             if(MULTI_ARG_FORMULA_NAMES.contains(field.aggregate().toLowerCase())) {
                multiArgPrefixes.add(field.aggregate() + "(" + field.column() + ",");
             }
+         }
+
+         String calculatorBase = rankableCalculatorBase(field);
+
+         if(calculatorBase != null && ranking) {
+            known.add(calculatorBase + ")");
+
+            if(MULTI_ARG_FORMULA_NAMES.contains(field.aggregate().toLowerCase())) {
+               multiArgPrefixes.add(calculatorBase + ",");
+            }
+         }
+         else if(calculatorBase != null && namesRankableCalculator(field, measure)) {
+            throw new IllegalArgumentException(
+               "'" + param + "' is '" + measure + "', the calculator-prefixed name of a bound " +
+               "measure, which StyleBI accepts only when ranking. Sort by the column name '" +
+               field.column() + "' instead.");
          }
       }
 
