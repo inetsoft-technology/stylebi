@@ -226,7 +226,7 @@ public class RRuntime extends TabularRuntime {
       File tempFile = FileSystemService.getInstance().getCacheTempFile("r", ".csv");
 
       try {
-         connection.voidEval("write.csv(" + name + ", '" + fileName + "')");
+         connection.voidEval("write.csv(" + name + ", '" + fileName + "', row.names = FALSE, na = \"\")");
 
          try(InputStream input = connection.openFile(fileName);
              OutputStream output = new FileOutputStream(tempFile))
