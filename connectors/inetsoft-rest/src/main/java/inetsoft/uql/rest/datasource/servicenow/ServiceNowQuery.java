@@ -114,7 +114,7 @@ public class ServiceNowQuery extends EndpointJsonQuery<ServiceNowEndpoint> {
                .offsetParam(PaginationParamType.QUERY, "sysparm_offset")
                .maxResultsPerPageParam(PaginationParamType.QUERY, "sysparm_limit")
                .maxResultsPerPage(1000)
-               .baseRecordLength(1)
+               .zeroBasedPageIndex(true)
                .recordCountPath("$.result.length()")
                .build();
          }
@@ -125,7 +125,6 @@ public class ServiceNowQuery extends EndpointJsonQuery<ServiceNowEndpoint> {
                .maxResultsPerPageParam(PaginationParamType.QUERY, "sysparm_per_page")
                .maxResultsPerPage(100)
                .recordCountPath("$.result.length()")
-               .baseRecordLength(1)
                .build();
          }
       }
