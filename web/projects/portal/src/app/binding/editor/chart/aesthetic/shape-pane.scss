@@ -140,6 +140,11 @@ button.sp-btn.dropdown-toggle {
     grid-template-columns: 30px repeat(8, minmax(24px, 1fr)) 30px;
   }
 
+  .sp-slot ::ng-deep shape-combo-box {
+    display: block;
+    width: 100%;
+  }
+
   .sp-slot ::ng-deep shape-combo-box > div {
     width: 100%;
   }
