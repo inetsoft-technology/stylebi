@@ -37,6 +37,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
+import java.awt.image.BufferedImage;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -104,6 +105,76 @@ class VSFormatTableLensPresenterColorsTest {
       assertEquals(TrafficLightPresenter.DEFAULT_GREEN, light.getColor1());
       assertEquals(TrafficLightPresenter.DEFAULT_YELLOW, light.getColor2());
       assertEquals(TrafficLightPresenter.DEFAULT_RED, light.getColor3());
+   }
+
+   @Test
+   void aModernTrafficLightGetsTheSoftRoundedHousing() throws Exception {
+      for(VizMark mark : new VizMark[] { VizMark.MODERN_LIGHT, VizMark.MODERN_DARK }) {
+         TrafficLightPresenter light =
+            (TrafficLightPresenter) lens(LIGHT, mark).getPresenter(1, 1);
+
+         assertEquals(VSObjectChromeDefaults.objectBorderColor(VizContext.of(mark)),
+                      light.modernHousing());
+      }
+   }
+
+   @Test
+   void aClassicTrafficLightKeepsItsSquareGrayHousing() throws Exception {
+      TrafficLightPresenter light = (TrafficLightPresenter) lens(LIGHT, null).getPresenter(1, 1);
+
+      assertNull(light.modernHousing());
+   }
+
+   @Test
+   void theModernHousingKeepsItsRightEdgeWhenTheColumnIsNarrowerThanThePresenter() {
+      TrafficLightPresenter light = new TrafficLightPresenter();
+      light.useModernHousing(Color.BLACK);
+      // the presenter is 60 wide by default; the visible cell is 40
+      BufferedImage image = new BufferedImage(40, 15, BufferedImage.TYPE_INT_RGB);
+      Graphics2D g = image.createGraphics();
+      g.setColor(Color.WHITE);
+      g.fillRect(0, 0, 40, 15);
+      g.setClip(0, 0, 40, 15);
+      light.paint(g, 50.0, 0, 0, 60, 15);
+      g.dispose();
+
+      // the middle of the right edge is drawn, and so are the left, top and bottom
+      assertNotEquals(Color.WHITE.getRGB(), image.getRGB(39, 7), "right edge");
+      assertNotEquals(Color.WHITE.getRGB(), image.getRGB(1, 7), "left edge");
+      assertNotEquals(Color.WHITE.getRGB(), image.getRGB(20, 1), "top edge");
+      assertNotEquals(Color.WHITE.getRGB(), image.getRGB(20, 13), "bottom edge");
+   }
+
+   @Test
+   void theModernHousingHasRoundedCorners() {
+      TrafficLightPresenter light = new TrafficLightPresenter();
+      light.useModernHousing(Color.BLACK);
+      BufferedImage image = new BufferedImage(60, 15, BufferedImage.TYPE_INT_RGB);
+      Graphics2D g = image.createGraphics();
+      g.setColor(Color.WHITE);
+      g.fillRect(0, 0, 60, 15);
+      g.setClip(0, 0, 60, 15);
+      light.paint(g, 50.0, 0, 0, 60, 15);
+      g.dispose();
+
+      // the square corner pixel would be black; the rounded one is much lighter than the edge
+      int corner = new Color(image.getRGB(1, 1)).getRed();
+      int edge = new Color(image.getRGB(1, 7)).getRed();
+      assertTrue(corner > edge + 100, "corner " + corner + " is not rounder than the edge " + edge);
+   }
+
+   @Test
+   void theClassicHousingIsStillSquare() {
+      TrafficLightPresenter light = new TrafficLightPresenter();
+      BufferedImage image = new BufferedImage(60, 15, BufferedImage.TYPE_INT_RGB);
+      Graphics2D g = image.createGraphics();
+      g.setColor(Color.WHITE);
+      g.fillRect(0, 0, 60, 15);
+      g.setClip(0, 0, 60, 15);
+      light.paint(g, 50.0, 0, 0, 60, 15);
+      g.dispose();
+
+      assertEquals(Color.GRAY.getRGB(), image.getRGB(1, 1));
    }
 
    @Test

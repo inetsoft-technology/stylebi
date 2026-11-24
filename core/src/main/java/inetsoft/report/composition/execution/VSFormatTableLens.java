@@ -268,6 +268,7 @@ public final class VSFormatTableLens extends FormatTableLens {
 
    // the presenter's own colors are real colors, so one still equal to its default is not chosen
    private void applyTrafficLightColors(TrafficLightPresenter light) {
+      light.useModernHousing(VSObjectChromeDefaults.trafficLightHousingColor(barContext()));
       Color[] colors = VSObjectChromeDefaults.trafficLightColors(barContext());
 
       if(colors == null) {

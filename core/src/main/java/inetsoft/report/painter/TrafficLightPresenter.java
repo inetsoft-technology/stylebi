@@ -132,8 +132,13 @@ public class TrafficLightPresenter implements Presenter {
          }
 
          if(!single) {
-            g.setColor(Color.gray);
-            g.drawRect(x + 1, y + 1, w - 3, h - 3);
+            if(housing == null) {
+               g.setColor(Color.gray);
+               g.drawRect(x + 1, y + 1, w - 3, h - 3);
+            }
+            else {
+               paintHousing(g, x, y, w, h);
+            }
          }
 
          int cw = single ? Math.min(h - 6, w - 6) :
@@ -188,6 +193,54 @@ public class TrafficLightPresenter implements Presenter {
          }
 
          g.setClip(clip);
+      }
+   }
+
+   /**
+    * Draw the box around the lights in this color, with rounded corners, instead of the classic
+    * square gray one. Null, the default, keeps the classic box. This is not a bean property, so
+    * it does not show in the presenter dialog or get saved: the table sets it on a modern table.
+    */
+   public void useModernHousing(Color color) {
+      this.housing = color;
+   }
+
+   /**
+    * The color of the modern box around the lights, or null for the classic box.
+    */
+   public Color modernHousing() {
+      return housing;
+   }
+
+   // The presenter is painted at its preferred size, which is wider than a narrow column, so the
+   // cell clips the painted area. The box is drawn inside what is visible, so its right and
+   // bottom edges are not lost to the clip.
+   private void paintHousing(Graphics g, int x, int y, int w, int h) {
+      Rectangle visible = g.getClipBounds();
+      int left = x + 1;
+      int top = y + 1;
+      int right = x + w - 2;
+      int bottom = y + h - 2;
+
+      if(visible != null) {
+         left = Math.max(left, visible.x);
+         top = Math.max(top, visible.y);
+         right = Math.min(right, visible.x + visible.width - 1);
+         bottom = Math.min(bottom, visible.y + visible.height - 1);
+      }
+
+      if(right <= left || bottom <= top) {
+         return;
+      }
+
+      Graphics2D g2 = (Graphics2D) g;
+      Object aa = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+      g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+      g2.setColor(housing);
+      g2.drawRoundRect(left, top, right - left, bottom - top, HOUSING_ARC, HOUSING_ARC);
+
+      if(aa != null) {
+         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa);
       }
    }
 
@@ -379,6 +432,10 @@ public class TrafficLightPresenter implements Presenter {
 
    private Color[] COLORS = {DEFAULT_GREEN, DEFAULT_YELLOW, DEFAULT_RED};
 
+   // the corner diameter of the modern box, px
+   private static final int HOUSING_ARC = 6;
+
+   private Color housing = null;
    private double low = 0, high = 100;
    private boolean highRed = true; // true to show hi as red, otherwise green
    private boolean horizontal = true;

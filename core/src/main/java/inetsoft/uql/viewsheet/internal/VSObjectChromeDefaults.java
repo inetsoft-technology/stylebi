@@ -109,6 +109,14 @@ public final class VSObjectChromeDefaults {
    }
 
    /**
+    * The color of the box around the Traffic Light's lights on a modern table: the object border
+    * neutral, softer than the classic gray. Null for a classic table, which keeps its own box.
+    */
+   public static Color trafficLightHousingColor(VizContext ctx) {
+      return ctx != null && ctx.modern ? objectBorderColor(ctx) : null;
+   }
+
+   /**
     * The default Bullet Graph range bands on a modern table, darkest first: a neutral grey ramp
     * instead of the presenter's faintly purple one. Null for a classic table.
     */
