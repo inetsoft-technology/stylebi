@@ -108,6 +108,8 @@ public class BarPresenter implements AutoMaximumPresenter {
       copy.max = max;
       copy.fillCell = fillCell;
       copy.bg = bg;
+      // a modern table sets the bar thickness on the presenter before this copy is made
+      copy.thickness = thickness;
       copy.autoMaximum = autoMaximum;
       copy.maxResolver = resolver;
       return copy;

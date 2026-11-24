@@ -44,6 +44,36 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class BarPresenterAutoMaximumTest {
    @Test
+   void theMaximumResolverCopyKeepsTheModernBarThickness() {
+      BarPresenter bar = new BarPresenter(100, Color.BLUE);
+      bar.setAutoMaximum(true);
+      bar.useModernThickness(8);
+
+      BarPresenter copy = (BarPresenter) bar.withMaximumResolver(() -> 50.0);
+
+      assertEquals(8, copy.modernThickness());
+   }
+
+   @Test
+   void aModernBarWithAutoMaximumIsDrawnAtTheModernThicknessNotTheFullHeight() {
+      BarPresenter bar = new BarPresenter(100, Color.BLUE);
+      bar.setAutoMaximum(true);
+      bar.useModernThickness(8);
+      BarPresenter copy = (BarPresenter) bar.withMaximumResolver(() -> 50.0);
+
+      // a 40 by 20 cell: a bar of the modern thickness is 8 high, centered, so the cell's top and
+      // bottom rows are clear and its middle row is drawn
+      BufferedImage image = new BufferedImage(40, 20, BufferedImage.TYPE_INT_ARGB);
+      Graphics2D g = image.createGraphics();
+      copy.paint(g, 50.0, 0, 0, 40, 20);
+      g.dispose();
+
+      assertEquals(0, image.getRGB(10, 3) >>> 24, "above the bar");
+      assertEquals(0, image.getRGB(10, 16) >>> 24, "below the bar");
+      assertNotEquals(0, image.getRGB(10, 10) >>> 24, "the bar");
+   }
+
+   @Test
    void barDefaultOffDrawsAgainstConfiguredMaximum() {
       BarPresenter bar = new BarPresenter();
       assertFalse(bar.isAutoMaximum());
