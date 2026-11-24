@@ -34,6 +34,10 @@ import inetsoft.web.wiz.controller.WizDataModelErrors.DmFailure;
 import inetsoft.web.wiz.controller.WizDataModelWire.Err;
 import inetsoft.web.wiz.controller.WizPhysicalViewDiff.*;
 import inetsoft.web.wiz.controller.WizPhysicalViewMapper.*;
+import inetsoft.web.wiz.controller.WizPhysicalViewWire.AutoJoinResponse;
+import inetsoft.web.wiz.controller.WizPhysicalViewWire.ColumnRef;
+import inetsoft.web.wiz.controller.WizPhysicalViewWire.MetaColumn;
+import inetsoft.web.wiz.controller.WizPhysicalViewWire.NameColumn;
 import inetsoft.web.wiz.controller.WizPhysicalViewWire.Warning;
 
 import java.io.FileNotFoundException;
@@ -88,6 +92,90 @@ final class WizPhysicalViewSession {
 
       PhysicalModelDefinition dto = modelService.createModel(database, dataModel, partition);
       return WizPhysicalViewMapper.fromDto(dto, partition, parent);
+   }
+
+   // -- auto join (read only) ------------------------------------------------------------------
+
+   /**
+    * The Auto Join Tables function of the Portal's physical view editor for a stored view
+    * ({@code draft} null) or for a draft given by its tables. Nothing is stored. A stored view
+    * is read as the Portal's definition and opens no runtime. A draft is built in a runtime by
+    * the same operations as {@link #create}, so its tables carry the names the server gives them
+    * (the names {@code create} would store, which the proposed joins must name); the runtime is
+    * destroyed in a {@code finally}, as a write does. An inline view's SQL is run on the
+    * connection, as in the Portal.
+    *
+    * @param draft the tables and connection of the draft as a definition map, or null.
+    */
+   AutoJoinResponse autoJoin(String database, XDataModel dataModel, String parent, String name,
+                             Map<String, Object> draft, String mode, List<String> columns,
+                             Principal principal)
+      throws Exception
+   {
+      String id = null;
+
+      try {
+         View view;
+         PhysicalModelDefinition definition;
+
+         if(draft == null) {
+            XPartition partition = storedPartition(dataModel, parent, name);
+
+            if(partition == null) {
+               throw new FileNotFoundException(database + "/" + name);
+            }
+
+            definition = modelService.createModel(database, dataModel, partition);
+            view = WizPhysicalViewMapper.fromDto(definition, partition, parent);
+         }
+         else {
+            Desired desired = WizPhysicalViewMapper.parse(draft);
+            View want = desired.view();
+            View start = startOf(database, dataModel, null, want);
+            Plan plan = WizPhysicalViewDiff.plan(start, desired, true);
+            RuntimePartitionService.RuntimeXPartition runtime =
+               createRuntime(database, dataModel, null, want);
+            id = runtime.getId();
+            Run run = new Run(database, dataModel, null, id, principal);
+            run.apply(start, desired, plan);
+            definition = run.posted(plan);
+            view = WizPhysicalViewMapper.fromDto(definition, null, null);
+         }
+
+         AutoJoinColumnsModel candidates =
+            manager.getAutoJoinColumns(database, definition, principal);
+         List<NameColumn> names = new ArrayList<>();
+         List<MetaColumn> metas = new ArrayList<>();
+
+         for(AutoJoinNameColumnModel column : orEmpty(candidates.getNameColumns())) {
+            names.add(new NameColumn(column.getColumn(), orEmpty(column.getTables())));
+         }
+
+         for(AutoJoinMetaColumnModel column : orEmpty(candidates.getMetaColumns())) {
+            List<ColumnRef> refs = new ArrayList<>();
+
+            for(AutoJoinMetaColumnModel ref : orEmpty(column.getForColumns())) {
+               refs.add(new ColumnRef(ref.getTable(), ref.getColumn()));
+            }
+
+            metas.add(new MetaColumn(column.getTable(), column.getColumn(), refs));
+         }
+
+         List<String> tables = new ArrayList<>();
+         view.tables().forEach(t -> tables.add(t.name()));
+         return WizAutoJoinProposal.propose(names, metas, candidates.isMetaAvailable(), tables,
+                                            view.joins(), mode, columns);
+      }
+      catch(Exception e) {
+         throw scrub(e, id);
+      }
+      finally {
+         destroy(id);
+      }
+   }
+
+   private static <T> List<T> orEmpty(List<T> list) {
+      return list == null ? List.of() : list;
    }
 
    private static XPartition storedPartition(XDataModel dataModel, String parent, String name) {

@@ -40,7 +40,8 @@ import java.util.*;
 import static inetsoft.web.wiz.controller.WizPhysicalViewMapper.blankToNull;
 
 /**
- * {@code /physical/get}, {@code /physical/create}, {@code /physical/update} of the data model
+ * {@code /physical/get}, {@code /physical/create}, {@code /physical/update} and
+ * {@code /physical/autojoin} of the data model
  * bridge (design 4.1, 4.2, 8). A view that the caller cannot see (WRITE on its folder or the
  * data source) is answered exactly like a missing one; a view the caller can see but may not
  * write to is a 403 naming the action and the path. The writes run in a one-request session
@@ -88,6 +89,17 @@ public class WizPhysicalViewController {
       return WizDataModelErrors.run(() -> locked(request, () -> doUpdate(request, principal)));
    }
 
+   /**
+    * The Auto Join Tables function: the joins the Portal's dialog would build for the tables of
+    * a stored view or of a draft. Read only (no lock, nothing stored), gated like {@code get}.
+    */
+   @PostMapping(value = "/physical/autojoin", produces = MediaType.APPLICATION_JSON_VALUE)
+   public Object autoJoin(@RequestBody AutoJoinRequest request, Principal principal)
+      throws Exception
+   {
+      return WizDataModelErrors.run(() -> doAutoJoin(request, principal));
+   }
+
    /** Runs a write holding the shared per-data-source lock of every data model write. */
    private static <T> T locked(WriteRequest request, WizDataModelErrors.Body<T> body)
       throws Exception
@@ -108,6 +120,56 @@ public class WizPhysicalViewController {
       Map<String, Object> definition = WizPhysicalViewMapper.toWire(view);
       return new GetResponse(true, definition, view.folder(), false,
                              WizDataModelRevision.of(definition));
+   }
+
+   // -- auto join ------------------------------------------------------------------------------
+
+   private Object doAutoJoin(AutoJoinRequest request, Principal principal) throws Exception {
+      String database = required(request == null ? null : request.database(), "database");
+      String name = blankToNull(request.name());
+      boolean hasTables = request.tables() != null;
+
+      if((name != null) == hasTables) {
+         throw WizAutoJoinProposal.invalid(
+            "name", "SOURCE_INVALID",
+            "give exactly one of name (a stored view) and tables (a draft)");
+      }
+
+      XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
+
+      if(!hasTables) {
+         // a view the caller may not see is answered like a missing one, as get does
+         stored(dataModel, database, blankToNull(request.parent()), name, principal);
+         return session.autoJoin(database, dataModel, blankToNull(request.parent()), name, null,
+                                 request.mode(), request.columns(), principal);
+      }
+
+      if(blankToNull(request.parent()) != null) {
+         throw WizAutoJoinProposal.invalid(
+            "parent", "SOURCE_INVALID", "parent goes with name, not with tables");
+      }
+
+      if(request.tables().size() < 2) {
+         throw WizAutoJoinProposal.invalid(
+            "tables", "TABLES_TOO_FEW",
+            "auto join needs at least two tables, got " + request.tables().size());
+      }
+
+      String connection = blankToNull(request.connection());
+      requireConnection(database, connection, principal);
+      // the service checks this too, but only after the draft was built (metadata read, inline
+      // view SQL run): a caller who may not edit the data source is turned away before that
+      dataSourceService.checkDataModelEditPermission(database, connection, principal);
+      Map<String, Object> draft = new LinkedHashMap<>();
+      draft.put("name", "autojoin-draft");
+      draft.put("tables", request.tables());
+
+      if(connection != null) {
+         draft.put("connection", connection);
+      }
+
+      return session.autoJoin(database, dataModel, null, null, draft, request.mode(),
+                              request.columns(), principal);
    }
 
    // -- create ---------------------------------------------------------------------------------
