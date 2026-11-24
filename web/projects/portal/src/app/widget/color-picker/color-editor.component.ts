@@ -39,7 +39,7 @@ export class ColorEditor {
    @Input() gradientModel: GradientColor;
    @Input() gradient: boolean = false;
    @Input() mode: ColorMode = ColorMode.BUTTON;
-   @Input() palette: ColorPalette = DefaultPalette.chart;
+   @Input() palette: ColorPalette = DefaultPalette.palette;
    @Input() label: string = null;
    @Input() isTableStyle: boolean = false;
    @Output() colorChange: EventEmitter<string> = new EventEmitter<string>();
