@@ -55,14 +55,13 @@ import java.util.concurrent.locks.ReentrantLock;
  * {@code apply_cluster_changes} with {@code {verb: "resume", server: X}} is the live undo of a prior
  * {@code {verb: "pause", server: X}}, and vice versa.
  *
- * <p><b>Required disclosure, repeated here at the same prominence as {@link ClusterChangePlanService}
- * (03-reconcile.md, not optional): a "verified" pause outcome is a point-in-time confirmation, not a
- * standing guarantee.</b> If the paused node later crashes, is restarted, or briefly leaves the
- * cluster for any reason, its paused flag is silently cleared on rejoin with no error, no log line
- * above {@code DEBUG}, and no signal back through this area's own tools -- a caller relying on this
- * apply's own "verified" result to mean "still paused" later would be wrong, with nothing in this
- * design telling them so. See {@link ClusterChangePlanService}'s own class javadoc for the full
- * account.
+ * <p><b>Required disclosure, repeated from {@link ClusterChangePlanService} (03-reconcile.md, not
+ * optional): a "verified" pause outcome is a point-in-time confirmation, not a standing
+ * guarantee.</b> The paused flag lives only in the cluster's shared in-memory status map: a node that
+ * restarts or rejoins at the same address while another node keeps that map comes back still paused,
+ * but the flag is lost when no node holds the map, and a node that returns at a different address
+ * starts Running. Re-read the node after any restart, rejoin or failover. See
+ * {@link ClusterChangePlanService}'s own class javadoc for the full account.
  */
 @Component
 public class ClusterChangesetApplyService {
@@ -76,13 +75,14 @@ public class ClusterChangesetApplyService {
    public static final String STATUS_APPLIED = AdminChangesetApplyService.STATUS_APPLIED;
    public static final String STATUS_FAILED = AdminChangeRecord.STATUS_FAILED;
 
+   /** Reads back through a new {@code ServerClusterClient}; see {@link ClusterClientFactory}. */
    @Autowired
    public ClusterChangesetApplyService(ClusterChangePlanService planService,
-                                       ClusterService clusterService, ServerClusterClient client)
+                                       ClusterService clusterService, ClusterClientFactory clients)
    {
       this.planService = planService;
       this.clusterService = clusterService;
-      this.client = client;
+      this.clients = clients;
    }
 
    /**
@@ -186,9 +186,13 @@ public class ClusterChangesetApplyService {
       boolean verified = afterLabel.equals(change.proposedValue());
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : STATUS_FAILED;
       String error = verified ? null :
-         "read-back status \"" + afterLabel + "\" does not match the proposed state \"" +
-         change.proposedValue() + "\" after retrying past the status-map write debounce window -- " +
-         "the server may be unreachable, or the pause/resume message did not complete";
+         ClusterStatusLabel.STATUS_STOPPED.equals(afterLabel) ?
+            "the server did not answer: read-back status \"" + afterLabel + "\" means it is not in " +
+            "the cluster's live node list (stopped or left the cluster) or has not reported a " +
+            "status, so the " + verb + " could not be confirmed" :
+            "read-back status \"" + afterLabel + "\" does not match the proposed state \"" +
+            change.proposedValue() + "\" after retrying past the status-map write debounce window " +
+            "-- the pause/resume message did not complete";
       results.add(new ClusterApplyOutcome(server, before, afterLabel, status, error));
       writeAudit(txId, task, server, before, afterLabel, status, reviewOutcome, user);
    }
@@ -209,6 +213,7 @@ public class ClusterChangesetApplyService {
     * keep looking before settling.
     */
    private ServerClusterStatus readBackWithRetry(String server, String proposedLabel) {
+      ServerClusterClient client = clients.create();
       ServerClusterStatus status = client.getStatus(server);
 
       for(int attempt = 1;
@@ -308,5 +313,5 @@ public class ClusterChangesetApplyService {
    private static final ReentrantLock APPLY_LOCK = new ReentrantLock();
    private final ClusterChangePlanService planService;
    private final ClusterService clusterService;
-   private final ServerClusterClient client;
+   private final ClusterClientFactory clients;
 }
