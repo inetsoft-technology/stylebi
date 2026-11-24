@@ -121,17 +121,17 @@ public class GraphQLCursorIteratorStrategyTest {
    }
 
    /**
-    * Bug #81771: an empty first page ends the iteration, but the run still completed, so the
-    * refusal must not blame credentials.
+    * Bug #81771: an empty first page is still a successful response, so it is returned as the
+    * page that was read (not a null failure-looking result) and ends the iteration.
     */
    @Test
-   public void emptyFirstPageMarksTheRunCompleted() throws Exception {
+   public void emptyFirstPageIsReturnedAndEndsIteration() throws Exception {
       final GraphQLQuery query = createQuery();
       final GraphQLCursorIteratorStrategy strategy = new GraphQLCursorIteratorStrategy(
          query, new JsonTransformer(), new SequencedHttpHandler(page(null)), new RestErrorHandler());
 
-      assertNull(strategy.next());
-      assertTrue(query.isRunCompleted());
+      assertNotNull(strategy.next());
+      assertFalse(strategy.hasNext());
    }
 
    @Test
