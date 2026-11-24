@@ -22,7 +22,6 @@ import inetsoft.util.script.ScriptUtil;
 import org.rosuda.REngine.*;
 
 import java.lang.reflect.Array;
-import java.util.Arrays;
 import java.util.Date;
 
 public class REXPEncoder {
@@ -87,9 +86,7 @@ public class REXPEncoder {
       }
 
       if(element == null) {
-         String[] values = new String[length];
-         Arrays.fill(values, "");
-         return new REXPString(values);
+         return new REXPString(new String[length]);
       }
 
       if(isInteger(element)) {
@@ -97,7 +94,7 @@ public class REXPEncoder {
 
          for(int i = 0; i < length; i++) {
             Number number = (Number) Array.get(value, i);
-            values[i] = number == null ? 0 : number.intValue();
+            values[i] = number == null ? REXPInteger.NA : number.intValue();
          }
 
          return new REXPInteger(values);
@@ -108,17 +105,19 @@ public class REXPEncoder {
 
          for(int i = 0; i < length; i++) {
             Number number = (Number) Array.get(value, i);
-            values[i] = number == null ? 0 : number.doubleValue();
+            values[i] = number == null ? REXPDouble.NA : number.doubleValue();
          }
 
          return new REXPDouble(values);
       }
 
       if(element instanceof Boolean) {
-         boolean[] values = new boolean[length];
+         byte[] values = new byte[length];
 
          for(int i = 0; i < length; i++) {
-            values[i] = Boolean.TRUE.equals(Array.get(value, i));
+            Object item = Array.get(value, i);
+            values[i] = item == null ? REXPLogical.NA :
+               Boolean.TRUE.equals(item) ? REXPLogical.TRUE : REXPLogical.FALSE;
          }
 
          return new REXPLogical(values);
@@ -128,7 +127,8 @@ public class REXPEncoder {
          String[] values = new String[length];
 
          for(int i = 0; i < length; i++) {
-            values[i] = formatDate((Date) Array.get(value, i));
+            Date date = (Date) Array.get(value, i);
+            values[i] = date == null ? null : formatDate(date);
          }
 
          return new REXPString(values);
@@ -139,7 +139,7 @@ public class REXPEncoder {
 
          for(int i = 0; i < length; i++) {
             String string = (String) Array.get(value, i);
-            values[i] = string == null ? "" : string;
+            values[i] = string;
          }
 
          return new REXPString(values);
