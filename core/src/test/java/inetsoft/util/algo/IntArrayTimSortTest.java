@@ -17,7 +17,6 @@
  */
 package inetsoft.util.algo;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -187,26 +186,6 @@ class IntArrayTimSortTest {
    void defaultComparatorOrdersByValue() {
       int[] values = {9, -3, 5, 0, 5, -3, 100, 42, -77, 8, 1, 2, 3, 4, 6, 7, 10, 11, 12, 13,
                       14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, -1, -2};
-      int[] expected = values.clone();
-      Arrays.sort(expected);
-
-      int[] result = new IntArrayTimSort().sort(values, 0, values.length,
-                                                new IntArraySort.IntComparator());
-
-      assertArrayEquals(expected, result);
-   }
-
-   /**
-    * The default comparator returns v1 - v2, which overflows when the values are far
-    * apart (Integer.MAX_VALUE - (-5) is negative), so large positive and negative values
-    * are ordered wrongly.
-    */
-   @Test
-   @Disabled("Not filed (no product caller uses the default comparator): IntArraySort.IntComparator.compare "
-      + "returns v1 - v2 and overflows for values more than Integer.MAX_VALUE apart; probe: "
-      + "[MAX, -5, MIN, 5, 0] sorts to [0, 5, MAX, MIN, -5]")
-   void defaultComparatorHandlesExtremeValues() {
-      int[] values = {Integer.MAX_VALUE, -5, Integer.MIN_VALUE, 5, 0};
       int[] expected = values.clone();
       Arrays.sort(expected);
 

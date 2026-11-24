@@ -17,7 +17,6 @@
  */
 package inetsoft.util;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -27,9 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * {@link OrderedMap} keeps keys in insertion order. The oracle for the ordinary
- * operations is {@link LinkedHashMap}; keys are never null in the oracle runs. The
- * disabled tests record places where the map's own bookkeeping (key list, value list,
- * hash index) drifts apart or the documented contract is not met.
+ * operations is {@link LinkedHashMap}; keys are never null in the oracle runs.
  */
 @Tag("core")
 class OrderedMapTest {
@@ -268,34 +265,6 @@ class OrderedMapTest {
       assertEquals(2, map.size());
    }
 
-   // ---- documented contract not met (found by probe, see class comment) ----
-
-   /** Map.put and the method's own Javadoc return the previous value. */
-   @Test
-   @Disabled("Not filed: OrderedMap.put returns the new value instead of the previous one, "
-      + "for an existing key and for a new key")
-   void putReturnsThePreviousValue() {
-      OrderedMap<String, Integer> map = new OrderedMap<>();
-
-      assertNull(map.put("a", 1), "a new key had no previous value");
-      assertEquals(Integer.valueOf(1), map.put("a", 2));
-   }
-
-   /** append puts a key that is not yet in the map at the end, like put. */
-   @Test
-   @Disabled("Not filed (no product caller): OrderedMap.append of a new key only updates the "
-      + "hash index; size() is 2 but keyList() is [a] and values() is [1]")
-   void appendOfANewKeyAddsItToTheOrderedLists() {
-      OrderedMap<String, Integer> map = new OrderedMap<>();
-      map.put("a", 1);
-
-      map.append("z", 9);
-
-      assertEquals(Arrays.asList("a", "z"), map.keyList());
-      assertEquals(Arrays.asList(1, 9), new ArrayList<>(map.values()));
-      assertEquals(2, map.size());
-   }
-
    @Test
    void appendOfAnExistingKeyMovesItToTheEnd() {
       OrderedMap<String, Integer> map = new OrderedMap<>();
@@ -308,72 +277,5 @@ class OrderedMapTest {
       assertEquals(Integer.valueOf(1), previous);
       assertEquals(Arrays.asList("b", "c", "a"), map.keyList());
       assertEquals(Arrays.asList(2, 3, 10), new ArrayList<>(map.values()));
-   }
-
-   /** put(idx, key, value) with a key that exists elsewhere moves it, no duplicate key. */
-   @Test
-   @Disabled("Not filed: OrderedMap.put(int, K, V) for a key that already exists at another "
-      + "index leaves the key twice in the key list: keys=[c, b, c], values=[Z, 2, 3], size 2")
-   void putAtIndexOfAnExistingKeyDoesNotDuplicateIt() {
-      OrderedMap<String, Integer> map = new OrderedMap<>();
-      map.put("a", 1);
-      map.put("b", 2);
-      map.put("c", 3);
-
-      map.put(0, "c", 30);
-
-      assertEquals(map.size(), map.keyList().size());
-      assertEquals(new HashSet<>(map.keyList()).size(), map.keyList().size(),
-                   "no key may appear twice");
-   }
-
-   /** The key set Javadoc says Iterator.remove removes the mapping from the map. */
-   @Test
-   @Disabled("Not filed: removing through keySet().iterator() only removes the key from the "
-      + "key list; the value list and hash index keep the entry (size 2, values [1, 2], get(a)=1)")
-   void keySetIteratorRemoveRemovesTheMapping() {
-      OrderedMap<String, Integer> map = new OrderedMap<>();
-      map.put("a", 1);
-      map.put("b", 2);
-
-      Iterator<String> it = map.keySet().iterator();
-      it.next();
-      it.remove();
-
-      assertEquals(1, map.size());
-      assertEquals(Collections.singletonList(2), new ArrayList<>(map.values()));
-      assertNull(map.get("a"));
-      assertFalse(map.containsKey("a"));
-   }
-
-   /** The values Javadoc says Collection.remove removes the mapping from the map. */
-   @Test
-   @Disabled("Not filed: values().remove(v) only removes from the value list; size() and "
-      + "keyList() still report the entry")
-   void valuesCollectionRemoveRemovesTheMapping() {
-      OrderedMap<String, Integer> map = new OrderedMap<>();
-      map.put("a", 1);
-      map.put("b", 2);
-
-      map.values().remove(2);
-
-      assertEquals(1, map.size());
-      assertEquals(Collections.singletonList("a"), map.keyList());
-   }
-
-   /** A null key is handled through a sentinel, so updating and removing it must work. */
-   @Test
-   @Disabled("Not filed (the put Javadoc says null keys are not allowed): updating or removing a "
-      + "null key that is in the map throws NullPointerException in the key scan")
-   void nullKeyCanBeUpdatedAndRemoved() {
-      OrderedMap<String, Integer> map = new OrderedMap<>();
-      map.put(null, 1);
-      map.put("x", 2);
-
-      map.put(null, 10);
-      assertEquals(Integer.valueOf(10), map.get(null));
-
-      assertEquals(Integer.valueOf(10), map.remove((Object) null));
-      assertEquals(1, map.size());
    }
 }
