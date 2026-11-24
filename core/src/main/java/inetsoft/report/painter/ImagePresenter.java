@@ -196,7 +196,7 @@ public class ImagePresenter implements ExpandablePresenter {
          if(auto) {
             g.drawImage(image, x, y, null);
          }
-         else if(ratio) {
+         else if(isMaintainAspectRatio()) {
             int w2 = image.getWidth();
             int h2 = image.getHeight();
             double aspectRatio = w2 * 1.0 / h2;
@@ -253,10 +253,12 @@ public class ImagePresenter implements ExpandablePresenter {
 
    public void setMaintainAspectRatio(boolean ratio) {
       this.ratio = ratio;
+      this.ratioChosen = true;
    }
 
    public boolean isMaintainAspectRatio() {
-      return ratio;
+      // an author's choice, either way, wins over the modern default
+      return ratioChosen ? ratio : modernRatio;
    }
 
    private static final class ImagePresenterCache {
@@ -366,8 +368,28 @@ public class ImagePresenter implements ExpandablePresenter {
       private static Properties index = null;
    }
 
+   /**
+    * Keep the picture's aspect ratio unless the author has chosen otherwise, in place of the
+    * classic default of stretching it to the cell. False, the default, keeps that. This is not a
+    * bean property, so it does not show in the presenter dialog or get saved: the table sets it on
+    * a modern table. The dialog shows the effective value of Maintain Aspect Ratio.
+    */
+   public void useModernAspectRatio(boolean on) {
+      this.modernRatio = on;
+   }
+
+   /**
+    * Whether the modern default keeps the aspect ratio.
+    */
+   public boolean modernAspectRatio() {
+      return modernRatio;
+   }
+
    private boolean auto = false;
    private boolean ratio = false;
+   // set once the author has chosen a value for ratio, so the modern default no longer applies
+   private boolean ratioChosen = false;
+   private boolean modernRatio = false;
    private Color bg = null;
    private final JComponent comp = new JPanel();
 

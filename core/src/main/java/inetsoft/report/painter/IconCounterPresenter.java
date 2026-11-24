@@ -91,6 +91,11 @@ public class IconCounterPresenter implements Presenter {
     */
    @Override
    public void paint(Graphics g, Object v, int x, int y, int w, int h) {
+      if(isModernStyle()) {
+         paintModern(g, v, x, y, w, h);
+         return;
+      }
+
       loadImages();
 
       Image img = icon;
@@ -126,6 +131,15 @@ public class IconCounterPresenter implements Presenter {
     */
    @Override
    public Dimension getPreferredSize(Object v) {
+      if(isModernStyle()) {
+         if(v instanceof Number) {
+            int n = (int) Math.ceil(((Number) v).doubleValue());
+            return new Dimension(n * (STAR_SIZE + 2) + 2, STAR_SIZE + 2);
+         }
+
+         return new Dimension(0, 0);
+      }
+
       loadImages();
 
       if(icon != null && v != null && v instanceof Number) {
@@ -139,6 +153,78 @@ public class IconCounterPresenter implements Presenter {
       }
 
       return new Dimension(0, 0);
+   }
+
+   /**
+    * Draw the stars as solid shapes in this color, in place of the built-in orange star image.
+    * Null, the default, keeps the image. An icon color chosen with setIconColor() wins. This is
+    * not a bean property, so it does not show in the presenter dialog or get saved: the table
+    * sets it on a modern table.
+    */
+   public void useModernStyle(Color starColor) {
+      this.modernColor = starColor;
+   }
+
+   /**
+    * The color of the modern stars, or null for the classic image.
+    */
+   public Color modernStyle() {
+      return modernColor;
+   }
+
+   private boolean isModernStyle() {
+      return modernColor != null && color == null && icon == null;
+   }
+
+   private void paintModern(Graphics g, Object v, int x, int y, int w, int h) {
+      if(!(v instanceof Number)) {
+         return;
+      }
+
+      double n = ((Number) v).doubleValue();
+      int count = (int) Math.min(w / STAR_SIZE + 1, Math.ceil(n));
+      Shape clip = g.getClip();
+      Graphics2D g2 = (Graphics2D) g;
+      Object aa = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+
+      g2.clipRect(x, y, (int) (n * (STAR_SIZE + 2) + 2), h);
+      g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+      g2.setColor(modernColor);
+      double top = y + (h - STAR_SIZE) / 2.0;
+
+      for(int i = 0; i < count; i++) {
+         g2.fill(star(x + 2 + i * (STAR_SIZE + 2) + STAR_SIZE / 2.0, top + STAR_SIZE / 2.0 + 0.4));
+      }
+
+      if(aa != null) {
+         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa);
+      }
+
+      g2.setClip(clip);
+   }
+
+   // a five pointed star with a point straight up
+   private static Shape star(double cx, double cy) {
+      double outer = STAR_SIZE / 2.0 + 0.2;
+      double inner = outer * 0.46;
+      java.awt.geom.Path2D.Double path = new java.awt.geom.Path2D.Double();
+
+      for(int i = 0; i < 10; i++) {
+         double radius = i % 2 == 0 ? outer : inner;
+         double angle = -Math.PI / 2 + i * Math.PI / 5;
+         double px = cx + radius * Math.cos(angle);
+         double py = cy + radius * Math.sin(angle);
+
+         if(i == 0) {
+            path.moveTo(px, py);
+         }
+         else {
+            path.lineTo(px, py);
+         }
+      }
+
+      path.closePath();
+      return path;
    }
 
    /**
@@ -253,7 +339,11 @@ public class IconCounterPresenter implements Presenter {
 
    private Color bg = null;
    private Color color = null;
+   private Color modernColor = null;
    private transient Image icon = null;
+
+   // the width and height of a star, px; the same as the built-in image
+   private static final int STAR_SIZE = 12;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(IconCounterPresenter.class);

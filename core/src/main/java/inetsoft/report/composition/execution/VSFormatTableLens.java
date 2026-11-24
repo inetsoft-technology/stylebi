@@ -23,8 +23,11 @@ import inetsoft.report.internal.table.*;
 import inetsoft.report.lens.CalcTableLens;
 import inetsoft.report.painter.Bar2Presenter;
 import inetsoft.report.painter.BarPresenter;
+import inetsoft.report.painter.BooleanPresenter;
 import inetsoft.report.painter.BulletGraphPresenter;
 import inetsoft.report.painter.ButtonPresenter;
+import inetsoft.report.painter.IconCounterPresenter;
+import inetsoft.report.painter.ImagePresenter;
 import inetsoft.report.painter.ShadowPresenter;
 import inetsoft.report.painter.TrafficLightPresenter;
 import inetsoft.report.script.formula.CalcRef;
@@ -192,6 +195,8 @@ public final class VSFormatTableLens extends FormatTableLens {
          if(bar.getColor() == null) {
             bar.setColor(defaultBarColor());
          }
+
+         bar.useModernThickness(VSObjectChromeDefaults.dataBarThickness(barContext()));
       }
       else if(presenter instanceof Bar2Presenter) {
          Bar2Presenter bar = (Bar2Presenter) presenter;
@@ -210,6 +215,21 @@ public final class VSFormatTableLens extends FormatTableLens {
       }
       else if(presenter instanceof BulletGraphPresenter) {
          applyBulletBands((BulletGraphPresenter) presenter);
+      }
+      else if(presenter instanceof ImagePresenter) {
+         VizContext ctx = barContext();
+         ((ImagePresenter) presenter).useModernAspectRatio(ctx != null && ctx.modern);
+      }
+      else if(presenter instanceof IconCounterPresenter) {
+         ((IconCounterPresenter) presenter).useModernStyle(
+            VSObjectChromeDefaults.starColor(barContext()));
+      }
+      else if(presenter instanceof BooleanPresenter) {
+         VizContext ctx = barContext();
+         ((BooleanPresenter) presenter).useModernStyle(
+            VSObjectChromeDefaults.checkMarkColor(ctx),
+            VSObjectChromeDefaults.checkMarkTickColor(ctx),
+            VSObjectChromeDefaults.checkBoxBorderColor(ctx));
       }
       else if(presenter instanceof TrafficLightPresenter) {
          applyTrafficLightColors((TrafficLightPresenter) presenter);
@@ -241,13 +261,21 @@ public final class VSFormatTableLens extends FormatTableLens {
       return presenter;
    }
 
-   // a band with no color is derived by the presenter from a fixed purple-grey
+   // a band with no color is derived by the presenter from a fixed purple-grey, and a bar with
+   // none paints in the cell's text color
    private void applyBulletBands(BulletGraphPresenter bullet) {
-      Color[] bands = VSObjectChromeDefaults.bulletBandColors(barContext());
+      VizContext ctx = barContext();
+      Color[] bands = VSObjectChromeDefaults.bulletBandColors(ctx);
 
       if(bands == null) {
          return;
       }
+
+      if(bullet.getBarColor() == null) {
+         bullet.setBarColor(VSObjectChromeDefaults.bulletBarColor(ctx));
+      }
+
+      bullet.useModernTarget(VSObjectChromeDefaults.bulletTargetColor(ctx));
 
       if(bullet.getColor1() == null) {
          bullet.setColor1(bands[0]);

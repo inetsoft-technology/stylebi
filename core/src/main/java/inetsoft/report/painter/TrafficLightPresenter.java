@@ -131,14 +131,9 @@ public class TrafficLightPresenter implements Presenter {
             cidx = highRed ? 2 : 0;
          }
 
-         if(!single) {
-            if(housing == null) {
-               g.setColor(Color.gray);
-               g.drawRect(x + 1, y + 1, w - 3, h - 3);
-            }
-            else {
-               paintHousing(g, x, y, w, h);
-            }
+         if(!single && housing == null) {
+            g.setColor(Color.gray);
+            g.drawRect(x + 1, y + 1, w - 3, h - 3);
          }
 
          int cw = single ? Math.min(h - 6, w - 6) :
@@ -154,6 +149,19 @@ public class TrafficLightPresenter implements Presenter {
          }
          else {
             y += Math.max(3, (h - (cw + 3) * 3) / 2);
+         }
+
+         if(!single && housing != null) {
+            // the lights are cw wide, 3 apart, and start 3 down (or across) from the paint area;
+            // the outline drawn around each adds a pixel to its far side
+            int outline = border != 0 ? 1 : 0;
+
+            if(horizontal) {
+               paintHousing(g, x, y + 3, (cw + 3) * 3 - 3 + outline, cw + outline);
+            }
+            else {
+               paintHousing(g, x + 3, y, cw + outline, (cw + 3) * 3 - 3 + outline);
+            }
          }
 
          if(single) {
@@ -212,24 +220,26 @@ public class TrafficLightPresenter implements Presenter {
       return housing;
    }
 
-   // The presenter is painted at its preferred size, which is wider than a narrow column, so the
-   // cell clips the painted area. The box is drawn inside what is visible, so its right and
-   // bottom edges are not lost to the clip.
-   private void paintHousing(Graphics g, int x, int y, int w, int h) {
+   // The box is drawn around the lights with the same space on every side, so the space above
+   // them equals the space below. Its 1px line is drawn on pixel centers, half a pixel in from
+   // its outer edge, so it is a sharp line and not two blurred ones. The presenter is painted at
+   // its preferred size, which is wider than a narrow column, so the cell clips the painted area;
+   // the box is kept inside what is visible, so its right and bottom edges are not lost.
+   private void paintHousing(Graphics g, int lightsX, int lightsY, int lightsW, int lightsH) {
+      double left = lightsX - HOUSING_PAD;
+      double top = lightsY - HOUSING_PAD;
+      double right = lightsX + lightsW + HOUSING_PAD;
+      double bottom = lightsY + lightsH + HOUSING_PAD;
       Rectangle visible = g.getClipBounds();
-      int left = x + 1;
-      int top = y + 1;
-      int right = x + w - 2;
-      int bottom = y + h - 2;
 
       if(visible != null) {
          left = Math.max(left, visible.x);
          top = Math.max(top, visible.y);
-         right = Math.min(right, visible.x + visible.width - 1);
-         bottom = Math.min(bottom, visible.y + visible.height - 1);
+         right = Math.min(right, visible.x + visible.width);
+         bottom = Math.min(bottom, visible.y + visible.height);
       }
 
-      if(right <= left || bottom <= top) {
+      if(right - left < 2 || bottom - top < 2) {
          return;
       }
 
@@ -237,7 +247,8 @@ public class TrafficLightPresenter implements Presenter {
       Object aa = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
       g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
       g2.setColor(housing);
-      g2.drawRoundRect(left, top, right - left, bottom - top, HOUSING_ARC, HOUSING_ARC);
+      g2.draw(new java.awt.geom.RoundRectangle2D.Double(
+         left + 0.5, top + 0.5, right - left - 1, bottom - top - 1, HOUSING_ARC, HOUSING_ARC));
 
       if(aa != null) {
          g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa);
@@ -434,6 +445,8 @@ public class TrafficLightPresenter implements Presenter {
 
    // the corner diameter of the modern box, px
    private static final int HOUSING_ARC = 6;
+   // the space between the lights and the box, px
+   private static final int HOUSING_PAD = 2;
 
    private Color housing = null;
    private double low = 0, high = 100;

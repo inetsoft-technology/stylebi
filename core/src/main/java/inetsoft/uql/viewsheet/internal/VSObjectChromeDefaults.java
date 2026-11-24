@@ -109,6 +109,52 @@ public final class VSObjectChromeDefaults {
    }
 
    /**
+    * How thick a bar presenter's bar is on a modern table, px. The signed bar always draws a bar
+    * this thick (its 12px box less 4), so the plain bar is set to match. Zero for a classic table,
+    * which draws the plain bar the cell height less 4.
+    */
+   public static int dataBarThickness(VizContext ctx) {
+      return ctx != null && ctx.modern ? DATA_BAR_THICKNESS : 0;
+   }
+
+   /**
+    * The color of the Stars (Counter) presenter's stars on a modern table: the palette's amber
+    * (its sixth color), in place of the built-in orange image. Null for a classic table.
+    */
+   public static Color starColor(VizContext ctx) {
+      if(ctx == null || !ctx.modern) {
+         return null;
+      }
+
+      Color[] palette = VSChartPaletteDefaults.activePalette(ctx);
+
+      // the palette's sixth color is its amber; a palette with fewer colors falls back to it
+      return palette.length > STAR_SLOT ? palette[STAR_SLOT] : ctx.dark ? STAR_DARK : STAR;
+   }
+
+   /**
+    * The fill of a checked box in the Check mark presenter on a modern table: the first palette
+    * color over the card, as strong as the data bar, so it is the bar color. Null for a classic
+    * table, which keeps the built-in image.
+    */
+   public static Color checkMarkColor(VizContext ctx) {
+      if(ctx == null || !ctx.modern) {
+         return null;
+      }
+
+      return blend(VSChartPaletteDefaults.activePalette(ctx)[0], BULLET_BAND_STRENGTH[0],
+                   cardBackground(ctx));
+   }
+
+   /**
+    * The border of an empty box in the Check mark presenter on a modern table: the palette's
+    * neutral. Null for a classic table.
+    */
+   public static Color checkBoxBorderColor(VizContext ctx) {
+      return ctx != null && ctx.modern ? VSChartPaletteDefaults.directionNeutral(ctx) : null;
+   }
+
+   /**
     * The color of the box around the Traffic Light's lights on a modern table: the object border
     * neutral, softer than the classic gray. Null for a classic table, which keeps its own box.
     */
@@ -117,15 +163,54 @@ public final class VSObjectChromeDefaults {
    }
 
    /**
-    * The default Bullet Graph range bands on a modern table, darkest first: a neutral grey ramp
-    * instead of the presenter's faintly purple one. Null for a classic table.
+    * The default Bullet Graph range bands on a modern table, darkest first: four steps of the
+    * first palette color over the card, the family of the data bars, in place of the presenter's
+    * faintly purple grey. Null for a classic table.
     */
    public static Color[] bulletBandColors(VizContext ctx) {
       if(ctx == null || !ctx.modern) {
          return null;
       }
 
-      return (ctx.dark ? BULLET_BANDS_DARK : BULLET_BANDS).clone();
+      Color first = VSChartPaletteDefaults.activePalette(ctx)[0];
+      Color card = cardBackground(ctx);
+      Color[] bands = new Color[BULLET_BAND_STRENGTH.length];
+
+      for(int i = 0; i < bands.length; i++) {
+         bands[i] = blend(first, BULLET_BAND_STRENGTH[i], card);
+      }
+
+      return bands;
+   }
+
+   /**
+    * The default Bullet Graph measure bar on a modern table: the first palette color deepened with
+    * the text color, so it is a dark ink in light mode and a light one in dark mode, and reads
+    * against the bands either way. It follows the palette and the text token, so an org's theme
+    * carries through. Null for a classic table.
+    */
+   public static Color bulletBarColor(VizContext ctx) {
+      if(ctx == null || !ctx.modern) {
+         return null;
+      }
+
+      return blend(VSChartPaletteDefaults.activePalette(ctx)[0], BULLET_BAR_STRENGTH, ink(ctx));
+   }
+
+   /**
+    * The default Bullet Graph target line on a modern table: the measure bar's color, so the
+    * target and the bar read as one pair. Null for a classic table.
+    */
+   public static Color bulletTargetColor(VizContext ctx) {
+      return bulletBarColor(ctx);
+   }
+
+   /**
+    * The default color of the tick in a checked Check mark box on a modern table: the same deep
+    * ink as the Bullet Graph's bar. Null for a classic table.
+    */
+   public static Color checkMarkTickColor(VizContext ctx) {
+      return bulletBarColor(ctx);
    }
 
    /**
@@ -134,7 +219,12 @@ public final class VSObjectChromeDefaults {
     * light face it is readable on.
     */
    public static Color buttonFaceColor(VizContext ctx) {
-      return ctx != null && ctx.modern && !ctx.dark ? BUTTON_FACE : null;
+      if(ctx == null || !ctx.modern || ctx.dark) {
+         return null;
+      }
+
+      // a little of the text color over the card, so it follows both
+      return blend(ink(ctx), BUTTON_FACE_STRENGTH, cardBackground(ctx));
    }
 
    /**
@@ -150,7 +240,13 @@ public final class VSObjectChromeDefaults {
     * Null otherwise.
     */
    public static Color shadowTextColor(VizContext ctx) {
-      return ctx != null && ctx.modern && ctx.dark ? TEXT_FG_DARK : null;
+      return ctx != null && ctx.modern && ctx.dark ? ink(ctx) : null;
+   }
+
+   /** The text color of the mark's theme: the text token, or the classic dark or light default. */
+   private static Color ink(VizContext ctx) {
+      return VSChartPaletteDefaults.token(ctx.dark, VSChartPaletteDefaults.TOKEN_TEXT,
+                                          ctx.dark ? TEXT_FG_DARK : LEGACY_CELL_FG);
    }
 
    /** Opaque object-card color: white in light, the lifted surface in dark. */
@@ -250,12 +346,18 @@ public final class VSObjectChromeDefaults {
       new Color(0x22C55E), new Color(0xF59E0B), new Color(0xEF4444)};
    private static final Color[] TRAFFIC_LIGHT_DARK = {
       new Color(0x34D874), new Color(0xFBBF24), new Color(0xF87171)};
-   // the four range bands, darkest first
-   private static final Color[] BULLET_BANDS = {
-      new Color(0x8C8F94), new Color(0xAEB1B6), new Color(0xCFD1D5), new Color(0xEBECEE)};
-   private static final Color[] BULLET_BANDS_DARK = {
-      new Color(0x505359), new Color(0x686B72), new Color(0x83868D), new Color(0x9EA1A7)};
-   private static final Color BUTTON_FACE = new Color(0xE9EBEF);
+   // how much of the first palette color each of the four range bands has, darkest first
+   private static final float[] BULLET_BAND_STRENGTH = {0.55f, 0.40f, 0.26f, 0.14f};
+   // how much of the first palette color the Bullet Graph's bar has, against the text color
+   private static final float BULLET_BAR_STRENGTH = 0.35f;
+   // how much of the text color a Button's face has, over the card
+   private static final float BUTTON_FACE_STRENGTH = 0.08f;
+   // the signed bar's box is 12px high and the bar is that less 4
+   private static final int DATA_BAR_THICKNESS = 8;
+   // the palette's amber is its sixth color; these stand in when a palette has fewer colors
+   private static final int STAR_SLOT = 5;
+   private static final Color STAR = new Color(0xFFB020);
+   private static final Color STAR_DARK = new Color(0xFFCB82);
    private static final Color ACTIVE_INDICATOR = new Color(0xBFDDE5);
    private static final Color ACTIVE_INDICATOR_DARK = new Color(0x2DD4BF);
 }
