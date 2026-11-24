@@ -166,10 +166,9 @@ class CrossTabFilterMaxRowsTest {
     */
    @ParameterizedTest(name = "groupRows={0} limit={1}")
    @MethodSource("limits")
-   @Disabled("Not filed (a stylebi-2.1.0 follow-up of #81276, which was fixed on 13.8 only, is "
-      + "pending): with query.runtime.maxrow set, the group that the limit cuts is shown half "
-      + "included, its total is blank and the Grand Total row leaves it out; CrossTabFilter."
-      + "insertPair throws in the middle of a base row")
+   @Disabled("Bug #82228 (follow-up of #81276, fixed on 13.8 only): with query.runtime.maxrow set, "
+      + "the group that the limit cuts is shown half included, its total is blank and the Grand "
+      + "Total row leaves it out; CrossTabFilter.insertPair throws in the middle of a base row")
    void totalsAgreeWithTheShownCellsWhenTheResultIsCut(boolean groupRows, int limit) {
       CrossTabFilter f = crosstab(groupRows, limit);
       int rowLevels = groupRows ? 2 : 1;
