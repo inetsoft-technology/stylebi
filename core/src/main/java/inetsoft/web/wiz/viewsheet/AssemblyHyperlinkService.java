@@ -918,7 +918,7 @@ public class AssemblyHyperlinkService {
     * {@code describeTarget}: a recycled-but-still-readable target's bookmarks/parameters are real
     * data, unlike a new link to it going nowhere, so a read tool answers rather than refusing.
     */
-   private static String resolveTargetId(String path, String explicitId, AssetRepository repository,
+   public static String resolveTargetId(String path, String explicitId, AssetRepository repository,
                                          Principal user, boolean allowRecycled) throws Exception
    {
       if(explicitId != null) {

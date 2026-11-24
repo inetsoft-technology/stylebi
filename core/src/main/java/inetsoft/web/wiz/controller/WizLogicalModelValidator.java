@@ -87,6 +87,14 @@ final class WizLogicalModelValidator {
        */
       Map<String, Map<String, String>> metadata(XPartition view, String connection)
          throws Exception;
+
+      /**
+       * The asset identifier of the viewsheet a drill link names (a repository path or an asset
+       * identifier), {@code null} when the caller can read no such viewsheet.
+       */
+      default String resolveViewsheet(String link) {
+         return link;
+      }
    }
 
    enum Mode {
@@ -541,7 +549,8 @@ final class WizLogicalModelValidator {
 
             // an inherited attribute is the base model's; it is compared, not re-validated
             normalized.add(isBaseAttribute(entity.name(), attribute.name()) ? attribute :
-                              checkAttribute(attribute, apath));
+                              checkAttribute(attribute, apath,
+                                             storedAttribute(storedEntity, attribute)));
          }
 
          return new Entity(entity.name(), entity.oldName(), entity.description(),
@@ -549,7 +558,20 @@ final class WizLogicalModelValidator {
                            normalized);
       }
 
-      private Attribute checkAttribute(Attribute attribute, String path) {
+      /** The stored attribute an update attribute refers to: its marker, else its own name. */
+      private static XAttribute storedAttribute(XEntity storedEntity, Attribute attribute) {
+         if(storedEntity == null) {
+            return null;
+         }
+
+         String raw = attribute.oldName();
+         String name = raw == null ? attribute.name() : raw;
+         return blank(name) ? null : storedEntity.getAttribute(name);
+      }
+
+      private Attribute checkAttribute(Attribute attribute, String path,
+                                       XAttribute storedAttribute)
+      {
          boolean hasExpression = !blank(attribute.expression());
          boolean hasColumn = !blank(attribute.column()) || !blank(attribute.table());
          String dataType = attribute.dataType();
@@ -619,14 +641,14 @@ final class WizLogicalModelValidator {
                WizLogicalModelWire.REF_TYPES, REFTYPE_INVALID);
          }
 
-         checkDrill(attribute.drill(), path + ".drill");
+         Drill drill = checkDrill(attribute.drill(), path + ".drill", storedAttribute);
 
          return new Attribute(attribute.name(), attribute.oldName(), attribute.description(),
                               attribute.visible(), attribute.type(), attribute.table(),
                               attribute.column(), attribute.expression(), attribute.aggregate(),
                               attribute.parseable(), dataType, attribute.refType(),
                               attribute.formula(), attribute.browseData(),
-                              attribute.browseQuery(), attribute.format(), attribute.drill(),
+                              attribute.browseQuery(), attribute.format(), drill,
                               attribute.baseElement(), attribute.errorMessage());
       }
 
@@ -715,10 +737,12 @@ final class WizLogicalModelValidator {
          return metadata;
       }
 
-      private void checkDrill(Drill drill, String path) {
+      private Drill checkDrill(Drill drill, String path, XAttribute storedAttribute) {
          if(drill == null || drill.paths() == null) {
-            return;
+            return drill;
          }
+
+         List<WizLogicalModelWire.DrillPath> resolved = new ArrayList<>();
 
          for(int i = 0; i < drill.paths().size(); i++) {
             WizLogicalModelWire.DrillPath drillPath = drill.paths().get(i);
@@ -766,7 +790,69 @@ final class WizLogicalModelValidator {
                       DRILL_INVALID);
                }
             }
+
+            resolved.add(resolveViewsheetLink(drillPath, ppath, storedAttribute));
          }
+
+         return new Drill(resolved);
+      }
+
+      /**
+       * A viewsheet drill is stored by the asset identifier of its target, as the Portal stores
+       * the one picked from the repository tree: a repository path is resolved to it, and a
+       * target that does not exist (or the caller cannot read) is refused. A stored drill path
+       * left as it is is not looked at again, so a model whose target was deleted later can still
+       * be edited elsewhere.
+       */
+      private WizLogicalModelWire.DrillPath resolveViewsheetLink(
+         WizLogicalModelWire.DrillPath drillPath, String ppath, XAttribute storedAttribute)
+      {
+         if(!WizLogicalModelWire.LINK_VIEWSHEET.equals(drillPath.linkType()) ||
+            blank(drillPath.link()) || storedViewsheetLink(storedAttribute, drillPath))
+         {
+            return drillPath;
+         }
+
+         String identifier = env.resolveViewsheet(drillPath.link());
+
+         if(identifier == null) {
+            add(ppath + ".link", "the viewsheet \"" + drillPath.link() + "\" does not exist or " +
+               "cannot be read; a viewsheet drill must target an existing viewsheet (give its " +
+               "repository path or its asset identifier)", DRILL_INVALID);
+            return drillPath;
+         }
+
+         return new WizLogicalModelWire.DrillPath(
+            drillPath.name(), drillPath.linkType(), identifier, drillPath.targetFrame(),
+            drillPath.tip(), drillPath.passParams(), drillPath.disablePrompting(),
+            drillPath.params(), drillPath.query(), drillPath.queryFields());
+      }
+
+      /** Whether the stored attribute already has this viewsheet drill path with this link. */
+      private boolean storedViewsheetLink(XAttribute storedAttribute,
+                                          WizLogicalModelWire.DrillPath drillPath)
+      {
+         if(mode != Mode.UPDATE || storedAttribute == null ||
+            storedAttribute.getXMetaInfo() == null ||
+            storedAttribute.getXMetaInfo().getXDrillInfo() == null)
+         {
+            return false;
+         }
+
+         Enumeration<?> paths = storedAttribute.getXMetaInfo().getXDrillInfo().getDrillPaths();
+
+         while(paths.hasMoreElements()) {
+            DrillPath stored = (DrillPath) paths.nextElement();
+
+            if(stored.getLinkType() == DrillPath.VIEWSHEET_LINK &&
+               Tool.equals(stored.getName(), drillPath.name()) &&
+               Tool.equals(stored.getLink(), drillPath.link()))
+            {
+               return true;
+            }
+         }
+
+         return false;
       }
 
       // -- rename markers ----------------------------------------------------------------------
