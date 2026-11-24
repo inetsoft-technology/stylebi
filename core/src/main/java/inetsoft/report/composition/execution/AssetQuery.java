@@ -1867,7 +1867,7 @@ public abstract class AssetQuery extends PreAssetQuery {
    }
 
    /**
-    * Fail with a message if script expression columns refer to each other, directly or through
+    * Fail with a message if expression columns (script or SQL) refer to each other, directly or through
     * other expressions. A cyclic definition has no value, and evaluating it would only give
     * what the evaluation order leaves behind (Bug #81206). A column that refers to itself is
     * not checked here.
@@ -1878,7 +1878,7 @@ public abstract class AssetQuery extends PreAssetQuery {
       for(int i = 0; i < columns.getAttributeCount(); i++) {
          ColumnRef column = (ColumnRef) columns.getAttribute(i);
 
-         if(!column.isExpression() || column.isSQL() ||
+         if(!column.isExpression() ||
             !(getBaseAttribute(column) instanceof ExpressionRef) ||
             ((ExpressionRef) getBaseAttribute(column)).isVirtual())
          {

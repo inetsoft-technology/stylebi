@@ -325,8 +325,8 @@ public class ExpressionDialogService extends WorksheetControllerService {
                builder.invalidExpression(Catalog.getCatalog().getString(message, (Object[]) params));
             }
 
-            if(!column.isSQL() && builder.build().invalidExpression() == null) {
-               String warning = checkReferences(columns, model, exp.getExpression());
+            if(builder.build().invalidExpression() == null) {
+               String warning = checkReferences(columns, model, str);
 
                if(warning != null) {
                   builder.invalidExpression(warning);
@@ -369,8 +369,9 @@ public class ExpressionDialogService extends WorksheetControllerService {
             names.add(col.getAlias());
          }
 
-         if(col.getDataRef() instanceof ExpressionRef && !col.isSQL()) {
-            scripts.put(name, ((ExpressionRef) col.getDataRef()).getExpression());
+         if(col.getDataRef() instanceof ExpressionRef) {
+            scripts.put(name, ExpressionRef.getSQLExpression(
+               col.isSQL(), ((ExpressionRef) col.getDataRef()).getExpression()));
          }
       }
 
