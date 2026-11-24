@@ -293,7 +293,7 @@ public class PresenterPropertyDialogService {
 
          ref.setParameter(descModel.name(),
                           valueToSave(model.presenter(), descModel.name(), value,
-                                      assembly != null && isModern(assembly)));
+                                      isModernTableCell(assembly)));
       }
 
       int hint = AbstractVSAssembly.VIEW_CHANGED;
@@ -330,7 +330,17 @@ public class PresenterPropertyDialogService {
       return value;
    }
 
-   private static boolean isModern(VSAssembly assembly) {
+   /**
+    * Whether the presenter being saved sits in a cell of a modern table. Only a table cell gets
+    * the modern defaults, filled in by VSFormatTableLens. A text assembly, or a text in a print
+    * layout, shows the raw value in the dialog and has no default to follow, even when it carries
+    * a viz mark, so its ticked value has to be saved.
+    */
+   static boolean isModernTableCell(VSAssembly assembly) {
+      if(!(assembly instanceof TableDataVSAssembly)) {
+         return false;
+      }
+
       VizContext ctx = VizContext.of(assembly.getVSAssemblyInfo());
       return ctx != null && ctx.modern;
    }

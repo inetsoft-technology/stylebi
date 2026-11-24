@@ -17,11 +17,23 @@
  */
 package inetsoft.web.composer.vs.dialog;
 
+import inetsoft.test.*;
+import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
+// VizContext reads the density setting, which needs the Spring context
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class PresenterPropertyDialogServiceSaveTest {
    private static final String IMAGE = "inetsoft.report.painter.ImagePresenter";
@@ -42,6 +54,35 @@ class PresenterPropertyDialogServiceSaveTest {
    void aTickedAspectRatioOnAClassicTableIsSaved() {
       assertEquals(Boolean.TRUE,
                    PresenterPropertyDialogService.valueToSave(IMAGE, RATIO, Boolean.TRUE, false));
+   }
+
+   @Test
+   void aTableCellOfAModernTableIsModern() {
+      assertTrue(PresenterPropertyDialogService.isModernTableCell(
+         assembly(mock(TableDataVSAssembly.class), VizMark.MODERN_LIGHT)));
+      assertTrue(PresenterPropertyDialogService.isModernTableCell(
+         assembly(mock(TableDataVSAssembly.class), VizMark.MODERN_DARK)));
+   }
+
+   @Test
+   void aTableCellOfAClassicTableIsNot() {
+      assertFalse(PresenterPropertyDialogService.isModernTableCell(
+         assembly(mock(TableDataVSAssembly.class), null)));
+   }
+
+   @Test
+   void aTextWithAVizMarkIsNotAModernTableCell() {
+      // the text shows the raw value, so a ticked box there is the author's and must be saved
+      assertFalse(PresenterPropertyDialogService.isModernTableCell(
+         assembly(mock(TextVSAssembly.class), VizMark.MODERN_LIGHT)));
+      assertFalse(PresenterPropertyDialogService.isModernTableCell(null));
+   }
+
+   private static <T extends VSAssembly> T assembly(T assembly, VizMark mark) {
+      VSAssemblyInfo info = mock(VSAssemblyInfo.class);
+      when(info.getVizMark()).thenReturn(mark);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      return assembly;
    }
 
    @Test
