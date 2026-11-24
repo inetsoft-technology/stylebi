@@ -138,6 +138,11 @@ public class WizEntitlementGrantController {
       return new PrincipalList(sorted(users), sorted(groups), sorted(roles));
    }
 
+   /**
+    * Walks one tree, keeping the first entry per name. A group that belongs to several parent
+    * groups appears under each of them in the tree, so it is reported with the first parent the
+    * walk meets; the parent is display-only (a hint in the name picker), never used for a grant.
+    */
    private static void collect(SecurityTreeNode node, String parentGroup, String orgId,
                                SecurityProvider provider, Map<String, PrincipalRef> users,
                                Map<String, PrincipalRef> groups, Map<String, PrincipalRef> roles)
