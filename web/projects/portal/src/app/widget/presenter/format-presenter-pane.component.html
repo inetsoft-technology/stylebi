@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form class="shell-inline-form">
-  <div class="input-group w-100">
+  <div class="presenter-controls d-flex align-items-center w-100">
     <tree-dropdown [root]="root" [iconFunction]="getIcon" [selected]="presenterLabel" (nodeSelected)="selectPresenter($event)"></tree-dropdown>
     <button type="submit" class="btn icon-hover-bg format-control"
             [disabled]="!isPresenterDialogEnabled()"

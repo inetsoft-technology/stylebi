@@ -79,4 +79,16 @@ describe("format presenter pane componnet unit case", () => {
       fixture.detectChanges();
       expect(formatPresenterPane.isPresenterDialogEnabled()).toBeTruthy();
    });
+
+   // the property button must not overlap the dropdown's right border: an input group would pull
+   // it back over the border, so the two sit in a plain row with a gap
+   it("should lay the dropdown and the property button out as a gapped row, not an input group", () => {
+      fixture.detectChanges();
+      const row = fixture.nativeElement.querySelector(".presenter-controls");
+
+      expect(row).toBeTruthy();
+      expect(row.querySelector("tree-dropdown")).toBeTruthy();
+      expect(row.querySelector("button.format-control")).toBeTruthy();
+      expect(fixture.nativeElement.querySelector(".input-group")).toBeNull();
+   });
 });
