@@ -255,6 +255,55 @@ class TabularQueryContractSupportTest {
    }
 
    @Test
+   void aMarkedQueryWithADerivedBodyIsAcceptedAsPost() throws Exception {
+      FakeGraphQlLikeQuery query = new FakeGraphQlLikeQuery();
+
+      apply(query, params("suffix", "/v2", "requestType", "POST", "queryString", "{ boards { id } }",
+                          "variables", "{\"a\":1}"));
+
+      assertEquals("POST", query.getRequestType());
+      assertTrue(query.getRequestBody().contains("{ boards { id } }"), query.getRequestBody());
+      assertTrue(query.getRequestBody().contains("{\"a\":1}"), query.getRequestBody());
+   }
+
+   @Test
+   void aMarkedQueryDefaultsToPostWhenRequestTypeIsOmitted() throws Exception {
+      FakeGraphQlLikeQuery query = new FakeGraphQlLikeQuery();
+
+      apply(query, params("suffix", "/v2", "queryString", "{ me { id } }"));
+
+      assertEquals("POST", query.getRequestType());
+   }
+
+   @Test
+   void aMarkedQueryKeepsAnExplicitGet() throws Exception {
+      FakeGraphQlLikeQuery query = new FakeGraphQlLikeQuery();
+
+      apply(query, params("suffix", "/v2", "requestType", "GET", "queryString", "{ me { id } }"));
+
+      assertEquals("GET", query.getRequestType());
+   }
+
+   @Test
+   void aMarkedQueryRefusesARequestBodyInsteadOfDroppingIt() {
+      FakeGraphQlLikeQuery query = new FakeGraphQlLikeQuery();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> apply(query, params("suffix", "/v2", "requestType", "POST",
+                                   "requestBody", "{\"query\":\"x\"}")));
+      assertTrue(ex.getMessage().contains("requestBody"), ex.getMessage());
+   }
+
+   @Test
+   void anUnmarkedQueryDoesNotDefaultToPost() throws Exception {
+      FakeRestPostQuery query = new FakeRestPostQuery();
+
+      apply(query, params("suffix", "/echo"));
+
+      assertEquals("GET", query.getRequestType());
+   }
+
+   @Test
    void aGetQueryWhoseBodyIsDerivedIsStillAccepted() throws Exception {
       FakeDerivedBodyRestQuery query = new FakeDerivedBodyRestQuery();
 
