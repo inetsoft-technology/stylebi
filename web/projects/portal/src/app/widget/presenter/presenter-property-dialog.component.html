@@ -42,9 +42,18 @@
               <font-pane [fontModel]="descriptor.value"></font-pane>
             }
             @case ('ColorPropertyEditor') {
-              <color-editor [(color)]="descriptor.value"
-                [enabled]="isColorEnable()">
-            </color-editor>
+              <div class="d-flex align-items-center gap-2">
+                <color-editor class="flex-grow-0" [(color)]="descriptor.value"
+                  [enabled]="isColorEnable()">
+                </color-editor>
+                @if (isDefaultColorInUse(descriptor)) {
+                  <span class="default-color-hint text-muted">_#(Default)</span>
+                }
+                @if (canResetColor(descriptor)) {
+                  <button type="button" class="btn btn-link p-0 reset-color-button"
+                          (click)="resetColor(descriptor)">_#(Reset to Default)</button>
+                }
+              </div>
           }
           @case ('SizePropertyEditor') {
             <div class="input-group">

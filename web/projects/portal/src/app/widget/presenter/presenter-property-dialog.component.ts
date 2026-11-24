@@ -24,6 +24,7 @@ import { NgbModalOptions, NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { PresenterDescriptorModel } from "./data/presenter-descriptor-model";
 import { ImageDescriptorModel } from "./data/image-descriptor-model";
 import { BooleanDescriptorModel } from "./data/boolean-descriptor-model";
+import { ColorDescriptorModel } from "./data/color-descriptor-model";
 import { EditImageDialog } from "./edit-image-dialog.component";
 import { ColorEditor } from "../color-picker/color-editor.component";
 import { FontPane } from "../font-pane/font-pane.component";
@@ -92,6 +93,31 @@ export class PresenterPropertyDialog {
       }
 
       return colorEnable || !hasImagePropertyEditor;
+   }
+
+   /**
+    * A bar presenter with no color of its own is painted in a default color chosen by the table,
+    * so the empty color box is labelled instead of looking like a missing value.
+    */
+   isDefaultColorInUse(descriptor: PresenterDescriptorModel): boolean {
+      return this.isBarColor(descriptor) && !(<ColorDescriptorModel> descriptor).value;
+   }
+
+   /** A bar's own color can be dropped to go back to the default. */
+   canResetColor(descriptor: PresenterDescriptorModel): boolean {
+      return this.isBarColor(descriptor) && !!(<ColorDescriptorModel> descriptor).value &&
+         this.isColorEnable();
+   }
+
+   resetColor(descriptor: PresenterDescriptorModel): void {
+      (<ColorDescriptorModel> descriptor).value = "";
+   }
+
+   private isBarColor(descriptor: PresenterDescriptorModel): boolean {
+      const presenter = this.model?.presenter;
+
+      return !!presenter && (presenter.endsWith(".BarPresenter") ||
+            presenter.endsWith(".Bar2Presenter")) && descriptor.editor == "ColorPropertyEditor";
    }
 
    isImageOptionDisable(attr: string): boolean {

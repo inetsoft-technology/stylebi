@@ -27,6 +27,8 @@ import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.*;
 import inetsoft.report.internal.table.PresenterRef;
+import inetsoft.report.painter.Bar2Presenter;
+import inetsoft.report.painter.BarPresenter;
 import inetsoft.report.painter.PresenterPainter;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
@@ -121,6 +123,13 @@ public class PresenterPropertyDialogService {
          if(data instanceof PresenterPainter) {
             PresenterPainter painter = (PresenterPainter) data;
             pr = painter.getPresenter();
+
+            // the table fills in a modern default color on a bar that has none, and the dialog
+            // reads its values off this presenter, so pressing OK would save that default as the
+            // author's choice. A fresh one shows only what the author stored.
+            if(pr instanceof BarPresenter || pr instanceof Bar2Presenter) {
+               pr = ref.createPresenter();
+            }
          }
          else {
             pr = ref.createPresenter();
