@@ -665,7 +665,9 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
          hint |= VSAssembly.INPUT_DATA_CHANGED;
       }
 
-      if(selectFirstItem != linfo.selectFirstItem) {
+      if(!Tool.equals(selectFirstItem, linfo.selectFirstItem) ||
+         isSelectFirstItem() != linfo.isSelectFirstItem())
+      {
          selectFirstItem = linfo.selectFirstItem;
          hint |= VSAssembly.INPUT_DATA_CHANGED;
       }
