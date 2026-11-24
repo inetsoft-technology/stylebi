@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
                SwapperTestConfiguration.class },
    initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class HubSpotPaginationReplayTest {
    @Test
    void everyPagedEndpointReadsAllGeneratedPagesAndStops() throws Exception {

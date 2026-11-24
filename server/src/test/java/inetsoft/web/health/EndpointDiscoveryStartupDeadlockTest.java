@@ -22,6 +22,7 @@ import inetsoft.web.health.EndpointDiscoveryDeadlockHarness.Discovery;
 import inetsoft.web.health.EndpointDiscoveryDeadlockHarness.Options;
 import inetsoft.web.health.EndpointDiscoveryDeadlockHarness.Outcome;
 import inetsoft.web.health.EndpointDiscoveryDeadlockHarness.Shape;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.lang.management.MonitorInfo;
@@ -43,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * the fix, because they never include it. The {@code startupCompletes*} tests run the same
  * forcing with {@link #FIX_SOURCES} and require startup to complete.
  */
+@Tag("slow")
 class EndpointDiscoveryStartupDeadlockTest {
    /**
     * THE FIX PLUG POINT. Configuration or component classes of the fix, added as sources to the

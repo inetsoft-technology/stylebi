@@ -49,7 +49,7 @@ import static org.mockito.Mockito.*;
  * for the unit rows and on the real in-process Quartz of {@link SchedulerTestHarness} for the
  * end-to-end rows. The status goes through the harness' real {@code ScheduleStatusDao}.
  */
-@Tag("core")
+@Tag("slow")
 class SchedulerRunTaskTest {
    private static final String TASK = "run-now-task";
 
