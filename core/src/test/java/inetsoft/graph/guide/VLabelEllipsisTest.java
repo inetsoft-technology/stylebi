@@ -111,6 +111,34 @@ class VLabelEllipsisTest {
       assertFalse(unmarked.isEmpty(), "premise: today the cut shows no mark");
    }
 
+   // a one-line cut that lands just after a space
+   @Test
+   void aOneLineCutDropsTheSpaceBeforeTheEllipsis() {
+      Font font = new VLabel(NAME).getFont();
+      double from = GTool.stringWidth(new String[] { "Chief" }, font);
+      double to = GTool.stringWidth(new String[] { "Chief Financial" }, font);
+      boolean classicSpace = false;
+
+      for(double width = from; width < to; width += 0.5) {
+         String modern = oneLine(NAME, true, width).getDisplayLabel()[0];
+         String classic = oneLine(NAME, false, width).getDisplayLabel()[0];
+
+         assertFalse(modern.endsWith(" …"), width + " " + modern);
+         classicSpace = classicSpace || classic.endsWith(" ..");
+      }
+
+      assertTrue(classicSpace, "premise: classic keeps the space before its dots");
+   }
+
+   private static VLabel oneLine(String text, boolean ellipsis, double width) {
+      VLabel label = new VLabel(text);
+      FontMetrics fm = GTool.getFontMetrics(label.getFont());
+      label.setEllipsis(ellipsis);
+      label.setPosition(new Point2D.Double(0, 0));
+      label.setSize(new DimensionD(width, fm.getHeight() + 2));
+      return label;
+   }
+
    private static long letters(String text) {
       return text.chars().filter(c -> !Character.isWhitespace(c)).count();
    }

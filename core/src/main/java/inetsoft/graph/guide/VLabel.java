@@ -459,6 +459,12 @@ public class VLabel extends BoundedVisualizable {
       return cut.stripTrailing() + "…";
    }
 
+   // a cut ends on its last letter, not on a space before the ellipsis
+   private static String stripEnd(String text) {
+      String stripped = text.stripTrailing();
+      return stripped.isEmpty() ? text : stripped;
+   }
+
    // the number of characters that are not white space
    private static long countLetters(String... lines) {
       return Arrays.stream(lines).flatMapToInt(String::chars)
@@ -513,7 +519,7 @@ public class VLabel extends BoundedVisualizable {
                dbounds = getTransformedBounds0(0, 0, dlabel).getBounds2D();
             }
 
-            dlabels[i] = dlabel + dots;
+            dlabels[i] = (ellipsis ? stripEnd(dlabel) : dlabel) + dots;
             truncated = true;
          }
 
