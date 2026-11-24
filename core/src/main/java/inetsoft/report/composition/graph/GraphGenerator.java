@@ -163,9 +163,17 @@ public abstract class GraphGenerator {
    }
 
    /**
-    * Create one combined color frame for graph.
+    * Create one combined color frame for graph, from the classic palette.
     */
    public static ColorFrame createCombinedColorFrame(EGraph graph) {
+      return createCombinedColorFrame(graph, CategoricalColorFrame.COLOR_PALETTE);
+   }
+
+   /**
+    * Create one combined color frame for graph.
+    * @param palette the colors to take, in order, one per element.
+    */
+   public static ColorFrame createCombinedColorFrame(EGraph graph, List<Color> palette) {
       Set<String> vars = new HashSet<>();
       int cnt = graph.getElementCount();
 
@@ -195,10 +203,10 @@ public abstract class GraphGenerator {
       String[] names = new String[vars.size()];
       vars.toArray(names);
       Color[] colors = new Color[names.length];
-      int max = CategoricalColorFrame.COLOR_PALETTE.size();
+      int max = palette.size();
 
       for(int i = 0; i < colors.length; i++) {
-         colors[i] = CategoricalColorFrame.COLOR_PALETTE.get(i % max);
+         colors[i] = palette.get(i % max);
       }
 
       CategoricalColorFrame frame = new CategoricalColorFrame();

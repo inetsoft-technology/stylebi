@@ -597,13 +597,17 @@ public class VGraphPair {
                ColorFrame color = GraphUtil.getColorFrame(egraph);
 
                if(color == null) {
-                  color = GraphGenerator.createCombinedColorFrame(egraph);
+                  // the chart's own palette, so a modern script chart is not coloured from the
+                  // classic list
+                  List<Color> palette = Arrays.asList(
+                     VSChartPaletteDefaults.seedPalette(VizContext.of(ainfo)));
+                  color = GraphGenerator.createCombinedColorFrame(egraph, palette);
 
                   if(color != null) {
                      GraphUtil.setColorFrame(egraph, color);
                   }
 
-                  color = GraphGenerator.createCombinedColorFrame(egraph2);
+                  color = GraphGenerator.createCombinedColorFrame(egraph2, palette);
 
                   if(color != null) {
                      GraphUtil.setColorFrame(egraph2, color);
