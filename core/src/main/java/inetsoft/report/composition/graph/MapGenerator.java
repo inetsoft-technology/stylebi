@@ -40,6 +40,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSObjectChromeDefaults;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import org.slf4j.Logger;
@@ -357,6 +358,12 @@ public class MapGenerator extends MergedGraphGenerator {
             String postfix = GeoDataSet.getLatitudeField("");
             String fld = var != null ? var.substring(0, var.length() - postfix.length()) : null;
             GeoShapeFrame frame = MapData.createShapeFrame(fld);
+
+            // a marked map on the card outlines its regions in the card colour
+            if(vizContext.modern && !isWebMap()) {
+               frame.setLineColor(VSObjectChromeDefaults.cardComposite(vizContext));
+            }
+
             elems[i].setShapeFrame(frame);
          }
          else if(elems[i] instanceof LineElement) {
