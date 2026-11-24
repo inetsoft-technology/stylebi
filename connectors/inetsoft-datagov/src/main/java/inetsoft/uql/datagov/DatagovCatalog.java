@@ -379,10 +379,11 @@ final class DatagovCatalog {
    /**
     * The Socrata system columns whose values are JSON numbers (epoch seconds for the two
     * timestamps), keyed without the leading colon of their {@code fieldName}. The other system
-    * columns (id, created_meta, updated_meta, meta) are strings or null.
+    * columns (sid, id, created_meta, updated_meta, meta) are strings or null; live rows.json
+    * carries sid as a string such as "row-ypma~p3md-z6du".
     */
    private static final Set<String> NUMERIC_META_COLUMNS =
-      Set.of("sid", "position", "created_at", "updated_at");
+      Set.of("position", "created_at", "updated_at");
 
    private static String metaColumnKey(JsonObject col, String name) {
       String fieldName = getString(col, "fieldName");
