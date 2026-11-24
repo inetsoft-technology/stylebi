@@ -310,12 +310,28 @@ public class BulletGraphPresenter implements Presenter {
 
          // draw target
          int tx = (int) ((target - min) * fillw / (max - min)) + fillx;
-         g.setColor(new Color(20, 20, 20));
+         g.setColor(targetColor != null ? targetColor : new Color(20, 20, 20));
          g.drawLine(tx, filly + gap, tx, filly + fillh - gap);
 
          g.setColor(oc);
          g.setClip(clip);
       }
+   }
+
+   /**
+    * Draw the target line in this color, in place of the classic near-black one. Null, the
+    * default, keeps that. This is not a bean property, so it does not show in the presenter
+    * dialog or get saved: the table sets it on a modern table.
+    */
+   public void useModernTarget(Color color) {
+      this.targetColor = color;
+   }
+
+   /**
+    * The color of the modern target line, or null for the classic one.
+    */
+   public Color modernTarget() {
+      return targetColor;
    }
 
    private String formatValue(Object val) {
@@ -574,6 +590,7 @@ public class BulletGraphPresenter implements Presenter {
    private Color color3 = null; // range2 -> range3
    private Color color4 = null; // range3 -> max
    private Color barColor = null;
+   private Color targetColor = null;
    private Color bg = null;
    private boolean labelVisible;
    private boolean shadow;

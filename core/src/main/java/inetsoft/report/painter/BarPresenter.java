@@ -100,10 +100,36 @@ public class BarPresenter implements Presenter {
             g.setColor(color);
          }
 
-         g.fillRect(x, y + 2, (int) (n * w / max), h - 4);
+         int barTop = y + 2;
+         int barHeight = h - 4;
+
+         // a modern table draws every bar the same thickness, centered in the cell
+         if(thickness > 0 && thickness < barHeight) {
+            barTop = y + (h - thickness) / 2;
+            barHeight = thickness;
+         }
+
+         g.fillRect(x, barTop, (int) (n * w / max), barHeight);
          g.setColor(oc);
          g.setClip(clip);
       }
+   }
+
+   /**
+    * Draw the bar this thick, centered in the cell, in place of the cell height less 4. Zero, the
+    * default, keeps that. The signed bar draws a bar of a fixed thickness, so a modern table sets
+    * the same one here to make the two look alike. This is not a bean property, so it does not
+    * show in the presenter dialog or get saved.
+    */
+   public void useModernThickness(int thickness) {
+      this.thickness = thickness;
+   }
+
+   /**
+    * The modern bar thickness, or zero for the classic one.
+    */
+   public int modernThickness() {
+      return thickness;
    }
 
    /**
@@ -265,5 +291,6 @@ public class BarPresenter implements Presenter {
    private Dimension psize = new Dimension(60, 12);
    private double max = 100;
    private boolean fillCell = true;
+   private int thickness = 0;
    private Color bg = null;
 }

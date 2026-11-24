@@ -18,11 +18,18 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.*;
+import inetsoft.report.internal.Bounds;
+import inetsoft.report.internal.Common;
 import inetsoft.report.internal.table.PresenterRef;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.lens.CalcTableLens;
 import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.report.painter.Bar2Presenter;
+import inetsoft.report.painter.BarPresenter;
+import inetsoft.report.painter.BooleanPresenter;
 import inetsoft.report.painter.BulletGraphPresenter;
+import inetsoft.report.painter.IconCounterPresenter;
+import inetsoft.report.painter.ImagePresenter;
 import inetsoft.report.painter.ButtonPresenter;
 import inetsoft.report.painter.ShadowPresenter;
 import inetsoft.report.painter.TrafficLightPresenter;
@@ -53,6 +60,11 @@ import static org.mockito.Mockito.*;
 @Tag("core")
 class VSFormatTableLensPresenterColorsTest {
    private static final String BULLET = "inetsoft.report.painter.BulletGraphPresenter";
+   private static final String BAR = "inetsoft.report.painter.BarPresenter";
+   private static final String BAR2 = "inetsoft.report.painter.Bar2Presenter";
+   private static final String ICON = "inetsoft.report.painter.IconCounterPresenter";
+   private static final String CHECK = "inetsoft.report.painter.BooleanPresenter";
+   private static final String IMAGE = "inetsoft.report.painter.ImagePresenter";
    private static final String LIGHT = "inetsoft.report.painter.TrafficLightPresenter";
    private static final String BUTTON = "inetsoft.report.painter.ButtonPresenter";
    private static final String SHADOW = "inetsoft.report.painter.ShadowPresenter";
@@ -125,41 +137,95 @@ class VSFormatTableLensPresenterColorsTest {
       assertNull(light.modernHousing());
    }
 
-   @Test
-   void theModernHousingKeepsItsRightEdgeWhenTheColumnIsNarrowerThanThePresenter() {
-      TrafficLightPresenter light = new TrafficLightPresenter();
-      light.useModernHousing(Color.BLACK);
-      // the presenter is 60 wide by default; the visible cell is 40
-      BufferedImage image = new BufferedImage(40, 15, BufferedImage.TYPE_INT_RGB);
+   // paints a presenter the way PresenterService does for a cell of this size: at its preferred
+   // size, aligned right and centered, unless it fills the cell
+   private static BufferedImage render(Presenter presenter, Object value, int width, int height,
+                                       int visibleWidth)
+   {
+      BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
       Graphics2D g = image.createGraphics();
       g.setColor(Color.WHITE);
-      g.fillRect(0, 0, 40, 15);
-      g.setClip(0, 0, 40, 15);
-      light.paint(g, 50.0, 0, 0, 60, 15);
+      g.fillRect(0, 0, width, height);
+      g.setClip(0, 0, visibleWidth, height);
+      Bounds b = new Bounds(0, 0, width, height);
+      Dimension psize = presenter.getPreferredSize(value);
+      b = !presenter.isFill() && psize.width > 0 ?
+         Common.alignPresenterCell(b, new Size(psize), StyleConstants.H_RIGHT | StyleConstants.V_CENTER) : b;
+      presenter.paint(g, value, (int) b.x, (int) b.y, (int) b.width, (int) b.height);
       g.dispose();
+      return image;
+   }
 
-      // the middle of the right edge is drawn, and so are the left, top and bottom
-      assertNotEquals(Color.WHITE.getRGB(), image.getRGB(39, 7), "right edge");
-      assertNotEquals(Color.WHITE.getRGB(), image.getRGB(1, 7), "left edge");
-      assertNotEquals(Color.WHITE.getRGB(), image.getRGB(20, 1), "top edge");
-      assertNotEquals(Color.WHITE.getRGB(), image.getRGB(20, 13), "bottom edge");
+   private static boolean ink(BufferedImage image, int x, int y) {
+      Color c = new Color(image.getRGB(x, y));
+      return 765 - (c.getRed() + c.getGreen() + c.getBlue()) > 60;
+   }
+
+   private static BufferedImage lightsImage(int visibleWidth) {
+      TrafficLightPresenter light = new TrafficLightPresenter();
+      light.useModernHousing(Color.BLACK);
+      // the cell the client asks for: about 100 wide and 16 high once its padding is taken off
+      return render(light, 50.0, 60, 16, visibleWidth);
+   }
+
+   @Test
+   void theModernHousingKeepsItsRightEdgeWhenTheColumnIsNarrowerThanThePresenter() {
+      BufferedImage image = lightsImage(40);
+
+      assertTrue(ink(image, 39, 8), "right edge");
+   }
+
+   @Test
+   void theModernHousingSitsTheSameDistanceFromTheLightsAboveAndBelow() {
+      BufferedImage image = lightsImage(60);
+      // down the middle light: the housing's top line, the light, the housing's bottom line
+      int x = 30;
+      int top = -1;
+      int bottom = -1;
+
+      for(int y = 0; y < image.getHeight(); y++) {
+         if(ink(image, x, y)) {
+            top = top < 0 ? y : top;
+            bottom = y;
+         }
+      }
+
+      // the first and last ink on this column are the housing's two lines
+      assertTrue(top >= 0 && bottom > top, "no housing found");
+      int firstLight = -1;
+      int lastLight = -1;
+
+      for(int y = top + 1; y < bottom; y++) {
+         if(ink(image, x, y)) {
+            firstLight = firstLight < 0 ? y : firstLight;
+            lastLight = y;
+         }
+      }
+
+      assertTrue(firstLight > 0, "no light found");
+      assertEquals(firstLight - top, bottom - lastLight,
+                   "space above the lights " + (firstLight - top) + " and below "
+                   + (bottom - lastLight));
    }
 
    @Test
    void theModernHousingHasRoundedCorners() {
-      TrafficLightPresenter light = new TrafficLightPresenter();
-      light.useModernHousing(Color.BLACK);
-      BufferedImage image = new BufferedImage(60, 15, BufferedImage.TYPE_INT_RGB);
-      Graphics2D g = image.createGraphics();
-      g.setColor(Color.WHITE);
-      g.fillRect(0, 0, 60, 15);
-      g.setClip(0, 0, 60, 15);
-      light.paint(g, 50.0, 0, 0, 60, 15);
-      g.dispose();
+      BufferedImage image = lightsImage(60);
+      int left = 0;
 
-      // the square corner pixel would be black; the rounded one is much lighter than the edge
-      int corner = new Color(image.getRGB(1, 1)).getRed();
-      int edge = new Color(image.getRGB(1, 7)).getRed();
+      while(left < image.getWidth() && !ink(image, left, 8)) {
+         left++;
+      }
+
+      int top = 0;
+
+      while(top < image.getHeight() && !ink(image, left + 12, top)) {
+         top++;
+      }
+
+      // a square corner pixel would be solid; the rounded one is much lighter than the edge
+      int corner = new Color(image.getRGB(left, top)).getRed();
+      int edge = new Color(image.getRGB(left, 8)).getRed();
       assertTrue(corner > edge + 100, "corner " + corner + " is not rounder than the edge " + edge);
    }
 
@@ -178,6 +244,204 @@ class VSFormatTableLensPresenterColorsTest {
    }
 
    @Test
+   void aModernPlainBarAndASignedBarAreTheSameThickness() throws Exception {
+      VizMark mark = VizMark.MODERN_LIGHT;
+      BarPresenter plain = (BarPresenter) lens(BAR, mark).getPresenter(1, 1);
+      Bar2Presenter signed = (Bar2Presenter) lens(BAR2, mark).getPresenter(1, 1);
+
+      // a full value fills both bars to the far right of an 87 by 16 cell
+      int plainRows = barRows(render(plain, 100.0, 87, 16, 87), 80);
+      int signedRows = barRows(render(signed, 100.0, 87, 16, 87), 80);
+
+      assertEquals(8, signedRows);
+      assertEquals(signedRows, plainRows);
+   }
+
+   @Test
+   void aClassicPlainBarStillFillsTheCellHeightLessFour() throws Exception {
+      BarPresenter plain = (BarPresenter) lens(BAR, null).getPresenter(1, 1);
+      plain.setColor(Color.BLUE);
+
+      assertEquals(12, barRows(render(plain, 100.0, 87, 16, 87), 80));
+   }
+
+   // the rows of a column that have some color in them
+   private static int barRows(BufferedImage image, int x) {
+      int rows = 0;
+
+      for(int y = 0; y < image.getHeight(); y++) {
+         if(ink(image, x, y)) {
+            rows++;
+         }
+      }
+
+      return rows;
+   }
+
+   @Test
+   void aModernStarCounterDrawsSolidStarsInTheModernAmber() throws Exception {
+      for(VizMark mark : new VizMark[] { VizMark.MODERN_LIGHT, VizMark.MODERN_DARK }) {
+         IconCounterPresenter stars = (IconCounterPresenter) lens(ICON, mark).getPresenter(1, 1);
+         Color amber = VSObjectChromeDefaults.starColor(VizContext.of(mark));
+
+         assertEquals(amber, stars.modernStyle());
+         // the middle of the first of three stars is the star color, with no image around it
+         BufferedImage image = render(stars, 3.0, 60, 16, 60);
+         int startX = 60 - stars.getPreferredSize(3.0).width;
+         assertEquals(amber.getRGB(), image.getRGB(startX + 2 + 6, 8));
+      }
+   }
+
+   @Test
+   void aStarCounterWithAnAuthorColourKeepsTheIcon() throws Exception {
+      PresenterRef ref = new PresenterRef(ICON);
+      ref.setParameter("iconColor", AUTHOR);
+      IconCounterPresenter stars =
+         (IconCounterPresenter) lens(ref, VizMark.MODERN_LIGHT).getPresenter(1, 1);
+
+      // the icon image is 12 wide with 2 between, the same as the solid stars; what differs is
+      // that the author's color gives a hue-shifted image, not the amber shape
+      assertEquals(AUTHOR, stars.getIconColor());
+      BufferedImage image = render(stars, 3.0, 60, 16, 60);
+      int startX = 60 - stars.getPreferredSize(3.0).width;
+      assertNotEquals(VSObjectChromeDefaults.starColor(VizContext.of(VizMark.MODERN_LIGHT)).getRGB(),
+                      image.getRGB(startX + 2 + 6, 8));
+   }
+
+   @Test
+   void aClassicStarCounterKeepsTheBuiltInImage() throws Exception {
+      IconCounterPresenter stars = (IconCounterPresenter) lens(ICON, null).getPresenter(1, 1);
+
+      assertNull(stars.modernStyle());
+   }
+
+   @Test
+   void aModernCheckMarkIsARoundedBoxFilledWithTheAccentWhenTrue() throws Exception {
+      BooleanPresenter check = (BooleanPresenter) lens(CHECK, VizMark.MODERN_LIGHT).getPresenter(1, 1);
+      Color accent = VSObjectChromeDefaults.checkMarkColor(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(accent, check.modernAccent());
+      BufferedImage on = render(check, 1997.19, 60, 16, 60);
+      // the box is 14 wide, flush right: its top left area is the accent, its square corner is not
+      int boxLeft = 60 - 14;
+      assertEquals(accent.getRGB(), on.getRGB(boxLeft + 2, 4));
+      assertNotEquals(accent.getRGB(), on.getRGB(boxLeft, 1), "the corner is rounded");
+   }
+
+   @Test
+   void theCheckMarkBoxIsTheBarColourAndItsTickIsTheDeepInk() {
+      for(VizMark mark : new VizMark[] { VizMark.MODERN_LIGHT, VizMark.MODERN_DARK }) {
+         VizContext ctx = VizContext.of(mark);
+         Color fill = VSObjectChromeDefaults.checkMarkColor(ctx);
+         Color tick = VSObjectChromeDefaults.checkMarkTickColor(ctx);
+
+         // the box is as strong as the first Bullet Graph band, and the tick is the bar's color
+         assertEquals(VSObjectChromeDefaults.bulletBandColors(ctx)[0], fill);
+         assertEquals(VSObjectChromeDefaults.bulletBarColor(ctx), tick);
+         // the tick has to read on the box: a clear difference in lightness
+         assertTrue(Math.abs(lightness(fill) - lightness(tick)) > 90,
+                    "tick " + tick + " does not read on " + fill);
+      }
+   }
+
+   @Test
+   void theStarColourIsThePalettesSixthColour() {
+      for(VizMark mark : new VizMark[] { VizMark.MODERN_LIGHT, VizMark.MODERN_DARK }) {
+         VizContext ctx = VizContext.of(mark);
+
+         assertEquals(VSChartPaletteDefaults.activePalette(ctx)[5], VSObjectChromeDefaults.starColor(ctx));
+      }
+   }
+
+   @Test
+   void theBulletBarFollowsTheTextColourSoItIsDarkInLightModeAndLightInDarkMode() {
+      Color light = VSObjectChromeDefaults.bulletBarColor(VizContext.of(VizMark.MODERN_LIGHT));
+      Color dark = VSObjectChromeDefaults.bulletBarColor(VizContext.of(VizMark.MODERN_DARK));
+
+      assertTrue(lightness(light) < 110, "light mode bar is not dark: " + light);
+      assertTrue(lightness(dark) > 150, "dark mode bar is not light: " + dark);
+   }
+
+   private static int lightness(Color c) {
+      return (c.getRed() + c.getGreen() + c.getBlue()) / 3;
+   }
+
+   @Test
+   void aModernCheckMarkIsAnEmptyBorderedBoxWhenFalse() throws Exception {
+      BooleanPresenter check = (BooleanPresenter) lens(CHECK, VizMark.MODERN_LIGHT).getPresenter(1, 1);
+      BufferedImage off = render(check, 0.0, 60, 16, 60);
+      int boxLeft = 60 - 14;
+
+      // the middle is empty and the edge is drawn
+      assertEquals(Color.WHITE.getRGB(), off.getRGB(boxLeft + 7, 8));
+      assertTrue(ink(off, boxLeft, 8) || ink(off, boxLeft + 1, 8), "no border");
+   }
+
+   @Test
+   void aClassicCheckMarkKeepsTheBuiltInImage() throws Exception {
+      BooleanPresenter check = (BooleanPresenter) lens(CHECK, null).getPresenter(1, 1);
+
+      assertNull(check.modernAccent());
+      assertEquals(new Dimension(10, 10), check.getPreferredSize(1.0));
+   }
+
+   @Test
+   void aModernImagePresenterKeepsTheAspectRatioByDefault() throws Exception {
+      ImagePresenter image = (ImagePresenter) lens(IMAGE, VizMark.MODERN_LIGHT).getPresenter(1, 1);
+
+      assertTrue(image.isMaintainAspectRatio());
+   }
+
+   @Test
+   void aClassicImagePresenterStillStretchesByDefault() throws Exception {
+      ImagePresenter image = (ImagePresenter) lens(IMAGE, null).getPresenter(1, 1);
+
+      assertFalse(image.isMaintainAspectRatio());
+   }
+
+   @Test
+   void anAuthorWhoUnticksTheAspectRatioKeepsThatOnAModernTable() throws Exception {
+      PresenterRef ref = new PresenterRef(IMAGE);
+      ref.setParameter("maintainAspectRatio", Boolean.FALSE);
+      ImagePresenter image = (ImagePresenter) lens(ref, VizMark.MODERN_LIGHT).getPresenter(1, 1);
+
+      assertFalse(image.isMaintainAspectRatio());
+   }
+
+   @Test
+   void anAuthorWhoTicksTheAspectRatioKeepsThatOnAClassicTable() throws Exception {
+      PresenterRef ref = new PresenterRef(IMAGE);
+      ref.setParameter("maintainAspectRatio", Boolean.TRUE);
+      ImagePresenter image = (ImagePresenter) lens(ref, null).getPresenter(1, 1);
+
+      assertTrue(image.isMaintainAspectRatio());
+   }
+
+   @Test
+   void aModernImageIsDrawnInsideTheCellWithItsOwnProportions() throws Exception {
+      // a 32 by 16 red picture in a 60 by 20 cell: kept in proportion it is 40 wide
+      java.io.File file = java.io.File.createTempFile("probe-image", ".png");
+      file.deleteOnExit();
+      BufferedImage picture = new BufferedImage(32, 16, BufferedImage.TYPE_INT_RGB);
+      Graphics2D pg = picture.createGraphics();
+      pg.setColor(Color.RED);
+      pg.fillRect(0, 0, 32, 16);
+      pg.dispose();
+      javax.imageio.ImageIO.write(picture, "png", file);
+      String url = file.toURI().toURL().toString();
+
+      ImagePresenter image = (ImagePresenter) lens(IMAGE, VizMark.MODERN_LIGHT).getPresenter(1, 1);
+      BufferedImage kept = render(image, url, 60, 20, 60);
+
+      assertTrue(ink(kept, 20, 10), "the picture is drawn");
+      assertFalse(ink(kept, 55, 10), "the cell to the right of the picture stays empty");
+
+      // the same picture stretched to the cell reaches the right side
+      image.setMaintainAspectRatio(false);
+      assertTrue(ink(render(image, url, 60, 20, 60), 55, 10), "stretched, it fills the cell");
+   }
+
+   @Test
    void aModernBulletGraphTakesTheNeutralBands() throws Exception {
       for(VizMark mark : new VizMark[] { VizMark.MODERN_LIGHT, VizMark.MODERN_DARK }) {
          BulletGraphPresenter bullet = (BulletGraphPresenter) lens(BULLET, mark).getPresenter(1, 1);
@@ -191,19 +455,48 @@ class VSFormatTableLensPresenterColorsTest {
    }
 
    @Test
-   void theNeutralBandsAreGreyAndGetLighterInLightMode() {
+   void theModernBandsAreTintsOfTheFirstPaletteColourAndGetLighterInLightMode() {
       Color[] bands = VSObjectChromeDefaults.bulletBandColors(VizContext.of(VizMark.MODERN_LIGHT));
 
       for(int i = 0; i < bands.length; i++) {
-         // a neutral grey: the channels differ by a few steps at most
-         int spread = Math.max(bands[i].getRed(), Math.max(bands[i].getGreen(), bands[i].getBlue())) -
-            Math.min(bands[i].getRed(), Math.min(bands[i].getGreen(), bands[i].getBlue()));
-         assertTrue(spread <= 12, "band " + i + " is not neutral: " + bands[i]);
+         // blue is the first palette color: the blue channel is at the top and red is lowest
+         assertTrue(bands[i].getBlue() >= bands[i].getGreen() && bands[i].getGreen() > bands[i].getRed(),
+                    "band " + i + " is not a blue tint: " + bands[i]);
 
          if(i > 0) {
-            assertTrue(bands[i].getRed() > bands[i - 1].getRed());
+            assertTrue(bands[i].getRed() > bands[i - 1].getRed(), "band " + i + " is not lighter");
          }
       }
+   }
+
+   @Test
+   void theModernBandsGetDarkerInDarkMode() {
+      Color[] bands = VSObjectChromeDefaults.bulletBandColors(VizContext.of(VizMark.MODERN_DARK));
+
+      for(int i = 1; i < bands.length; i++) {
+         assertTrue(bands[i].getRed() < bands[i - 1].getRed(), "band " + i + " is not darker");
+      }
+   }
+
+   @Test
+   void aModernBulletGraphTakesTheIndigoBarAndTarget() throws Exception {
+      for(VizMark mark : new VizMark[] { VizMark.MODERN_LIGHT, VizMark.MODERN_DARK }) {
+         BulletGraphPresenter bullet = (BulletGraphPresenter) lens(BULLET, mark).getPresenter(1, 1);
+         VizContext ctx = VizContext.of(mark);
+
+         assertEquals(VSObjectChromeDefaults.bulletBarColor(ctx), bullet.getBarColor());
+         assertEquals(VSObjectChromeDefaults.bulletTargetColor(ctx), bullet.modernTarget());
+      }
+   }
+
+   @Test
+   void anAuthorBulletBarColourIsKept() throws Exception {
+      PresenterRef ref = new PresenterRef(BULLET);
+      ref.setParameter("barColor", AUTHOR);
+      BulletGraphPresenter bullet =
+         (BulletGraphPresenter) lens(ref, VizMark.MODERN_LIGHT).getPresenter(1, 1);
+
+      assertEquals(AUTHOR, bullet.getBarColor());
    }
 
    @Test
@@ -223,6 +516,8 @@ class VSFormatTableLensPresenterColorsTest {
 
       assertNull(bullet.getColor1());
       assertNull(bullet.getColor4());
+      assertNull(bullet.getBarColor());
+      assertNull(bullet.modernTarget());
    }
 
    @Test

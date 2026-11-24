@@ -63,21 +63,25 @@ public class BooleanPresenter implements Presenter {
     */
    @Override
    public void paint(Graphics g, Object v, int x, int y, int w, int h) {
-      loadImages();
-
-      Image img = null;
+      boolean on;
 
       if(v instanceof Number) {
-         img = Tool.isZero((Number)v)? false_mark : true_mark;
+         on = !Tool.isZero((Number) v);
       }
       else if(v instanceof String) {
-         img = ((String) v).equalsIgnoreCase("true") ? true_mark : false_mark;
+         on = ((String) v).equalsIgnoreCase("true");
       }
       else {
-         img = (v != null && ((Boolean) v).booleanValue()) ?
-            true_mark :
-            false_mark;
+         on = v != null && ((Boolean) v).booleanValue();
       }
+
+      if(accent != null) {
+         paintModern(g, on, x, y, w, h);
+         return;
+      }
+
+      loadImages();
+      Image img = on ? true_mark : false_mark;
 
       if(img != null) {
          int iw = img.getWidth(null), ih = img.getHeight(null);
@@ -98,6 +102,10 @@ public class BooleanPresenter implements Presenter {
     */
    @Override
    public Dimension getPreferredSize(Object v) {
+      if(accent != null) {
+         return new Dimension(BOX_SIZE, BOX_SIZE);
+      }
+
       loadImages();
 
       Dimension d = (true_mark != null) ?
@@ -151,6 +159,66 @@ public class BooleanPresenter implements Presenter {
       }
 
       return false;
+   }
+
+   /**
+    * Draw a rounded check box instead of the built-in image: a box in the accent color with a tick
+    * in the tick color for a true value, and an empty box with a border of the other color for a
+    * false one. A null accent, the default, keeps the image. This is not a bean property, so it
+    * does not show in the presenter dialog or get saved: the table sets it on a modern table.
+    */
+   public void useModernStyle(Color accent, Color tick, Color border) {
+      this.accent = accent;
+      this.tick = tick;
+      this.border = border;
+   }
+
+   /**
+    * The accent color of the modern check box, or null for the classic image.
+    */
+   public Color modernAccent() {
+      return accent;
+   }
+
+   private void paintModern(Graphics g, boolean on, int x, int y, int w, int h) {
+      Shape clip = g.getClip();
+      Graphics2D g2 = (Graphics2D) g;
+      Object aa = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+      Stroke stroke = g2.getStroke();
+
+      g2.clipRect(x, y, w, h);
+      g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+      g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+
+      double left = x + (w - BOX_SIZE) / 2.0;
+      double top = y + (h - BOX_SIZE) / 2.0;
+
+      if(on) {
+         g2.setColor(accent);
+         g2.fill(new java.awt.geom.RoundRectangle2D.Double(
+            left, top, BOX_SIZE, BOX_SIZE, BOX_ARC, BOX_ARC));
+         g2.setColor(tick == null ? Color.WHITE : tick);
+         g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+         java.awt.geom.Path2D.Double mark = new java.awt.geom.Path2D.Double();
+         mark.moveTo(left + BOX_SIZE * 0.25, top + BOX_SIZE * 0.53);
+         mark.lineTo(left + BOX_SIZE * 0.43, top + BOX_SIZE * 0.70);
+         mark.lineTo(left + BOX_SIZE * 0.76, top + BOX_SIZE * 0.31);
+         g2.draw(mark);
+      }
+      else {
+         g2.setColor(border == null ? accent : border);
+         g2.setStroke(new BasicStroke(1.2f));
+         g2.draw(new java.awt.geom.RoundRectangle2D.Double(
+            left + 0.6, top + 0.6, BOX_SIZE - 1.2, BOX_SIZE - 1.2, BOX_ARC, BOX_ARC));
+      }
+
+      g2.setStroke(stroke);
+
+      if(aa != null) {
+         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa);
+      }
+
+      g2.setClip(clip);
    }
 
    /**
@@ -242,6 +310,13 @@ public class BooleanPresenter implements Presenter {
    private transient Image true_mark = null;
    private transient Image false_mark = null;
    private Color bg = null;
+   private Color accent = null;
+   private Color tick = null;
+   private Color border = null;
+
+   // the modern check box: its side and corner diameter, px
+   private static final int BOX_SIZE = 14;
+   private static final int BOX_ARC = 5;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(BooleanPresenter.class);
