@@ -366,7 +366,10 @@ class CrossTabFilterTopNTest {
       }
    }
 
-   /** Without a Top N, and with one that does not aggregate top N or group Others, Count is blank. */
+   /**
+    * Without a Top N, and with one that does not aggregate top N or group Others, Count is blank:
+    * pinned current behavior, Bug #82226 asks the developers whether blank or 0 is intended.
+    */
    @ParameterizedTest(name = "topN={0}")
    @ValueSource(ints = { 0, 100 })
    void emptyCountCellsAreBlankWithoutAggregateTopNOrOthers(int n) {
@@ -378,20 +381,23 @@ class CrossTabFilterTopNTest {
    }
 
    /**
-    * Count and Count Distinct are blank in a cell without data, as in a crosstab without Top N
-    * and as the other formulas are. With Others, or with "aggregate top N" (always on in the
-    * viewer) the cell holds an empty formula clone and shows 0.
+    * Count and Count Distinct give the same value in a cell without data with and without a Top N.
+    * The value itself (0 or blank) is for the developers to decide, so the expected value is the
+    * one the crosstab without Top N gives. With Others, or with "aggregate top N" (always on in the
+    * viewer), the cell holds an empty formula clone and shows 0.
     */
    @ParameterizedTest(name = "others={0} aggregateTopN={1}")
    @MethodSource("emptyCountOptions")
-   @Disabled("Bug #82226: with a Top N (aggregate top N is always on in the viewer) or with Group "
-      + "all others together, Count and Count Distinct show 0 in cells that have no data; "
-      + "CrossTabFilter.resetGrandTotal puts an empty formula clone into every missing cell")
-   void emptyCountCellsStayBlankWithTopN(boolean others, boolean aggTopN) {
-      CrossTabFilter f = emptyCellCrosstab(100, others, aggTopN, false);
+   @Disabled("Bug #82226 (Dev feedback needed): a cell without data shows 0 for Count and Count "
+      + "Distinct when the crosstab has a Top N with aggregate top N (always on in the viewer) or "
+      + "with Others, and blank without a Top N; CrossTabFilter.resetGrandTotal puts an empty "
+      + "formula clone into every missing cell")
+   void emptyCountCellsAreTheSameWithAndWithoutTopN(boolean others, boolean aggTopN) {
+      CrossTabFilter withoutTopN = emptyCellCrosstab(null, false, false, false);
+      CrossTabFilter withTopN = emptyCellCrosstab(100, others, aggTopN, false);
 
       for(String measure : COUNTS) {
-         assertNull(emptyCell(f, measure), measure);
+         assertEquals(emptyCell(withoutTopN, measure), emptyCell(withTopN, measure), measure);
       }
    }
 
