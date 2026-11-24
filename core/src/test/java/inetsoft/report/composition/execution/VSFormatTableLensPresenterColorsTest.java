@@ -367,6 +367,26 @@ class VSFormatTableLensPresenterColorsTest {
    }
 
    @Test
+   void aModernCheckMarkLeavesTheGraphicsHintsAsItFoundThem() throws Exception {
+      BooleanPresenter check = (BooleanPresenter) lens(CHECK, VizMark.MODERN_LIGHT).getPresenter(1, 1);
+
+      for(double value : new double[] { 1.0, 0.0 }) {
+         BufferedImage image = new BufferedImage(60, 16, BufferedImage.TYPE_INT_RGB);
+         Graphics2D g = image.createGraphics();
+         g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_NORMALIZE);
+         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+
+         check.paint(g, value, 0, 0, 60, 16);
+
+         assertEquals(RenderingHints.VALUE_STROKE_NORMALIZE,
+                      g.getRenderingHint(RenderingHints.KEY_STROKE_CONTROL));
+         assertEquals(RenderingHints.VALUE_ANTIALIAS_OFF,
+                      g.getRenderingHint(RenderingHints.KEY_ANTIALIASING));
+         g.dispose();
+      }
+   }
+
+   @Test
    void aModernCheckMarkIsAnEmptyBorderedBoxWhenFalse() throws Exception {
       BooleanPresenter check = (BooleanPresenter) lens(CHECK, VizMark.MODERN_LIGHT).getPresenter(1, 1);
       BufferedImage off = render(check, 0.0, 60, 16, 60);
