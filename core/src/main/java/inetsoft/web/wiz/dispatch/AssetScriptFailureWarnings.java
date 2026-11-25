@@ -65,24 +65,37 @@ public final class AssetScriptFailureWarnings {
       List<String> result = warnings == null ? new ArrayList<>() : new ArrayList<>(warnings);
 
       if(exceptions != null) {
+         // the caller's console scope never sees this list, which was consumed here (Bug #82316)
+         ConsoleMessageCapture.recordScriptFailures(exceptions);
+
          for(Exception ex : exceptions) {
-            if(ex instanceof ScriptException || ex != null && ex.getCause() instanceof ScriptException) {
-               String message = ex.getMessage();
+            String message = scriptFailureMessage(ex);
 
-               if((message == null || message.isBlank()) && ex.getCause() != null) {
-                  message = ex.getCause().getMessage();
-               }
-
-               message = CommandErrorException.messageOf(message);
-
-               if(!reported(result, message)) {
-                  result.add(message);
-               }
+            if(message != null && !reported(result, message)) {
+               result.add(message);
             }
          }
       }
 
       return result;
+   }
+
+   /**
+    * The message of {@code ex} when it is an assembly-script failure (a {@link ScriptException},
+    * or an exception caused by one), else null.
+    */
+   static String scriptFailureMessage(Exception ex) {
+      if(!(ex instanceof ScriptException || ex != null && ex.getCause() instanceof ScriptException)) {
+         return null;
+      }
+
+      String message = ex.getMessage();
+
+      if((message == null || message.isBlank()) && ex.getCause() != null) {
+         message = ex.getCause().getMessage();
+      }
+
+      return CommandErrorException.messageOf(message);
    }
 
    /** A table failure already arrives as an INFO warning carrying the same first line. */

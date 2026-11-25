@@ -35,6 +35,7 @@ DENIED GET /api/wiz/v1/agent/viewsheet/{sessionToken}/condition
 DENIED GET /api/wiz/v1/agent/viewsheet/{sessionToken}/condition/date-ranges
 DENIED GET /api/wiz/v1/agent/viewsheet/{sessionToken}/condition/values
 DENIED GET /api/wiz/v1/agent/viewsheet/{sessionToken}/condition/vocabulary
+DENIED GET /api/wiz/v1/agent/viewsheet/{sessionToken}/console
 DENIED GET /api/wiz/v1/agent/viewsheet/{sessionToken}/date-comparison
 DENIED GET /api/wiz/v1/agent/viewsheet/{sessionToken}/format/read
 DENIED GET /api/wiz/v1/agent/viewsheet/{sessionToken}/hierarchy/dimensions
@@ -130,6 +131,8 @@ DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/statis
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/column-options
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/condition
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/condition/clear
+DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/console/clear
+DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/console/levels
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/convert
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/convert-data-source-to-worksheet
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/date-comparison

@@ -137,6 +137,7 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
       }
       finally {
          MessageContextHolder.setMessageAttributes(previousAttributes);
+         ConsoleMessageCapture.recordCommands(dispatcher.captured);
       }
    }
 
