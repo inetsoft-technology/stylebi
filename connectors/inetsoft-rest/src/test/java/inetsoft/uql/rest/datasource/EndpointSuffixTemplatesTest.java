@@ -161,6 +161,13 @@ class EndpointSuffixTemplatesTest {
       assertTrue(!stats.contains("&sysparm_avg={") && !stats.contains("&sysparm_sum={"), stats);
    }
 
+   @Test
+   void serviceNowChangeClsRequiresAssociationTypeAndQueryIsOptional() throws Exception {
+      String raw = suffix("servicenow", "Change Cls");
+      assertTrue(raw.contains("association_type={Association Type:"), raw);
+      assertTrue(raw.contains("&sysparm_query={Query?}"), raw);
+   }
+
    private static String suffix(String dataSource, String endpoint) throws Exception {
       try(InputStream in = EndpointSuffixTemplatesTest.class.getResourceAsStream(
          "/inetsoft/uql/rest/datasource/" + dataSource + "/endpoints.json"))
