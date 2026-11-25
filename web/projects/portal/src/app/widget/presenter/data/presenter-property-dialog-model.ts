@@ -20,4 +20,6 @@ import { PresenterDescriptorModel } from "./presenter-descriptor-model";
 export interface PresenterPropertyDialogModel {
    descriptors: PresenterDescriptorModel[];
    presenter: string;
+   /** What the presenter does with a value it cannot draw, if the server has something to say. */
+   description?: string;
 }

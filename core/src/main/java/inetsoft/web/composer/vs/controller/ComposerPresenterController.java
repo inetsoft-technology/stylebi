@@ -22,6 +22,7 @@ import inetsoft.report.internal.table.PresenterRef;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Catalog;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.composer.vs.PresenterValueHint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
@@ -125,8 +126,12 @@ public class ComposerPresenterController {
                data.put("class", pobj.getClass().getName());
                data.put("hasDescriptors", hasDescriptors);
 
+               // what the presenter does with a value it cannot draw, as the dropdown's tooltip
+               String hint = PresenterValueHint.of(pobj);
+
                TreeNodeModel node = TreeNodeModel.builder()
                   .label(pobj.getDisplayName())
+                  .tooltip(hint == null ? null : catalog.getString(hint))
                   .data(data)
                   .leaf(true)
                   .build();
