@@ -125,6 +125,7 @@ DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/chart/region/format/read
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/band
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/delete
+DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/edit
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/formula
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/statistics
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/column-options
