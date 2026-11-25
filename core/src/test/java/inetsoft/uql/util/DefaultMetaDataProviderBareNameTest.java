@@ -120,12 +120,42 @@ class DefaultMetaDataProviderBareNameTest {
       assertEquals(List.of("SA.ORDERS"), names(tree));
    }
 
+   @Test
+   void tableLookupByBareNameResolvesInDefaultSchema() throws Exception {
+      XNode node = provider("SA").getTable("ORDERS", null);
+
+      assertNotNull(node);
+      assertEquals("ORDERS", node.getName());
+      assertEquals("SA", node.getAttribute("schema"));
+   }
+
+   @Test
+   void tableLookupByBareNameOfAnotherSchemaStaysUnresolved() throws Exception {
+      assertNull(provider("PUBLIC").getTable("ORDERS", null));
+      assertNull(provider(null).getTable("ORDERS", null));
+   }
+
+   @Test
+   void tableLookupByQualifiedNameStillResolves() throws Exception {
+      XNode node = provider("SA").getTable("SA.ORDERS", null);
+
+      assertNotNull(node);
+      assertEquals("ORDERS", node.getName());
+   }
+
    /**
     * @param table         the name of the table stored in the view.
     * @param schema        the schema stored with the table, or null.
     * @param defaultSchema the schema the metadata reports as the default one, or null.
     */
    private XNode tree(String table, String schema, String defaultSchema) throws Exception {
+      DefaultMetaDataProvider provider = provider(defaultSchema);
+      XPartition partition = new XPartition("Order View");
+      partition.addTable(table, null, schema);
+      return provider.getMetaData(partition, true, null);
+   }
+
+   private DefaultMetaDataProvider provider(String defaultSchema) throws Exception {
       XEngine engine = mock(XEngine.class);
       when(engine.bind(any())).thenAnswer(inv -> inv.getArgument(0));
       when(engine.getMetaData(any(), any(), any(), anyBoolean(), any()))
@@ -138,10 +168,7 @@ class DefaultMetaDataProviderBareNameTest {
 
       DefaultMetaDataProvider provider = new DefaultMetaDataProvider(engine);
       provider.setDataSource(xds);
-
-      XPartition partition = new XPartition("Order View");
-      partition.addTable(table, null, schema);
-      return provider.getMetaData(partition, true, null);
+      return provider;
    }
 
    // the mocked engine acts as the database: schemas SA and PUBLIC, ORDERS is in SA

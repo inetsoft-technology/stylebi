@@ -470,6 +470,13 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
 
          XNode result = findTable(table, possibleSchemas, additional, strict);
 
+         // a bare name is resolved by the database in its default schema, but the listed tables
+         // may be qualified (e.g. SA.ORDERS), so the name never equals
+         if(result == null) {
+            result = getDefaultSchemaTableNode(
+               table, schemas, (XNode) getTableTypeList(additional).clone(), additional);
+         }
+
          if(!AssetDataCache.isDebugData()) {
             tableCache.put(key, result);
          }
