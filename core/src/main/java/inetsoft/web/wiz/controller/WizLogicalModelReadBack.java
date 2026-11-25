@@ -195,6 +195,15 @@ final class WizLogicalModelReadBack {
    }
 
    static Attribute canon(Attribute a) {
+      return canon(a, true);
+   }
+
+   /**
+    * The canonical form of an attribute. With {@code withVisible} false the Visible flag is
+    * left out (always true): the one property of an inherited attribute an extended model may
+    * change, so it must not count as a change when compared with the base model's attribute.
+    */
+   static Attribute canon(Attribute a, boolean withVisible) {
       boolean expression = WizLogicalModelMapper.isExpression(a);
       String format = a.format() == null ? null : text(a.format().format());
       String spec = a.format() == null ? null : text(a.format().formatSpec());
@@ -205,7 +214,8 @@ final class WizLogicalModelReadBack {
                        a.format().durationPadZeros() : null);
 
       return new Attribute(
-         a.name(), null, text(a.description()), a.visible() == null || a.visible(),
+         a.name(), null, text(a.description()),
+         !withVisible || a.visible() == null || a.visible(),
          expression ? WizLogicalModelWire.TYPE_EXPRESSION : WizLogicalModelWire.TYPE_COLUMN,
          expression ? null : a.table(), expression ? null : a.column(),
          expression ? a.expression() : null,
