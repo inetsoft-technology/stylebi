@@ -135,15 +135,16 @@ span.wrapper {
 
 // The layout pane's resize and move handles take the composer's two-tone overlay pair
 // (_composer-overlay.scss), as the dashboard editor's do. !important beats .bg-primary's. A themed
-// page leaves the pair undeclared and keeps today's solid primary handle, whose fill also shows
-// under the transparent border, and the earlier move handle. The size is the canvas handles' 8px
+// page leaves the pair undeclared and keeps today's solid primary handle with no border (the stroke
+// has no fallback, so an undeclared token makes the border compute to none), and the earlier move
+// handle. The size is the canvas handles' 8px
 // ($handle-size in _moving-resize.scss): the AI assistant bundle injects an unscoped
 // .resize-handle.top/.left rule that shrinks these to 6px whenever the assistant is enabled.
 .resize-handle.bg-primary {
   width: 8px;
   height: 8px;
   background-color: var(--inet-composer-overlay-halo, var(--inet-primary-color)) !important;
-  border: 1px solid var(--inet-composer-overlay-stroke, transparent);
+  border: 1px solid var(--inet-composer-overlay-stroke);
 }
 
 // The same bundle also sets the opposite offsets (.resize-handle.top/.bottom {left: 0; right: 0},

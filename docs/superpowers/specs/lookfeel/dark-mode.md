@@ -127,7 +127,8 @@ How it works (Feature #80673):
   the selection and layout outlines and the authoring marquee use one content-independent two-tone
   design, a #123C44 stroke with a white halo, the same in both shells; custom-theme pages keep their
   earlier look, apart from two layout-pane differences: a transparent outline where there was none,
-  and the 8px corner handles that the AI assistant's stray CSS had shrunk and moved); everything else in a light shell is unchanged.
+  and 8px corner handles where the AI assistant's stray CSS had shrunk and moved them); everything
+  else in a light shell is unchanged.
 - **Resolved on the server** by `ShellDarkMode.isDark()`, called from `HomePageController`: a custom
   theme is never dark; then the user's `UserEnv` `shellAppearance` (`light` / `dark`; honored, but no
   UI writes it yet); then `portal.shellDark`, org scoped with the site value as fallback, default

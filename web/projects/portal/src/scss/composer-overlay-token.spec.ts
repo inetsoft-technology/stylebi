@@ -231,7 +231,7 @@ describe("composer overlay consumers", () => {
       // themed pages keep today's solid primary handle (.bg-primary, no border)
       expect(handle).toMatch(
          /background-color:\s*var\(--inet-composer-overlay-halo,\s*var\(--inet-primary-color\)\)\s*!important/);
-      expect(handle).toMatch(/border:\s*1px solid var\(--inet-composer-overlay-stroke,\s*transparent\)/);
+      expect(handle).toMatch(/border:\s*1px solid var\(--inet-composer-overlay-stroke\);/);
       const move = rule(wizard, /^\.vs-wizard-object__move-handle\s*\{/m);
       expect(move).toMatch(/border:\s*1px solid var\(--inet-composer-overlay-stroke,\s*var\(--inet-default-border-color\)\)/);
       expect(move).toMatch(/background:\s*var\(--inet-composer-overlay-halo,\s*var\(--inet-shell-surface-default\)\)/);
@@ -247,7 +247,7 @@ describe("composer overlay consumers", () => {
       const handle = rule(layout(), /^\.resize-handle\.bg-primary\s*\{/m);
       expect(handle).toMatch(
          /background-color:\s*var\(--inet-composer-overlay-halo,\s*var\(--inet-primary-color\)\)\s*!important/);
-      expect(handle).toMatch(/border:\s*1px solid var\(--inet-composer-overlay-stroke,\s*transparent\)/);
+      expect(handle).toMatch(/border:\s*1px solid var\(--inet-composer-overlay-stroke\);/);
       // the canvas size: the AI assistant bundle injects an unscoped .resize-handle.top/left 6px rule
       expect(handle).toMatch(/width:\s*8px/);
       expect(handle).toMatch(/height:\s*8px/);
