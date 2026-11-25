@@ -392,11 +392,12 @@ public class WorksheetAgentController {
       boolean[] madeVisibleHolder = new boolean[1];
       boolean[] sortNoOpHolder = new boolean[1];
       String[] refreshNoteHolder = new String[1];
+      PasteAssembliesOutcome[] pasteHolder = new PasteAssembliesOutcome[1];
       editOp(sessionToken, req, user, resolvedNameHolder, madeVisibleHolder, sortNoOpHolder,
-             refreshNoteHolder);
+             refreshNoteHolder, pasteHolder);
 
       if(resolvedNameHolder[0] == null && !madeVisibleHolder[0] && !sortNoOpHolder[0] &&
-         refreshNoteHolder[0] == null)
+         refreshNoteHolder[0] == null && pasteHolder[0] == null)
       {
          return ResponseEntity.noContent().build();
       }
@@ -407,7 +408,8 @@ public class WorksheetAgentController {
          sortNoOpHolder[0]
             ? "Column '" + req.field() + "' has no sort on table '" + req.table()
                + "'; nothing was removed."
-            : refreshNoteHolder[0]));
+            : refreshNoteHolder[0],
+         pasteHolder[0]));
    }
 
    /**
@@ -427,7 +429,7 @@ public class WorksheetAgentController {
    public void editOp(String sessionToken, EditRequest req, Principal user)
       throws Exception
    {
-      editOp(sessionToken, req, user, null, null, null, null);
+      editOp(sessionToken, req, user, null, null, null, null, null);
    }
 
    /** Aggregate-dialog parity for the warn-only trap check (Bug #80958). */
@@ -447,10 +449,25 @@ public class WorksheetAgentController {
     */
    private void editOp(String sessionToken, EditRequest req, Principal user,
                        String[] resolvedNameHolder, boolean[] madeVisibleHolder,
-                       boolean[] sortNoOpHolder, String[] refreshNoteHolder)
+                       boolean[] sortNoOpHolder, String[] refreshNoteHolder,
+                       PasteAssembliesOutcome[] pasteHolder)
       throws Exception
    {
       requireEnabled();
+
+      // paste_assemblies reports the names the pasted assemblies got and what it skipped (see
+      // PasteAssembliesOutcome); the caller cannot work out either from the request.
+      if("paste_assemblies".equals(req.op())) {
+         PasteAssembliesOutcome outcome = editService.pasteAssemblies(
+            sessionToken, req.sourceSession(), req.cut() != null && req.cut(), req.tables(),
+            req.x(), req.y(), user);
+
+         if(pasteHolder != null) {
+            pasteHolder[0] = outcome;
+         }
+
+         return;
+      }
 
       // set_sort NONE on a column with no sort changes nothing; the caller is told so (see
       // EditResponse#note) rather than getting a 204 that reads as a removal.

@@ -54,13 +54,18 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
+import inetsoft.web.composer.ws.PasteAssembliesResult;
+import inetsoft.web.composer.ws.PasteAssembliesServiceProxy;
 import inetsoft.web.composer.ws.RenameColumnController;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.dialog.ExpressionDialogService;
 import inetsoft.web.composer.ws.dialog.ExpressionNameSupport;
+import inetsoft.web.composer.ws.event.WSPasteAssembliesEvent;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.composer.ws.joins.JoinUtil;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.wiz.script.PaneScopeService;
 import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.model.DatabaseTableMeta;
@@ -149,7 +154,6 @@ public class WorksheetEditService {
     *                           (Bug #81675); {@code null} skips the source-column check for
     *                           such tables.
     */
-   @Autowired
    public WorksheetEditService(SheetSessionService sessions,
                                SheetRuntimeAccess runtimeAccess,
                                SheetAgentBroadcastService broadcast,
@@ -159,6 +163,26 @@ public class WorksheetEditService {
                                WorksheetService worksheetEngine,
                                MetadataApiService metadataApiService)
    {
+      this(sessions, runtimeAccess, broadcast, securityEngine, innerJoinService,
+           expressionDialogService, worksheetEngine, metadataApiService, null);
+   }
+
+   /**
+    * @param pasteAssembliesService the Composer's worksheet paste, behind {@code paste_assemblies}
+    *                               ({@code null} only where that op is not exercised)
+    */
+   @Autowired
+   public WorksheetEditService(SheetSessionService sessions,
+                               SheetRuntimeAccess runtimeAccess,
+                               SheetAgentBroadcastService broadcast,
+                               SecurityEngine securityEngine,
+                               InnerJoinService innerJoinService,
+                               ExpressionDialogService expressionDialogService,
+                               WorksheetService worksheetEngine,
+                               MetadataApiService metadataApiService,
+                               PasteAssembliesServiceProxy pasteAssembliesService)
+   {
+      this.pasteAssembliesService = pasteAssembliesService;
       this.metadataApiService = metadataApiService;
       this.worksheetEngine = worksheetEngine;
       this.sessions = sessions;
@@ -302,6 +326,296 @@ public class WorksheetEditService {
       broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
       broadcast.focusSheet(rws, session.runtimeId());
       return result;
+   }
+
+   /**
+    * The Composer's worksheet paste: copy or cut several assemblies, in one step, inside this
+    * worksheet or from another worksheet this agent holds a session on.
+    *
+    * <p>The copy itself is {@code PasteAssembliesService#pasteAssemblies}, the service behind the
+    * Composer's Paste, so naming, dependency order and re-pointing a copied join/mirror at the
+    * copied sources are the Composer's. This method adds only what a browser-less caller needs:
+    * a validated, authorized source session, the old-to-new names, the skipped assemblies, and
+    * the source-side removal of a cross-worksheet cut (the Composer leaves that to the client).
+    *
+    * @param targetToken the session of the worksheet pasted into (the endpoint's path token)
+    * @param sourceToken the session of the worksheet copied from, or {@code null}/blank for this
+    *                    worksheet; a token only, never a runtime id
+    * @param cut         {@code true} to cut instead of copy
+    * @param names       the assemblies to copy or cut
+    * @param x           left of the pasted set, or {@code null} for the default
+    * @param y           top of the pasted set, or {@code null} for the default
+    * @param agent       the agent's principal
+    * @throws PairingException naming the offending field when the request is refused; nothing has
+    *                          been changed then
+    */
+   public PasteAssembliesOutcome pasteAssemblies(String targetToken, String sourceToken,
+                                                 boolean cut, List<String> names, Integer x,
+                                                 Integer y, Principal agent)
+      throws Exception
+   {
+      if(pasteAssembliesService == null) {
+         throw new PairingException(PairingException.Kind.INTERNAL,
+                                    "paste_assemblies is not available on this server");
+      }
+
+      List<String> requested = new ArrayList<>();
+
+      if(names != null) {
+         for(String name : names) {
+            if(name != null && !name.isBlank() && !requested.contains(name.strip())) {
+               requested.add(name.strip());
+            }
+         }
+      }
+
+      if(requested.isEmpty()) {
+         throw new PairingException(
+            "tables: name at least one assembly to " + (cut ? "cut" : "copy") + ".");
+      }
+
+      String agentKey = agentKey(agent);
+      JoinSession target = sessions.resolve(targetToken, agentKey);
+
+      if(target == null) {
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+                                    "Invalid or expired session: " + targetToken);
+      }
+
+      // The source is resolved from a token, never a runtime id taken from the request: once the
+      // destination session is authorized, the engine hands any runtime id to a paired-agent
+      // principal, so the token is what proves this agent holds the source worksheet.
+      boolean same = sourceToken == null || sourceToken.isBlank();
+      JoinSession source = target;
+
+      if(!same) {
+         source = sessions.resolve(sourceToken, agentKey);
+
+         if(source == null) {
+            throw new PairingException(
+               "sourceSession: invalid, expired, or not held by this login. Pass the session token "
+               + "of a worksheet you have connected (connect_sheet), or omit it to paste inside "
+               + "this worksheet.");
+         }
+
+         if(source.sheetType() != SheetType.WORKSHEET) {
+            throw new PairingException(
+               "sourceSession: that session is not a worksheet. Only assemblies of another "
+               + "worksheet can be pasted.");
+         }
+
+         try {
+            PaneScopeService.requireWholeSheetSession(source);
+         }
+         catch(PairingException e) {
+            throw new PairingException("sourceSession: " + e.getMessage());
+         }
+
+         if(ViewerModePolicy.isViewer(source, runtimeAccess)) {
+            throw new PairingException(
+               "sourceSession: that session is a read-only viewer session; assemblies cannot be "
+               + "copied or cut from it.");
+         }
+
+         if(source.runtimeId().equals(target.runtimeId())) {
+            throw new PairingException(
+               "sourceSession: that is the session of the worksheet being pasted into. Omit "
+               + "sourceSession to " + (cut ? "cut" : "copy") + " inside this worksheet.");
+         }
+      }
+
+      RuntimeWorksheet trws = (RuntimeWorksheet) runtimeAccess.getSheetForPairing(
+         SheetType.WORKSHEET, target.runtimeId(), agent);
+      RuntimeWorksheet srws = same ? trws : (RuntimeWorksheet) runtimeAccess.getSheetForPairing(
+         SheetType.WORKSHEET, source.runtimeId(), agent);
+      Worksheet sws = srws.getWorksheet();
+      java.awt.Point topLeft = new java.awt.Point(Integer.MAX_VALUE, Integer.MAX_VALUE);
+
+      for(String name : requested) {
+         Assembly a = sws.getAssembly(name);
+
+         if(!(a instanceof WSAssembly wsa)) {
+            throw new PairingException(
+               "tables: no assembly named '" + name + "' in " +
+               (same ? "this worksheet" : "the source worksheet") + ".");
+         }
+
+         // A hidden copy backs a mirror; a mirror of another worksheet brings its own copies
+         // along when it is pasted (bug #78037), so the copy is never requested on its own.
+         if(wsa.isOuter()) {
+            throw new PairingException(
+               "tables: '" + name + "' is a hidden copy that backs a mirror and cannot be " +
+               (cut ? "cut" : "copied") + " on its own. Paste the mirror itself.");
+         }
+
+         java.awt.Point pos = wsa.getPixelOffset();
+
+         if(pos != null) {
+            topLeft.x = Math.min(topLeft.x, pos.x);
+            topLeft.y = Math.min(topLeft.y, pos.y);
+         }
+      }
+
+      if(topLeft.x == Integer.MAX_VALUE) {
+         topLeft.setLocation(0, 0);
+      }
+
+      WSPasteAssembliesEvent event = new WSPasteAssembliesEvent();
+      event.setAssemblies(requested.toArray(new String[0]));
+      event.setSourceRuntimeId(same ? target.runtimeId() : source.runtimeId());
+      event.setCut(cut);
+      // The Composer pastes at the pointer. Without one a same-worksheet copy lands offset from
+      // the original (as duplicate_assembly does); a cut or another worksheet keeps the position.
+      int offset = same && !cut ? 40 : 0;
+      event.setLeft(x != null ? x : topLeft.x + offset);
+      event.setTop(y != null ? y : topLeft.y + offset);
+
+      PasteAssembliesResult result = applyOnRuntime(
+         targetToken, agent, rws -> runPaste(rws, event, agent));
+      Map<String, String> oldToNew = new java.util.LinkedHashMap<>();
+      List<PasteAssembliesOutcome.NamePair> alsoCopied = new ArrayList<>();
+      List<PasteAssembliesOutcome.NamePair> pasted = new ArrayList<>();
+      List<String> moved = new ArrayList<>();
+
+      for(int i = 0; i < result.getOldNames().size(); i++) {
+         String from = result.getOldNames().get(i);
+         String to = result.getNewNames().get(i);
+
+         if(!requested.contains(from)) {
+            alsoCopied.add(new PasteAssembliesOutcome.NamePair(from, to));
+         }
+         else if(same && cut) {
+            moved.add(from);
+         }
+         else {
+            pasted.add(new PasteAssembliesOutcome.NamePair(from, to));
+         }
+
+         oldToNew.put(from, to);
+      }
+
+      List<PasteAssembliesOutcome.Skipped> skipped = new ArrayList<>();
+
+      for(String name : requested) {
+         if(!oldToNew.containsKey(name)) {
+            skipped.add(new PasteAssembliesOutcome.Skipped(
+               name, result.getSkipped().getOrDefault(
+                  name, "the Composer's paste rules do not support copying it")));
+         }
+      }
+
+      List<String> notRemoved = new ArrayList<>();
+
+      if(cut && !same) {
+         // Only what was actually pasted leaves the source. The Composer deletes every requested
+         // name from the client; that would also delete the assemblies the paste skipped, which
+         // were never copied anywhere.
+         LinkedHashSet<String> toRemove = new LinkedHashSet<>();
+
+         for(PasteAssembliesOutcome.NamePair pair : pasted) {
+            toRemove.add(pair.from());
+         }
+
+         notRemoved = removeFromSource(sourceToken, agent, toRemove);
+      }
+
+      return new PasteAssembliesOutcome(pasted, alsoCopied, moved, skipped, notRemoved);
+   }
+
+   /**
+    * Runs the Composer paste on {@code rws} and leaves the worksheet as it was if it fails. The
+    * native service reports an assembly it skips as an ERROR message AFTER the copies were
+    * added; letting the capturing dispatcher turn that into an exception would fail a call whose
+    * writes already happened, so those messages are consumed (the structured skipped list is the
+    * report), and only a real exception rolls back.
+    */
+   private PasteAssembliesResult runPaste(RuntimeWorksheet rws, WSPasteAssembliesEvent event,
+                                          Principal agent)
+      throws Exception
+   {
+      Worksheet ws = rws.getWorksheet();
+      Set<String> before = new LinkedHashSet<>();
+
+      for(Assembly a : ws.getAssemblies()) {
+         before.add(a.getName());
+      }
+
+      try {
+         return CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
+            int mark = dispatcher.capturedCount();
+            PasteAssembliesResult result =
+               pasteAssembliesService.pasteAssemblies(rws.getID(), event, agent, dispatcher);
+
+            for(String message : dispatcher.consumeErrorsSince(mark)) {
+               LOG.info("paste_assemblies: Composer paste reported: {}", message);
+            }
+
+            return result;
+         });
+      }
+      catch(Exception e) {
+         Assembly[] now = ws.getAssemblies();
+
+         for(int i = now.length - 1; i >= 0; i--) {
+            if(!before.contains(now[i].getName())) {
+               ws.removeAssembly(now[i].getName());
+            }
+         }
+
+         throw e;
+      }
+   }
+
+   /**
+    * Removes the pasted assemblies from the source worksheet of a cross-worksheet cut, those
+    * nothing depends on first (a join before the tables under it). A name that is already gone
+    * counts as removed: deleting a pasted mirror removes its own hidden copies with it.
+    *
+    * @return the names that could not be removed (empty when the source is clean)
+    */
+   private List<String> removeFromSource(String sourceToken, Principal agent,
+                                         Set<String> names)
+      throws Exception
+   {
+      List<String> left = new ArrayList<>();
+
+      try {
+         apply(sourceToken, agent, editor -> {
+            LinkedHashSet<String> remaining = new LinkedHashSet<>(names);
+            boolean progress = true;
+
+            while(!remaining.isEmpty() && progress) {
+               progress = false;
+
+               for(java.util.Iterator<String> it = remaining.iterator(); it.hasNext();) {
+                  String name = it.next();
+                  Assembly a = editor.ws.getAssembly(name);
+
+                  if(a == null) {
+                     it.remove();
+                     progress = true;
+                  }
+                  else if(editor.dependentNames(a).isEmpty()) {
+                     editor.deleteTable(name);
+                     it.remove();
+                     progress = true;
+                  }
+               }
+            }
+
+            left.addAll(remaining);
+         });
+      }
+      catch(Exception e) {
+         // The paste already landed in the destination; say what is now in both worksheets
+         // rather than failing the whole call.
+         LOG.warn("paste_assemblies: cut could not remove the pasted assemblies from the source",
+                  e);
+         left.clear();
+         left.addAll(names);
+      }
+
+      return left;
    }
 
    @FunctionalInterface
@@ -706,6 +1020,7 @@ public class WorksheetEditService {
    private final ExpressionDialogService expressionDialogService;
    private final WorksheetService worksheetEngine;
    private final MetadataApiService metadataApiService;
+   private final PasteAssembliesServiceProxy pasteAssembliesService;
    /**
     * Bug #81675: the columns of {@code table}'s bound source. {@code
     * ExpressionNameSupport.sourceColumns} reads only logical-model sources and returns an empty
