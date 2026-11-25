@@ -339,8 +339,10 @@ public class ScheduleChangePlanService {
             (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
       }
 
-      String current = ScheduleXmlProjection.project(existing);
-      String proposed = ScheduleXmlProjection.project(candidate);
+      // both as the store reads them back, so the plan shows only what the patch changes and the
+      // apply can compare the stored task with it
+      String current = ScheduleXmlProjection.projectAsStored(existing);
+      String proposed = ScheduleXmlProjection.projectAsStored(candidate);
 
       if(current.equals(proposed)) {
          throw new IllegalArgumentException(

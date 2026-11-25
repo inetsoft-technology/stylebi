@@ -67,6 +67,17 @@ public final class ScheduleXmlProjection {
    }
 
    /**
+    * Projects a task the way it is read back after it is stored. The store writes a task to XML
+    * and parses it again, and a viewsheet action does not write the same XML before and after
+    * that trip (defaults such as {@code <Notify>}, {@code bookmarkReadOnly} or the mail addresses
+    * appear or disappear), so a task that is not yet stored must be taken through the same copy
+    * before it is compared with a stored one.
+    */
+   public static String projectAsStored(ScheduleTask task) throws Exception {
+      return task == null ? null : project(ScheduleChangesetApplyService.deepCopy(task));
+   }
+
+   /**
     * Removes the {@code <LinkURI>} element of every viewsheet action from a projection. The link
     * is the viewer URL of the request that saved the task ({@code ScheduleTask.addAction(action,
     * linkUri)}), not something an operator approves, so a plan made without a request has none

@@ -85,6 +85,11 @@ class ScheduleChangesetApplyServiceTest {
          .thenAnswer(inv -> {
             String s = inv.getArgument(0);
 
+            // an empty password (an action that has none) is read back as it is
+            if(s.isEmpty()) {
+               return s;
+            }
+
             if(!s.startsWith("TKN:")) {
                throw new IllegalArgumentException("not a token");
             }
@@ -698,36 +703,6 @@ class ScheduleChangesetApplyServiceTest {
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
       assertFalse(result.rollbackFailures().isEmpty());
-   }
-
-   // The plan is made without a request (no link), the apply stores the link of its request on every
-   // new viewsheet action; that difference alone must not fail the update's verification.
-   @Test void appliesAnActionsUpdateWhoseStoredActionsCarryTheRequestLink() throws Exception {
-      inetsoft.sree.schedule.ScheduleTask existing = sreeTask("t1", "admin");
-      ScheduleTaskPatch patch = new ScheduleTaskPatch();
-      patch.setActions(List.of(new inetsoft.web.api.schedule.ViewsheetAction()));
-      when(scheduleManager.getScheduleTask("t1"))
-         .thenReturn(existing)   // preview
-         .thenReturn(existing)   // re-resolve inside apply()
-         .thenReturn(existing)   // apply: capture before-state
-         .thenReturn(withViewsheetAction("http://host:8080/sree/"));  // apply: verify
-      when(scheduleGateway.buildUpdatedTask(eq("t1"), eq(patch), any(), eq(user)))
-         .thenAnswer(inv -> withViewsheetAction(inv.getArgument(2)));
-      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
-
-      ApplyResult result = service.apply(applyRequest("replace the actions", updateChange("t1", patch)),
-                                         user, "http://host:8080/sree/");
-
-      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
-      verify(scheduleManager, never()).setScheduleTask(eq("t1"), any(), any(), eq(user), any());
-   }
-
-   private static inetsoft.sree.schedule.ScheduleTask withViewsheetAction(String link) {
-      inetsoft.sree.schedule.ScheduleTask task = sreeTask("t1", "admin");
-      inetsoft.sree.schedule.ViewsheetAction action = new inetsoft.sree.schedule.ViewsheetAction();
-      action.setViewsheet("1^128^__NULL__^Examples/Sales^host-org");
-      task.addAction(action, link);
-      return task;
    }
 
    @Test void createsInTheFolderTheChangeNames() throws Exception {

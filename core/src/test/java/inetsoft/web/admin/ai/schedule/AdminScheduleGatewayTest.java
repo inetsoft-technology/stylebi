@@ -458,6 +458,164 @@ class AdminScheduleGatewayTest {
       }
    }
 
+   // Bug #82274: a task is written to XML and parsed again when it is stored, and a viewsheet action
+   // does not write the same XML before and after that trip. The plan must project the candidate the
+   // way it is read back, and an action the patch does not replace must stay the stored action.
+
+   /** A task built through the gateway the way the plugin creates it, as it is read back. */
+   private inetsoft.sree.schedule.ScheduleTask readBackTaskWith(List<ScheduleAction> actions)
+      throws Exception
+   {
+      ScheduleTaskMetaData meta = new ScheduleTaskMetaData("nightly", callerOwner.convertToKey());
+      TimeCondition time = new TimeCondition();
+      time.setType(TimeCondition.Type.EVERY_DAY);
+      time.setHour(4);
+      time.setMinute(0);
+      time.setSecond(0);
+      time.setInterval(1);
+
+      gateway.addScheduleTask(meta, true, false, -1, -1, "original", null, null, List.of(time),
+                              actions, null, "http://host:8080/sree/", user);
+
+      org.mockito.ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> captor =
+         org.mockito.ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+      verify(scheduleManager).setScheduleTask(eq(meta.getTaskId()), captor.capture(), eq(user));
+      inetsoft.sree.schedule.ScheduleTask stored =
+         ScheduleChangesetApplyService.deepCopy(captor.getValue());
+      when(repository.getScheduleTask(meta.getTaskId())).thenReturn(stored);
+      when(securityEngine.checkPermission(user, ResourceType.SCHEDULE_TASK, meta.getTaskId(),
+                                          ResourceAction.WRITE)).thenReturn(true);
+      return stored;
+   }
+
+   /** Password encryption needs a running server; an identity stub is enough for the XML round trip. */
+   private static MockedStatic<inetsoft.util.Tool> toolStub() {
+      MockedStatic<inetsoft.util.Tool> statics = mockStatic(inetsoft.util.Tool.class,
+         withSettings().lenient().defaultAnswer(org.mockito.Answers.CALLS_REAL_METHODS));
+      statics.when(() -> inetsoft.util.Tool.encryptPassword(anyString()))
+         .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+      statics.when(() -> inetsoft.util.Tool.decryptPassword(anyString())).thenAnswer(inv -> {
+         String value = inv.getArgument(0);
+         return value.startsWith("TKN:") ? value.substring(4) : value;
+      });
+      return statics;
+   }
+
+   private static ViewsheetAction sheetAction(String... emails) {
+      ViewsheetAction action = new ViewsheetAction();
+      action.setViewsheet("1^128^__NULL__^Examples/Census^host-org");
+      action.setEmails(List.of(emails));
+
+      if(emails.length > 0) {
+         action.setFormat(ViewsheetAction.Format.PDF);
+      }
+
+      return action;
+   }
+
+   @Test
+   void buildUpdatedTask_aDescriptionOnlyPatchLeavesAViewsheetActionAsStoredAndProjectsOnlyTheDescription()
+      throws Exception
+   {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setDescription("changed");
+
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackTaskWith(List.of(sheetAction("a@x.com")));
+         String storedProjection = ScheduleXmlProjection.projectAsStored(stored);
+         inetsoft.sree.schedule.ScheduleTask candidate =
+            gateway.buildUpdatedTask(stored.getTaskId(), patch, null, user);
+
+         assertSame(stored.getAction(0), candidate.getAction(0));
+         String planned = ScheduleXmlProjection.projectAsStored(candidate);
+         assertEquals(storedProjection.replace("description=\"original\"", "description=\"changed\""),
+                      planned);
+         // what the store reads back after saving the candidate is the planned task
+         assertEquals(planned, ScheduleXmlProjection.project(
+            ScheduleChangesetApplyService.deepCopy(candidate)));
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_aPatchThatChangesNothingProjectsLikeTheStoredTask() throws Exception {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setEnabled(true);
+
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackTaskWith(List.of(sheetAction("a@x.com")));
+         assertEquals(ScheduleXmlProjection.projectAsStored(stored),
+                      ScheduleXmlProjection.projectAsStored(
+                         gateway.buildUpdatedTask(stored.getTaskId(), patch, null, user)));
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_replacedViewsheetActionsProjectAsTheyAreReadBack() throws Exception {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setActions(List.of(sheetAction("b@x.com", "c@x.com")));
+
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackTaskWith(List.of(sheetAction("a@x.com")));
+         inetsoft.sree.schedule.ScheduleTask candidate =
+            gateway.buildUpdatedTask(stored.getTaskId(), patch, "http://host:8080/sree/", user);
+
+         String readBack = ScheduleXmlProjection.project(
+            ScheduleChangesetApplyService.deepCopy(candidate));
+         // the candidate as it is in memory is not what is read back, which is why the plan
+         // projects the copy
+         assertNotEquals(ScheduleXmlProjection.project(candidate), readBack);
+         assertEquals(readBack, ScheduleXmlProjection.projectAsStored(candidate));
+         assertNotEquals(ScheduleXmlProjection.projectAsStored(stored), readBack);
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_aViewsheetActionAddedToATaskWithoutActionsProjectsAsItIsReadBack()
+      throws Exception
+   {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setActions(List.of(sheetAction("a@x.com")));
+
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackTaskWith(List.of());
+         inetsoft.sree.schedule.ScheduleTask candidate =
+            gateway.buildUpdatedTask(stored.getTaskId(), patch, "http://host:8080/sree/", user);
+
+         assertEquals(1, candidate.getActionCount());
+         assertEquals(ScheduleXmlProjection.project(ScheduleChangesetApplyService.deepCopy(candidate)),
+                      ScheduleXmlProjection.projectAsStored(candidate));
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_aTaskWithViewsheetActionsUpdatesThroughPlanAndApply() throws Exception {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setEnabled(false);
+
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackTaskWith(List.of(sheetAction("a@x.com")));
+         // the plan (no request link) and the apply (the request's link) build the same task
+         String planned = ScheduleXmlProjection.projectAsStored(
+            gateway.buildUpdatedTask(stored.getTaskId(), patch, null, user));
+         inetsoft.sree.schedule.ScheduleTask applied =
+            gateway.buildUpdatedTask(stored.getTaskId(), patch, "http://host:8080/sree/", user);
+         String afterStore = ScheduleXmlProjection.project(ScheduleChangesetApplyService.deepCopy(applied));
+
+         assertEquals(ScheduleXmlProjection.withoutLinkUris(planned),
+                      ScheduleXmlProjection.withoutLinkUris(afterStore));
+      }
+   }
+
    @Test
    void buildUpdatedTask_refusesACallerWhoCannotEditTheTask() throws Exception {
       inetsoft.sree.schedule.ScheduleTask stored = storedTask();

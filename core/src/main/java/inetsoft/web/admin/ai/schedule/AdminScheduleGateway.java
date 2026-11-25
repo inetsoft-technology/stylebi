@@ -307,6 +307,18 @@ public class AdminScheduleGateway {
 
       inetsoft.sree.schedule.ScheduleTask candidate = ScheduleChangesetApplyService.deepCopy(stored);
 
+      // actions the patch does not replace are the stored ones, not a copy that has been through
+      // another write/parse trip, so an update never rewrites an action it was not asked to change
+      if(patch.getActions() == null) {
+         for(int i = candidate.getActionCount() - 1; i >= 0; i--) {
+            candidate.removeAction(i);
+         }
+
+         for(int i = 0; i < stored.getActionCount(); i++) {
+            candidate.addAction(stored.getAction(i));
+         }
+      }
+
       if(patch.getDescription() != null) {
          candidate.setDescription(patch.getDescription());
       }
