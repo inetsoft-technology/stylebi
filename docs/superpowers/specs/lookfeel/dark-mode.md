@@ -121,9 +121,12 @@ How it works (Feature #80673):
   `:root.shell-dark` or `:where(.shell-dark)`, and component styles read dark-only roles (below). The
   login page (which loads `global.css` but no component styles) and the workspace chooser (which
   loads neither) are server pages, so `login.css` and `layout.css` carry their own dark rules, scoped
-  the same way. The dark rules apply only under the class. Two both-shell changes shipped with this
-  work and are not gated by it: the New Data Source cards (#8277) and the hover consistency pass (one
-  hover language, see shell-design-spec.md); everything else in a light shell is unchanged.
+  the same way. The dark rules apply only under the class. Three both-shell changes shipped with this
+  work and are not gated by it: the New Data Source cards (#8277), the hover consistency pass (one
+  hover language, see shell-design-spec.md), and the composer's selection indicators (PR8: handles,
+  the selection and layout outlines and the authoring marquee use one content-independent two-tone
+  design, a #123C44 stroke with a white halo, the same in both shells; custom-theme pages keep their
+  earlier look); everything else in a light shell is unchanged.
 - **Resolved on the server** by `ShellDarkMode.isDark()`, called from `HomePageController`: a custom
   theme is never dark; then the user's `UserEnv` `shellAppearance` (`light` / `dark`; honored, but no
   UI writes it yet); then `portal.shellDark`, org scoped with the site value as fallback, default
