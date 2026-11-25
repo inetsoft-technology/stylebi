@@ -17,9 +17,17 @@
  */
 package inetsoft.util.script.graal;
 
+import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.nio.CharBuffer;
+import java.util.Collections;
+import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.regex.Pattern;
 
 /**
@@ -36,6 +44,11 @@ public final class JavaClassProxy implements ProxyObject, ProxyExecutable, Proxy
    private static final Pattern DECIMAL_LITERAL =
       Pattern.compile("[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?");
 
+   // the polyglot Engines whose shared constructor node is uncached (#82259).
+   private static final Set<Engine> UNCACHED_ENGINES =
+      Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
+   private static final Logger LOG = LoggerFactory.getLogger(JavaClassProxy.class);
+
    private final Value hostType;
    private final String className;
 
@@ -46,6 +59,85 @@ public final class JavaClassProxy implements ProxyObject, ProxyExecutable, Proxy
 
    String className() {
       return className;
+   }
+
+   /**
+    * Make every later constructor call on the context's polyglot {@link Engine}
+    * select its overload afresh, instead of reusing a cached selection that can
+    * be wrong. Called once per Context build; does the work once per Engine.
+    *
+    * <p>Every {@link Value#newInstance} on a host class (this proxy's
+    * {@link #instantiate}, the legacy shim's {@code new pkg.Cls(...)}) runs
+    * through one shared Truffle host-call node per Engine, i.e. per JVM for
+    * the shared script engine. That node's overload cache
+    * ({@code HostExecuteNode.doOverloadedCached}, truffle 24.1.2) is unsafe
+    * with our lenient String target mappings ({@link ScriptHostAccess}: Number,
+    * Boolean and Date to String, #76778/#81889): when a call binds a varargs
+    * overload such as {@code TimeScale(String...)} only through such a mapping
+    * ({@code new TimeScale(date, 45000)}, #82139), the cached entry's argument
+    * guard accepts any value a String mapping accepts, and the guard is built
+    * without looking at the fixed-arity candidates. A later
+    * {@code new TimeScale(date1, date2)} anywhere in the JVM then reuses the
+    * {@code String...} constructor (getMax() 0, an AssertionError under -ea)
+    * instead of {@code TimeScale(Date, Date)}. (#82259)
+    *
+    * <p>Truffle keeps at most {@code HostExecuteNode.LIMIT} (3 in truffle
+    * 24.1.2) cached entries per node; one more distinct call shape makes the
+    * DSL replace the cached specialization with
+    * {@code doOverloadedUncached} for good, which runs the same overload
+    * selection as a first call on every call. This drives the node past the
+    * limit with eight constructions of {@link StringBuilder}, each with a
+    * different argument type -- well above the limit, to leave a margin. The
+    * work rests on that Truffle internal: revisit it when GraalVM is upgraded
+    * ({@code JavaClassProxyOverloadCacheTest} fails once the limit clearly
+    * outgrows the warm-up). The constructions must go through a {@code Java.type} value of
+    * this context's JS language, as {@link #instantiate} does, to reach the
+    * same node.
+    *
+    * <p>The Engine is recorded only when the warm-up succeeded, so a failure is
+    * retried on the next Context build; it is logged and never fails the init.
+    */
+   static void forceUncachedConstructorSelection(Context context) {
+      Engine engine = context.getEngine();
+
+      if(!UNCACHED_ENGINES.add(engine)) {
+         return;
+      }
+
+      boolean done = false;
+
+      try {
+         Value type = context.getBindings("js").getMember("Java").getMember("type")
+            .execute(StringBuilder.class.getName());
+         // more distinct argument types than HostExecuteNode.LIMIT (3)
+         Object[] shapes = {
+            16, (short) 16, (byte) 16, 16L, "a", new StringBuffer("b"),
+            new StringBuilder("c"), CharBuffer.wrap("d")
+         };
+
+         for(Object arg : shapes) {
+            type.newInstance(arg);
+         }
+
+         done = true;
+      }
+      catch(RuntimeException ex) {
+         LOG.warn("Failed to force uncached constructor overload selection, a script " +
+                  "constructor call may reuse a wrong overload", ex);
+      }
+      finally {
+         if(!done) {
+            UNCACHED_ENGINES.remove(engine);
+         }
+      }
+   }
+
+   /**
+    * Whether {@link #forceUncachedConstructorSelection} has completed for the
+    * Engine.
+    */
+   static boolean isUncachedConstructorSelection(Engine engine) {
+      return UNCACHED_ENGINES.contains(engine);
    }
 
    @Override
