@@ -345,6 +345,11 @@ public class JoinQuery extends AssetQuery {
          // processor thread. Draining also keeps a reused pool thread from
          // leaking one task's messages into the next task's MessageException.
          final UserMessage[] subMessages = new UserMessage[queries.length];
+         // @by Bug #82290: each member writes its own execution hints (max rows, timeout)
+         // into the variable table it runs with and reads them back later, so parallel
+         // members get their own copies, all taken here before the first one starts.
+         final MemberQueryVariables memberVars =
+            new MemberQueryVariables(vars, queries.length, !serial);
 
          for(int qi = 0; qi < queries.length; qi++) {
             final AssetQuery q = queries[qi];
@@ -365,7 +370,7 @@ public class JoinQuery extends AssetQuery {
                   ThreadContext.inheritSession(currentThread);
                   XUtil.QUERY_INFOS.set(infos);
                   WorksheetService.ASSET_EXCEPTIONS.set(exs);
-                  TableLens lens = q.getTableLens(vars);
+                  TableLens lens = q.getTableLens(memberVars.get(index));
 
                   if(lens == null) {
                      UserMessage userMessage = Tool.getUserMessage();
@@ -412,6 +417,7 @@ public class JoinQuery extends AssetQuery {
 
          try {
             table = results.get(0).get();
+            memberVars.writeBack(0);
          }
          finally {
             Tool.addUserMessage(subMessages[0]);
@@ -442,6 +448,7 @@ public class JoinQuery extends AssetQuery {
 
             try {
                table2 = results.get(i).get();
+               memberVars.writeBack(i);
             }
             catch(ExecutionException ex) {
                MessageException mex = new MessageException(ex.getCause().getMessage());
