@@ -64,7 +64,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ContextConfiguration(classes = BaseTestConfiguration.class,
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class ModernAxisLabelTest {
    private static final String LONG = "Northeast Regional Distribution Hub";
    private static final List<Integer> CLASSIC_STORES_SHOWN =
