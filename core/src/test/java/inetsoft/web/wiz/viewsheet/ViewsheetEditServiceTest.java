@@ -1029,6 +1029,91 @@ class ViewsheetEditServiceTest {
    }
 
    @Test
+   void alignCenterCentersEveryAssemblyOnTheSetsHorizontalMidpoint() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("A", "Text", 40, 40, 200, 60, 0, null, true),
+         new AssemblyNode("B", "Text", 100, 160, 80, 120, 0, null, true));
+      ViewsheetEditService service = serviceWith(objects, reader);
+
+      service.apply("tok", principal(), arrange("align", List.of("A", "B"), "center"), "");
+
+      MoveVSObjectEvent[] moves = capturedMoves(objects);
+      assertEquals(40, moves[0].getxOffset(), "A spans the whole set so it stays put");
+      assertEquals(100, moves[1].getxOffset(), "B centred on x = 140");
+      assertEquals(160, moves[1].getyOffset(), "align center must not change y");
+   }
+
+   @Test
+   void alignMiddleCentersEveryAssemblyOnTheSetsVerticalMidpoint() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("A", "Text", 40, 40, 200, 60, 0, null, true),
+         new AssemblyNode("B", "Text", 100, 160, 80, 120, 0, null, true));
+      ViewsheetEditService service = serviceWith(objects, reader);
+
+      service.apply("tok", principal(), arrange("align", List.of("A", "B"), "Middle"), "");
+
+      MoveVSObjectEvent[] moves = capturedMoves(objects);
+      assertEquals(130, moves[0].getyOffset(), "set spans y 40..280, midpoint 160, A is 60 high");
+      assertEquals(100, moves[1].getyOffset(), "B is 120 high so y = 160 - 60");
+      assertEquals(40, moves[0].getxOffset(), "align middle must not change x");
+   }
+
+   @Test
+   void resizeToMaxWidthGivesEveryAssemblyTheWidestWidthAndKeepsPositions() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("A", "Text", 40, 40, 200, 60, 0, null, true),
+         new AssemblyNode("B", "Text", 100, 160, 80, 120, 0, null, true));
+      ViewsheetEditService service = serviceWith(objects, reader);
+
+      service.apply("tok", principal(), arrange("resize_to", List.of("A", "B"), "max_width"), "");
+
+      ArgumentCaptor<ResizeVSObjectEvent> captor =
+         ArgumentCaptor.forClass(ResizeVSObjectEvent.class);
+      verify(objects, times(1)).resizeObject(eq("rt1"), captor.capture(),
+                                             any(Principal.class), any(), anyString());
+      ResizeVSObjectEvent event = captor.getValue();
+      assertEquals("B", event.getName(), "A already has the widest width");
+      assertEquals(200, event.getWidth());
+      assertEquals(120, event.getHeight(), "height unchanged");
+      assertEquals(100, event.getxOffset());
+      assertEquals(160, event.getyOffset());
+   }
+
+   @Test
+   void resizeToMinHeightShrinksTheTallerAssemblies() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("A", "Text", 40, 40, 200, 60, 0, null, true),
+         new AssemblyNode("B", "Text", 100, 160, 80, 120, 0, null, true));
+      ViewsheetEditService service = serviceWith(objects, reader);
+
+      service.apply("tok", principal(), arrange("resize_to", List.of("A", "B"), "min_height"), "");
+
+      ArgumentCaptor<ResizeVSObjectEvent> captor =
+         ArgumentCaptor.forClass(ResizeVSObjectEvent.class);
+      verify(objects).resizeObject(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                   anyString());
+      assertEquals("B", captor.getValue().getName());
+      assertEquals(60, captor.getValue().getHeight());
+      assertEquals(80, captor.getValue().getWidth());
+   }
+
+   @Test
+   void resizeToRejectsAnUnknownAxis() {
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(),
+                             arrange("resize_to", List.of("A", "B"), "widest"), ""));
+      assertTrue(thrown.getMessage().contains("widest"));
+      assertTrue(thrown.getMessage().contains("max_width"));
+   }
+
+   @Test
    void distributeHorizontallySpreadsTheMiddleAssembliesEvenly() throws Exception {
       ComposerObjectService objects = mock(ComposerObjectService.class);
       ViewsheetReadService reader = readerReturning(
