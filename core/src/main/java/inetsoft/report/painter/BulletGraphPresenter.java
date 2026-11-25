@@ -24,6 +24,7 @@ import inetsoft.util.Tool;
 
 import java.awt.*;
 import java.text.Format;
+import java.util.function.Supplier;
 
 /**
  * This presenter is an implementation of bullet graph. It is similar to a
@@ -206,6 +207,96 @@ public class BulletGraphPresenter implements Presenter {
    }
 
    /**
+    * Check if the scale is worked out from the column's data instead of the configured values.
+    */
+   public boolean isAutoScale() {
+      return autoScale;
+   }
+
+   /**
+    * Set whether the scale is worked out from the column's data. The minimum is the column's
+    * smallest value or 0, whichever is lower, and the maximum its largest value or 0, whichever is
+    * higher, so a bar always starts at zero for positive data. The ranges split that span in four
+    * and the target is the column's average. When the column has no usable numbers, the
+    * configured minimum, maximum, ranges and target are used.
+    */
+   public void setAutoScale(boolean autoScale) {
+      this.autoScale = autoScale;
+   }
+
+   /**
+    * Give a cell a copy that resolves the column's numbers at paint time, when auto scale is on.
+    * This presenter is not changed, since a script presenter is shared by all cells of a column.
+    * @param resolver returns the column's numbers, or null when there are none.
+    */
+   public Presenter withStatsResolver(Supplier<ColumnStats> resolver) {
+      BulletGraphPresenter copy = copy();
+      copy.statsResolver = resolver;
+      return copy;
+   }
+
+   // every field, so no copy forgets one
+   private BulletGraphPresenter copy() {
+      BulletGraphPresenter copy = new BulletGraphPresenter();
+      copy.psize = psize == null ? null : new Dimension(psize);
+      copy.fillCell = fillCell;
+      copy.max = max;
+      copy.min = min;
+      copy.target = target;
+      copy.range1 = range1;
+      copy.range2 = range2;
+      copy.range3 = range3;
+      copy.color1 = color1;
+      copy.color2 = color2;
+      copy.color3 = color3;
+      copy.color4 = color4;
+      copy.barColor = barColor;
+      copy.targetColor = targetColor;
+      copy.bg = bg;
+      copy.labelVisible = labelVisible;
+      copy.shadow = shadow;
+      copy.fmt = fmt;
+      copy.autoScale = autoScale;
+      copy.statsResolver = statsResolver;
+      return copy;
+   }
+
+   /**
+    * The presenter to paint with: a copy scaled to the column's data when auto scale is on and
+    * the column has a usable span, otherwise this one.
+    */
+   private BulletGraphPresenter scaled() {
+      if(!autoScale || statsResolver == null) {
+         return this;
+      }
+
+      ColumnStats stats = statsResolver.get();
+
+      if(stats == null || Double.isNaN(stats.min()) || Double.isNaN(stats.max())) {
+         return this;
+      }
+
+      double lo = Math.min(0, stats.min());
+      double hi = Math.max(0, stats.max());
+
+      if(!(hi > lo) || Double.isInfinite(lo) || Double.isInfinite(hi)) {
+         return this;
+      }
+
+      double span = hi - lo;
+      BulletGraphPresenter copy = copy();
+      copy.autoScale = false;
+      copy.statsResolver = null;
+      copy.min = lo;
+      copy.max = hi;
+      copy.range1 = lo + span / 4;
+      copy.range2 = lo + span / 2;
+      copy.range3 = lo + span * 3 / 4;
+      copy.target = Double.isNaN(stats.mean()) ? lo : Math.max(lo, Math.min(hi, stats.mean()));
+      return copy;
+   }
+
+   /**
     * Paint an object at the specified location.
     * @param g graphical context.
     * @param v object value.
@@ -216,6 +307,13 @@ public class BulletGraphPresenter implements Presenter {
     */
    @Override
    public void paint(Graphics g, Object v, int x0, int y0, int w0, int h0) {
+      BulletGraphPresenter scaled = scaled();
+
+      if(scaled != this) {
+         scaled.paint(g, v, x0, y0, w0, h0);
+         return;
+      }
+
       if(v != null && v instanceof Number) {
          Shape clip = g.getClip();
          Color oc = g.getColor();
@@ -309,7 +407,8 @@ public class BulletGraphPresenter implements Presenter {
          g.fillRect(fillx, filly + (int) Math.ceil(fillh / 4.0), bw, (int) Math.floor(fillh / 2.0));
 
          // draw target
-         int tx = (int) ((target - min) * fillw / (max - min)) + fillx;
+         // a target at the maximum is at the cell's edge, so keep it inside the cell
+         int tx = Math.min((int) ((target - min) * fillw / (max - min)) + fillx, fillx + fillw - 1);
          g.setColor(targetColor != null ? targetColor : new Color(20, 20, 20));
          g.drawLine(tx, filly + gap, tx, filly + fillh - gap);
 
@@ -499,7 +598,7 @@ public class BulletGraphPresenter implements Presenter {
 
       BulletGraphPresenter bar2 = (BulletGraphPresenter) obj;
 
-      return fillCell == bar2.fillCell && max == bar2.max &&
+      return fillCell == bar2.fillCell && autoScale == bar2.autoScale && max == bar2.max &&
          min == bar2.min && target == bar2.target &&
          range1 == bar2.range1 && range2 == bar2.range2 &&
          range3 == bar2.range3 && Tool.equals(psize, bar2.psize) &&
@@ -524,6 +623,7 @@ public class BulletGraphPresenter implements Presenter {
       hash += Math.abs(Math.round(range2));
       hash += Math.abs(Math.round(range3));
       hash += fillCell ? 0 : 999999;
+      hash += autoScale ? 31 : 0;
       hash += color1 == null ? 0 : color1.hashCode();
       hash += color2 == null ? 0 : color2.hashCode();
       hash += color3 == null ? 0 : color3.hashCode();
@@ -595,4 +695,8 @@ public class BulletGraphPresenter implements Presenter {
    private boolean labelVisible;
    private boolean shadow;
    private Format fmt;
+   private boolean autoScale = false;
+   // resolves the column's numbers at paint time, set by the table lens on a copy of the
+   // presenter; not a bean property, so it is never shown in the dialog or saved
+   private transient Supplier<ColumnStats> statsResolver;
 }
