@@ -593,6 +593,14 @@ public final class TransformationFault {
       return new TransformationFault(desc, reason);
    }
 
+   public static TransformationFault containsRotatedSource(String tbl) {
+      tbl = AbstractTransformer.normalizeBlockName(tbl);
+      String desc = "MV is not supported for table: " + tbl;
+      String reason = "Table is or is based on a rotated table, whose columns can hold " +
+         "values of different types. An MV can only be created on the tables below it.";
+      return new TransformationFault(desc, reason);
+   }
+
    public static TransformationFault transformedWithMVUpdate(String tbl) {
       tbl = AbstractTransformer.normalizeBlockName(tbl);
       String desc = "MV is not supported for table: " + tbl;

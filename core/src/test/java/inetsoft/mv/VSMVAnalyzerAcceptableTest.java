@@ -46,7 +46,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code VSMVAnalyzer.isAcceptable} (cube, embedded or input bound table, physical query
  * with a variable, named group with a variable) and {@code VSMVAnalyzer.isSuitableTable}
  * (input dynamic table, post-aggregate calculated field, max rows with selections on sub
- * tables, transformed table with an MV update condition). Each refusal must add the fault
+ * tables, rotated table or a table based on one, transformed table with an MV update
+ * condition). Each refusal must add the fault
  * that explains it. The cube and the named group condition cases have their own tests
  * ({@link VSMVAnalyzerCubeBindingTest}, {@link VSMVAnalyzerNamedGroupConditionTest}).
  */
@@ -295,6 +296,20 @@ class VSMVAnalyzerAcceptableTest {
       fx.chart("Chart1", "R1");
 
       assertFalse(fx.suitable("R1", "Chart1"));
+      // a rotated table is refused with or without the condition (Bug #82323)
+      assertReason(fx, "Chart1", "based on a rotated table");
+   }
+
+   @Test
+   void unpivotTableWithMVUpdateConditionIsNotSuitable() throws Exception {
+      Fixture fx = new Fixture();
+      TableAssembly t1 = fx.bound("T1");
+      UnpivotTableAssembly unpivot = new UnpivotTableAssembly(fx.ws, "U1", t1);
+      fx.ws.addAssembly(unpivot);
+      unpivot.setMVUpdatePreConditionList(updateCondition());
+      fx.chart("Chart1", "U1");
+
+      assertFalse(fx.suitable("U1", "Chart1"));
       assertReason(fx, "Chart1", "transformed (rotated/unpivot/crosstab)");
    }
 
@@ -327,16 +342,17 @@ class VSMVAnalyzerAcceptableTest {
 
    @Test
    void movedMVUpdateConditionIsIgnored() throws Exception {
-      // the condition was moved to the parent table, so the rotated table does not have it
+      // the condition was moved to the parent table, so the unpivot table does not have it.
+      // (a rotated table is refused anyway since Bug #82323)
       Fixture fx = new Fixture();
       TableAssembly t1 = fx.bound("T1");
-      RotatedTableAssembly rotated = new RotatedTableAssembly(fx.ws, "R1", t1);
-      fx.ws.addAssembly(rotated);
-      rotated.setMVUpdatePreConditionList(updateCondition());
-      MVTool.setMVConditionMoved(rotated, true);
-      fx.chart("Chart1", "R1");
+      UnpivotTableAssembly unpivot = new UnpivotTableAssembly(fx.ws, "U1", t1);
+      fx.ws.addAssembly(unpivot);
+      unpivot.setMVUpdatePreConditionList(updateCondition());
+      MVTool.setMVConditionMoved(unpivot, true);
+      fx.chart("Chart1", "U1");
 
-      assertTrue(fx.suitable("R1", "Chart1"));
+      assertTrue(fx.suitable("U1", "Chart1"));
    }
 
    // ---------------------------------------------------------------- helpers
