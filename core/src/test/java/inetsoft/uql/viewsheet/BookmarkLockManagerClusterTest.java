@@ -18,6 +18,8 @@
 package inetsoft.uql.viewsheet;
 
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.MembershipEvent;
+import inetsoft.sree.internal.cluster.MembershipListener;
 import inetsoft.sree.internal.cluster.MultiMap;
 import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
 import inetsoft.sree.internal.cluster.ignite.IgniteClusterTestUtils;
@@ -33,11 +35,13 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.nio.file.Path;
-import java.util.Collection;
+import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.*;
 
 /**
  * Bug #79465: the bookmark lock map is one cluster-wide Ignite cache. When any node destroyed it
@@ -196,6 +200,74 @@ class BookmarkLockManagerClusterTest {
       }
    }
 
+   @Test
+   void relockDoesNotRetakeALockReleasedAfterItsSnapshot() {
+      String key = "asset/bm82336g";
+      MultiMap<String, BookmarkLockManager.BookmarkLock> map = clusterA.getMultiMap(MAP_NAME);
+      // a lock of the sheet's dead owner, still in the map when the sheet is reloaded here
+      map.put(key, new BookmarkLockManager.BookmarkLock(
+         "alice", "rt82336g", UUID.randomUUID().toString()));
+
+      // relockAll reads the entry set, then the sheet is disposed on another thread (the
+      // session-end close), whose unlockAll removes the lock before the relock writes it
+      MultiMap<String, BookmarkLockManager.BookmarkLock> racingMap = spy(map);
+      doAnswer(invocation -> {
+         Object entries = invocation.callRealMethod();
+         map.remove(key, new BookmarkLockManager.BookmarkLock("alice", "rt82336g"));
+         return entries;
+      }).when(racingMap).entrySet();
+
+      Cluster racingCluster = mock(Cluster.class);
+      doReturn(racingMap).when(racingCluster).getMultiMap(MAP_NAME);
+      when(racingCluster.getLocalNodeId()).thenReturn(clusterA.getLocalNodeId());
+      when(racingCluster.getClusterNodeIds()).thenAnswer(i -> clusterA.getClusterNodeIds());
+
+      try(MockedStatic<Cluster> cluster = mockStatic(Cluster.class)) {
+         cluster.when(Cluster::getInstance).thenReturn(racingCluster);
+         BookmarkLockManager manager = new BookmarkLockManager();
+         manager.relockAll("alice", "rt82336g");
+
+         assertNull(map.get(key), "a lock released after the snapshot must not be taken again");
+         assertNull(manager.getLockedBookmarkUser(key, "bob"));
+      }
+      finally {
+         map.delete(key);
+      }
+   }
+
+   @Test
+   void replaceSwapsAPresentValueAndNeverInserts() {
+      String key = "asset/bm82336h";
+      MultiMap<String, BookmarkLockManager.BookmarkLock> map = clusterA.getMultiMap(MAP_NAME);
+      BookmarkLockManager.BookmarkLock dead =
+         new BookmarkLockManager.BookmarkLock("alice", "rt82336h", "dead-node");
+      BookmarkLockManager.BookmarkLock live =
+         new BookmarkLockManager.BookmarkLock("alice", "rt82336h", clusterA.getLocalNodeId());
+      BookmarkLockManager.BookmarkLock other =
+         new BookmarkLockManager.BookmarkLock("carol", "rt82336y", "dead-node");
+
+      try {
+         assertFalse(map.replace(key, dead, live), "an absent key is not inserted");
+         assertNull(map.get(key));
+
+         map.put(key, other);
+         assertFalse(map.replace(key, dead, live), "an absent value is not inserted");
+         assertEquals(List.of(other), new ArrayList<>(map.get(key)));
+
+         map.put(key, dead);
+         assertTrue(map.replace(key, dead, live));
+         Collection<BookmarkLockManager.BookmarkLock> locks = map.get(key);
+         assertEquals(2, locks.size());
+         assertTrue(locks.stream().anyMatch(
+            l -> l.equals(other) && "dead-node".equals(l.getNodeId())));
+         assertTrue(locks.stream().anyMatch(
+            l -> l.equals(live) && clusterA.getLocalNodeId().equals(l.getNodeId())));
+      }
+      finally {
+         map.delete(key);
+      }
+   }
+
    /**
     * Starts a third node, takes the locks there and stops it, waiting until node A no longer
     * sees it. Leaves Cluster.getInstance() returning node A.
@@ -207,6 +279,20 @@ class BookmarkLockManagerClusterTest {
       IgniteCluster clusterC = IgniteClusterTestUtils.getIgniteCluster(
          "lockC" + System.nanoTime(), ipFinder, clusterDir);
       String nodeC = clusterC.getLocalNodeId();
+      CountDownLatch left = new CountDownLatch(1);
+      MembershipListener listener = new MembershipListener() {
+         @Override
+         public void memberAdded(MembershipEvent event) {
+         }
+
+         @Override
+         public void memberRemoved(MembershipEvent event) {
+            if(!clusterA.getClusterNodeIds().contains(nodeC)) {
+               left.countDown();
+            }
+         }
+      };
+      clusterA.addMembershipListener(listener);
 
       try {
          cluster.when(Cluster::getInstance).thenReturn(clusterC);
@@ -221,10 +307,14 @@ class BookmarkLockManagerClusterTest {
          cluster.when(Cluster::getInstance).thenReturn(clusterA);
       }
 
-      long end = System.currentTimeMillis() + 30000L;
-
-      while(clusterA.getClusterNodeIds().contains(nodeC) && System.currentTimeMillis() < end) {
-         Thread.sleep(50L);
+      try {
+         // the node-left event, or C already gone before the listener could see it
+         assertTrue(left.await(30, TimeUnit.SECONDS) ||
+                       !clusterA.getClusterNodeIds().contains(nodeC),
+                    "premise: node A sees node C leave");
+      }
+      finally {
+         clusterA.removeMembershipListener(listener);
       }
 
       assertFalse(clusterA.getClusterNodeIds().contains(nodeC), "premise: node C has left");

@@ -61,9 +61,10 @@ public class BookmarkLockManager {
 
       // Bug #82336, an equal lock written by another node (the sheet was reloaded here after
       // its owner died) is replaced, so the lock carries the node that now holds the sheet.
-      // BookmarkLock.equals ignores the node id, so the remove drops the old entry.
-      if(existing != null) {
-         lockMap.remove(key, existing);
+      // BookmarkLock.equals ignores the node id, so the replace finds the old entry. The
+      // replace is atomic, so other users never see the bookmark unlocked in between.
+      if(existing != null && lockMap.replace(key, existing, bookmarkLock)) {
+         return;
       }
 
       lockMap.put(key, bookmarkLock);
@@ -85,14 +86,17 @@ public class BookmarkLockManager {
          return;
       }
 
-      BookmarkLock bookmarkLock = new BookmarkLock(user, runtimeId);
+      BookmarkLock bookmarkLock = new BookmarkLock(user, runtimeId, nodeId);
       MultiMap<String, BookmarkLock> lockMap = getLockMap();
 
       for(Map.Entry<String, BookmarkLock> entry : lockMap.entrySet()) {
          BookmarkLock lock = entry.getValue();
 
          if(Tool.equals(lock, bookmarkLock) && !nodeId.equals(lock.nodeId)) {
-            lock(entry.getKey(), user, runtimeId);
+            // a conditional replace, not lock(): the lock may have been released (the sheet
+            // disposed on another thread) since the entry set was read, and a put would then
+            // take a lock that no sheet holds and nothing ever removes
+            lockMap.replace(entry.getKey(), lock, bookmarkLock);
          }
       }
    }

@@ -1146,6 +1146,32 @@ public class MockCluster implements Cluster {
       }
 
       @Override
+      public boolean replace(K key, V oldValue, V newValue) {
+         List<V> list = delegate.get(key);
+
+         if(list == null || !list.contains(oldValue)) {
+            return false;
+         }
+
+         List<V> updated = new ArrayList<>(list.size());
+         boolean added = false;
+
+         for(V v : list) {
+            if(Objects.equals(v, oldValue) || Objects.equals(v, newValue)) {
+               if(!added) {
+                  updated.add(newValue);
+                  added = true;
+               }
+            }
+            else {
+               updated.add(v);
+            }
+         }
+
+         return delegate.replace(key, list, updated);
+      }
+
+      @Override
       public Collection<V> remove(K key) {
          return delegate.remove(key);
       }

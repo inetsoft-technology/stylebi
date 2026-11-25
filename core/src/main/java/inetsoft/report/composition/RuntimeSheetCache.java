@@ -162,6 +162,7 @@ public class RuntimeSheetCache
          if(state != null) {
             RuntimeSheet sheet = null;
             String evictedId = null;
+            boolean owned = false;
             lock.writeLock().lock();
 
             try {
@@ -174,7 +175,9 @@ public class RuntimeSheetCache
                sheet = toSheet(state);
 
                if(sheet != null) {
-                  if(!isLocal(affinityKey)) {
+                  owned = isLocal(affinityKey);
+
+                  if(!owned) {
                      LOG.error(
                         "Loading remote runtime sheet that does not belong to this instance: {}",
                         id, new Exception("Stack trace"));
@@ -189,8 +192,10 @@ public class RuntimeSheetCache
 
             evictFromIgnite(evictedId);
 
-            // Bug #82336, a cluster call, so it runs outside the write lock
-            if(sheet != null) {
+            // Bug #82336, a cluster call, so it runs outside the write lock. Only the node that
+            // owns the sheet re-asserts its locks: a sheet loaded on another node (an error,
+            // logged above) must not move them to a node that does not hold the sheet.
+            if(sheet != null && owned) {
                sheet.restored();
             }
 
