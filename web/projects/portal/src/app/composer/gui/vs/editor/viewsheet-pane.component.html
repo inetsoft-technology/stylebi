@@ -46,7 +46,8 @@
   @if (vs) {
     <div #vsPane id="vsPane" class="vs-pane"
       [class.with-mobile-toolbar]="mobileToolbarVisible"
-      selectionBox selectionBoxBannedSelector="[data-is-object-editor].active, .line.handle"
+      selectionBox selectionBoxClass="selection-box composer-selection-box"
+      selectionBoxBannedSelector="[data-is-object-editor].active, .line.handle"
       [selectOnMouseMove]="true"
       (onSelectionBox)="onSelectionBox($event)"
       (scroll)="updateRulerPosition()"

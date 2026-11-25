@@ -155,4 +155,30 @@ describe("composer overlay consumers", () => {
          "  .object-border {\n    border: 1px solid transparent;\n\n    &:hover, &.selected-bd {\n" +
          "      border: 1px solid #e5e5e5 !important;\n    }\n\n    &.def-bd {\n      border: 1px solid #f5f5f5;\n    }\n  }");
    });
+
+   const PANES = [
+      "composer/gui/vs/editor/viewsheet-pane.component.html",
+      "composer/gui/vs/layouts/layout-pane.component.html",
+      "vs-wizard/gui/wizard-pane/vs-wizard-pane.component.html",
+   ];
+
+   it("composerMarqueeIsTwoToneOnTheAuthoringPanesOnly", () => {
+      // behind the theme gate; !important beats .selection-box's light rule (_themeable.scss), the dark
+      // rule and the dark shell's content restore (:root.shell-dark :is(.vs-pane, ...) .selection-box,
+      // specificity 0,5,0) without a specificity race
+      const marquee = rule(read(__dirname, "_composer-overlay.scss"),
+         /^:root:where\(:not\(\.custom-theme\)\)\s+\.composer-selection-box\s*\{/m);
+      expect(marquee).toMatch(
+         /box-shadow:\s*inset 0 0 0 1px var\(--inet-composer-overlay-stroke\),\s*inset 0 0 0 2px var\(--inet-composer-overlay-halo\)\s*!important/);
+      expect(marquee).toMatch(/background-color:\s*rgba\(18,\s*60,\s*68,\s*0\.08\)\s*!important/);
+      PANES.forEach(p => expect(read(app, p)).toContain('selectionBoxClass="selection-box composer-selection-box"'));
+      // no other template passes the class: the chart brush and cell marquees keep theirs (C1)
+      const html = (dir: string): string[] => readdirSync(dir).flatMap(n => {
+         const p = join(dir, n);
+         return statSync(p).isDirectory() ? html(p) : p.endsWith(".html") ? [p] : [];
+      });
+      const users = html(app).filter(f => readFileSync(f, "utf-8").includes("composer-selection-box"))
+         .map(f => relative(app, f).split("\\").join("/")).sort();
+      expect(users).toEqual([...PANES].sort());
+   });
 });
