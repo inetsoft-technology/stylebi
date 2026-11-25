@@ -325,6 +325,23 @@ export class VSSelectionContainer extends AbstractVSObject<VSSelectionContainerM
       this.model.selectedRegions = [DataPathConstants.TITLE];
    }
 
+   /**
+    * The title is drawn over the container's top corners, so when the container has a radius the
+    * title's top corners are at least as round, or they draw square over it (same rule as
+    * VSSelection.headerBorderRadius). Null leaves the title's own format radius in place.
+    */
+   get titleBorderRadius(): string {
+      const container = this.model.objectFormat.roundCorner ?? 0;
+
+      if(container <= 0) {
+         return null;
+      }
+
+      const title = this.model.titleFormat.roundCorner ?? 0;
+      const top = Math.max(container, title);
+      return `${top}px ${top}px ${title}px ${title}px`;
+   }
+
    isTitleSelected(): boolean {
       return this.model.selectedRegions
          && this.model.selectedRegions.indexOf(DataPathConstants.TITLE) != -1;

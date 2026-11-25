@@ -27,6 +27,8 @@
     [style.border-bottom]="vsObject.objectFormat.border.bottom"
     [style.border-left]="vsObject.objectFormat.border.left"
     [style.border-right]="vsObject.objectFormat.border.right"
+    [style.border-top]="bodyBorderTop"
+    [style.border-radius]="bodyBorderRadius"
     [style.color]="vsObject.objectFormat.foreground"
     [style.background-color]="vsObject.objectFormat.background"
     [style.font]="vsObject.objectFormat.font"
@@ -36,7 +38,8 @@
     (drop)="onDrop($event)">
     <div #containerBody class="scrollbar-container"
       [style.width.px]="cachedBodyWidth + scrollbarWidth">
-      <div class="scrollbar-container-inner" [style.width.px]="cachedInnerWidth">
+      <div class="scrollbar-container-inner" [style.width.px]="cachedInnerWidth"
+        [style.border-radius]="innerBorderRadius">
         @for (outer of vsObject.outerSelections; track outer.name; let i = $index) {
           <current-selection
             [selection]="outer"

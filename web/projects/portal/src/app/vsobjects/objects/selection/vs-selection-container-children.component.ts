@@ -432,6 +432,52 @@ export class VSSelectionContainerChildren extends CommandProcessor implements On
          (this.vsObject.titleVisible || !this.viewer ? this.vsObject.titleFormat.height : 0);
    }
 
+   /**
+    * The body is painted over the container's rounded box, so it carries the container's corners
+    * itself: the bottom ones always, the top ones only when it starts at the container's top (title
+    * hidden in the viewer). Only for a rounded container, so a square one renders as before.
+    */
+   get bodyBorderRadius(): string {
+      const radius = this.vsObject.objectFormat.roundCorner ?? 0;
+
+      if(radius <= 0) {
+         return null;
+      }
+
+      return this.isBodyAtContainerTop() ? `${radius}px` : `0px 0px ${radius}px ${radius}px`;
+   }
+
+   /**
+    * A body that starts at the container's top covers the container's top border line, so it draws
+    * that line itself.
+    */
+   get bodyBorderTop(): string {
+      return this.isRounded() && this.isBodyAtContainerTop() ?
+         this.vsObject.objectFormat.border.top : null;
+   }
+
+   /**
+    * Clips the children (e.g. the first child's header) to the body's rounded top corners. The body
+    * itself must not clip: the hover scrollbar is drawn outside its right edge.
+    */
+   get innerBorderRadius(): string {
+      if(!this.isRounded() || !this.isBodyAtContainerTop()) {
+         return null;
+      }
+
+      const radius = Math.max(0, this.vsObject.objectFormat.roundCorner -
+         Tool.getMarginSize(this.vsObject.objectFormat.border.top));
+      return `${radius}px ${radius}px 0px 0px`;
+   }
+
+   private isRounded(): boolean {
+      return (this.vsObject.objectFormat.roundCorner ?? 0) > 0;
+   }
+
+   private isBodyAtContainerTop(): boolean {
+      return !this.vsObject.titleVisible && this.viewer;
+   }
+
    getBodyLeft(): number {
       return this.vsObject.objectFormat.left;
    }
