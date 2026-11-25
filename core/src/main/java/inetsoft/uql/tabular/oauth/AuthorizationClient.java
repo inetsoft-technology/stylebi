@@ -411,11 +411,9 @@ public class AuthorizationClient {
          LOG.error("Failed to refresh access token", e);
          // Bug #82260, null means no refresh was needed, a failed refresh must not look like that
          // to the caller, which would go on with the stale access token
-         final String name = dataSource instanceof XDataSource xds && xds.getName() != null ?
+         final String name = (dataSource instanceof XDataSource xds && xds.getName() != null) ?
             xds.getName() : dataSource.getServiceName();
-         throw new RuntimeException(
-            "Failed to refresh the access token of data source '" + name + "': " +
-            e.getMessage() + ". Please authorize the data source again.", e);
+         throw new TokenRefreshException(name, e);
       }
 
       return tokens;

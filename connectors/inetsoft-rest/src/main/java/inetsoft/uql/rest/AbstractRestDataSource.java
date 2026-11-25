@@ -947,11 +947,8 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
       }
       catch(Exception e) {
          LOG.error("Failed to refresh access token", e);
-         // Bug #82260, do not go on with the stale access token, the query would fail with a
-         // misleading authentication error
-         throw new RuntimeException(
-            "Failed to refresh the access token of data source '" + getName() + "': " +
-            e.getMessage() + ". Please authorize the data source again.", e);
+         // Bug #82260, do not go on with the stale access token
+         throw new TokenRefreshException(getName(), e);
       }
 
       if(this.getFullName() != null) {
