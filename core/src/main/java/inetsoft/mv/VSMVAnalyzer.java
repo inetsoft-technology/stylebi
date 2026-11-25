@@ -832,6 +832,15 @@ public final class VSMVAnalyzer implements MVAnalyzer {
          return false;
       }
 
+      // a rotated column holds the values of one source row, which can be of different
+      // types (date, number, boolean). an mv column has one type, so the values would be
+      // stored as text. the tables above a rotated table (e.g. the viewsheet mirror table)
+      // carry the same columns. create the mv on the rotated table's source instead (82323)
+      if(containsRotatedTable(table)) {
+         desc.addFault(TransformationFault.containsRotatedSource(table.getName()));
+         return false;
+      }
+
       if(table.getMVUpdateConditionList() == null ||
          // if the mv update condition is moved to parent (it may still be
          // kept for the bound table for optimization, we should treat it
@@ -859,6 +868,25 @@ public final class VSMVAnalyzer implements MVAnalyzer {
       }
 
       return true;
+   }
+
+   /**
+    * Check if the table is a rotated table or gets its data from one.
+    */
+   private static boolean containsRotatedTable(TableAssembly table) {
+      if(table instanceof RotatedTableAssembly) {
+         return true;
+      }
+
+      if(table instanceof ComposedTableAssembly composed) {
+         for(TableAssembly sub : composed.getTableAssemblies(false)) {
+            if(sub != null && containsRotatedTable(sub)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**
