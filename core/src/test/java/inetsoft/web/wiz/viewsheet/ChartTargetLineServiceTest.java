@@ -463,7 +463,7 @@ class ChartTargetLineServiceTest {
       assertEquals(List.of("Sum(Total)"), out.get("availableMeasures"));
    }
 
-   /** Band and statistics targets are reported, addressable, and flagged as not editable here. */
+   /** Every kind is reported with the index it is addressed by. */
    @Test
    void listReportsEveryKindWithItsIndex() throws Exception {
       TargetInfo band = existingLineTarget(1, "20");
@@ -478,7 +478,7 @@ class ChartTargetLineServiceTest {
       assertEquals("line", targets.get(0).get("kind"));
       assertEquals(0, targets.get(0).get("index"));
       assertEquals("band", targets.get(1).get("kind"));
-      assertEquals(false, targets.get(1).get("editable"));
+      assertFalse(targets.get(1).containsKey("editable"), "edit_chart_target edits every kind");
    }
 
    // ---------------------------------------------------------------------------------------------
@@ -1154,7 +1154,7 @@ class ChartTargetLineServiceTest {
       assertNull(entry.get("toFormula"));
       assertEquals("Top {0}", entry.get("toLabel"));
       assertEquals("#cce5ff", entry.get("fillColor"));
-      assertEquals(false, entry.get("editable"));
+      assertFalse(entry.containsKey("editable"));
    }
 
    @Test
@@ -1412,6 +1412,393 @@ class ChartTargetLineServiceTest {
       return paneWith(new MeasureInfo("", "", false),
                       new MeasureInfo("Sum(Total)", "Sum(Total)", false),
                       new MeasureInfo("Sum(Cost)", "Sum(Cost)", false));
+   }
+
+   // ---------------------------------------------------------------------------------------------
+   // Bug #82310: edit_chart_target changes an existing target in place.
+   // ---------------------------------------------------------------------------------------------
+
+   private static ChartTargetLineService.EditFields fields() {
+      return new ChartTargetLineService.EditFields(
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null);
+   }
+
+   private static ChartTargetLineService.EditFields lineEdit(String value, String label,
+                                                              String lineColor)
+   {
+      return new ChartTargetLineService.EditFields(
+         null, null, lineColor, null, null, null, value, null, label, null, null, null, null, null,
+         null, null, null, null);
+   }
+
+   private static TargetInfo goalLine(int index, String value) {
+      TargetInfo line = existingLineTarget(index, value);
+      line.setLabel("Goal {0}");
+      line.setLineColor(new ColorInfo("#cc0000", ChartPropertyService.COLOR_PALETTE));
+      line.setMeasure(new MeasureInfo("Sum(Total)", "Sum(Total)", false));
+      return line;
+   }
+
+   private static TargetInfo bandTarget(int index, String from, String to) {
+      TargetInfo band = existingLineTarget(index, from);
+      band.setTabFlag(TargetInfo.BAND_TARGET);
+      band.setToValue(to);
+      band.setToLabel("Top {0}");
+      band.setFillBandColor(
+         new ColorInfo("#cce5ff", ChartPropertyService.TRANSENABLED_COLOR_PALETTE));
+      band.setMeasure(new MeasureInfo("Sum(Total)", "Sum(Total)", false));
+      return band;
+   }
+
+   private static TargetInfo statisticsTarget(int index, String statistic, String value) {
+      TargetInfo stat = existingLineTarget(index, "");
+      stat.setTabFlag(TargetInfo.STATISTICS_TARGET);
+      stat.setStrategyInfo(new StrategyInfo(statistic, value));
+      stat.setLabel("Pctl");
+      stat.setLabelFormats("Pctl");
+      stat.setMeasure(new MeasureInfo("Sum(Total)", "Sum(Total)", false));
+      return stat;
+   }
+
+   /**
+    * The reported case: a line, a band and a statistics target; changing the line's value keeps
+    * its index, label and colour, and leaves the other two untouched (unchanged, so
+    * {@code updateAllTargets} skips them rather than re-deriving).
+    */
+   @Test
+   void editChangesOnlyTheNamedFieldOfALineAndKeepsItsPosition() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR),
+                          paneWith(goalLine(0, "3000000"), bandTarget(1, "500000", "1000000"),
+                                   statisticsTarget(2, "Percentiles", "50")));
+
+      Map<String, Object> result =
+         h.service.edit("tok", principal(), "Chart1", 0, lineEdit("2000000", null, null), "");
+
+      TargetInfo[] written = writtenTargets(h);
+      assertEquals(3, written.length);
+      assertEquals("2000000", written[0].getValue());
+      assertEquals("Goal {0}", written[0].getLabel());
+      assertEquals("#cc0000", written[0].getLineColor().getColor());
+      assertEquals(TargetInfo.LINE_TARGET, written[0].getTabFlag());
+      assertEquals(0, written[0].getIndex());
+      assertTrue(written[0].isChanged(), "the edited entry is the one updateAllTargets rewrites");
+      assertFalse(written[1].isChanged());
+      assertFalse(written[2].isChanged());
+      assertEquals("500000", written[1].getValue());
+      assertEquals("1000000", written[1].getToValue());
+      assertEquals("50", written[2].getStrategyInfo().getValue());
+      assertEquals(0, writtenPane(h).getDeletedIndexList().length,
+                   "an edit never deletes: deletedIndexList is applied after the in-place write");
+      assertEquals(0, result.get("index"));
+      assertEquals("2000000", result.get("value"));
+      assertEquals(List.of("value"), result.get("changed"));
+   }
+
+   @Test
+   void editWritesExactlyOneModelInOneMutation() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), paneWith(goalLine(0, "10")));
+
+      h.service.edit("tok", principal(), "Chart1", 0, lineEdit("11", null, null), "");
+
+      verify(h.sessions, times(1)).mutate(anyString(), any(Principal.class), any());
+      verify(h.chartService, times(1)).setChartPropertyModel(
+         anyString(), anyString(), any(ChartPropertyDialogModel.class), anyString(),
+         any(Principal.class), any());
+   }
+
+   @Test
+   void editChangesOneBoundaryOfABandAndKeepsTheOtherAndTheFill() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR),
+                          paneWith(goalLine(0, "3000000"), bandTarget(1, "500000", "1000000")));
+      ChartTargetLineService.EditFields edit = new ChartTargetLineService.EditFields(
+         null, null, null, null, null, null, null, null, null, null, "1500000", null, null, null,
+         null, null, null, null);
+
+      h.service.edit("tok", principal(), "Chart1", 1, edit, "");
+
+      TargetInfo[] written = writtenTargets(h);
+      assertEquals("500000", written[1].getValue());
+      assertEquals("1500000", written[1].getToValue());
+      assertEquals("Top {0}", written[1].getToLabel());
+      assertEquals("#cce5ff", written[1].getFillBandColor().getColor());
+      assertEquals(1, written[1].getIndex());
+      assertTrue(written[1].isChanged());
+      assertFalse(written[0].isChanged());
+   }
+
+   @Test
+   void editChangesAStatisticsValueAndKeepsItsLabelsAndBandFill() throws Exception {
+      TargetInfo stat = statisticsTarget(0, "Percentiles", "50");
+      stat.setLabelFormats("Low,High");
+      Harness h = harness(chart(GraphTypes.CHART_BAR), paneWith(stat));
+      ChartTargetLineService.EditFields edit = new ChartTargetLineService.EditFields(
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         "25,75", null, null);
+
+      h.service.edit("tok", principal(), "Chart1", 0, edit, "");
+
+      TargetInfo written = writtenTargets(h)[0];
+      assertEquals("Percentiles", written.getStrategyInfo().getName());
+      assertEquals("25,75", written.getStrategyInfo().getValue());
+      assertEquals("Low,High", written.getLabelFormats(),
+                   "labelFormats is carried through untouched when no label is given");
+      assertEquals("Pctl", written.getLabel());
+   }
+
+   @Test
+   void editingTheStatisticTakesTheNewOnesDefaultValue() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR),
+                          paneWith(statisticsTarget(0, "Percentiles", "50")));
+      ChartTargetLineService.EditFields edit = new ChartTargetLineService.EditFields(
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         "confidence_interval", null, null, null);
+
+      h.service.edit("tok", principal(), "Chart1", 0, edit, "");
+
+      StrategyInfo strategy = writtenTargets(h)[0].getStrategyInfo();
+      assertEquals("Confidence Interval", strategy.getName());
+      assertEquals("95", strategy.getValue());
+   }
+
+   @Test
+   void aStatisticValueIsValidatedAgainstTheExistingStatistic() {
+      Harness h = harness(chart(GraphTypes.CHART_BAR),
+                          paneWith(statisticsTarget(0, "Quantiles", "4")));
+      ChartTargetLineService.EditFields edit = new ChartTargetLineService.EditFields(
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         "50", null, null);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         h.service.edit("tok", principal(), "Chart1", 0, edit, ""));
+
+      assertTrue(thrown.getMessage().contains("quantiles"), thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   @Test
+   void sampleIsRefusedOnAStatisticThatHasNoSuchOption() {
+      Harness h = harness(chart(GraphTypes.CHART_BAR),
+                          paneWith(statisticsTarget(0, "Percentiles", "50")));
+      ChartTargetLineService.EditFields edit = new ChartTargetLineService.EditFields(
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, Boolean.FALSE, null);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         h.service.edit("tok", principal(), "Chart1", 0, edit, ""));
+
+      assertTrue(thrown.getMessage().contains("sample"), thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   /**
+    * The stored {@code index} field can differ from the list position ({@code SyncChartHandler}
+    * leaves gaps); the in-place branch of {@code updateAllTargets} addresses the descriptor by
+    * position, so the edited entry must be written with its position, not its old index field.
+    */
+   @Test
+   void editAddressesTheTargetByListPositionNotByItsIndexField() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR),
+                          paneWith(goalLine(3, "10"), goalLine(7, "20")));
+
+      h.service.edit("tok", principal(), "Chart1", 1, lineEdit("25", null, null), "");
+
+      TargetInfo[] written = writtenTargets(h);
+      assertEquals(1, written[1].getIndex(), "position 1, not the stored index 7");
+      assertEquals("25", written[1].getValue());
+      assertEquals("10", written[0].getValue());
+      assertFalse(written[0].isChanged());
+   }
+
+   /**
+    * The pane reads an orphaned target's measure as blank; writing that back would unbind it.
+    * The stored measure must survive an edit that does not name a measure.
+    */
+   @Test
+   void editKeepsTheStoredMeasureOfAnOrphanedTarget() throws Exception {
+      TargetInfo orphan = goalLine(0, "10");
+      orphan.setMeasure(new MeasureInfo("", "", false));
+      ChartVSAssembly assembly = chartWithStored(storedTarget("Gone(Total)"));
+      Harness h = harness(assembly, paneWith(orphan));
+
+      h.service.edit("tok", principal(), "Chart1", 0, lineEdit("11", null, null), "");
+
+      assertEquals("Gone(Total)", writtenTargets(h)[0].getMeasure().getName());
+   }
+
+   @Test
+   void editRefusesAnOutOfRangeIndexBeforeWriting() {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), paneWith(goalLine(0, "10")));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         h.service.edit("tok", principal(), "Chart1", 5, lineEdit("1", null, null), ""));
+
+      assertTrue(thrown.getMessage().contains("index 5"), thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   @Test
+   void editRefusesAMissingIndexAndAnEmptyEdit() {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), paneWith(goalLine(0, "10")));
+
+      assertThrows(IllegalArgumentException.class, () ->
+         h.service.edit("tok", principal(), "Chart1", null, lineEdit("1", null, null), ""));
+      Exception nothing = assertThrows(IllegalArgumentException.class, () ->
+         h.service.edit("tok", principal(), "Chart1", 0, fields(), ""));
+
+      assertTrue(nothing.getMessage().contains("nothing to change"), nothing.getMessage());
+      assertNoWrite(h);
+   }
+
+   @Test
+   void editRefusesAFieldOfAnotherKindByName() {
+      Harness h = harness(chart(GraphTypes.CHART_BAR),
+                          paneWith(goalLine(0, "10"), bandTarget(1, "1", "2"),
+                                   statisticsTarget(2, "Percentiles", "50")));
+      ChartTargetLineService.EditFields from = new ChartTargetLineService.EditFields(
+         null, null, null, null, null, null, null, null, null, "5", null, null, null, null, null,
+         null, null, null);
+      ChartTargetLineService.EditFields value = lineEdit("5", null, null);
+
+      Exception onLine = assertThrows(IllegalArgumentException.class, () ->
+         h.service.edit("tok", principal(), "Chart1", 0, from, ""));
+      Exception onBand = assertThrows(IllegalArgumentException.class, () ->
+         h.service.edit("tok", principal(), "Chart1", 1, value, ""));
+      Exception onStat = assertThrows(IllegalArgumentException.class, () ->
+         h.service.edit("tok", principal(), "Chart1", 2, from, ""));
+
+      assertTrue(onLine.getMessage().contains("'from'") &&
+                 onLine.getMessage().contains("line target"), onLine.getMessage());
+      assertTrue(onBand.getMessage().contains("'value'") &&
+                 onBand.getMessage().contains("band target"), onBand.getMessage());
+      assertTrue(onStat.getMessage().contains("statistics target"), onStat.getMessage());
+      assertNoWrite(h);
+   }
+
+   @Test
+   void editRefusesValueAndFormulaTogetherAndABadValue() {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), paneWith(goalLine(0, "10")));
+      ChartTargetLineService.EditFields both = new ChartTargetLineService.EditFields(
+         null, null, null, null, null, null, "5", "Average", null, null, null, null, null, null,
+         null, null, null, null);
+
+      assertThrows(IllegalArgumentException.class, () ->
+         h.service.edit("tok", principal(), "Chart1", 0, both, ""));
+      Exception bad = assertThrows(IllegalArgumentException.class, () ->
+         h.service.edit("tok", principal(), "Chart1", 0, lineEdit("lots", null, null), ""));
+
+      assertTrue(bad.getMessage().contains("not a number"), bad.getMessage());
+      assertNoWrite(h);
+   }
+
+   @Test
+   void editingALineToAFormulaNeedsABoundMeasure() throws Exception {
+      TargetInfo unbound = goalLine(0, "10");
+      unbound.setMeasure(new MeasureInfo("", "", false));
+      ChartTargetLineService.EditFields formula = new ChartTargetLineService.EditFields(
+         null, null, null, null, null, null, null, "average", null, null, null, null, null, null,
+         null, null, null, null);
+      ChartTargetLinesPaneModel pane = paneWith(unbound);
+      pane.setAvailableFields(new MeasureInfo[] { new MeasureInfo("", "", false),
+                                                  new MeasureInfo("Sum(Total)", "Sum(Total)", false),
+                                                  new MeasureInfo("Sum(Cost)", "Sum(Cost)", false) });
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         h.service.edit("tok", principal(), "Chart1", 0, formula, ""));
+
+      assertTrue(thrown.getMessage().contains("measure"), thrown.getMessage());
+      assertNoWrite(h);
+
+      // one measure on the chart: it binds, exactly as add does
+      TargetInfo unbound2 = goalLine(0, "10");
+      unbound2.setMeasure(new MeasureInfo("", "", false));
+      Harness single = harness(chart(GraphTypes.CHART_BAR), paneWith(unbound2));
+
+      single.service.edit("tok", principal(), "Chart1", 0, formula, "");
+
+      TargetInfo written = writtenTargets(single)[0];
+      assertEquals("Average", written.getValue());
+      assertEquals("Sum(Total)", written.getMeasure().getName());
+   }
+
+   @Test
+   void entireChartOnAFixedLineIsRefusedAndAFormulaBandAcceptsIt() throws Exception {
+      Harness fixed = harness(chart(GraphTypes.CHART_BAR), paneWith(goalLine(0, "10")));
+      ChartTargetLineService.EditFields entire = new ChartTargetLineService.EditFields(
+         null, null, null, null, null, Boolean.TRUE, null, null, null, null, null, null, null,
+         null, null, null, null, null);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         fixed.service.edit("tok", principal(), "Chart1", 0, entire, ""));
+      assertTrue(thrown.getMessage().contains("entireChart"), thrown.getMessage());
+      assertNoWrite(fixed);
+
+      // a band whose existing boundary is already a formula accepts it, though the call names
+      // no boundary: the rule is evaluated on the resulting boundaries
+      Harness band = harness(chart(GraphTypes.CHART_BAR),
+                             paneWith(bandTarget(0, "Average", "1000")));
+      band.service.edit("tok", principal(), "Chart1", 0, entire, "");
+      assertTrue(writtenTargets(band)[0].isChartScope());
+   }
+
+   @Test
+   void editingABandToFixedNumbersUnticksEntireChart() throws Exception {
+      TargetInfo band = bandTarget(0, "Average", "1000");
+      band.setChartScope(true);
+      Harness h = harness(chart(GraphTypes.CHART_BAR), paneWith(band));
+      ChartTargetLineService.EditFields edit = new ChartTargetLineService.EditFields(
+         null, null, null, null, null, null, null, null, null, "10", null, null, null, null, null,
+         null, null, null);
+
+      h.service.edit("tok", principal(), "Chart1", 0, edit, "");
+
+      assertFalse(writtenTargets(h)[0].isChartScope());
+   }
+
+   @Test
+   void editRefusesWhenTheListedTargetsDoNotMatchTheStoredOnes() {
+      ChartVSAssembly assembly = chartWithStored(storedTarget("Sum(Total)"),
+                                                 storedTarget("Sum(Total)"));
+      Harness h = harness(assembly, paneWith(goalLine(0, "10")));
+
+      Exception thrown = assertThrows(IllegalStateException.class, () ->
+         h.service.edit("tok", principal(), "Chart1", 0, lineEdit("11", null, null), ""));
+
+      assertTrue(thrown.getMessage().contains("cannot be mapped"), thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   @Test
+   void editAppliesLineStyleColourAndLabelAndRefusesBadOnes() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), paneWith(goalLine(0, "10")));
+      ChartTargetLineService.EditFields edit = new ChartTargetLineService.EditFields(
+         null, "dashed", "00ff00", null, null, null, null, null, "", null, null, null, null, null,
+         null, null, null, null);
+
+      h.service.edit("tok", principal(), "Chart1", 0, edit, "");
+
+      TargetInfo written = writtenTargets(h)[0];
+      assertEquals(inetsoft.graph.GraphConstants.DASH_LINE, written.getLineStyle());
+      assertEquals("#00ff00", written.getLineColor().getColor());
+      assertEquals(" ", written.getLabel(), "a blank label is stored as a single space");
+
+      Harness bad = harness(chart(GraphTypes.CHART_BAR), paneWith(goalLine(0, "10")));
+      assertThrows(IllegalArgumentException.class, () ->
+         bad.service.edit("tok", principal(), "Chart1", 0, lineEdit(null, null, "red"), ""));
+      assertNoWrite(bad);
+   }
+
+   @Test
+   void listNoLongerFlagsBandAndStatisticsTargetsAsReadOnly() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR),
+                          paneWith(goalLine(0, "10"), bandTarget(1, "1", "2"),
+                                   statisticsTarget(2, "Percentiles", "50")));
+
+      for(Map<String, Object> entry : listed(h)) {
+         assertFalse(entry.containsKey("editable"), entry.toString());
+         assertFalse(entry.containsKey("note"), entry.toString());
+      }
    }
 
    private static TargetInfo[] writtenTargets(Harness h) throws Exception {

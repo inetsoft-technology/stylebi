@@ -84,8 +84,14 @@ import java.util.regex.Pattern;
  * target dialog field for field rather than inventing defaults: {@link #addFormulaLine} (Line
  * panel with a formula in the value box, plus "Entire Chart"), {@link #addBand} (Band panel) and
  * {@link #addStatistics} (Statistics panel). All four share {@link #append}, so the commit-shape
- * rules above are enforced in one place. None edits an existing target: an in-place edit would
- * re-derive it through the lossy round trip described above.
+ * rules above are enforced in one place.
+ *
+ * <p>{@link #edit} changes an existing target in place, the way the Targets tab's Edit button
+ * does: the pane entry keeps its slot in the list, only the fields the caller names change, and
+ * only that one entry is marked changed so {@code updateAllTargets} rewrites that descriptor slot
+ * and leaves every other target alone. Because the one changed entry is re-derived from the pane
+ * model, an edit starts from the existing entry (never the prototype) so everything the caller
+ * did not name round-trips with its current value.
  */
 @Service
 public class ChartTargetLineService {
@@ -381,6 +387,385 @@ public class ChartTargetLineService {
          result.put("entireChart", target.isChartScope());
          result.put("label", text);
       });
+   }
+
+   /**
+    * What {@link #edit} may change. Every field is optional and null means "keep the current
+    * value"; which fields apply depends on the kind of the target being edited, and a field of
+    * another kind is refused by name.
+    */
+   public record EditFields(String measure, String lineStyle, String lineColor,
+                            String fillAboveColor, String fillBelowColor, Boolean entireChart,
+                            String value, String formula, String label, String from, String to,
+                            String fromLabel, String toLabel, String fillColor, String statistic,
+                            String statisticValue, Boolean sample, String percentageOf)
+   {
+      /** The parameter names the caller gave, in a stable order. */
+      List<String> given() {
+         List<String> names = new ArrayList<>();
+         addIf(names, "measure", measure);
+         addIf(names, "lineStyle", lineStyle);
+         addIf(names, "lineColor", lineColor);
+         addIf(names, "fillAboveColor", fillAboveColor);
+         addIf(names, "fillBelowColor", fillBelowColor);
+         addIf(names, "entireChart", entireChart);
+         addIf(names, "value", value);
+         addIf(names, "formula", formula);
+         addIf(names, "label", label);
+         addIf(names, "from", from);
+         addIf(names, "to", to);
+         addIf(names, "fromLabel", fromLabel);
+         addIf(names, "toLabel", toLabel);
+         addIf(names, "fillColor", fillColor);
+         addIf(names, "statistic", statistic);
+         addIf(names, "statisticValue", statisticValue);
+         addIf(names, "sample", sample);
+         addIf(names, "percentageOf", percentageOf);
+         return names;
+      }
+
+      private static void addIf(List<String> names, String name, Object value) {
+         if(value != null) {
+            names.add(name);
+         }
+      }
+   }
+
+   /**
+    * {@code edit_chart_target}. Changes an existing target in place: same index, same kind, and
+    * only the fields named in {@code fields} differ afterwards. This is the Targets tab's Edit
+    * button, which writes the edited entry back into the same slot of the list.
+    *
+    * <p>One {@code sessions.mutate}, so one undo checkpoint.
+    *
+    * <p>Why the edit starts from the existing entry and not from the pane's template:
+    * {@code updateAllTargets} re-derives every changed entry completely from its
+    * {@link TargetInfo} (line style, alpha, scope, colours, the statistics strategy and labels),
+    * so a field not carried over would silently revert to the template's value.
+    *
+    * @param index the target's position in the list {@link #list} reports.
+    */
+   public Map<String, Object> edit(String sessionToken, Principal user, String assemblyName,
+                                   Integer index, EditFields fields, String linkUri)
+      throws Exception
+   {
+      if(index == null) {
+         throw new IllegalArgumentException(
+            "edit_chart_target needs 'index' -- the target position list_chart_target_lines " +
+            "reports.");
+      }
+
+      List<String> given = fields == null ? List.of() : fields.given();
+
+      if(given.isEmpty()) {
+         throw new IllegalArgumentException(
+            "edit_chart_target has nothing to change: give at least one field to set (for " +
+            "example 'value' on a line, 'to' on a band, 'statisticValue' on a statistics " +
+            "target, or 'lineColor').");
+      }
+
+      // validated before the session is touched, so a typo never costs an undo checkpoint
+      String style = normalizeLineStyle(fields.lineStyle());
+      String color = normalizeColor(fields.lineColor());
+      String above = normalizeColor(fields.fillAboveColor(), "fillAboveColor");
+      String below = normalizeColor(fields.fillBelowColor(), "fillBelowColor");
+      Map<String, Object> result = new LinkedHashMap<>();
+
+      List<String> warnings = sessions.mutate(sessionToken, user,
+         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartVSAssembly chart = requireChart(rvs, assemblyName);
+         ChartPropertyDialogModel model =
+            chartService.getChartPropertyDialogModel(runtimeId, assemblyName, user);
+         ChartTargetLinesPaneModel pane = requirePane(model, assemblyName);
+         TargetInfo[] existing = targets(pane);
+
+         if(index < 0 || index >= existing.length) {
+            throw new IllegalArgumentException(
+               "Chart '" + assemblyName + "' has no target at index " + index + ". " +
+               (existing.length == 0
+                  ? "It has no targets at all."
+                  : "Current indexes: 0-" + (existing.length - 1) + ".") +
+               " Take the index from list_chart_target_lines.");
+         }
+
+         // updateAllTargets addresses the descriptor by position, and the pane was built by
+         // walking those positions, so the two only line up while the counts agree.
+         ChartDescriptor descriptor = chart.getChartDescriptor();
+
+         if(descriptor != null && descriptor.getTargetCount() != existing.length) {
+            throw new IllegalStateException(
+               "Chart '" + assemblyName + "' lists " + existing.length + " target(s) but stores " +
+               descriptor.getTargetCount() + ", so index " + index + " cannot be mapped to a " +
+               "stored target reliably. Nothing was changed; remove and re-add the target " +
+               "instead.");
+         }
+
+         TargetInfo target = existing[index];
+         int kind = target.getTabFlag();
+         requireFieldsOfKind(given, kind, index);
+
+         if((above != null || below != null) && pane.getNewTargetInfo() != null &&
+            !pane.getNewTargetInfo().isSupportFill())
+         {
+            throw new IllegalArgumentException(
+               "This chart (" + describeChartTypes(chart) + ") cannot shade above or below a " +
+               "target: the Composer greys the Fill pickers out for a 3D bar and the renderer " +
+               "drops the fill. Omit fillAboveColor/fillBelowColor.");
+         }
+
+         boolean needsMeasure;
+
+         switch(kind) {
+         case TargetInfo.LINE_TARGET -> needsMeasure = editLine(target, fields);
+         case TargetInfo.BAND_TARGET -> needsMeasure = editBand(target, fields);
+         case TargetInfo.STATISTICS_TARGET -> {
+            editStatistics(target, fields);
+            needsMeasure = true;
+         }
+         default -> throw new IllegalArgumentException(
+            "The target at index " + index + " is of an unknown kind (" + kind + ") that " +
+            "cannot be edited. Remove and re-add it.");
+         }
+
+         applyMeasure(target, pane, descriptor, index, fields.measure(), needsMeasure,
+                      assemblyName);
+
+         if(style != null) {
+            target.setLineStyle(LINE_STYLES.get(style));
+         }
+
+         if(color != null) {
+            target.setLineColor(new ColorInfo(color, ChartPropertyService.COLOR_PALETTE));
+         }
+
+         if(above != null) {
+            target.setFillAboveColor(
+               new ColorInfo(above, ChartPropertyService.TRANSENABLED_COLOR_PALETTE));
+         }
+
+         if(below != null) {
+            target.setFillBelowColor(
+               new ColorInfo(below, ChartPropertyService.TRANSENABLED_COLOR_PALETTE));
+         }
+
+         // The two that updateAllTargets reads structurally. index is the LIST POSITION: the
+         // stored index field can differ from it (SyncChartHandler leaves gaps) and the in-place
+         // branch addresses the descriptor positionally. Only this entry is changed, so every
+         // other target is skipped rather than re-derived.
+         markUnchanged(existing);
+         target.setIndex(index);
+         target.setChanged(true);
+         pane.setChartTargets(existing);
+         // Never both in one call: deletedIndexList is applied after updateAllTargets.
+         pane.setDeletedIndexList(new Integer[0]);
+
+         result.put("assembly", assemblyName);
+         result.putAll(describe(target, index));
+         result.put("changed", given);
+
+         ChartRenderCheck.swallowScriptError(rvs, assemblyName, () ->
+            chartService.setChartPropertyModel(runtimeId, assemblyName, model, linkUri, user,
+                                               dispatcher));
+      }));
+      ViewsheetSessionService.relayWarnings(result, warnings);
+
+      return result;
+   }
+
+   /** Refuses a field that belongs to another kind, naming it and the kind being edited. */
+   private static void requireFieldsOfKind(List<String> given, int kind, int index) {
+      Set<String> allowed = new LinkedHashSet<>(
+         List.of("measure", "lineStyle", "lineColor", "fillAboveColor", "fillBelowColor",
+                 "entireChart"));
+
+      switch(kind) {
+      case TargetInfo.LINE_TARGET -> allowed.addAll(List.of("value", "formula", "label"));
+      case TargetInfo.BAND_TARGET ->
+         allowed.addAll(List.of("from", "to", "fromLabel", "toLabel", "fillColor"));
+      case TargetInfo.STATISTICS_TARGET ->
+         allowed.addAll(List.of("statistic", "statisticValue", "sample", "percentageOf", "label"));
+      default -> {
+      }
+      }
+
+      for(String name : given) {
+         if(!allowed.contains(name)) {
+            throw new IllegalArgumentException(
+               "'" + name + "' does not apply to the " + kind(kind) + " target at index " +
+               index + ". A " + kind(kind) + " target takes: " + String.join(", ", allowed) +
+               ". A target's kind cannot be changed; remove it and add the other kind instead.");
+         }
+      }
+   }
+
+   /** @return whether the line now needs a bound measure (its value is a formula). */
+   private static boolean editLine(TargetInfo target, EditFields f) {
+      if(f.value() != null && f.formula() != null) {
+         throw new IllegalArgumentException(
+            "Give either 'value' (a fixed number, script or variable) or 'formula' (Average, " +
+            "Min, Max, Median or Sum) for a line, not both.");
+      }
+
+      if(f.value() != null) {
+         target.setValue(requireFixedValue(f.value()));
+      }
+      else if(f.formula() != null) {
+         target.setValue(requireFormula(f.formula(), "formula"));
+      }
+
+      if(f.label() != null) {
+         target.setLabel(labelOrDefault(f.label()));
+      }
+
+      boolean formula = isFormula(target.getValue());
+
+      if(Boolean.TRUE.equals(f.entireChart()) && !formula) {
+         throw entireChartNeedsFormula("line");
+      }
+
+      if(f.entireChart() != null) {
+         target.setChartScope(f.entireChart());
+      }
+      else if(!formula) {
+         // the Composer greys "Entire Chart" out for a fixed value, so it cannot stay ticked
+         target.setChartScope(false);
+      }
+
+      return formula;
+   }
+
+   /** @return whether the band now needs a bound measure (a boundary is a formula). */
+   private static boolean editBand(TargetInfo target, EditFields f) {
+      if(f.from() != null) {
+         target.setValue(requireBoundary(f.from(), "from"));
+      }
+
+      if(f.to() != null) {
+         target.setToValue(requireBoundary(f.to(), "to"));
+      }
+
+      if(f.fromLabel() != null) {
+         target.setLabel(labelOrDefault(f.fromLabel()));
+      }
+
+      if(f.toLabel() != null) {
+         target.setToLabel(labelOrDefault(f.toLabel()));
+      }
+
+      String fill = normalizeColor(f.fillColor());
+
+      if(fill != null) {
+         target.setFillBandColor(
+            new ColorInfo(fill, ChartPropertyService.TRANSENABLED_COLOR_PALETTE));
+      }
+
+      // evaluated on the RESULTING boundaries, not only the ones given
+      boolean formula = isFormula(target.getValue()) || isFormula(target.getToValue());
+
+      if(Boolean.TRUE.equals(f.entireChart()) && !formula) {
+         throw entireChartNeedsFormula("band");
+      }
+
+      if(f.entireChart() != null) {
+         target.setChartScope(f.entireChart());
+      }
+      else if(!formula) {
+         target.setChartScope(false);
+      }
+
+      return formula;
+   }
+
+   /**
+    * Statistics edits keep the stored strategy, labels and band fill of the entry unless the
+    * caller names them: {@code updateStatLabel} re-splits {@code labelFormats} and the strategy is
+    * rewritten whole, so regenerating either from nothing would change what was not asked for.
+    */
+   private static void editStatistics(TargetInfo target, EditFields f) {
+      StrategyInfo current = target.getStrategyInfo();
+
+      if(current == null || current.getName() == null) {
+         throw new IllegalArgumentException(
+            "This statistics target has no stored computation, so there is nothing to edit " +
+            "incrementally. Remove it and add it again with add_chart_target.");
+      }
+
+      boolean changedStatistic = f.statistic() != null;
+      String computation = changedStatistic ? requireStatistic(f.statistic()) : current.getName();
+      String percentBase = requirePercentageOf(computation, f.percentageOf());
+
+      if(f.sample() != null && !STD_DEVIATION.equals(computation)) {
+         throw new IllegalArgumentException(
+            "'sample' only applies to the standard_deviation statistic (sample vs population); " +
+            "this target's statistic is '" + statisticToken(computation) + "'. Omit it.");
+      }
+
+      String value;
+
+      if(f.statisticValue() != null || changedStatistic) {
+         // a new computation takes its own default when no value is given, as on add
+         value = requireStatisticValue(computation, f.statisticValue());
+      }
+      else {
+         value = current.getValue();
+      }
+
+      StrategyInfo strategy = new StrategyInfo(computation, value);
+
+      if(STD_DEVIATION.equals(computation)) {
+         strategy.setStandardIsSample(f.sample() != null ? String.valueOf(f.sample())
+            : changedStatistic ? "true" : current.getStandardIsSample());
+      }
+      else if(PERCENTAGE.equals(computation)) {
+         strategy.setPercentageAggregateVal(f.percentageOf() != null && percentBase != null
+            ? percentBase : changedStatistic ? "Max" : current.getPercentageAggregateVal());
+      }
+
+      target.setStrategyInfo(strategy);
+
+      if(f.label() != null) {
+         String text = labelOrDefault(f.label());
+         target.setLabel(text);
+         // where the Statistics panel keeps the label: updateStatLabel reads labelFormats
+         target.setLabelFormats(text);
+      }
+
+      if(f.entireChart() != null) {
+         target.setChartScope(f.entireChart());
+      }
+   }
+
+   /**
+    * Sets the measure of the edited target: the one named, else the one it already has -- kept
+    * as the stored name for an orphaned target, whose pane entry reads blank and would otherwise
+    * be written back as unbound.
+    */
+   private static void applyMeasure(TargetInfo target, ChartTargetLinesPaneModel pane,
+                                    ChartDescriptor descriptor, int index, String measure,
+                                    boolean requireBound, String assemblyName)
+   {
+      if(measure != null) {
+         target.setMeasure(resolveMeasure(pane, measure, assemblyName, requireBound));
+         return;
+      }
+
+      MeasureInfo current = target.getMeasure();
+      boolean blank = current == null || current.getName() == null || current.getName().isEmpty();
+
+      if(blank && descriptor != null && descriptor.getTargetCount() == targets(pane).length) {
+         GraphTarget raw = descriptor.getTarget(index);
+         String stored = raw == null ? null : raw.getField();
+
+         if(stored != null && !stored.isEmpty()) {
+            target.setMeasure(new MeasureInfo(stored, stored, false));
+            return;
+         }
+      }
+
+      if(blank && requireBound) {
+         // a single-measure chart binds it, as add does; otherwise this names the choices
+         target.setMeasure(resolveMeasure(pane, "", assemblyName, true));
+      }
    }
 
    /** What each kind of add fills in, once the shared scaffolding has built the target. */
@@ -1158,14 +1543,6 @@ public class ChartTargetLineService {
          }
 
          out.put("labelFormats", target.getLabelFormats());
-      }
-
-      if(target.getTabFlag() != TargetInfo.LINE_TARGET) {
-         out.put("editable", false);
-         out.put("note", "Band and statistics targets cannot be edited in place by these tools. " +
-                         "The index is still what remove_chart_target_line takes; to change one, " +
-                         "remove it and add it again with add_chart_target (kind band or " +
-                         "statistics), or edit it in the Composer's Targets tab.");
       }
 
       return out;

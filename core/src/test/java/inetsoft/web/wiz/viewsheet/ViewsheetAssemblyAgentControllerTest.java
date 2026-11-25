@@ -1298,6 +1298,26 @@ class ViewsheetAssemblyAgentControllerTest {
                                    eq(List.of(0, 2)), eq(""));
    }
 
+   @Test
+   void editChartTargetForwardsTheIndexAndOnlyTheGivenFields() throws Exception {
+      ChartTargetLineService targetService = mock(ChartTargetLineService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(targetService);
+
+      controller.editChartTarget(
+         "tok",
+         new ViewsheetAssemblyAgentController.EditTargetRequest(
+            "Chart1", 1, null, null, "#cc0000", null, null, null, null, null, null, null, "1500000",
+            null, null, null, null, null, null, null),
+         "", principal());
+
+      ArgumentCaptor<ChartTargetLineService.EditFields> fields =
+         ArgumentCaptor.forClass(ChartTargetLineService.EditFields.class);
+      verify(targetService).edit(eq("tok"), any(Principal.class), eq("Chart1"), eq(1),
+                                 fields.capture(), eq(""));
+      assertEquals(List.of("lineColor", "to"), fields.getValue().given());
+      assertEquals("1500000", fields.getValue().to());
+   }
+
    /** Feature enabled, only {@code targetService} wired -- for the target-line route tests. */
    private static ViewsheetAssemblyAgentController controllerWith(
       ChartTargetLineService targetService)

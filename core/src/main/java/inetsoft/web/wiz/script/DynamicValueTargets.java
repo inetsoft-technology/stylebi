@@ -295,7 +295,7 @@ final class DynamicValueTargets {
       String tool = kind.equals("line") ? "add_chart_target_line" : "add_chart_target";
 
       return kind + " target, " + tool + " parameter '" + key.substring(dot + 1) +
-         "' (no edit tool for an existing target)";
+         "' (edit_chart_target for an existing target)";
    }
 
    private static String chartRegionWhere(String key) {
