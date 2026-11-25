@@ -40,12 +40,12 @@ public class AISettingsService {
 
       boolean wizPortalVisible =
          "true".equalsIgnoreCase(SreeEnv.getProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, "false"));
-      String wizPortalUrl = SreeEnv.getProperty(WizPortalEntry.WIZ_PORTAL_URL);
+      String wizServiceUrl = SreeEnv.getProperty(WizPortalEntry.WIZ_SERVICE_URL);
 
       return PresentationAISettingsModel.builder()
          .aiAssistantVisible(aiAssistantVisible)
          .wizPortalVisible(wizPortalVisible)
-         .wizPortalUrl(wizPortalUrl)
+         .wizServiceUrl(wizServiceUrl)
          .chatAppServerUrl(chatAppServerUrl)
          .chatAppInternalUrl(chatAppInternalUrl)
          .chatAppTitle(chatAppTitle)
@@ -61,21 +61,21 @@ public class AISettingsService {
    )
    public void setModel(PresentationAISettingsModel model) throws Exception {
       // validate before anything is written, so a rejected value leaves every setting unchanged
-      String wizPortalUrl = model.wizPortalUrl() != null ? model.wizPortalUrl().trim() : "";
+      String wizServiceUrl = model.wizServiceUrl() != null ? model.wizServiceUrl().trim() : "";
 
-      if(!wizPortalUrl.isEmpty() && WizPortalEntry.normalizeUrl(wizPortalUrl) == null) {
+      if(!wizServiceUrl.isEmpty() && WizPortalEntry.normalizeUrl(wizServiceUrl) == null) {
          throw new MessageException(
-            Catalog.getCatalog().getString("em.presentation.wizPortal.urlInvalid"));
+            Catalog.getCatalog().getString("em.presentation.wizService.urlInvalid"));
       }
 
       SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE,
                           model.wizPortalVisible() ? "true" : "false");
 
-      if(!wizPortalUrl.isEmpty()) {
-         SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_URL, wizPortalUrl);
+      if(!wizServiceUrl.isEmpty()) {
+         SreeEnv.setProperty(WizPortalEntry.WIZ_SERVICE_URL, wizServiceUrl);
       }
       else {
-         SreeEnv.remove(WizPortalEntry.WIZ_PORTAL_URL);
+         SreeEnv.remove(WizPortalEntry.WIZ_SERVICE_URL);
       }
 
       SreeEnv.setProperty(AIAssistantController.AI_ASSISTANT_VISIBLE, model.aiAssistantVisible() ? "true" : "false");
@@ -150,7 +150,8 @@ public class AISettingsService {
       SreeEnv.remove(AIAssistantController.CHAT_APP_VENDOR_NAME);
       SreeEnv.remove(AIAssistantController.CHAT_APP_LOGO_URL);
       SreeEnv.remove(WizPortalEntry.WIZ_PORTAL_VISIBLE);
-      SreeEnv.remove(WizPortalEntry.WIZ_PORTAL_URL);
+      // wiz.service.url is deliberately kept: it is infrastructure config (the SSO callback
+      // allow-list and the Wiz entry address), and this page-wide reset would break Wiz SSO
       SreeEnv.save();
    }
 }

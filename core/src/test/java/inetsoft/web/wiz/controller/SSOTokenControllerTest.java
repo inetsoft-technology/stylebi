@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.controller;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.web.portal.WizPortalEntry;
 import inetsoft.web.assistant.AIAssistantController;
 import inetsoft.web.wiz.security.SSOTokenService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -48,7 +49,7 @@ class SSOTokenControllerTest {
       sreeEnvMock = mockStatic(SreeEnv.class);
       sreeEnvMock.when(() -> SreeEnv.getProperty(AIAssistantController.CHAT_APP_SERVER_URL))
          .thenReturn("https://chat.example.com");
-      sreeEnvMock.when(() -> SreeEnv.getProperty(WizPortalController.WIZ_SERVICE_URL))
+      sreeEnvMock.when(() -> SreeEnv.getProperty(WizPortalEntry.WIZ_SERVICE_URL))
          .thenReturn("https://wiz.example.com");
    }
 
@@ -156,7 +157,7 @@ class SSOTokenControllerTest {
 
    @Test
    void isFirstPartyWizCallback_noWizServiceConfigured_false() {
-      sreeEnvMock.when(() -> SreeEnv.getProperty(WizPortalController.WIZ_SERVICE_URL))
+      sreeEnvMock.when(() -> SreeEnv.getProperty(WizPortalEntry.WIZ_SERVICE_URL))
          .thenReturn(null);
       assertFalse(isFirstPartyWizCallback("https://wiz.example.com/api/wiz/auth/callback"));
    }

@@ -46,7 +46,8 @@ class WizPortalEntryTest {
    private void configure(String visible, String url) {
       sreeEnvStatic.when(() -> SreeEnv.getProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, "false"))
          .thenReturn(visible == null ? "false" : visible);
-      sreeEnvStatic.when(() -> SreeEnv.getProperty(WizPortalEntry.WIZ_PORTAL_URL)).thenReturn(url);
+      sreeEnvStatic.when(() -> SreeEnv.getProperty(WizPortalEntry.WIZ_SERVICE_URL))
+         .thenReturn(url);
    }
 
    @ParameterizedTest
@@ -69,7 +70,12 @@ class WizPortalEntryTest {
       "", "   ", "javascript:alert(1)", "ftp://x", "wiz.example.com", "data:text/html,x",
       "//evil.example/x", "/\\evil.example", "\\\\evil.example", "https://x\n.evil",
       "https://x\t.evil", "https://exa mple.com", "/wiz /x", "/wi\u0000z", "https:///",
-      "https:evil", "https://", "https://user@evil.example/", "https://x\\.evil"
+      "https:evil", "https://", "https://user@evil.example/", "https://x\\.evil",
+      // root-relative paths are not a gateway address and cannot back the SSO callback
+      "/", "/wiz/", "/wiz/?a=b#c",
+      // the SSO callback is this value plus a path, so a query or fragment would break it
+      "https://wiz.example.com/?a=b#c", "https://wiz.example.com/?a=b",
+      "https://wiz.example.com/#c", "https://wiz.example.com?"
    })
    void notVisibleWhenUrlIsBlankOrUnsafe(String url) {
       configure("true", url);
@@ -78,8 +84,8 @@ class WizPortalEntryTest {
    }
 
    @ParameterizedTest
-   @ValueSource(strings = { "HTTP://localhost:8000/", "HTTPS://wiz.example.com/", "/", "/wiz/",
-                            "/wiz/?a=b#c" })
+   @ValueSource(strings = { "HTTP://localhost:8000/", "HTTPS://wiz.example.com/",
+                            "https://wiz.example.com/gateway/" })
    void acceptsLegitimateForms(String url) {
       configure("true", url);
       assertEquals(url, WizPortalEntry.getUrl());
@@ -93,14 +99,31 @@ class WizPortalEntryTest {
    }
 
    @Test
-   void acceptsHttpsHttpAndRootRelativeUrls() {
+   void acceptsHttpsAndHttpUrls() {
       configure("true", "  https://wiz.example.com/  ");
       assertEquals("https://wiz.example.com/", WizPortalEntry.getUrl());
 
       configure("true", "http://localhost:8000/");
       assertEquals("http://localhost:8000/", WizPortalEntry.getUrl());
+   }
 
-      configure("true", "/");
-      assertEquals("/", WizPortalEntry.getUrl());
+   @Test
+   void urlComesFromTheWizServiceUrl() {
+      configure("true", "https://gateway.example.com/");
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("wiz.portal.url"))
+         .thenReturn("https://other.example.com/");
+
+      assertEquals("https://gateway.example.com/", WizPortalEntry.getUrl());
+      assertTrue(WizPortalEntry.isVisible());
+   }
+
+   @Test
+   void theRetiredWizPortalUrlIsIgnored() {
+      configure("true", null);
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("wiz.portal.url"))
+         .thenReturn("https://wiz.example.com/");
+
+      assertNull(WizPortalEntry.getUrl());
+      assertFalse(WizPortalEntry.isVisible());
    }
 }

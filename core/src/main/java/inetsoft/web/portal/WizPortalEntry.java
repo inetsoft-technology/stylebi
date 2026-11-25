@@ -29,7 +29,11 @@ import java.util.Locale;
  */
 public final class WizPortalEntry {
    public static final String WIZ_PORTAL_VISIBLE = "wiz.portal.visible";
-   public static final String WIZ_PORTAL_URL = "wiz.portal.url";
+   /**
+    * The Wiz gateway address: the Wiz portal is served at its root, the portal's Wiz link
+    * opens it and the SSO token endpoint accepts Wiz callbacks only under it.
+    */
+   public static final String WIZ_SERVICE_URL = "wiz.service.url";
 
    private WizPortalEntry() {
    }
@@ -40,16 +44,19 @@ public final class WizPortalEntry {
    }
 
    /**
-    * The configured URL, trimmed, or null when it is missing or not a safe http(s) or
-    * root-relative URL. This keeps a mis-configured value such as {@code javascript:...}, a
-    * protocol-relative {@code //host} or a header-splitting control character out of an href.
+    * The Wiz gateway address ({@code wiz.service.url}, where the Wiz portal is served at the
+    * root), trimmed, or null when it is missing or not a safe absolute http(s) URL. This keeps a
+    * mis-configured value such as {@code javascript:...}, a protocol-relative {@code //host} or a
+    * header-splitting control character out of an href.
     */
    public static String getUrl() {
-      return normalizeUrl(SreeEnv.getProperty(WIZ_PORTAL_URL));
+      return normalizeUrl(SreeEnv.getProperty(WIZ_SERVICE_URL));
    }
 
    /**
-    * The trimmed {@code raw} URL when it is a safe http(s) or root-relative URL, otherwise null.
+    * The trimmed {@code raw} URL when it is a safe absolute http(s) URL with a host and no query
+    * or fragment, otherwise null. The same value is the SSO callback allow-list prefix (a callback
+    * path is appended to it), so it needs a full origin and must end in a path.
     */
    public static String normalizeUrl(String raw) {
       String url = raw;
@@ -62,15 +69,6 @@ public final class WizPortalEntry {
 
       if(url.isEmpty() || containsWhitespaceOrControl(url)) {
          return null;
-      }
-
-      if(url.startsWith("/")) {
-         // a second "/" or "\" makes it protocol-relative (browsers read "\" as "/")
-         if(url.length() > 1 && (url.charAt(1) == '/' || url.charAt(1) == '\\')) {
-            return null;
-         }
-
-         return url;
       }
 
       return isHttpUrlWithHost(url) ? url : null;
@@ -102,7 +100,8 @@ public final class WizPortalEntry {
       try {
          URI uri = new URI(url);
          String host = uri.getHost();
-         return host != null && !host.isEmpty() && uri.getRawUserInfo() == null;
+         return host != null && !host.isEmpty() && uri.getRawUserInfo() == null &&
+            uri.getRawQuery() == null && uri.getRawFragment() == null;
       }
       catch(URISyntaxException ex) {
          return false;
