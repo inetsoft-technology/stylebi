@@ -18,7 +18,6 @@
 package inetsoft.web.portal;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.web.wiz.controller.WizPortalController;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -30,6 +29,11 @@ import java.util.Locale;
  */
 public final class WizPortalEntry {
    public static final String WIZ_PORTAL_VISIBLE = "wiz.portal.visible";
+   /**
+    * The Wiz gateway address: the Wiz portal is served at its root, the portal's Wiz link
+    * opens it and the SSO token endpoint accepts Wiz callbacks only under it.
+    */
+   public static final String WIZ_SERVICE_URL = "wiz.service.url";
 
    private WizPortalEntry() {
    }
@@ -46,13 +50,13 @@ public final class WizPortalEntry {
     * header-splitting control character out of an href.
     */
    public static String getUrl() {
-      return normalizeUrl(SreeEnv.getProperty(WizPortalController.WIZ_SERVICE_URL));
+      return normalizeUrl(SreeEnv.getProperty(WIZ_SERVICE_URL));
    }
 
    /**
-    * The trimmed {@code raw} URL when it is a safe absolute http(s) URL with a host, otherwise
-    * null. A root-relative path is rejected: the same value is the SSO callback allow-list
-    * entry, which needs a full origin.
+    * The trimmed {@code raw} URL when it is a safe absolute http(s) URL with a host and no query
+    * or fragment, otherwise null. The same value is the SSO callback allow-list prefix (a callback
+    * path is appended to it), so it needs a full origin and must end in a path.
     */
    public static String normalizeUrl(String raw) {
       String url = raw;
@@ -96,7 +100,8 @@ public final class WizPortalEntry {
       try {
          URI uri = new URI(url);
          String host = uri.getHost();
-         return host != null && !host.isEmpty() && uri.getRawUserInfo() == null;
+         return host != null && !host.isEmpty() && uri.getRawUserInfo() == null &&
+            uri.getRawQuery() == null && uri.getRawFragment() == null;
       }
       catch(URISyntaxException ex) {
          return false;

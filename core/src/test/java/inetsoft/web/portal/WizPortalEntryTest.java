@@ -18,7 +18,6 @@
 package inetsoft.web.portal;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.web.wiz.controller.WizPortalController;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -47,7 +46,7 @@ class WizPortalEntryTest {
    private void configure(String visible, String url) {
       sreeEnvStatic.when(() -> SreeEnv.getProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, "false"))
          .thenReturn(visible == null ? "false" : visible);
-      sreeEnvStatic.when(() -> SreeEnv.getProperty(WizPortalController.WIZ_SERVICE_URL))
+      sreeEnvStatic.when(() -> SreeEnv.getProperty(WizPortalEntry.WIZ_SERVICE_URL))
          .thenReturn(url);
    }
 
@@ -73,7 +72,10 @@ class WizPortalEntryTest {
       "https://x\t.evil", "https://exa mple.com", "/wiz /x", "/wi\u0000z", "https:///",
       "https:evil", "https://", "https://user@evil.example/", "https://x\\.evil",
       // root-relative paths are not a gateway address and cannot back the SSO callback
-      "/", "/wiz/", "/wiz/?a=b#c"
+      "/", "/wiz/", "/wiz/?a=b#c",
+      // the SSO callback is this value plus a path, so a query or fragment would break it
+      "https://wiz.example.com/?a=b#c", "https://wiz.example.com/?a=b",
+      "https://wiz.example.com/#c", "https://wiz.example.com?"
    })
    void notVisibleWhenUrlIsBlankOrUnsafe(String url) {
       configure("true", url);
@@ -83,7 +85,7 @@ class WizPortalEntryTest {
 
    @ParameterizedTest
    @ValueSource(strings = { "HTTP://localhost:8000/", "HTTPS://wiz.example.com/",
-                            "https://wiz.example.com/?a=b#c" })
+                            "https://wiz.example.com/gateway/" })
    void acceptsLegitimateForms(String url) {
       configure("true", url);
       assertEquals(url, WizPortalEntry.getUrl());

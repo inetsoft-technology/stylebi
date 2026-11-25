@@ -30,7 +30,6 @@ import inetsoft.util.ThreadContext;
 import inetsoft.web.admin.presentation.AISettingsService;
 import inetsoft.web.portal.WizPortalEntry;
 import inetsoft.web.portal.model.PortalModel;
-import inetsoft.web.wiz.controller.WizPortalController;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
@@ -71,7 +70,7 @@ class PortalControllerWizEntryTest {
       savedPrincipal = ThreadContext.getPrincipal();
       oldProvider = SreeEnv.getProperty("security.provider");
       oldVisible = SreeEnv.getProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE);
-      oldUrl = SreeEnv.getProperty(WizPortalController.WIZ_SERVICE_URL);
+      oldUrl = SreeEnv.getProperty(WizPortalEntry.WIZ_SERVICE_URL);
       SreeEnv.setProperty("security.provider", "file");
 
       builder = SecurityTestDataBuilder.create()
@@ -98,7 +97,7 @@ class PortalControllerWizEntryTest {
       ThreadContext.setPrincipal(savedPrincipal);
       SreeEnv.setProperty("security.provider", oldProvider == null ? "" : oldProvider);
       restore(WizPortalEntry.WIZ_PORTAL_VISIBLE, oldVisible);
-      restore(WizPortalController.WIZ_SERVICE_URL, oldUrl);
+      restore(WizPortalEntry.WIZ_SERVICE_URL, oldUrl);
 
       if(builder != null) {
          builder.teardown();
@@ -117,7 +116,7 @@ class PortalControllerWizEntryTest {
    @Test
    void wizEntryIsVisibleWithConfiguredUrl() throws Exception {
       SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, "true");
-      SreeEnv.setProperty(WizPortalController.WIZ_SERVICE_URL, "https://wiz.example.com/");
+      SreeEnv.setProperty(WizPortalEntry.WIZ_SERVICE_URL, "https://wiz.example.com/");
 
       PortalModel model = controller.getUserPortal(principal, "/");
 
@@ -128,7 +127,7 @@ class PortalControllerWizEntryTest {
    @Test
    void wizEntryIsVisibleForAUserWithoutRolesGroupsOrProviderRecord() throws Exception {
       SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, "true");
-      SreeEnv.setProperty(WizPortalController.WIZ_SERVICE_URL, "https://wiz.example.com/");
+      SreeEnv.setProperty(WizPortalEntry.WIZ_SERVICE_URL, "https://wiz.example.com/");
       SRPrincipal sso = builder.principalOf("ssoNoRolesWizEntry", ORG);
       assertEquals(0, sso.getRoles().length);
 
@@ -138,7 +137,7 @@ class PortalControllerWizEntryTest {
    @Test
    void wizEntryIsHiddenWhenFlagIsOff() throws Exception {
       SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, "false");
-      SreeEnv.setProperty(WizPortalController.WIZ_SERVICE_URL, "https://wiz.example.com/");
+      SreeEnv.setProperty(WizPortalEntry.WIZ_SERVICE_URL, "https://wiz.example.com/");
 
       PortalModel model = controller.getUserPortal(principal, "/");
 
@@ -148,7 +147,7 @@ class PortalControllerWizEntryTest {
    @Test
    void wizEntryIsHiddenWhenUrlIsUnsafe() throws Exception {
       SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, "true");
-      SreeEnv.setProperty(WizPortalController.WIZ_SERVICE_URL, "javascript:alert(1)");
+      SreeEnv.setProperty(WizPortalEntry.WIZ_SERVICE_URL, "javascript:alert(1)");
 
       PortalModel model = controller.getUserPortal(principal, "/");
 
@@ -159,7 +158,7 @@ class PortalControllerWizEntryTest {
    @Test
    void wizEntryIsHiddenWhenServiceUrlIsRootRelative() throws Exception {
       SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, "true");
-      SreeEnv.setProperty(WizPortalController.WIZ_SERVICE_URL, "/wiz/");
+      SreeEnv.setProperty(WizPortalEntry.WIZ_SERVICE_URL, "/wiz/");
 
       PortalModel model = controller.getUserPortal(principal, "/");
 

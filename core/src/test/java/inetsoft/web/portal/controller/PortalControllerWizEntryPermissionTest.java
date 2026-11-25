@@ -31,7 +31,6 @@ import inetsoft.util.ThreadContext;
 import inetsoft.web.admin.presentation.AISettingsService;
 import inetsoft.web.portal.WizPortalEntry;
 import inetsoft.web.portal.model.PortalModel;
-import inetsoft.web.wiz.controller.WizPortalController;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
@@ -77,10 +76,10 @@ class PortalControllerWizEntryPermissionTest {
       savedPrincipal = ThreadContext.getPrincipal();
       oldProvider = SreeEnv.getProperty("security.provider");
       oldVisible = SreeEnv.getProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE);
-      oldUrl = SreeEnv.getProperty(WizPortalController.WIZ_SERVICE_URL);
+      oldUrl = SreeEnv.getProperty(WizPortalEntry.WIZ_SERVICE_URL);
       SreeEnv.setProperty("security.provider", "file");
       SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, "true");
-      SreeEnv.setProperty(WizPortalController.WIZ_SERVICE_URL, "https://wiz.example.com/");
+      SreeEnv.setProperty(WizPortalEntry.WIZ_SERVICE_URL, "https://wiz.example.com/");
 
       builder = SecurityTestDataBuilder.create()
          .addOrg(ORG, ORG)
@@ -109,7 +108,7 @@ class PortalControllerWizEntryPermissionTest {
       ThreadContext.setPrincipal(savedPrincipal);
       SreeEnv.setProperty("security.provider", oldProvider == null ? "" : oldProvider);
       restore(WizPortalEntry.WIZ_PORTAL_VISIBLE, oldVisible);
-      restore(WizPortalController.WIZ_SERVICE_URL, oldUrl);
+      restore(WizPortalEntry.WIZ_SERVICE_URL, oldUrl);
 
       if(builder != null) {
          builder.teardown();

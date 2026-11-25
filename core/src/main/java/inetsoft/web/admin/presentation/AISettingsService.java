@@ -25,7 +25,6 @@ import inetsoft.web.admin.presentation.model.PresentationAISettingsModel;
 import inetsoft.web.assistant.AIAssistantController;
 import inetsoft.web.portal.WizPortalEntry;
 import inetsoft.web.viewsheet.Audited;
-import inetsoft.web.wiz.controller.WizPortalController;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -41,7 +40,7 @@ public class AISettingsService {
 
       boolean wizPortalVisible =
          "true".equalsIgnoreCase(SreeEnv.getProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, "false"));
-      String wizServiceUrl = SreeEnv.getProperty(WizPortalController.WIZ_SERVICE_URL);
+      String wizServiceUrl = SreeEnv.getProperty(WizPortalEntry.WIZ_SERVICE_URL);
 
       return PresentationAISettingsModel.builder()
          .aiAssistantVisible(aiAssistantVisible)
@@ -73,10 +72,10 @@ public class AISettingsService {
                           model.wizPortalVisible() ? "true" : "false");
 
       if(!wizServiceUrl.isEmpty()) {
-         SreeEnv.setProperty(WizPortalController.WIZ_SERVICE_URL, wizServiceUrl);
+         SreeEnv.setProperty(WizPortalEntry.WIZ_SERVICE_URL, wizServiceUrl);
       }
       else {
-         SreeEnv.remove(WizPortalController.WIZ_SERVICE_URL);
+         SreeEnv.remove(WizPortalEntry.WIZ_SERVICE_URL);
       }
 
       SreeEnv.setProperty(AIAssistantController.AI_ASSISTANT_VISIBLE, model.aiAssistantVisible() ? "true" : "false");
@@ -151,7 +150,8 @@ public class AISettingsService {
       SreeEnv.remove(AIAssistantController.CHAT_APP_VENDOR_NAME);
       SreeEnv.remove(AIAssistantController.CHAT_APP_LOGO_URL);
       SreeEnv.remove(WizPortalEntry.WIZ_PORTAL_VISIBLE);
-      SreeEnv.remove(WizPortalController.WIZ_SERVICE_URL);
+      // wiz.service.url is deliberately kept: it is infrastructure config (the SSO callback
+      // allow-list and the Wiz entry address), and this page-wide reset would break Wiz SSO
       SreeEnv.save();
    }
 }

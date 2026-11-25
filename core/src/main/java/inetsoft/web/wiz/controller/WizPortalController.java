@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.controller;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.web.portal.WizPortalEntry;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -26,8 +27,6 @@ public class WizPortalController {
 
    @GetMapping("/service-url")
    public String getWizServiceUrl() {
-      return SreeEnv.getProperty(WIZ_SERVICE_URL);
+      return SreeEnv.getProperty(WizPortalEntry.WIZ_SERVICE_URL);
    }
-
-   public static final String WIZ_SERVICE_URL = "wiz.service.url";
 }
