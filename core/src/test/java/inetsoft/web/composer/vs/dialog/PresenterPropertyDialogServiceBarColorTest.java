@@ -33,7 +33,9 @@ import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.util.Tool;
+import inetsoft.web.composer.model.vs.BooleanDescriptorModel;
 import inetsoft.web.composer.model.vs.ColorDescriptorModel;
 import inetsoft.web.composer.model.vs.PresenterDescriptorModel;
 import inetsoft.web.composer.model.vs.PresenterPropertyDialogModel;
@@ -133,6 +135,50 @@ public class PresenterPropertyDialogServiceBarColorTest {
 
       assertEquals("#" + Tool.colorToHTMLString(TrafficLightPresenter.DEFAULT_GREEN),
                    colour(model(LIGHT), "color1"));
+   }
+
+   @Test
+   public void aModernTableShowsAnUnsetAutoMaximumTicked() throws Exception {
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      store(new PresenterRef(BAR), new PresenterPainter(5, new BarPresenter(100, TINT)));
+
+      assertEquals(Boolean.TRUE, flag(model(BAR), "autoMaximum"));
+   }
+
+   @Test
+   public void aModernTableKeepsAnAuthorsUntickedAutoMaximum() throws Exception {
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      PresenterRef ref = new PresenterRef(BAR);
+      ref.setParameter("autoMaximum", Boolean.FALSE);
+      store(ref, new PresenterPainter(5, new BarPresenter(100, TINT)));
+
+      assertEquals(Boolean.FALSE, flag(model(BAR), "autoMaximum"));
+   }
+
+   @Test
+   public void aModernTableShowsAnUnsetBulletGraphsAutoScaleTicked() throws Exception {
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      store(new PresenterRef(BULLET), new PresenterPainter(5, new BulletGraphPresenter()));
+
+      assertEquals(Boolean.TRUE, flag(model(BULLET), "autoScale"));
+   }
+
+   @Test
+   public void aClassicTableShowsAutoMaximumUnticked() throws Exception {
+      store(new PresenterRef(BAR), new PresenterPainter(5, new BarPresenter(100, TINT)));
+
+      assertEquals(Boolean.FALSE, flag(model(BAR), "autoMaximum"));
+   }
+
+   private static Boolean flag(PresenterPropertyDialogModel model, String name) {
+      for(PresenterDescriptorModel descriptor : model.descriptors()) {
+         if(name.equals(descriptor.name())) {
+            return ((BooleanDescriptorModel) descriptor).value();
+         }
+      }
+
+      fail("no descriptor named " + name);
+      return null;
    }
 
    private void store(PresenterRef ref, PresenterPainter painter) {

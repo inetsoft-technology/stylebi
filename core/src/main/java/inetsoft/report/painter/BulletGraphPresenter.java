@@ -222,6 +222,17 @@ public class BulletGraphPresenter implements Presenter {
     */
    public void setAutoScale(boolean autoScale) {
       this.autoScale = autoScale;
+      this.autoScaleSet = true;
+   }
+
+   /**
+    * Scale to the column's data in the modern style, unless the author set Auto Scale either way.
+    * This is not a bean property, so it does not show in the presenter dialog or get saved.
+    */
+   public void useModernAutoScale() {
+      if(!autoScaleSet) {
+         autoScale = true;
+      }
    }
 
    /**
@@ -257,6 +268,7 @@ public class BulletGraphPresenter implements Presenter {
       copy.shadow = shadow;
       copy.fmt = fmt;
       copy.autoScale = autoScale;
+      copy.autoScaleSet = autoScaleSet;
       copy.statsResolver = statsResolver;
       return copy;
    }
@@ -286,6 +298,7 @@ public class BulletGraphPresenter implements Presenter {
       double span = hi - lo;
       BulletGraphPresenter copy = copy();
       copy.autoScale = false;
+      copy.autoScaleSet = true;
       copy.statsResolver = null;
       copy.min = lo;
       copy.max = hi;
@@ -402,6 +415,11 @@ public class BulletGraphPresenter implements Presenter {
          }
          else {
             g.setColor(oc);
+         }
+
+         // a value above the minimum always shows, even when it is far smaller than the maximum
+         if(n > min && bw < 1 && fillw > 0) {
+            bw = 1;
          }
 
          g.fillRect(fillx, filly + (int) Math.ceil(fillh / 4.0), bw, (int) Math.floor(fillh / 2.0));
@@ -696,6 +714,8 @@ public class BulletGraphPresenter implements Presenter {
    private boolean shadow;
    private Format fmt;
    private boolean autoScale = false;
+   // true once the author set Auto Scale, on or off, so the modern default leaves it alone
+   private boolean autoScaleSet = false;
    // resolves the column's numbers at paint time, set by the table lens on a copy of the
    // presenter; not a bean property, so it is never shown in the dialog or saved
    private transient Supplier<ColumnStats> statsResolver;
