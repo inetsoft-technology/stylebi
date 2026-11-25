@@ -33,6 +33,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -159,12 +160,21 @@ public final class TabularEndpointBindingSupport {
       Map<String, String> supplied = parameters == null
          ? new LinkedHashMap<>() : new LinkedHashMap<>(parameters);
       List<String> missing = new ArrayList<>();
+      List<String> outsideChoices = new ArrayList<>();
 
       for(RestParameter parameter : params.getParameters()) {
          String value = supplied.remove(parameter.getName());
 
          if(value != null && !value.isBlank()) {
-            parameter.setValue(value.trim());
+            String accepted = matchDeclaredChoice(parameter, value.trim());
+
+            if(accepted == null) {
+               outsideChoices.add(parameter.getName() + " '" + value.trim() + "' (choices: " +
+                  String.join("|", declaredChoices(parameter)) + ")");
+            }
+            else {
+               parameter.setValue(accepted);
+            }
          }
          else if(parameter.isRequired()) {
             missing.add(parameter.getName());
@@ -181,11 +191,20 @@ public final class TabularEndpointBindingSupport {
       // does not declare is an error, not something to drop: dropping it runs a DIFFERENT query
       // than the one that was asked for and reports success, and the likeliest cause is a caller
       // using another endpoint's contract, which no later step can detect.
+      String contractText = params.getParameters().stream()
+         .map(TabularEndpointBindingSupport::describeParameter)
+         .collect(Collectors.joining(", "));
       TabularQueryContractSupport.requireValidParameters(
-         "Endpoint '" + trimmedEndpoint + "'", missing, supplied.keySet(),
-         params.getParameters().stream()
-            .map(p -> p.getName() + (p.isRequired() ? " (required)" : ""))
-            .collect(Collectors.joining(", ")));
+         "Endpoint '" + trimmedEndpoint + "'", missing, supplied.keySet(), contractText);
+
+      // A value outside the catalogue's declared choices is refused rather than sent: the vendor
+      // either ignores it (a sort order of 'sideways' builds and silently is not applied) or
+      // rejects it with an error that names neither the parameter nor what it accepts.
+      if(!outsideChoices.isEmpty()) {
+         throw new IllegalArgumentException(
+            "Endpoint '" + trimmedEndpoint + "' does not accept these parameter value(s): " +
+            String.join("; ", outsideChoices) + ". Its parameters are: " + contractText + ".");
+      }
 
       paramProp.setValue(query, params);
       TabularQuery defaults = TabularQueryContractSupport.defaultsOf(query);
@@ -208,6 +227,114 @@ public final class TabularEndpointBindingSupport {
 
       return s;
    }
+
+   /**
+    * The closed set of values a catalogue parameter declares, or an empty list when it declares
+    * none.
+    *
+    * <p>An endpoint template states a parameter's choices after the colon of its token, which
+    * {@link RestParameter#fromToken} keeps as the placeholder: {@code {Sort Order?:ascend|descend}}.
+    * The same slot also carries text that is NOT a closed set, and those must stay unchecked or
+    * valid values would be refused: an open list ({@code en|de|es|...}), a format hint with
+    * alternatives ({@code YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}, {@code yyyy-MM-dd'T'...|milliseconds}),
+    * and a bracketed pattern ({@code utm-[campaigns|contents]}). The alternatives are trimmed,
+    * because several catalogues write {@code true | false}.</p>
+    */
+   public static List<String> declaredChoices(RestParameter parameter) {
+      String placeholder = parameter.getPlaceholder();
+
+      if(placeholder == null || placeholder.indexOf('|') < 0) {
+         return List.of();
+      }
+
+      List<String> choices = new ArrayList<>();
+
+      for(String part : placeholder.split("\\|", -1)) {
+         String choice = part.trim();
+
+         if(choice.isEmpty() || choice.contains("...") || choice.contains("…") ||
+            choice.indexOf('[') >= 0 || choice.indexOf(']') >= 0 ||
+            FORMAT_HINT.matcher(choice).find())
+         {
+            return List.of();
+         }
+
+         choices.add(choice);
+      }
+
+      return choices.size() < 2 ? List.of() : choices;
+   }
+
+   /**
+    * The value to send for {@code value}, or {@code null} when it lies outside the parameter's
+    * declared choices. A parameter without declared choices accepts anything, and so does a
+    * {@code $(variable)} reference, which is only resolved when the query runs. A value that
+    * differs from exactly one choice by case alone is sent in the declared spelling, since the
+    * vendor compares it exactly (QuickBooks refuses {@code cash} for {@code Cash}). A
+    * comma-separated value is checked element by element, for a split parameter and for a
+    * catalogue that lists combinations ({@code legacy|dynamic|legacy,dynamic}).
+    */
+   static String matchDeclaredChoice(RestParameter parameter, String value) {
+      List<String> choices = declaredChoices(parameter);
+
+      if(choices.isEmpty() || value.contains("$(")) {
+         return value;
+      }
+
+      String whole = matchOneChoice(choices, value);
+
+      if(whole != null || value.indexOf(',') < 0) {
+         return whole;
+      }
+
+      List<String> matched = new ArrayList<>();
+
+      for(String part : value.split(",", -1)) {
+         String one = matchOneChoice(choices, part.trim());
+
+         if(one == null) {
+            return null;
+         }
+
+         matched.add(one);
+      }
+
+      return String.join(",", matched);
+   }
+
+   private static String matchOneChoice(List<String> choices, String value) {
+      if(choices.contains(value)) {
+         return value;
+      }
+
+      List<String> caseMatches = choices.stream().filter(c -> c.equalsIgnoreCase(value)).toList();
+      return caseMatches.size() == 1 ? caseMatches.get(0) : null;
+   }
+
+   /** One parameter as a refusal lists it: its name, whether required, and its choices or hint. */
+   private static String describeParameter(RestParameter parameter) {
+      StringBuilder text = new StringBuilder(parameter.getName());
+
+      if(parameter.isRequired()) {
+         text.append(" (required)");
+      }
+
+      List<String> choices = declaredChoices(parameter);
+      String placeholder = parameter.getPlaceholder();
+
+      if(!choices.isEmpty()) {
+         text.append(" (choices: ").append(String.join("|", choices)).append(')');
+      }
+      else if(placeholder != null && !placeholder.isBlank()) {
+         text.append(" (hint: ").append(placeholder.trim()).append(')');
+      }
+
+      return text.toString();
+   }
+
+   /** Date/time pattern letters that mark a placeholder alternative as a format, not a value. */
+   private static final Pattern FORMAT_HINT =
+      Pattern.compile("yyyy|YYYY|MM-dd|MM-DD|hh:mm|HH:mm|mm:ss");
 
    /**
     * Read the URL suffix a named connector derived from its endpoint and parameter values.
