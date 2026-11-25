@@ -103,9 +103,19 @@ class VSFormatTableLensAutoMaximumTest {
    void barAutoMaximumOnNegativeOnlyColumnFallsBackToConfiguredMaximum() {
       VSFormatTableLens lens = formatLens(BarPresenter.class, LOSS, true);
 
-      // no positive value: Bar keeps the configured maximum and draws nothing for negatives
-      for(int r = 1; r <= 6; r++) {
-         assertEquals(0, width(lens, r, LOSS), "row " + r);
+      // no positive value: Bar keeps the configured maximum and draws no bar for negatives. The
+      // cell shows the value's text at its right edge instead, so only the bar's half is checked
+      // for a negative value, and the zero draws nothing at all.
+      assertEquals(0, width(lens, 1, LOSS), "row 1, the zero");
+
+      for(int r = 2; r <= 6; r++) {
+         boolean[] filled = paintLine((Painter) lens.getObject(r, LOSS));
+
+         for(int x = 0; x < 50; x++) {
+            assertFalse(filled[x], "row " + r + ", x " + x);
+         }
+
+         assertTrue(width(lens, r, LOSS) > 0, "row " + r + " shows the value's text");
       }
    }
 

@@ -102,16 +102,43 @@ public class BarPresenter implements AutoMaximumPresenter {
 
    @Override
    public Presenter withMaximumResolver(DoubleSupplier resolver) {
+      BarPresenter copy = copy();
+      copy.maxResolver = resolver;
+      return copy;
+   }
+
+   /**
+    * Give a cell its own copy that shows the cell's text when its value is negative or NaN. Neither
+    * has a bar to draw, so without this the cell looks empty, like a zero or a missing value. The text is the cell's formatted value, which only the table lens has. The presenter
+    * itself is never changed, since a script presenter is shared by all cells of a column.
+    * @param text the cell's formatted value.
+    */
+   public Presenter withValueText(String text) {
+      BarPresenter copy = copy();
+      copy.valueText = text;
+      return copy;
+   }
+
+   /**
+    * The text a negative value is drawn as, or null when the table lens has not given one.
+    */
+   public String valueText() {
+      return valueText;
+   }
+
+   // every field, so no copy forgets one
+   private BarPresenter copy() {
       BarPresenter copy = new BarPresenter();
       copy.color = color;
       copy.psize = psize == null ? null : new Dimension(psize);
       copy.max = max;
       copy.fillCell = fillCell;
       copy.bg = bg;
-      // a modern table sets the bar thickness on the presenter before this copy is made
+      // a modern table sets the bar thickness on the presenter before the copy is made
       copy.thickness = thickness;
       copy.autoMaximum = autoMaximum;
-      copy.maxResolver = resolver;
+      copy.maxResolver = maxResolver;
+      copy.valueText = valueText;
       return copy;
    }
 
@@ -150,6 +177,15 @@ public class BarPresenter implements AutoMaximumPresenter {
 
          double n = ((Number) v).doubleValue();
 
+         // there is no bar for a negative value or a number that is not one: show its text so the
+         // cell does not look empty
+         if((n < 0 || Double.isNaN(n)) && valueText != null) {
+            paintValueText(g, oc, x, y, w, h);
+            g.setColor(oc);
+            g.setClip(clip);
+            return;
+         }
+
          if(color != null) {
             g.setColor(color);
          }
@@ -167,6 +203,19 @@ public class BarPresenter implements AutoMaximumPresenter {
          g.setColor(oc);
          g.setClip(clip);
       }
+   }
+
+   /**
+    * Draw the value's text at the right of the cell, in the cell's text colour but fainter, so it
+    * reads as a note and not as the value of a bar.
+    */
+   private void paintValueText(Graphics g, Color fg, int x, int y, int w, int h) {
+      FontMetrics fm = g.getFontMetrics();
+      int tw = fm.stringWidth(valueText);
+
+      g.setColor(new Color(fg.getRed(), fg.getGreen(), fg.getBlue(), (int) (fg.getAlpha() * 0.65)));
+      g.drawString(valueText, Math.max(x + 2, x + w - tw - 2),
+                   y + (h - fm.getHeight()) / 2 + fm.getAscent());
    }
 
    /**
@@ -353,4 +402,7 @@ public class BarPresenter implements AutoMaximumPresenter {
    // resolves the data maximum at paint time, set by the table lens on a copy of the
    // presenter; not a bean property, so it is never shown in the dialog or saved
    private transient DoubleSupplier maxResolver;
+   // the cell's formatted value, set by the table lens on a copy for a negative value; not a bean
+   // property, so it is never shown in the dialog or saved
+   private transient String valueText;
 }
