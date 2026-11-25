@@ -25,6 +25,7 @@ import inetsoft.report.painter.AutoMaximumPresenter;
 import inetsoft.report.painter.BarPresenter;
 import inetsoft.report.painter.BulletGraphPresenter;
 import inetsoft.report.painter.ColumnStats;
+import inetsoft.report.painter.IconCounterPresenter;
 import inetsoft.report.painter.OutlierFence;
 import inetsoft.report.painter.PresenterPainter;
 import inetsoft.sree.SreeEnv;
@@ -441,16 +442,25 @@ public class AttributeTableLens extends AbstractTableLens
    }
 
    /**
-    * Give a Bar presenter a copy that carries the cell's formatted text when the value is negative
-    * or NaN, which the bar cannot draw. Other presenters, and other values, are returned as they are.
+    * Give a Bar or Stars presenter a copy that carries the cell's formatted text when the value is
+    * negative or NaN, which the bar or stars cannot draw. Other presenters, and other values, are
+    * returned as they are.
     * @param obj the raw value.
     * @param display the value after the cell's format, or the raw value when there is none.
     */
    private Presenter withValueText(Presenter p, Object obj, Object display) {
-      if(p instanceof BarPresenter bar && obj instanceof Number number &&
+      if(obj instanceof Number number &&
          (number.doubleValue() < 0 || Double.isNaN(number.doubleValue())))
       {
-         return bar.withValueText(String.valueOf(display == null ? obj : display));
+         String text = String.valueOf(display == null ? obj : display);
+
+         if(p instanceof BarPresenter bar) {
+            return bar.withValueText(text);
+         }
+
+         if(p instanceof IconCounterPresenter stars) {
+            return stars.withValueText(text);
+         }
       }
 
       return p;
