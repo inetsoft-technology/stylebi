@@ -246,6 +246,15 @@ public final class MVQuery {
             dimAggregate = true;
          }
 
+         // the result of min/max/first/last is a value of the column, so give it the type
+         // the column is stored with, e.g. the integral sum of an aggregated mv instead of
+         // the double declared by the sum formula (Bug #82319)
+         if(!sub && ref != null && mv.types[idx] != null &&
+            Number.class.isAssignableFrom(mv.types[idx]))
+         {
+            types[j] = mv.types[idx];
+         }
+
          if(sub || ref == null || !XSchema.isDateType(ref.getDataType())) {
             continue;
          }
