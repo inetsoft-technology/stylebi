@@ -36,6 +36,7 @@ import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.filter.TextHighlight;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.binding.Field;
+import inetsoft.report.internal.table.PresenterRef;
 import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.Condition;
@@ -93,6 +94,7 @@ import inetsoft.web.adhoc.model.chart.ChartFormatConstants;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
 import inetsoft.web.composer.vs.controller.FormatPainterServiceProxy;
+import inetsoft.web.composer.vs.dialog.PresenterPropertySupport;
 import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
@@ -342,7 +344,38 @@ public class ViewsheetFormatService {
 
       deriveDateSpec(model);
       validateFormatSpec(model, toolName);
+      validatePresenterProperties(model, toolName);
       return model;
+   }
+
+   /**
+    * Refuses {@code presenterProperties} that cannot be stored, before anything is written: an
+    * empty {@code presenter} to put them on, a presenter that does not load, a name that is not
+    * one of its properties, or a value of the wrong type. With no {@code presenter} in the
+    * request the properties go on the presenter already stored, which the painter checks.
+    */
+   private static void validatePresenterProperties(VSObjectFormatInfoModel model, String toolName) {
+      Map<String, Object> properties = model.getPresenterProperties();
+
+      if(properties == null || properties.isEmpty()) {
+         return;
+      }
+
+      String presenter = model.getPresenter();
+
+      if(presenter != null && presenter.isBlank()) {
+         throw new IllegalArgumentException(
+            toolName + ": 'presenterProperties' cannot be set together with an empty 'presenter'.");
+      }
+
+      if(presenter != null) {
+         try {
+            PresenterPropertySupport.validate(presenter, properties);
+         }
+         catch(IllegalArgumentException e) {
+            throw new IllegalArgumentException(toolName + ": " + e.getMessage(), e);
+         }
+      }
    }
 
    /**
@@ -4738,6 +4771,11 @@ public class ViewsheetFormatService {
 
       if(!(user.isPresenterDefined() || user.isPresenterValueDefined())) {
          drop.add("presenter");
+      }
+      else {
+         PresenterRef ref = user.isPresenterValueDefined() ? user.getPresenterValue() :
+            user.getPresenter();
+         all.put("presenterProperties", PresenterPropertySupport.toWire(ref));
       }
 
       all.keySet().removeIf(key -> drop.contains(key) || all.get(key) == null);

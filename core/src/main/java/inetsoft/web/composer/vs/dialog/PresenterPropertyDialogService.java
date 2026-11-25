@@ -249,8 +249,8 @@ public class PresenterPropertyDialogService {
             value = ((FontDescriptorModel) descModel).value().toFont();
          }
          else if(descModel instanceof ColorDescriptorModel) {
-            String color = ((ColorDescriptorModel) descModel).value();
-            value = color == null || color.isEmpty() ? null : Color.decode(color);
+            value = PresenterPropertySupport.decodeColor(
+               ((ColorDescriptorModel) descModel).value());
          }
          else if(descModel instanceof SizeDescriptorModel) {
             SizeDescriptorModel size = (SizeDescriptorModel) descModel;
@@ -365,7 +365,7 @@ public class PresenterPropertyDialogService {
             .build();
       }
       else if(Color.class.isAssignableFrom(cls)) {
-         String color = value == null ? "" : "#" + Tool.colorToHTMLString(((Color) value));
+         String color = PresenterPropertySupport.colorToString((Color) value);
          model = ColorDescriptorModel.builder()
             .name(name)
             .displayName(displayName)

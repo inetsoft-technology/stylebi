@@ -17,7 +17,10 @@
  */
 package inetsoft.web.composer.model.vs;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import inetsoft.web.adhoc.model.FormatInfoModel;
+
+import java.util.Map;
 
 /**
  * Class that encapsulates the parameters for changing an object format.
@@ -145,6 +148,20 @@ public class VSObjectFormatInfoModel extends FormatInfoModel {
       this.presenter = presenter;
    }
 
+   /**
+    * Bean properties to store on the presenter, by property name (see
+    * {@code PresenterPropertySupport}). Only the wiz {@code set_format} sends it; the Composer
+    * format pane never carries it.
+    */
+   @JsonInclude(JsonInclude.Include.NON_EMPTY)
+   public Map<String, Object> getPresenterProperties() {
+      return presenterProperties;
+   }
+
+   public void setPresenterProperties(Map<String, Object> presenterProperties) {
+      this.presenterProperties = presenterProperties;
+   }
+
    public boolean getBorderDisabled() {
       return borderDisabled;
    }
@@ -218,6 +235,7 @@ public class VSObjectFormatInfoModel extends FormatInfoModel {
    private String cssType;
    private String presenterLabel;
    private String presenter;
+   private Map<String, Object> presenterProperties;
    private boolean borderDisabled;
    private boolean dynamicColorDisabled;
    private boolean alignEnabled;
