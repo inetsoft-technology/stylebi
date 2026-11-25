@@ -205,6 +205,46 @@ class WizLogicalModelExtendedTest extends WizLogicalModelTestBase {
                  "the base model is untouched");
    }
 
+   @Test
+   void visibleOfABaseAttributeCanBeChanged() throws Exception {
+      createChild("child");
+      Definition read = getChild("child").definition();
+      Attribute amount = attributeOf(entityOf(read, "Sales"), "Amount");
+
+      // hide the inherited attribute: Visible is the one thing an extended model may change
+      Object result = update("child", editSales(read, "Amount", withVisible(amount, false)),
+                             null);
+
+      UpdateResponse applied = assertInstanceOf(UpdateResponse.class, result,
+                                                String.valueOf(result));
+      Attribute hidden = attributeOf(entityOf(applied.definition(), "Sales"), "Amount");
+      assertFalse(hidden.visible(), "the inherited attribute is stored hidden");
+      assertTrue(hidden.baseElement());
+      assertTrue(attributeOf(entityOf(get("base").definition(), "Sales"), "Amount").visible(),
+                 "the base model is untouched");
+
+      // and shown again
+      Definition hiddenRead = getChild("child").definition();
+      result = update("child", editSales(hiddenRead, "Amount",
+         withVisible(attributeOf(entityOf(hiddenRead, "Sales"), "Amount"), true)), null);
+      UpdateResponse shown = assertInstanceOf(UpdateResponse.class, result,
+                                              String.valueOf(result));
+      assertTrue(attributeOf(entityOf(shown.definition(), "Sales"), "Amount").visible());
+
+      // any other change to the inherited attribute stays refused, with Visible alongside it
+      assertBaseRefused(editSales(read, "Amount",
+         withDescription(withVisible(amount, false), "edited")),
+                        "entities[Sales].attributes[Amount]");
+   }
+
+   private static Attribute withVisible(Attribute a, boolean visible) {
+      return new Attribute(a.name(), a.oldName(), a.description(), visible, a.type(), a.table(),
+                           a.column(), a.expression(), a.aggregate(), a.parseable(),
+                           a.dataType(), a.refType(), a.formula(), a.browseData(),
+                           a.browseQuery(), a.format(), a.drill(), a.baseElement(),
+                           a.errorMessage());
+   }
+
    private void assertBaseRefused(Definition definition, String field) throws Exception {
       Object result = update("child", definition, null);
 

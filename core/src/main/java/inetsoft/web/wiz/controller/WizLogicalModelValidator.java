@@ -308,7 +308,8 @@ final class WizLogicalModelValidator {
 
       /**
        * An inherited entity or attribute is the base model's: it may not be changed, renamed or
-       * (on an update) removed here. The service silently ignores an edit of one, so the bridge
+       * (on an update) removed here, except the Visible flag of an inherited attribute, which an
+       * extended model may set (as the Portal editor does). The service silently ignores an edit of one, so the bridge
        * compares each with its reference and names the path.
        */
       private void checkBaseElements(List<Entity> submitted) {
@@ -359,8 +360,8 @@ final class WizLogicalModelValidator {
                         "model and cannot be removed here", BASE_ELEMENT_READ_ONLY);
                   }
                }
-               else if(!WizLogicalModelReadBack.canon(refAttribute)
-                  .equals(WizLogicalModelReadBack.canon(match)))
+               else if(!WizLogicalModelReadBack.canon(refAttribute, false)
+                  .equals(WizLogicalModelReadBack.canon(match, false)))
                {
                   add(apath, "\"" + refAttribute.name() + "\" is inherited from the base model " +
                      "and cannot be changed here", BASE_ELEMENT_READ_ONLY);
