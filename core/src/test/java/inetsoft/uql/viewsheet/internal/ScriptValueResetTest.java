@@ -273,4 +273,97 @@ class ScriptValueResetTest {
       assertTrue(checked > 0);
       assertTrue(failures.isEmpty(), "Not cleared by resetRuntimeValues(): " + failures);
    }
+
+   // Bug #82267: script-set tooltip values on Output types and Chart
+
+   @Test
+   void outputTooltipIsRevertedForAllTypes() {
+      OutputVSAssemblyInfo[] infos = {
+         new TextVSAssemblyInfo(), new GaugeVSAssemblyInfo(), new ImageVSAssemblyInfo(),
+         new CylinderVSAssemblyInfo(), new ThermometerVSAssemblyInfo(),
+         new SlidingScaleVSAssemblyInfo()
+      };
+
+      for(OutputVSAssemblyInfo info : infos) {
+         String name = info.getClass().getSimpleName();
+         info.setTooltipVisibleValue(true);
+         info.setCustomTooltipStringValue("design");
+         info.setTooltipVisible(false);
+         info.setCustomTooltipString("script");
+         assertFalse(info.isTooltipVisible(), name);
+         assertEquals("script", info.getCustomTooltipString(), name);
+         info.resetRuntimeValues();
+         assertTrue(info.isTooltipVisible(), name);
+         assertEquals("design", info.getCustomTooltipString(), name);
+      }
+   }
+
+   @Test
+   void outputScriptNullTooltipOverridesDesignUntilReset() {
+      TextVSAssemblyInfo info = new TextVSAssemblyInfo();
+      info.setCustomTooltipStringValue("design");
+      info.setCustomTooltipString(null);
+      assertNull(info.getCustomTooltipString());
+      info.resetRuntimeValues();
+      assertEquals("design", info.getCustomTooltipString());
+   }
+
+   @Test
+   void outputTooltipCloneDoesNotShareRuntimeValues() {
+      TextVSAssemblyInfo info = new TextVSAssemblyInfo();
+      info.setTooltipVisible(false);
+      info.setCustomTooltipString("script");
+      TextVSAssemblyInfo copy = (TextVSAssemblyInfo) info.clone();
+      copy.resetRuntimeValues();
+      assertFalse(info.isTooltipVisible());
+      assertEquals("script", info.getCustomTooltipString());
+      assertTrue(copy.isTooltipVisible());
+      assertNull(copy.getCustomTooltipString());
+   }
+
+   @Test
+   void outputXmlKeepsDesignTooltipAfterScriptWrite() throws Exception {
+      TextVSAssemblyInfo info = new TextVSAssemblyInfo();
+      info.setTooltipVisibleValue(false);
+      info.setCustomTooltipStringValue("design");
+      info.setTooltipVisible(true);
+      info.setCustomTooltipString("script");
+
+      java.io.StringWriter sw = new java.io.StringWriter();
+      java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+      info.writeXML(pw);
+      pw.flush();
+      String xml = sw.toString();
+      assertTrue(xml.contains("tooltipVisible=\"false\""), xml);
+      assertTrue(xml.contains("<![CDATA[design"), xml);
+      assertFalse(xml.contains("<![CDATA[script"), xml);
+   }
+
+   @Test
+   void chartTooltipVisibleAndCustomTooltipAreReverted() {
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      inetsoft.uql.viewsheet.graph.VSChartInfo cinfo = new inetsoft.uql.viewsheet.graph.VSChartInfo();
+      info.setVSChartInfo(cinfo);
+      cinfo.setTooltipVisibleValue(true);
+      cinfo.setTooltipVisible(false);
+      cinfo.setToolTip("script");
+      assertFalse(cinfo.isTooltipVisible());
+      assertEquals("script", cinfo.getToolTip());
+      info.resetRuntimeValues();
+      assertTrue(cinfo.isTooltipVisible());
+      assertNull(cinfo.getToolTip());
+      assertEquals("", cinfo.getCustomTooltip());
+   }
+
+   @Test
+   void chartDesignTooltipSurvivesScriptWriteAndReset() {
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      inetsoft.uql.viewsheet.graph.VSChartInfo cinfo = new inetsoft.uql.viewsheet.graph.VSChartInfo();
+      info.setVSChartInfo(cinfo);
+      cinfo.setToolTipValue("design");
+      cinfo.setToolTip("script");
+      info.resetRuntimeValues();
+      assertEquals("design", cinfo.getToolTipValue());
+      assertEquals("design", cinfo.getCustomTooltip());
+   }
 }

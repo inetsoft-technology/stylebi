@@ -2425,7 +2425,8 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
          return false;
       }
 
-      return tooltipVisible == chartInfo.tooltipVisible;
+      return tooltipVisible == chartInfo.tooltipVisible &&
+         Objects.equals(rtooltipVisible, chartInfo.rtooltipVisible);
    }
 
    /**
@@ -3580,12 +3581,37 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
 
    @Override
    public boolean isTooltipVisible() {
+      return rtooltipVisible != null ? rtooltipVisible : tooltipVisible;
+   }
+
+   /**
+    * Set the runtime tooltip visibility (e.g. from script). Cleared by
+    * {@link #clearRuntimeTooltipVisible()}.
+    */
+   @Override
+   public void setTooltipVisible(boolean tooltipVisible) {
+      this.rtooltipVisible = tooltipVisible;
+   }
+
+   /**
+    * Get the design tooltip visibility.
+    */
+   public boolean getTooltipVisibleValue() {
       return tooltipVisible;
    }
 
-   @Override
-   public void setTooltipVisible(boolean tooltipVisible) {
+   /**
+    * Set the design tooltip visibility.
+    */
+   public void setTooltipVisibleValue(boolean tooltipVisible) {
       this.tooltipVisible = tooltipVisible;
+   }
+
+   /**
+    * Discard the runtime tooltip visibility and fall back to the design value.
+    */
+   public void clearRuntimeTooltipVisible() {
+      this.rtooltipVisible = null;
    }
 
    /**
@@ -3870,6 +3896,7 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    private transient ChartDescriptor chartDescriptor;
    private String customTooltip;
    private boolean tooltipVisible = true;
+   private Boolean rtooltipVisible; // runtime (script) override, not serialized
    private HighlightGroup highlightGroup;
    private HighlightGroup textHL;
 

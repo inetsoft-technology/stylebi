@@ -144,8 +144,8 @@ public class TextPropertyDialogService {
       textPaneModel.setAutoSize(textAssemblyInfo.getAutoSizeValue());
       textPaneModel.setUrl(textAssemblyInfo.getUrlValue());
 
-      tipPaneModel.setTipOption(textAssemblyInfo.isTooltipVisible());
-      String customTip = textAssemblyInfo.getCustomTooltipString();
+      tipPaneModel.setTipOption(textAssemblyInfo.getTooltipVisibleValue());
+      String customTip = textAssemblyInfo.getCustomTooltipStringValue();
 
       if(customTip != null && !customTip.isEmpty()) {
          tipCustomizeDialogModel.setCustomRB(TipCustomizeDialogModel.TipFormat.CUSTOM);
@@ -240,15 +240,15 @@ public class TextPropertyDialogService {
       textAssemblyInfo.setAutoSizeValue(textPaneModel.isAutoSize());
       textAssemblyInfo.setUrlValue(textPaneModel.isUrl());
 
-      textAssemblyInfo.setTooltipVisible(tipPaneModel.isTipOption());
+      textAssemblyInfo.setTooltipVisibleValue(tipPaneModel.isTipOption());
 
       if(tipCustomizeDialogModel.getCustomRB() == TipCustomizeDialogModel.TipFormat.CUSTOM) {
          String customTip = tipCustomizeDialogModel.getCustomTip();
          customTip = (customTip == null || customTip.isEmpty()) ? null : customTip;
-         textAssemblyInfo.setCustomTooltipString(customTip);
+         textAssemblyInfo.setCustomTooltipStringValue(customTip);
       }
       else {
-         textAssemblyInfo.setCustomTooltipString(null);
+         textAssemblyInfo.setCustomTooltipStringValue(null);
       }
 
       textAssemblyInfo.getPadding().top = padding.getTop();

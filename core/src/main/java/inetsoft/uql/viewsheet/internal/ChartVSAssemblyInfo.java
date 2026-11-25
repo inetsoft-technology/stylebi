@@ -2481,6 +2481,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       }
 
       cinfo.setToolTip(null);
+      cinfo.clearRuntimeTooltipVisible();
       cinfo.clearCombinedTooltipValue();
       cinfo.setRTAxisDescriptor(null);
       cinfo.setRTAxisDescriptor2(null);

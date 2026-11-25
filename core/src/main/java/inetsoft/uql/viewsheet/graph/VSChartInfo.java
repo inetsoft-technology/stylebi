@@ -1484,7 +1484,7 @@ public class VSChartInfo extends AbstractChartInfo implements ContentObject, Dat
     */
    @Override
    public void setToolTip(String toolTip) {
-      super.setToolTip(toolTip);
+      // runtime only: customTooltip mirrors the design value (setToolTipValue)
       toolTipValue.setRValue(toolTip);
    }
 

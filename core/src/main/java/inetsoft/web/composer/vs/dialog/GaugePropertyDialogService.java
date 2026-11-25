@@ -131,8 +131,8 @@ public class GaugePropertyDialogService {
       sizePositionPaneModel.setPositions(pos, size);
       sizePositionPaneModel.setContainer(gaugeAssembly.getContainer() != null);
 
-      tipPaneModel.setTipOption(gaugeAssemblyInfo.isTooltipVisible());
-      String customTip = gaugeAssemblyInfo.getCustomTooltipString();
+      tipPaneModel.setTipOption(gaugeAssemblyInfo.getTooltipVisibleValue());
+      String customTip = gaugeAssemblyInfo.getCustomTooltipStringValue();
 
       if(customTip != null && !customTip.isEmpty()) {
          tipCustomizeDialogModel.setCustomRB(TipCustomizeDialogModel.TipFormat.CUSTOM);
@@ -261,15 +261,15 @@ public class GaugePropertyDialogService {
                                               paddingPaneModel.getBottom(),
                                               paddingPaneModel.getRight()));
 
-      gaugeAssemblyInfo.setTooltipVisible(tipPaneModel.isTipOption());
+      gaugeAssemblyInfo.setTooltipVisibleValue(tipPaneModel.isTipOption());
 
       if(tipCustomizeDialogModel.getCustomRB() == TipCustomizeDialogModel.TipFormat.CUSTOM) {
          String customTip = tipCustomizeDialogModel.getCustomTip();
          customTip = (customTip == null || customTip.isEmpty()) ? null : customTip;
-         gaugeAssemblyInfo.setCustomTooltipString(customTip);
+         gaugeAssemblyInfo.setCustomTooltipStringValue(customTip);
       }
       else {
-         gaugeAssemblyInfo.setCustomTooltipString(null);
+         gaugeAssemblyInfo.setCustomTooltipStringValue(null);
       }
 
       dialogService.setAssemblySize(gaugeAssemblyInfo, sizePositionPaneModel);

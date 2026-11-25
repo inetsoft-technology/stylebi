@@ -418,7 +418,7 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
       String tooltipVisible = Tool.getAttribute(elem, "tooltipVisible");
 
       if(!Tool.isEmptyString(tooltipVisible)) {
-         setTooltipVisible("true".equals(tooltipVisible));
+         setTooltipVisibleValue("true".equals(tooltipVisible));
       }
    }
 
@@ -449,7 +449,7 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
                       StyleFont.toString(highlightFont) + "\"");
       }
 
-      writer.print(" tooltipVisible=\"" + isTooltipVisible() + "\"");
+      writer.print(" tooltipVisible=\"" + getTooltipVisibleValue() + "\"");
    }
 
    /**
@@ -529,7 +529,7 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
 
       if(customTooltipString != null) {
          writer.print("<customTooltipStr>");
-         writer.print("<![CDATA[" + Tool.cdataText(getCustomTooltipString()) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(getCustomTooltipStringValue()) + "]]>");
          writer.println("</customTooltipStr>");
       }
    }
@@ -588,7 +588,7 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
       anode = Tool.getChildNodeByTagName(elem, "customTooltipStr");
 
       if(Tool.getValue(anode) != null) {
-         setCustomTooltipString(Tool.getValue(anode));
+         setCustomTooltipStringValue(Tool.getValue(anode));
       }
    }
 
@@ -600,6 +600,10 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
       super.resetRuntimeValues();
 
       shadow.setRValue(null);
+      // tooltip values set by script are runtime only, restore the design values
+      rtooltipVisible = null;
+      rcustomTooltipSet = false;
+      rcustomTooltipString = null;
    }
 
    /**
@@ -684,13 +688,21 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
          result = true;
       }
 
-      if(!Tool.equals(tooltipVisible, oinfo.tooltipVisible)) {
+      if(!Tool.equals(tooltipVisible, oinfo.tooltipVisible) ||
+         !Tool.equals(rtooltipVisible, oinfo.rtooltipVisible))
+      {
          tooltipVisible = oinfo.tooltipVisible;
+         rtooltipVisible = oinfo.rtooltipVisible;
          result = true;
       }
 
-      if(!Tool.equals(customTooltipString, oinfo.customTooltipString)) {
+      if(!Tool.equals(customTooltipString, oinfo.customTooltipString) ||
+         rcustomTooltipSet != oinfo.rcustomTooltipSet ||
+         !Tool.equals(rcustomTooltipString, oinfo.rcustomTooltipString))
+      {
          customTooltipString = oinfo.customTooltipString;
+         rcustomTooltipSet = oinfo.rcustomTooltipSet;
+         rcustomTooltipString = oinfo.rcustomTooltipString;
          result = true;
       }
 
@@ -821,19 +833,60 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
       return preconds;
    }
 
+   /**
+    * Get the runtime tooltip visibility (script value if set, else design value).
+    */
    public boolean isTooltipVisible() {
+      return rtooltipVisible != null ? rtooltipVisible : tooltipVisible;
+   }
+
+   /**
+    * Set the runtime tooltip visibility. Cleared by resetRuntimeValues().
+    */
+   public void setTooltipVisible(boolean tooltipVisible) {
+      this.rtooltipVisible = tooltipVisible;
+   }
+
+   /**
+    * Get the design tooltip visibility.
+    */
+   public boolean getTooltipVisibleValue() {
       return tooltipVisible;
    }
 
-   public void setTooltipVisible(boolean tooltipVisible) {
+   /**
+    * Set the design tooltip visibility.
+    */
+   public void setTooltipVisibleValue(boolean tooltipVisible) {
       this.tooltipVisible = tooltipVisible;
    }
 
+   /**
+    * Get the runtime custom tooltip (script value if set, else design value).
+    */
    public String getCustomTooltipString() {
+      return rcustomTooltipSet ? rcustomTooltipString : customTooltipString;
+   }
+
+   /**
+    * Set the runtime custom tooltip. Cleared by resetRuntimeValues().
+    */
+   public void setCustomTooltipString(String customTooltipString) {
+      this.rcustomTooltipString = customTooltipString;
+      this.rcustomTooltipSet = true;
+   }
+
+   /**
+    * Get the design custom tooltip.
+    */
+   public String getCustomTooltipStringValue() {
       return customTooltipString;
    }
 
-   public void setCustomTooltipString(String customTooltipString) {
+   /**
+    * Set the design custom tooltip.
+    */
+   public void setCustomTooltipStringValue(String customTooltipString) {
       this.customTooltipString = customTooltipString;
    }
 
@@ -912,6 +965,10 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
    private List<String> annotations;
    private boolean tooltipVisible = true;
    private String customTooltipString;
+   // runtime overrides (script), not serialized
+   private Boolean rtooltipVisible;
+   private String rcustomTooltipString;
+   private boolean rcustomTooltipSet;
 
    private static final Logger LOG = LoggerFactory.getLogger(OutputVSAssemblyInfo.class);
 }

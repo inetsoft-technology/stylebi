@@ -202,7 +202,7 @@ public class ChartPropertyDialogService {
 
       String customString = vsChartInfo.getToolTipValue();
 
-      if(vsChartInfo.isTooltipVisible()) {
+      if(vsChartInfo.getTooltipVisibleValue()) {
          tipCustomizeDialogModel.setCustomRB(customString != null && !customString.isEmpty()
                                                 ? TipCustomizeDialogModel.TipFormat.CUSTOM
                                                 : TipCustomizeDialogModel.TipFormat.DEFAULT);
@@ -417,10 +417,10 @@ public class ChartPropertyDialogService {
       assemblyInfo.setFlyoverViewsValue(flyovers);
       assemblyInfo.setFlyOnClickValue(tipPaneModel.isFlyOnClick() + "");
       assemblyInfo.setTipOnClickValue(tipPaneModel.isTipOnClick() + "");
-      vsChartInfo.setTooltipVisible(true);
+      vsChartInfo.setTooltipVisibleValue(true);
 
       if(tipModel.getCustomRB() == TipCustomizeDialogModel.TipFormat.NONE) {
-         vsChartInfo.setTooltipVisible(false);
+         vsChartInfo.setTooltipVisibleValue(false);
       }
       else if(tipModel.getCustomRB() == TipCustomizeDialogModel.TipFormat.CUSTOM) {
          String customTip = tipModel.getCustomTip();
