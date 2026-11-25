@@ -745,7 +745,8 @@ public class AssemblyHighlightService {
    /**
     * Refuses a highlight that would be stored and render nothing on this target, which reads as a
     * condition that never matched. What renders depends on the assembly: a Table, Crosstab,
-    * CalcTable or Text paints a colour or a font; an Image only tints with the foreground; on a
+    * CalcTable or Text paints a colour or a font; an Image paints a foreground tint or a
+    * background, but not a font; on a
     * Chart the axis and data-label text regions paint a colour or a font, while a mark is a
     * colour frame and has nowhere to put a font.
     */
@@ -764,8 +765,9 @@ public class AssemblyHighlightService {
 
       if(assembly instanceof ImageVSAssembly) {
          throw new IllegalArgumentException(
-            "Highlight '" + highlight.name() + "' sets no foreground. An Image highlight only " +
-            "tints the image with its foreground; a font or a background paints nothing on it.");
+            "Highlight '" + highlight.name() + "' sets no foreground or background. An Image " +
+            "highlight paints only a foreground tint or a background; a font alone paints " +
+            "nothing on it.");
       }
 
       if(assembly instanceof ChartVSAssembly) {
