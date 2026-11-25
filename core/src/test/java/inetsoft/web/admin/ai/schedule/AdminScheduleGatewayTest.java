@@ -553,6 +553,126 @@ class AdminScheduleGatewayTest {
       }
    }
 
+   /** Stored task whose first action zips its email attachment under a password. */
+   private inetsoft.sree.schedule.ScheduleTask readBackZippedTask(boolean useCredential)
+      throws Exception
+   {
+      ViewsheetAction zipped = sheetAction("a@x.com");
+      zipped.setEmailZip(true);
+      inetsoft.sree.schedule.ScheduleTask stored =
+         readBackTaskWith(List.of(zipped, sheetAction("d@x.com")));
+      inetsoft.sree.schedule.ViewsheetAction first =
+         (inetsoft.sree.schedule.ViewsheetAction) stored.getAction(0);
+      first.setPassword("zip-secret");
+      first.setUseCredential(useCredential);
+      first.setSecretId(useCredential ? "secret-1" : null);
+      return stored;
+   }
+
+   private inetsoft.sree.schedule.ViewsheetAction replaceActions(
+      inetsoft.sree.schedule.ScheduleTask stored, ViewsheetAction... actions) throws Exception
+   {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setActions(List.of(actions));
+      return (inetsoft.sree.schedule.ViewsheetAction)
+         gateway.buildUpdatedTask(stored.getTaskId(), patch, null, user).getAction(0);
+   }
+
+   @Test
+   void buildUpdatedTask_replacingActionsKeepsTheStoredEmailZipPassword() throws Exception {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackZippedTask(false);
+         ViewsheetAction replacement = sheetAction("b@x.com");
+         replacement.setEmailZip(true);
+         inetsoft.sree.schedule.ViewsheetAction rebuilt = replaceActions(stored, replacement);
+
+         assertTrue(rebuilt.isCompressFile());
+         assertEquals("zip-secret", rebuilt.getPassword());
+         assertFalse(rebuilt.isUseCredential());
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_replacingActionsKeepsTheStoredEmailZipCredential() throws Exception {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackZippedTask(true);
+         ViewsheetAction replacement = sheetAction("b@x.com");
+         replacement.setEmailZip(true);
+         inetsoft.sree.schedule.ViewsheetAction rebuilt = replaceActions(stored, replacement);
+
+         assertTrue(rebuilt.isUseCredential());
+         assertEquals("secret-1", rebuilt.getSecretId());
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_theEmailZipPasswordFollowsTheActionNotTheDashboard() throws Exception {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackZippedTask(false);
+         ViewsheetAction replacement = sheetAction("b@x.com");
+         replacement.setViewsheet("1^128^__NULL__^Examples/Other^host-org");
+         replacement.setEmailZip(true);
+
+         assertEquals("zip-secret", replaceActions(stored, replacement).getPassword());
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_dropsTheEmailZipPasswordWhenTheZipIsTurnedOffOrOmitted() throws Exception {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackZippedTask(false);
+         ViewsheetAction off = sheetAction("b@x.com");
+         off.setEmailZip(false);
+         assertFalse(replaceActions(stored, off).isCompressFile());
+         assertNull(replaceActions(stored, off).getPassword());
+         assertNull(replaceActions(stored, sheetAction("b@x.com")).getPassword());
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_theEmailZipPasswordIsMatchedByActionPosition() throws Exception {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackZippedTask(false);
+         ViewsheetAction first = sheetAction("b@x.com");
+         ViewsheetAction second = sheetAction("c@x.com");
+         first.setEmailZip(true);
+         second.setEmailZip(true);
+         ScheduleTaskPatch patch = new ScheduleTaskPatch();
+         patch.setActions(List.of(first, second));
+         inetsoft.sree.schedule.ScheduleTask candidate =
+            gateway.buildUpdatedTask(stored.getTaskId(), patch, null, user);
+
+         assertEquals("zip-secret", ((inetsoft.sree.schedule.ViewsheetAction) candidate.getAction(0))
+            .getPassword());
+         assertNull(((inetsoft.sree.schedule.ViewsheetAction) candidate.getAction(1)).getPassword());
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_anActionOfAnotherClassAtTheSamePositionInheritsNothing() throws Exception {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackZippedTask(false);
+         ScheduleTaskPatch patch = new ScheduleTaskPatch();
+         patch.setActions(List.of(new IndividualAssetBackupAction()));
+         inetsoft.sree.schedule.ScheduleTask candidate =
+            gateway.buildUpdatedTask(stored.getTaskId(), patch, null, user);
+
+         assertFalse(candidate.getAction(0) instanceof inetsoft.sree.schedule.ViewsheetAction);
+      }
+   }
+
    @Test
    void buildUpdatedTask_replacedViewsheetActionsProjectAsTheyAreReadBack() throws Exception {
       ScheduleTaskPatch patch = new ScheduleTaskPatch();
