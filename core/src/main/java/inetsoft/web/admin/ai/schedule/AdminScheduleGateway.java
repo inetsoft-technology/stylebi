@@ -423,6 +423,8 @@ public class AdminScheduleGateway {
                   keepPassword(vs.getFilePathInfo(format), oldVs.getFilePathInfo(format));
                }
             }
+
+            keepEmailZipPassword(vs, oldVs);
          }
          else if(requested.get(i) instanceof IndividualAssetBackupAction dto &&
                  dto.getPathInfo() != null && !dto.getPathInfo().isUseCredential() &&
@@ -432,6 +434,25 @@ public class AdminScheduleGateway {
          {
             keepPassword(backup.getServerPath(), oldBackup.getServerPath());
          }
+      }
+   }
+
+   /**
+    * The patch model has no field for the password that encrypts the zip attached to an email
+    * delivery, so a rebuilt action would deliver an unencrypted zip. The stored password, its
+    * credential flag and its secret are kept when the rebuilt action still zips the attachment.
+    * The password protects the delivered zip, not the dashboard, so it is kept whichever
+    * dashboard the action points at, as the public schedule API does.
+    */
+   private static void keepEmailZipPassword(inetsoft.sree.schedule.ViewsheetAction built,
+                                            inetsoft.sree.schedule.ViewsheetAction old)
+   {
+      if(built.isCompressFile() &&
+         (!Tool.isEmptyString(old.getPassword()) || !Tool.isEmptyString(old.getSecretId())))
+      {
+         built.setUseCredential(old.isUseCredential());
+         built.setSecretId(old.getSecretId());
+         built.setPassword(old.getPassword());
       }
    }
 
