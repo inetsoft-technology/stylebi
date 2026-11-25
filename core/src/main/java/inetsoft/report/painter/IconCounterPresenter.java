@@ -91,8 +91,27 @@ public class IconCounterPresenter implements Presenter {
     */
    @Override
    public void paint(Graphics g, Object v, int x, int y, int w, int h) {
+      if(!(v instanceof Number)) {
+         return;
+      }
+
+      double n = ((Number) v).doubleValue();
+
+      // there is no star for a negative value or a number that is not one: show its text, when
+      // the table lens gave it, so the cell does not look empty
+      if((n < 0 || Double.isNaN(n)) && valueText != null) {
+         Shape clip = g.getClip();
+         Color oc = g.getColor();
+
+         g.clipRect(x, y, w, h);
+         paintValueText(g, oc, x, y, w, h);
+         g.setColor(oc);
+         g.setClip(clip);
+         return;
+      }
+
       if(isModernStyle()) {
-         paintModern(g, v, x, y, w, h);
+         paintModern(g, n, x, y, w, h);
          return;
       }
 
@@ -104,24 +123,139 @@ public class IconCounterPresenter implements Presenter {
          img = ((MetaImage) img).getImage();
       }
 
-      if(img != null && v instanceof Number) {
-         Shape clip = g.getClip();
-
-         double n = ((Number) v).doubleValue();
+      if(img != null) {
+         Image image = img;
          int iw = icon.getWidth(null), ih = icon.getHeight(null);
+         int top = y + (h - ih) / 2;
 
-         g.clipRect(x, y, (int) (n * (iw + 2) + 2), h);
+         paintStars(g, n, x, y, w, h, iw, g.getColor(), (sg, sx, muted) -> {
+            if(muted && sg instanceof Graphics2D) {
+               ((Graphics2D) sg).setComposite(
+                  AlphaComposite.getInstance(AlphaComposite.SRC_OVER, MUTED_ALPHA));
+            }
 
-         int cnt = (int) Math.min(w / iw + 1, Math.ceil(n));
-         x += 2;
-         y += (h - ih) / 2;
+            sg.drawImage(image, sx, top, null);
+         });
+      }
+   }
 
-         for(int i = 0; i < cnt; i++, x += iw + 2) {
-            g.drawImage(img, x, y, null);
+   /**
+    * Lay out the row of stars, so that every drawer draws the same row. A star is drawn only when
+    * it fits in the cell whole, so the row never ends in a star cut off by the cell edge. A value
+    * that needs more stars than fit draws a plus after the last whole star, so a row that is full
+    * does not look like a value that just fills it. Zero, a negative value and NaN draw one muted
+    * star, so they do not look like a missing value. A fraction draws part of its last star, at
+    * least MIN_PART of a star wide so a small one can still be seen.
+    * @param sw the width of one star.
+    * @param fg the color of the plus.
+    */
+   private static void paintStars(Graphics g, double n, int x, int y, int w, int h, int sw,
+                                  Color fg, StarDrawer drawer)
+   {
+      if(sw <= 0) {
+         return;
+      }
+
+      int step = sw + 2;
+      // the stars that fit whole, with 2px before each one
+      int fit = w / step;
+
+      if(fit <= 0) {
+         return;
+      }
+
+      if(n <= 0 || Double.isNaN(n)) {
+         drawStar(g, drawer, x + 2, y, sw, h, true);
+      }
+      else if(Math.ceil(n) > fit) {
+         // leave room for the plus, dropping a star if needed
+         int count = Math.max(0, (w - 2 - PLUS_SIZE) / step);
+
+         for(int i = 0; i < count; i++) {
+            drawStar(g, drawer, x + 2 + i * step, y, sw, h, false);
          }
 
-         g.setClip(clip);
+         paintPlus(g, fg, x + 2 + count * step, y, h);
       }
+      else {
+         int whole = (int) Math.floor(n);
+
+         for(int i = 0; i < whole; i++) {
+            drawStar(g, drawer, x + 2 + i * step, y, sw, h, false);
+         }
+
+         double part = n - whole;
+
+         if(part > 0) {
+            int visible = Math.min(sw, (int) Math.ceil(Math.max(part, MIN_PART) * sw));
+            drawStar(g, drawer, x + 2 + whole * step, y, visible, h, false);
+         }
+      }
+   }
+
+   // draw one star on its own graphics, clipped to the part of it that is shown
+   private static void drawStar(Graphics g, StarDrawer drawer, int sx, int y, int visible, int h,
+                                boolean muted)
+   {
+      Graphics sg = g.create();
+
+      try {
+         sg.clipRect(sx, y, visible, h);
+         drawer.draw(sg, sx, muted);
+      }
+      finally {
+         sg.dispose();
+      }
+   }
+
+   // a small plus after the last whole star of a row that has more stars than fit
+   private static void paintPlus(Graphics g, Color fg, int px, int y, int h) {
+      Color oc = g.getColor();
+      int cy = y + h / 2;
+
+      if(fg != null) {
+         g.setColor(fg);
+      }
+
+      g.fillRect(px, cy - 1, PLUS_SIZE, 2);
+      g.fillRect(px + PLUS_SIZE / 2 - 1, cy - PLUS_SIZE / 2, 2, PLUS_SIZE);
+      g.setColor(oc);
+   }
+
+   /**
+    * Draw the value's text at the right of the cell, in the cell's text colour but fainter, the
+    * same as the Bar presenter does.
+    */
+   private void paintValueText(Graphics g, Color fg, int x, int y, int w, int h) {
+      FontMetrics fm = g.getFontMetrics();
+      int tw = fm.stringWidth(valueText);
+
+      g.setColor(new Color(fg.getRed(), fg.getGreen(), fg.getBlue(), (int) (fg.getAlpha() * 0.65)));
+      g.drawString(valueText, Math.max(x + 2, x + w - tw - 2),
+                   y + (h - fm.getHeight()) / 2 + fm.getAscent());
+   }
+
+   /**
+    * Give a cell its own copy that shows the cell's text when its value is negative or NaN, which
+    * have no stars. Without it such a value draws one muted star. The text is the cell's formatted
+    * value, which only the table lens has. The presenter itself is never changed, since a script
+    * presenter is shared by all cells of a column.
+    * @param text the cell's formatted value.
+    */
+   public Presenter withValueText(String text) {
+      IconCounterPresenter copy = new IconCounterPresenter(icon);
+      copy.bg = bg;
+      copy.color = color;
+      copy.modernColor = modernColor;
+      copy.valueText = text;
+      return copy;
+   }
+
+   /**
+    * The text a negative value is drawn as, or null when the table lens has not given one.
+    */
+   public String valueText() {
+      return valueText;
    }
 
    /**
@@ -133,7 +267,7 @@ public class IconCounterPresenter implements Presenter {
    public Dimension getPreferredSize(Object v) {
       if(isModernStyle()) {
          if(v instanceof Number) {
-            int n = (int) Math.ceil(((Number) v).doubleValue());
+            int n = starCount(((Number) v).doubleValue());
             return new Dimension(n * (STAR_SIZE + 2) + 2, STAR_SIZE + 2);
          }
 
@@ -143,7 +277,7 @@ public class IconCounterPresenter implements Presenter {
       loadImages();
 
       if(icon != null && v != null && v instanceof Number) {
-         int n = (int) Math.ceil(((Number) v).doubleValue());
+         int n = starCount(((Number) v).doubleValue());
          int iconw = icon.getWidth(null);
          int iconh = icon.getHeight(null);
 
@@ -153,6 +287,11 @@ public class IconCounterPresenter implements Presenter {
       }
 
       return new Dimension(0, 0);
+   }
+
+   // the stars a value takes: zero, a negative value and NaN still take the one muted star
+   private static int starCount(double n) {
+      return n > 0 ? (int) Math.ceil(n) : 1;
    }
 
    /**
@@ -176,31 +315,34 @@ public class IconCounterPresenter implements Presenter {
       return modernColor != null && color == null && icon == null;
    }
 
-   private void paintModern(Graphics g, Object v, int x, int y, int w, int h) {
-      if(!(v instanceof Number)) {
-         return;
-      }
+   private void paintModern(Graphics g, double n, int x, int y, int w, int h) {
+      double cy = y + (h - STAR_SIZE) / 2.0 + STAR_SIZE / 2.0 + 0.4;
+      Color muted = new Color(modernColor.getRed(), modernColor.getGreen(), modernColor.getBlue(),
+                              Math.round(modernColor.getAlpha() * MUTED_OUTLINE_ALPHA));
 
-      double n = ((Number) v).doubleValue();
-      int count = (int) Math.min(w / STAR_SIZE + 1, Math.ceil(n));
-      Shape clip = g.getClip();
-      Graphics2D g2 = (Graphics2D) g;
-      Object aa = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+      paintStars(g, n, x, y, w, h, STAR_SIZE, modernColor, (sg, sx, isMuted) -> {
+         Graphics2D g2 = (Graphics2D) sg;
+         Shape shape = star(sx + STAR_SIZE / 2.0, cy);
 
-      g2.clipRect(x, y, (int) (n * (STAR_SIZE + 2) + 2), h);
-      g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-      g2.setColor(modernColor);
-      double top = y + (h - STAR_SIZE) / 2.0;
+         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-      for(int i = 0; i < count; i++) {
-         g2.fill(star(x + 2 + i * (STAR_SIZE + 2) + STAR_SIZE / 2.0, top + STAR_SIZE / 2.0 + 0.4));
-      }
+         // a muted star is an outline, so zero reads as a value but not as one star
+         if(isMuted) {
+            g2.setColor(muted);
+            g2.setStroke(new BasicStroke(1f));
+            g2.draw(shape);
+         }
+         else {
+            g2.setColor(modernColor);
+            g2.fill(shape);
+         }
+      });
+   }
 
-      if(aa != null) {
-         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa);
-      }
-
-      g2.setClip(clip);
+   // draws one star with its left edge at sx on a graphics of its own
+   @FunctionalInterface
+   private interface StarDrawer {
+      void draw(Graphics g, int sx, boolean muted);
    }
 
    // a five pointed star with a point straight up
@@ -341,9 +483,20 @@ public class IconCounterPresenter implements Presenter {
    private Color color = null;
    private Color modernColor = null;
    private transient Image icon = null;
+   // the cell's formatted value, set by the table lens on a copy for a negative value; not a bean
+   // property, so it is never saved
+   private transient String valueText;
 
    // the width and height of a star, px; the same as the built-in image
    private static final int STAR_SIZE = 12;
+   // the width and height of the plus after a row that has more stars than fit, px
+   private static final int PLUS_SIZE = 8;
+   // the smallest part of a star a fraction draws, so a small fraction is not a sliver
+   private static final double MIN_PART = 0.4;
+   // the opacity of the muted image star drawn for zero, negative and NaN
+   private static final float MUTED_ALPHA = 0.3f;
+   // the opacity of the muted modern star's outline
+   private static final float MUTED_OUTLINE_ALPHA = 0.6f;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(IconCounterPresenter.class);
