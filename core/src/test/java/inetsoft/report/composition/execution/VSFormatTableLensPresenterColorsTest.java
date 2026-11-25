@@ -387,6 +387,26 @@ class VSFormatTableLensPresenterColorsTest {
    }
 
    @Test
+   void theDarkTrafficLightColorsAreTheLightOnesLiftedTowardWhite() {
+      Color[] light = VSObjectChromeDefaults.trafficLightColors(VizContext.of(VizMark.MODERN_LIGHT));
+      Color[] dark = VSObjectChromeDefaults.trafficLightColors(VizContext.of(VizMark.MODERN_DARK));
+
+      assertEquals(3, dark.length);
+
+      for(int i = 0; i < 3; i++) {
+         assertNotEquals(light[i], dark[i]);
+         assertTrue(dark[i].getRed() >= light[i].getRed(), "red " + i);
+         assertTrue(dark[i].getGreen() >= light[i].getGreen(), "green " + i);
+         assertTrue(dark[i].getBlue() >= light[i].getBlue(), "blue " + i);
+      }
+
+      // still green, amber and red in the dark: the dominant channel is unchanged
+      assertTrue(dark[0].getGreen() > dark[0].getRed() && dark[0].getGreen() > dark[0].getBlue());
+      assertTrue(dark[1].getRed() > dark[1].getBlue() && dark[1].getGreen() > dark[1].getBlue());
+      assertTrue(dark[2].getRed() > dark[2].getGreen() && dark[2].getRed() > dark[2].getBlue());
+   }
+
+   @Test
    void theTrafficLightHousingIsVisibleOnTheCardInBothThemes() {
       for(VizMark mark : new VizMark[] { VizMark.MODERN_LIGHT, VizMark.MODERN_DARK }) {
          VizContext ctx = VizContext.of(mark);

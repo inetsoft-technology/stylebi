@@ -195,6 +195,7 @@
                       outOfZone (onDragover)="dragOverTable($event, j)"
                       (drop)="dropOnTable($event)"
                       [draggable]="isDraggable(true)" (dragstart)="dragStart($event, j)"
+                      [style.--sort-bg]="_cell.vsFormatModel.background"
                       [sortSpace]="getSortSpace(tableCellDisplayWidth(j), isHeaderSortEnabled() && !vsWizard, isHeaderSortVisible(_cell))">
                       <ng-container ngProjectAs="[sortButton]">
                         @if (isHeaderSortEnabled() && !vsWizard) {

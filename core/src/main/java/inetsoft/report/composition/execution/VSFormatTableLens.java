@@ -212,10 +212,11 @@ public final class VSFormatTableLens extends FormatTableLens {
             bar.setColor(defaultBarColor());
          }
 
-         // the presenter's own default is a real color, not null, so a negative color still equal
-         // to it is taken as not chosen
+         // no negative color is not chosen. One equal to the classic default is not chosen either:
+         // the dialog used to save that default as the author's choice
          if(defaultNegativeBarColor() != null &&
-            Bar2Presenter.DEFAULT_NEGATIVE_COLOR.equals(bar.getNegativeColor()))
+            (bar.getNegativeColor() == null ||
+             Bar2Presenter.DEFAULT_NEGATIVE_COLOR.equals(bar.getNegativeColor())))
          {
             bar.setNegativeColor(defaultNegativeBarColor());
          }

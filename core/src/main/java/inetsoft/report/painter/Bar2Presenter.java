@@ -72,14 +72,16 @@ public class Bar2Presenter implements AutoMaximumPresenter {
    }
 
    /**
-    * Get the color of the negative bar.
+    * Get the color of the negative bar the author set, or null when none was set, in which case the
+    * bar is drawn in {@link #DEFAULT_NEGATIVE_COLOR}, or in the modern style's own down color on a
+    * modern table.
     */
    public Color getNegativeColor() {
       return neg;
    }
 
    /**
-    * Set the color of the negative bar.
+    * Set the color of the negative bar. Null goes back to the default.
     */
    public void setNegativeColor(Color color) {
       this.neg = color;
@@ -190,7 +192,7 @@ public class Bar2Presenter implements AutoMaximumPresenter {
          if(n < 0) {
             int width = (int) Math.ceil(-n * w / (2 * max));
 
-            g.setColor(neg);
+            g.setColor(neg != null ? neg : DEFAULT_NEGATIVE_COLOR);
             g.fillRect(x - width, y + 2, width, h - 4);
          }
          else {
@@ -366,11 +368,13 @@ public class Bar2Presenter implements AutoMaximumPresenter {
    }
 
    /**
-    * The negative color a new presenter starts with.
+    * The color a negative bar is drawn in when none is set. It is not stored in the presenter, so
+    * the presenter dialog shows the field empty, like the positive color, and a modern table can
+    * draw its own down color instead.
     */
    public static final Color DEFAULT_NEGATIVE_COLOR = new Color(128, 0, 0);
 
-   private Color color = null, neg = DEFAULT_NEGATIVE_COLOR;
+   private Color color = null, neg = null;
    private double max = 100;
    private Dimension psize = new Dimension(80, 12);
    private Color bg = null;
