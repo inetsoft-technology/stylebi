@@ -26,6 +26,9 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.service.XEngine;
 import inetsoft.uql.xmla.*;
 import inetsoft.util.IndexedStorage;
+import inetsoft.web.portal.data.DataSourceXmlaDefinition;
+import inetsoft.web.portal.service.datasource.DataSourceStatusService;
+import inetsoft.web.portal.service.datasource.XmlaDatasourceService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
@@ -57,6 +60,12 @@ import static org.mockito.Mockito.*;
  * <p>
  * The registry, the repository and the stored domains are the real ones. The permissions are
  * kept in a map behind a mocked security engine and provider.
+ * <p>
+ * Bug #82266: deleting an XMLA data source X left its domain, the entry DOMAIN X at the path of
+ * the data source, and a data source created later at X showed the cubes of the deleted one. The
+ * domain is now removed with the data source. Axis: the registry delete, the portal and public
+ * API delete, a data source folder delete and the portal services (delete, create, view), with a
+ * data source "X2" that keeps its domain and a rename that still moves it.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class,
@@ -249,6 +258,115 @@ class DataSourceCubePermissionTest {
 
       assertFalse(containsDataSource("CbW"));
       assertEquals(cubeKeys("CbW"), grants("CbW"));
+   }
+
+   // Bug #82266, the registry delete removes the domain, a data source created later at the same
+   // path has no cubes
+   @Test
+   void registryDeleteRemovesDomain() throws Exception {
+      seed("DmA");
+      seed("DmA2");
+
+      registry.removeDataSource("DmA");
+
+      assertDomainRemovedAndRecreatedEmpty("DmA");
+      assertSeededDomain("DmA2");
+   }
+
+   // Bug #82266, the portal and public API delete
+   @Test
+   void repositoryDeleteRemovesDomain() throws Exception {
+      seed("DmB");
+      seed("DmB2");
+
+      assertTrue(repository.removeDataSource("DmB", true));
+
+      assertDomainRemovedAndRecreatedEmpty("DmB");
+      assertSeededDomain("DmB2");
+   }
+
+   // Bug #82266, a data source folder delete
+   @Test
+   void folderDeleteRemovesDomain() throws Exception {
+      addFolder("DmFd");
+      addFolder("DmFd2");
+      seed("DmFd/DmE");
+      seed("DmFd2/DmE");
+
+      assertTrue(repository.removeDataSourceFolder("DmFd"));
+
+      assertDomainRemovedAndRecreatedEmpty("DmFd/DmE");
+      assertSeededDomain("DmFd2/DmE");
+   }
+
+   // Bug #82266, the reporter's flow through the portal services: delete, New > XMLA at the same
+   // name without Retrieve Metadata, and open it
+   @Test
+   void portalDeleteAndCreateShowsNoCubes() throws Exception {
+      seed("DmP");
+      seed("DmP2");
+      XmlaDatasourceService service = new XmlaDatasourceService(
+         repository, SecurityEngine.getSecurity(), mock(DataSourceStatusService.class), registry,
+         inetsoft.uql.util.Config.getConfig(), mock(inetsoft.uql.asset.DependencyHandler.class),
+         mock(inetsoft.report.XSessionManager.class));
+      String org = Organization.getDefaultOrganizationID();
+      SRPrincipal principal = new SRPrincipal(new IdentityID("admin", org), new IdentityID[0],
+                                              new String[0], org, 1L);
+      DataSourceXmlaDefinition definition = service.getDataSourceModel("DmP", principal);
+      assertEquals(CUBES.size(), definition.getDomain().getCubes().size());
+
+      service.deleteDataSource("DmP", "DmP", true);
+      definition.setDomain(null);
+      service.createNewDataSource(definition, true, principal);
+      registry.clearCache();
+
+      DataSourceXmlaDefinition view = service.getDataSourceModel("DmP", principal);
+      assertTrue(view.getDomain() == null || view.getDomain().getCubes() == null ||
+                 view.getDomain().getCubes().isEmpty(), "stale cubes of the deleted DmP");
+      assertSeededDomain("DmP2");
+   }
+
+   // Bug #82266, a rename still moves the domain
+   @Test
+   void registryRenameMovesDomain() throws Exception {
+      seed("DmR");
+
+      registry.renameDatasource("DmR", "DmRx");
+      registry.clearCache();
+
+      assertFalse(registry.containObject(entry(AssetEntry.Type.DOMAIN, "DmR")));
+      assertSeededDomain("DmRx");
+   }
+
+   // the domain of the deleted data source p is no longer stored, and a data source created at p
+   // has no cubes
+   private void assertDomainRemovedAndRecreatedEmpty(String p) {
+      registry.clearCache();
+      assertFalse(containsDataSource(p));
+      assertFalse(registry.containObject(entry(AssetEntry.Type.DOMAIN, p)),
+                  "the domain of the deleted data source is left: " + p);
+
+      XMLADataSource dataSource = new XMLADataSource();
+      dataSource.setName(p);
+      dataSource.setURL("http://localhost/xmla");
+      registry.setDataSource(dataSource, false);
+      registry.clearCache();
+      XDomain domain = registry.getDomain(p);
+
+      for(String cube : CUBES) {
+         assertNull(domain == null ? null : domain.getCube(cube),
+                    "the re-created data source has the cube " + cube + " of the deleted one");
+      }
+   }
+
+   private void assertSeededDomain(String p) {
+      registry.clearCache();
+      XDomain domain = registry.getDomain(p);
+      assertNotNull(domain, "no domain: " + p);
+
+      for(String cube : CUBES) {
+         assertNotNull(domain.getCube(cube), "no cube " + cube + ": " + p);
+      }
    }
 
    // an XMLA data source p with the cubes of CUBES in its domain, and a grant of the data source

@@ -1300,6 +1300,11 @@ public class DataSourceRegistry implements MessageListener {
          removeObjects(children);
          removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
             AssetEntry.Type.DATA_MODEL, dxname, null));
+         // Bug #82266, the domain of an XMLA data source is at its own path, not under it, so a
+         // data source created later at the path got the cubes of this one. Its cubes are read
+         // above (getDataModelResources) for their grants.
+         removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
+            AssetEntry.Type.DOMAIN, dxname, null));
          removeConnectionTestQueries(dxname, additionalNames);
          removeDataSourcePermissions(resources);
          removeDataModelPermissions(modelResources);

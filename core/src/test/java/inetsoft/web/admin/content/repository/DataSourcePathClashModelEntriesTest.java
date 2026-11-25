@@ -1296,7 +1296,7 @@ class DataSourcePathClashModelEntriesTest {
       xmlaSource("exP");
       xmlaRename("exP", "exQ");
 
-      // (the old domain exP is also left behind, the same without the fix: not checked here)
+      // (the rename moves the domain exP to exQ, Bug #77843)
       List<String> after = state("exP", "exQ");
       assertTrue(after.containsAll(
          List.of("DATA_SOURCE exQ [exQ]", "DOMAIN exQ", "grant DATA_SOURCE|exQ")), "" + after);
