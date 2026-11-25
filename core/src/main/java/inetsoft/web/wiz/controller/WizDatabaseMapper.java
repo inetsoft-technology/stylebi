@@ -77,11 +77,23 @@ class WizDatabaseMapper {
     * round-trip. Shared by the base-source and additional-connection update paths.
     */
    static void carryOverUneditedSettings(DatabaseDefinition current, DatabaseDefinition updated) {
+      carryOverUneditedSettings(current, updated, null);
+   }
+
+   /**
+    * Base-source variant: a non-null {@code requestedUnasgn} is the caller's own choice for
+    * "Disable Default Connection" and is kept as sent; null keeps the stored value. The additional
+    * connection paths use the two-argument form, which always keeps the stored value, since the
+    * flag is a base-source setting.
+    */
+   static void carryOverUneditedSettings(DatabaseDefinition current, DatabaseDefinition updated,
+                                         Boolean requestedUnasgn)
+   {
       if(current == null || updated == null) {
          return;
       }
 
-      updated.setUnasgn(current.isUnasgn());
+      updated.setUnasgn(requestedUnasgn != null ? requestedUnasgn : current.isUnasgn());
       carryOverCredentialReference(current, updated);
       carryOverUneditedInfo(current, updated);
    }
@@ -143,7 +155,7 @@ class WizDatabaseMapper {
          wizAuthentication, toWizInfo(definition.getInfo()), definition.isAnsiJoin(),
          definition.getTransactionIsolation(), definition.getTableNameOption(),
          definition.getDefaultDatabase(), definition.isChangeDefaultDB(),
-         definition.isDeletable());
+         definition.isDeletable(), definition.isUnasgn());
    }
 
    private WizDatabaseInfo toWizInfo(DatabaseInfo info) {
@@ -190,7 +202,7 @@ class WizDatabaseMapper {
 
       return new WizDatabaseInfo(databaseName, sid, instanceName, serverName, databaseLocale,
                                  driverClass, jdbcUrl, testQuery, info.isCustomEditMode(),
-                                 info.getCustomUrl(), poolProperties);
+                                 info.getCustomUrl(), poolProperties, info.getProperties());
    }
 
    /**
@@ -267,6 +279,8 @@ class WizDatabaseMapper {
       if(wizInfo != null) {
          info.setCustomEditMode(wizInfo.customEditMode());
          info.setCustomUrl(wizInfo.customUrl());
+         // null stays null so the update path carries the stored value over; "" clears it.
+         info.setProperties(wizInfo.properties());
 
          if(info instanceof DatabaseNameInfo nameInfo) {
             nameInfo.setDatabaseName(wizInfo.databaseName());

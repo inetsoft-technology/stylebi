@@ -286,6 +286,91 @@ class WizDatabaseControllerSecurityTest {
    }
 
    @Test
+   void datasourceStatuses_withoutRefreshStaysStoredStateOnly() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE), eq("orders"),
+         eq(ResourceAction.READ)))
+         .thenReturn(true);
+      when(fixture.dataSourceStatusService.getDataSourceConnectionStatuses(any(), any()))
+         .thenReturn(List.of(
+            DataSourceStatus.builder().connected(true).message("connected").build()));
+
+      fixture.controller.getDatasourceStatuses(
+         new WizDatasourceStatusRequest(List.of("orders")), fixture.principal);
+
+      ArgumentCaptor<DataSourceConnectionStatusRequest> statusRequest =
+         ArgumentCaptor.forClass(DataSourceConnectionStatusRequest.class);
+      verify(fixture.dataSourceStatusService)
+         .getDataSourceConnectionStatuses(statusRequest.capture(), eq(fixture.principal));
+      assertFalse(statusRequest.getValue().updateStatus(),
+                  "browsing must never re-test the connection");
+   }
+
+   /** A refresh opens a connection and writes the data source, so it is a WRITE-gated action. */
+   @Test
+   void datasourceStatuses_refreshRetestsAndStoresWhenTheCallerMayWrite() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE), eq("orders"),
+         eq(ResourceAction.WRITE)))
+         .thenReturn(true);
+      when(fixture.dataSourceStatusService.getDataSourceConnectionStatuses(any(), any()))
+         .thenReturn(List.of(
+            DataSourceStatus.builder().connected(false).message("refused").build()));
+
+      List<WizDatasourceStatus> result = fixture.controller.getDatasourceStatuses(
+         new WizDatasourceStatusRequest(List.of("orders"), true), fixture.principal);
+
+      ArgumentCaptor<DataSourceConnectionStatusRequest> statusRequest =
+         ArgumentCaptor.forClass(DataSourceConnectionStatusRequest.class);
+      verify(fixture.dataSourceStatusService)
+         .getDataSourceConnectionStatuses(statusRequest.capture(), eq(fixture.principal));
+      assertTrue(statusRequest.getValue().updateStatus());
+      assertEquals(List.of("orders"), statusRequest.getValue().paths());
+      assertFalse(result.get(0).connected());
+      assertEquals("refused", result.get(0).message());
+   }
+
+   @Test
+   void datasourceStatuses_refreshIsDeniedUnlessEveryPathIsWritable() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE), eq("orders"),
+         eq(ResourceAction.WRITE)))
+         .thenReturn(true);
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE), eq("locked"),
+         eq(ResourceAction.WRITE)))
+         .thenReturn(false);
+      // READ alone must not be enough to trigger a re-test.
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE), eq("locked"),
+         eq(ResourceAction.READ)))
+         .thenReturn(true);
+
+      assertThrows(SecurityException.class, () -> fixture.controller.getDatasourceStatuses(
+         new WizDatasourceStatusRequest(List.of("orders", "locked"), true), fixture.principal));
+      verifyNoInteractions(fixture.dataSourceStatusService);
+   }
+
+   @Test
+   void datasourceStatuses_refreshIsCappedPerCall() throws Exception {
+      Fixture fixture = new Fixture();
+      List<String> tooMany = new ArrayList<>();
+
+      for(int i = 0; i <= WizDatabaseController.MAX_REFRESH_PATHS; i++) {
+         tooMany.add("ds" + i);
+      }
+
+      ResponseStatusException ex = assertThrows(
+         ResponseStatusException.class, () -> fixture.controller.getDatasourceStatuses(
+            new WizDatasourceStatusRequest(tooMany, true), fixture.principal));
+      assertEquals(400, ex.getStatusCode().value());
+      verifyNoInteractions(fixture.dataSourceStatusService);
+   }
+
+   @Test
    void createFolder_succeedsUnderAnExistingParent() throws Exception {
       Fixture fixture = new Fixture();
       when(fixture.securityEngine.checkPermission(
@@ -753,7 +838,7 @@ class WizDatabaseControllerSecurityTest {
    private static WizDatabaseDefinition mysqlDefinition() {
       return new WizDatabaseDefinition(
          "orders", null, MySQLDatabaseType.TYPE, new WizNetworkLocation("attacker.example", 3306),
-         new WizAuthentication(true, "victim", null), null, false, -1, 3, null, false, false);
+         new WizAuthentication(true, "victim", null), null, false, -1, 3, null, false, false, null);
    }
 
    /** The controller with every collaborator mocked. */

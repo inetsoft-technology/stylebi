@@ -51,6 +51,12 @@ package inetsoft.web.wiz.model;
  * @param changeDefaultDB      whether {@code defaultDatabase} is applied at all.
  * @param deletable            whether the caller may delete this connection. Read-only; ignored on
  *                             write.
+ * @param unasgn               the Portal's "Disable Default Connection": when set, a user with no
+ *                             explicit grant to an additional connection gets no data from the
+ *                             default one. A base-source setting; null on write keeps the stored
+ *                             value (a nullable wrapper, so an absent field can never reset a
+ *                             security switch to false), and it is ignored for an additional
+ *                             connection.
  */
 public record WizDatabaseDefinition(
    String name,
@@ -64,6 +70,7 @@ public record WizDatabaseDefinition(
    int tableNameOption,
    String defaultDatabase,
    boolean changeDefaultDB,
-   boolean deletable)
+   boolean deletable,
+   Boolean unasgn)
 {
 }

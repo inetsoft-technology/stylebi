@@ -229,7 +229,7 @@ class WizAdditionalConnectionControllerTest {
       WizDatabaseDefinition withCredential = new WizDatabaseDefinition(
          "warehouse", null, MySQLDatabaseType.TYPE, new WizNetworkLocation("h", 3306),
          new WizAuthentication(true, null, null, true, "cloud-secret-7"), null, false, -1, 3, null,
-         false, false);
+         false, false, null);
 
       f.controller.addAdditionalConnection(
          BASE, new WizAdditionalDefinitionRequest(withCredential), f.principal);
@@ -474,7 +474,7 @@ class WizAdditionalConnectionControllerTest {
    private static WizDatabaseDefinition wiz(String name) {
       return new WizDatabaseDefinition(
          name, null, MySQLDatabaseType.TYPE, new WizNetworkLocation("db.example", 3306),
-         new WizAuthentication(true, "svc", null), null, false, -1, 3, null, false, false);
+         new WizAuthentication(true, "svc", null), null, false, -1, 3, null, false, false, null);
    }
 
    private static DatabaseDefinition stored(String name) {

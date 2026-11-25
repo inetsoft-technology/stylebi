@@ -225,7 +225,7 @@ class WizDatabaseControllerSaveMessageTest {
       f.stored.getAuthentication().setCredentialId("stored-id");
       WizDatabaseDefinition withPassword = new WizDatabaseDefinition(
          "orders", null, MySQLDatabaseType.TYPE, new WizNetworkLocation("h", 3306),
-         new WizAuthentication(true, "svc", "new-password"), null, false, -1, 3, null, false, false);
+         new WizAuthentication(true, "svc", "new-password"), null, false, -1, 3, null, false, false, null);
 
       f.controller.updateDatabase("db/orders", withPassword, f.principal);
 
@@ -246,8 +246,8 @@ class WizDatabaseControllerSaveMessageTest {
          "pg", null, type, new WizNetworkLocation("db.example", 5432),
          new WizAuthentication(true, "u", "p"),
          new WizDatabaseInfo("d", null, null, null, null, null, jdbcUrl, null, customEditMode,
-                             customUrl, null),
-         false, -1, 3, null, false, false);
+                             customUrl, null, null),
+         false, -1, 3, null, false, false, null);
    }
 
    @Test
@@ -368,7 +368,7 @@ class WizDatabaseControllerSaveMessageTest {
 
       return new WizDatabaseDefinition(
          name, null, MySQLDatabaseType.TYPE, new WizNetworkLocation("db.example", 3306), auth, null,
-         false, -1, 3, null, false, false);
+         false, -1, 3, null, false, false, null);
    }
 
    private static final class Fixture {
