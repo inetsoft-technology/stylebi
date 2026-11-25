@@ -22,7 +22,6 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -166,9 +165,6 @@ class CrossTabFilterMaxRowsTest {
     */
    @ParameterizedTest(name = "groupRows={0} limit={1}")
    @MethodSource("limits")
-   @Disabled("Bug #82228 (follow-up of #81276, fixed on 13.8 only): with query.runtime.maxrow set, "
-      + "the group that the limit cuts is shown half included, its total is blank and the Grand "
-      + "Total row leaves it out; CrossTabFilter.insertPair throws in the middle of a base row")
    void totalsAgreeWithTheShownCellsWhenTheResultIsCut(boolean groupRows, int limit) {
       CrossTabFilter f = crosstab(groupRows, limit);
       int rowLevels = groupRows ? 2 : 1;
