@@ -1140,6 +1140,12 @@ describe("login session-expired notice in the dark shell (PR7b)", () => {
          "}");
    });
 
+   it("comes after the light rule, which it ties on specificity", () => {
+      const css = login();
+
+      expect(css.indexOf(`${DARK} {`)).toBeGreaterThan(css.indexOf(".login-left .alert-warning {"));
+   });
+
    it("is still the session-expired notice's class", () => {
       expect(html()).toMatch(/id="sessionExpiredMessage" class="alert alert-warning"/);
    });

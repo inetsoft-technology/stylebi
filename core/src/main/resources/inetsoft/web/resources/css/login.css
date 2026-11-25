@@ -697,7 +697,8 @@ div.loading-indicator.loading {
 /* The session-expired notice (the pages' only warning alert). The dark warning tint (#3A2E1A) reads
    as a muddy brown box, so the dark shell draws it as a neutral surface with the shell's text, a
    grey border and the warning colour as a left stripe and icon (IBM Carbon's dark notifications use
-   the same pattern). The light shell keeps its warning tint. */
+   the same pattern). The light shell keeps its warning tint. This rule ties .login-left
+   .alert-warning on specificity, so it must stay after it. */
 :where(.shell-dark) .login-left .alert-warning {
   position: relative;
   padding-left: 40px;
