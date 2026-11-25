@@ -31,6 +31,7 @@ import inetsoft.report.script.viewsheet.CompositeVSAScriptable;
 import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XUtil;
@@ -115,12 +116,15 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
       ColumnSelection columns2 = (ColumnSelection) columns.clone();
       columns.clear();
       SortInfo sinfo = new SortInfo();
+      List<DataRef> missing = new ArrayList<>();
 
       for(DataRef ref : refs) {
-         ColumnRef column = VSUtil.getVSColumnRef((ColumnRef) ref);
-         column = (ColumnRef) columns2.getAttribute(column.getName());
+         ColumnRef column = findBoundColumn(columns2, (ColumnRef) ref);
 
-         if(column != null) {
+         if(column == null) {
+            missing.add(ref);
+         }
+         else {
             column.setVisible(true);
             columns.addAttribute(column);
 
@@ -137,6 +141,13 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
          }
       }
 
+      // none of the bound columns is in the table (e.g. removed from the worksheet): don't
+      // run a query without a bound column, its result depends on the engine (82321)
+      if(refs.length > 0 && missing.size() == refs.length) {
+         LOG.warn("Column not found in table assembly \"{}\" of {}: {}", tname, vname, missing);
+         return null;
+      }
+
       for(int i = 0; i < columns2.getAttributeCount(); i++) {
          ColumnRef column = (ColumnRef) columns2.getAttribute(i);
 
@@ -151,6 +162,26 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
       tassembly.setSortInfo(sinfo);
 
       return tassembly;
+   }
+
+   /**
+    * Find the table column of a bound ref: by the viewsheet column name first, then by the
+    * name and the caption of the bound attribute, as the time slider and calendar do.
+    */
+   private static ColumnRef findBoundColumn(ColumnSelection columns, ColumnRef ref) {
+      ColumnRef column = VSUtil.getVSColumnRef(ref);
+      column = (ColumnRef) columns.getAttribute(column.getName());
+      DataRef dref = ref.getDataRef();
+
+      if(column == null && dref != null) {
+         column = (ColumnRef) columns.getAttribute(dref.getName());
+      }
+
+      if(column == null && dref instanceof AttributeRef) {
+         column = (ColumnRef) columns.getAttribute(((AttributeRef) dref).getCaption());
+      }
+
+      return column;
    }
 
    // check if dynamic (var) condition on table or sub tables
