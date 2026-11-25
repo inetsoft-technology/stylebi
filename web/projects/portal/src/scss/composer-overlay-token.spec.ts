@@ -138,4 +138,21 @@ describe("composer overlay consumers", () => {
       // the layout search result replaces the border, so it drops the halo ring
       expect(rule(layout(), /^\.active \.object\.search-result\s*\{/m)).toMatch(/box-shadow:\s*none/);
    });
+
+   it("wizardHandlesAreTwoTone", () => {
+      const wizard = read(app, "vs-wizard/gui/objects/vs-wizard-object.component.scss");
+      // a disabled handle keeps its grey (.disabled.handle)
+      const handle = rule(wizard, /^\.wizard-object-container \.handle\.bg-primary:not\(\.disabled\)\s*\{/m);
+      // themed pages keep today's solid primary handle (.bg-primary, no border)
+      expect(handle).toMatch(
+         /background-color:\s*var\(--inet-composer-overlay-halo,\s*var\(--inet-primary-color\)\)\s*!important/);
+      expect(handle).toMatch(/border:\s*1px solid var\(--inet-composer-overlay-stroke,\s*transparent\)/);
+      const move = rule(wizard, /^\.vs-wizard-object__move-handle\s*\{/m);
+      expect(move).toMatch(/border:\s*1px solid var\(--inet-composer-overlay-stroke,\s*var\(--inet-default-border-color\)\)/);
+      expect(move).toMatch(/background:\s*var\(--inet-composer-overlay-halo,\s*var\(--inet-shell-surface-default\)\)/);
+      // the object border is PR14's and stays as it is
+      expect(wizard.replace(/\r\n/g, "\n")).toContain(
+         "  .object-border {\n    border: 1px solid transparent;\n\n    &:hover, &.selected-bd {\n" +
+         "      border: 1px solid #e5e5e5 !important;\n    }\n\n    &.def-bd {\n      border: 1px solid #f5f5f5;\n    }\n  }");
+   });
 });
