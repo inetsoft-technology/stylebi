@@ -54,6 +54,7 @@ public class Bar2Presenter implements AutoMaximumPresenter {
       this.max = max;
       this.color = color;
       this.neg = neg;
+      this.scaleSet = true;
    }
 
    /**
@@ -96,6 +97,7 @@ public class Bar2Presenter implements AutoMaximumPresenter {
     */
    public void setMaximum(double max) {
       this.max = max;
+      this.scaleSet = true;
    }
 
    /**
@@ -113,6 +115,18 @@ public class Bar2Presenter implements AutoMaximumPresenter {
     */
    public void setAutoMaximum(boolean autoMaximum) {
       this.autoMaximum = autoMaximum;
+      this.scaleSet = true;
+   }
+
+   /**
+    * Scale to the column's data in the modern style, unless the author chose the scale: set Auto
+    * Maximum either way, or set a Maximum. This is not a bean property, so it does not show in the
+    * presenter dialog or get saved.
+    */
+   public void useModernAutoMaximum() {
+      if(!scaleSet) {
+         autoMaximum = true;
+      }
    }
 
    @Override
@@ -129,6 +143,7 @@ public class Bar2Presenter implements AutoMaximumPresenter {
       copy.max = max;
       copy.bg = bg;
       copy.autoMaximum = autoMaximum;
+      copy.scaleSet = scaleSet;
       copy.maxResolver = resolver;
       return copy;
    }
@@ -360,6 +375,9 @@ public class Bar2Presenter implements AutoMaximumPresenter {
    private Dimension psize = new Dimension(80, 12);
    private Color bg = null;
    private boolean autoMaximum = false;
+   // true once the author chose the scale, by setting Auto Maximum either way or a Maximum, so the
+   // modern default leaves it alone
+   private boolean scaleSet = false;
    // resolves the data maximum at paint time, set by the table lens on a copy of the
    // presenter; not a bean property, so it is never shown in the dialog or saved
    private transient DoubleSupplier maxResolver;

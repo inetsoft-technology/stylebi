@@ -48,6 +48,7 @@ public class BarPresenter implements AutoMaximumPresenter {
    public BarPresenter(double max, Color color) {
       this.max = max;
       this.color = color;
+      this.scaleSet = true;
    }
 
    /**
@@ -76,6 +77,7 @@ public class BarPresenter implements AutoMaximumPresenter {
     */
    public void setMaximum(double max) {
       this.max = max;
+      this.scaleSet = true;
    }
 
    /**
@@ -93,6 +95,18 @@ public class BarPresenter implements AutoMaximumPresenter {
     */
    public void setAutoMaximum(boolean autoMaximum) {
       this.autoMaximum = autoMaximum;
+      this.scaleSet = true;
+   }
+
+   /**
+    * Scale to the column's data in the modern style, unless the author chose the scale: set Auto
+    * Maximum either way, or set a Maximum. This is not a bean property, so it does not show in the
+    * presenter dialog or get saved.
+    */
+   public void useModernAutoMaximum() {
+      if(!scaleSet) {
+         autoMaximum = true;
+      }
    }
 
    @Override
@@ -137,6 +151,7 @@ public class BarPresenter implements AutoMaximumPresenter {
       // a modern table sets the bar thickness on the presenter before the copy is made
       copy.thickness = thickness;
       copy.autoMaximum = autoMaximum;
+      copy.scaleSet = scaleSet;
       copy.maxResolver = maxResolver;
       copy.valueText = valueText;
       return copy;
@@ -199,7 +214,14 @@ public class BarPresenter implements AutoMaximumPresenter {
             barHeight = thickness;
          }
 
-         g.fillRect(x, barTop, (int) (n * w / getDrawingMaximum()), barHeight);
+         // a value above zero always shows, even when it is far smaller than the maximum
+         int barWidth = (int) (n * w / getDrawingMaximum());
+
+         if(n > 0 && barWidth < 1 && w > 0) {
+            barWidth = 1;
+         }
+
+         g.fillRect(x, barTop, barWidth, barHeight);
          g.setColor(oc);
          g.setClip(clip);
       }
@@ -399,6 +421,9 @@ public class BarPresenter implements AutoMaximumPresenter {
    private int thickness = 0;
    private Color bg = null;
    private boolean autoMaximum = false;
+   // true once the author chose the scale, by setting Auto Maximum either way or a Maximum, so the
+   // modern default leaves it alone
+   private boolean scaleSet = false;
    // resolves the data maximum at paint time, set by the table lens on a copy of the
    // presenter; not a bean property, so it is never shown in the dialog or saved
    private transient DoubleSupplier maxResolver;

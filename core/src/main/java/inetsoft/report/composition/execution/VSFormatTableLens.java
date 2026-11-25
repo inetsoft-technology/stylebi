@@ -25,6 +25,7 @@ import inetsoft.report.painter.Bar2Presenter;
 import inetsoft.report.painter.BarPresenter;
 import inetsoft.report.painter.BooleanPresenter;
 import inetsoft.report.painter.BulletGraphPresenter;
+import inetsoft.report.painter.ModernAutoDefault;
 import inetsoft.report.painter.ButtonPresenter;
 import inetsoft.report.painter.IconCounterPresenter;
 import inetsoft.report.painter.ImagePresenter;
@@ -188,6 +189,12 @@ public final class VSFormatTableLens extends FormatTableLens {
    @Override
    public Presenter getPresenter(int r, int c) {
       Presenter presenter = super.getPresenter(r, c);
+      VizContext autoCtx = presenter == null ? null : barContext();
+
+      // a modern bar or bullet graph scales to the data unless the author set it either way
+      if(autoCtx != null && autoCtx.modern) {
+         ModernAutoDefault.apply(presenter);
+      }
 
       if(presenter instanceof BarPresenter) {
          BarPresenter bar = (BarPresenter) presenter;
