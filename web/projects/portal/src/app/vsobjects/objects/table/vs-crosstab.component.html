@@ -194,6 +194,7 @@
                           [safeFont]="_cell.vsFormatModel.font"
                           [dataTip]="model.dataTip"
                           [dataTipOnClick]="model.isTipOnClick"
+                          [style.--sort-bg]="_cell.vsFormatModel.background"
                           [sortSpace]="getSortSpace(getCellWidth(_cell, j), sortEnable(_cell) && model.sortOnHeader && !vsWizard, isColSorted(_cell))">
                           <ng-container ngProjectAs="[sortButton]">
                             @if (sortEnable(_cell) && model.sortOnHeader && !vsWizard) {
@@ -293,6 +294,7 @@
                           [style.color]="_cell.vsFormatModel.foreground"
                           [style.background]="_cell.vsFormatModel.background"
                           [safeFont]="_cell.vsFormatModel.font"
+                          [style.--sort-bg]="_cell.vsFormatModel.background"
                           [sortSpace]="getSortSpace(getCellWidth(_cell, j), sortEnable(_cell) && !model.sortOnHeader && model.sortAggregate && model.timeSeriesNames.length == 0 && !vsWizard, isColSorted(_cell))">
                           <ng-container ngProjectAs="[sortButton]">
                             @if (sortEnable(_cell) && !model.sortOnHeader && model.sortAggregate && model.timeSeriesNames.length == 0 && !vsWizard) {
@@ -403,6 +405,7 @@
                           [dataTip]="model.dataTip"
                           [dataTipOnClick]="model.isTipOnClick"
                           [class.visible-cell]="getCellHeight(_cell.row, _cell) > 0"
+                          [style.--sort-bg]="_cell.vsFormatModel.background"
                           [sortSpace]="getSortSpace(getCellWidth(_cell, j), sortEnable(_cell) && !model.sortOnHeader && !isAggregate(_cell.field) && model.sortDimension && !vsWizard, isColSorted(_cell))">
                           <ng-container ngProjectAs="[sortButton]">
                             @if (sortEnable(_cell) && !model.sortOnHeader && !isAggregate(_cell.field) && model.sortDimension && !vsWizard) {
@@ -505,6 +508,7 @@
                           [safeFont]="_cell.vsFormatModel.font"
                           [dataTip]="model.dataTip"
                           [dataTipOnClick]="model.isTipOnClick"
+                          [style.--sort-bg]="_cell.vsFormatModel.background"
                           [sortSpace]="getSortSpace(getCellWidth(_cell, j), sortDimensionEnable(_cell) && !vsWizard, isColSorted(_cell))">
                           <ng-container ngProjectAs="[sortButton]">
                             @if (sortDimensionEnable(_cell) && !vsWizard) {

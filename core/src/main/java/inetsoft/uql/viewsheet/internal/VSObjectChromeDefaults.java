@@ -345,11 +345,15 @@ public final class VSObjectChromeDefaults {
    // modern selection teal, mirroring --inet-viz-selected-border-modern/-dark in _viz-tokens.scss
    private static final Color CLASSIC_NEGATIVE_BAR = new Color(0xFF4040);
 
-   // green, amber, red
+   // green, amber, red: the status colors, which stay fixed hues so the light still reads as go,
+   // caution and stop. The dark set is the same colors lifted toward white, so it follows them.
    private static final Color[] TRAFFIC_LIGHT = {
       new Color(0x22C55E), new Color(0xF59E0B), new Color(0xEF4444)};
+   private static final float TRAFFIC_LIGHT_DARK_LIFT = 0.15f;
    private static final Color[] TRAFFIC_LIGHT_DARK = {
-      new Color(0x34D874), new Color(0xFBBF24), new Color(0xF87171)};
+      blend(Color.WHITE, TRAFFIC_LIGHT_DARK_LIFT, TRAFFIC_LIGHT[0]),
+      blend(Color.WHITE, TRAFFIC_LIGHT_DARK_LIFT, TRAFFIC_LIGHT[1]),
+      blend(Color.WHITE, TRAFFIC_LIGHT_DARK_LIFT, TRAFFIC_LIGHT[2])};
    // how much of the first palette color each of the four range bands has, darkest first
    private static final float[] BULLET_BAND_STRENGTH = {0.55f, 0.40f, 0.26f, 0.14f};
    // how much of the first palette color the Bullet Graph's bar has, against the text color

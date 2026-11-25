@@ -1493,15 +1493,13 @@ wizard-binding-tree .bg-node-selected {
   background-color: var(--inet-toolbar-bg-color);
 }
 
-// the opaque sort-button fill masks the header text behind the icon, so a marked table matches its
-// header band (VSTableStructureDefaults) for it to blend. Live-only affordance (not exported), so a
-// browser-CSS override is the right layer. Dark follows modern so it wins on source order.
+// the opaque sort-button fill masks the header text behind the icon, so a marked table's button
+// takes the header cell's own background (the table sets --sort-bg from it, the band
+// VSTableStructureDefaults seeds or the author's own) for it to blend. Live-only affordance (not
+// exported), so a browser-CSS override is the right layer. Light and dark need no rule of their
+// own: the band the server seeds already differs between them.
 .viz-modern .vs-header-cell-button-sort {
-  background-color: #DEDCD7;
-}
-
-.viz-dark .vs-header-cell-button-sort {
-  background-color: #38363C;
+  background-color: var(--sort-bg, var(--inet-toolbar-bg-color));
 }
 
 // active sort only (asc/desc) — leave the passive hover affordance neutral.

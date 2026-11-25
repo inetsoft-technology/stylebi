@@ -114,8 +114,23 @@ public class PresenterPropertyDialogServiceBarColorTest {
       PresenterPropertyDialogModel model = model(BAR2);
 
       assertEquals("", colour(model, "color"));
-      assertEquals("#" + Tool.colorToHTMLString(Bar2Presenter.DEFAULT_NEGATIVE_COLOR),
-                   colour(model, "negativeColor"));
+      assertEquals("", colour(model, "negativeColor"));
+   }
+
+   @Test
+   public void aSignedBarsNegativeColourIsEmptyOnAClassicTableToo() throws Exception {
+      store(new PresenterRef(BAR2), new PresenterPainter(5, new Bar2Presenter()));
+
+      assertEquals("", colour(model(BAR2), "negativeColor"));
+   }
+
+   @Test
+   public void anAuthorsNegativeColourIsShown() throws Exception {
+      PresenterRef ref = new PresenterRef(BAR2);
+      ref.setParameter("negativeColor", AUTHOR);
+      store(ref, new PresenterPainter(5, new Bar2Presenter()));
+
+      assertEquals("#" + Tool.colorToHTMLString(AUTHOR), colour(model(BAR2), "negativeColor"));
    }
 
    @Test
