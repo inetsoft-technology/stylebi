@@ -145,6 +145,7 @@ public class VSCrosstabBindingFactory
    public CrosstabBindingModel createModel(CrosstabVSAssembly assembly) {
       CrosstabBindingModel model = new CrosstabBindingModel();
       model.setType("crosstab");
+      model.setAllRows(((CrosstabVSAssemblyInfo) assembly.getInfo()).getAllRows());
       VSCrosstabInfo crossInfo = assembly.getVSCrosstabInfo();
 
       if(crossInfo == null) {
@@ -294,6 +295,7 @@ public class VSCrosstabBindingFactory
       crossInfo.setSummarySideBySideValue(option.isSummarySideBySide());
       syncPercentCalcs(crossInfo);
       VSUtil.updateCalculate(crossInfo, null);
+      info.setAllRows(model.getAllRows());
       return assembly;
    }
 

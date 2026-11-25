@@ -74,6 +74,47 @@ public class BoundTableAssembly extends AbstractTableAssembly {
    }
 
    /**
+    * Find the logical model table a table reads from, looking through the mirrors that wrap it
+    * (a viewsheet table mirrors the worksheet table, which mirrors its outer copy, which wraps the
+    * bound table, ...). A table that is, or wraps, anything other than mirrors of one bound table
+    * (a join, a concatenation, an aggregate over several tables, ...) has no single logical model
+    * table, so it is not found.
+    *
+    * @param table the table to look under, may be null.
+    *
+    * @return the bound table of the logical model, or <tt>null</tt> when the table does not read
+    *         from exactly one.
+    */
+   public static BoundTableAssembly findLogicalModelTable(TableAssembly table) {
+      // a mirror chain is short; the bound keeps a corrupt cycle from looping forever
+      for(int i = 0; i < 16 && table != null; i++) {
+         if(table instanceof BoundTableAssembly bound) {
+            return bound.getSourceInfo().getType() == SourceInfo.MODEL ? bound : null;
+         }
+
+         table = table instanceof MirrorTableAssembly mirror ? mirror.getTableAssembly() : null;
+      }
+
+      return null;
+   }
+
+   /**
+    * Get the logical model entities whose rows are all included ("Include all rows").
+    * @return the entity names, never null.
+    */
+   public List<String> getAllRows() {
+      return getBoundTableInfo().getAllRows();
+   }
+
+   /**
+    * Set the logical model entities whose rows are all included ("Include all rows").
+    * @param allRows the entity names, null or empty for none.
+    */
+   public void setAllRows(List<String> allRows) {
+      getBoundTableInfo().setAllRows(allRows);
+   }
+
+   /**
     * Check if the mirror assembly is valid.
     */
    @Override
@@ -481,6 +522,22 @@ public class BoundTableAssembly extends AbstractTableAssembly {
          ConditionUtil.printConditionsKey(cassembly, writer);
       }
 
+      // the tables whose rows are all kept change which rows the query returns; written only
+      // when set, so the key of every other table is what it always was
+      List<String> allRows = getAllRows();
+
+      if(!allRows.isEmpty()) {
+         writer.print(",allRows[");
+
+         for(String entity : allRows) {
+            writer.print(entity.length());
+            writer.print(":");
+            writer.print(entity);
+         }
+
+         writer.print("]");
+      }
+
       writer.print("]");
       return true;
    }
@@ -505,6 +562,10 @@ public class BoundTableAssembly extends AbstractTableAssembly {
       SourceInfo sinfo = getSourceInfo();
 
       if(!Tool.equals(sinfo, btable.getSourceInfo())) {
+         return false;
+      }
+
+      if(!getAllRows().equals(btable.getAllRows())) {
          return false;
       }
 
