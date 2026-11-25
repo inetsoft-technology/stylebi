@@ -477,10 +477,10 @@ describe("solid, keyboard-only focus ring", () => {
       expect(css.replace(/\s+/g, " ")).toContain(FILLED_RING);
    });
 
-   it("fills a modern primary button with the ring colour on keyboard focus, outside content and themed pages", () => {
+   it("fills a modern primary button with the ring colour on keyboard focus, outside content, themed pages and the dark shell", () => {
       const css = read("scss/_bootstrap-override.scss").replace(/\s+/g, " ");
       const rule = css.match(
-         /:where\(:root:not\(\.custom-theme\)\) \.viz-shell \.btn\.btn-primary#\{\$outside-content\} \{([^}]*\{[^}]*\}|[^}]*)\}/);
+         /:where\(:root:not\(\.custom-theme\):not\(\.shell-dark\)\) \.viz-shell \.btn\.btn-primary#\{\$outside-content\} \{([^}]*\{[^}]*\}|[^}]*)\}/);
 
       expect(rule).not.toBeNull();
       expect(rule[0]).toContain("&:focus-visible, &:focus-visible:hover:not(:disabled)");
@@ -1029,5 +1029,80 @@ describe("login page filled-button ring gap", () => {
 
       expect(valueOf(dialog.body, "background")).toBe("var(--ln-dialog-bg)");
       expect(valueOf(dialog.body, "--ln-focus-gap")).toBe("var(--ln-dialog-bg)");
+   });
+});
+
+describe("modern primary button in the dark shell (PR7a)", () => {
+   const GATE = ":where(:not(:root.shell-dark *), :is(#{$dashboard-content}, #{$content-popup}) *)";
+   const COMPILED_GATE = ":where(:not(:root.shell-dark *), :is(.vs-pane, .viewer-root, ";
+   const override = () => read("scss/_bootstrap-override.scss");
+   // a compiled selector list split on its top-level commas (the gate has commas inside parentheses)
+   const splitList = (list: string): string[] => {
+      const parts: string[] = [];
+      let depth = 0;
+      let start = 0;
+
+      for(let i = 0; i < list.length; i++) {
+         depth += list[i] === "(" ? 1 : list[i] === ")" ? -1 : 0;
+
+         if(list[i] === "," && depth === 0) {
+            parts.push(list.slice(start, i).trim());
+            start = i + 1;
+         }
+      }
+
+      return [...parts, list.slice(start).trim()];
+   };
+   // every compiled selector of a rule that draws the tint (a color-mix of the primary)
+   const tintSelectors = (): string[] => [...compiledGlobal().matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(m => /color-mix\(in srgb, var\(--inet-primary-color\) \d+%/.test(m[2]))
+      .flatMap(m => splitList(m[1]))
+      .filter(s => s.includes(".viz-shell .btn.btn-primary"));
+
+   it("tints the button only outside the dark shell, or inside dashboard content", () => {
+      const rule = block(override(), `.viz-shell .btn.btn-primary${GATE}`);
+
+      expect(rule).toContain("background-color: color-mix(in srgb, var(--inet-primary-color) 35%, var(--inet-shell-surface-default));");
+      expect(rule).toContain("background-color: color-mix(in srgb, var(--inet-primary-color) 50%, var(--inet-shell-surface-default));");
+      expect(override()).not.toMatch(/^\.viz-shell \.btn\.btn-primary\s*\{/m);
+   });
+
+   it("gates every compiled tint selector, the rest state and every hover, press and focus branch", () => {
+      const selectors = tintSelectors();
+
+      // the rest rule plus its four state branches
+      expect(selectors.length).toBeGreaterThanOrEqual(5);
+      selectors.forEach(s => expect(s).toContain(COMPILED_GATE));
+   });
+
+   it("keeps the rest rule's specificity: without the :where() gate it is the old selector", () => {
+      const rest = tintSelectors().filter(s => !/:hover|:focus|:active|\.focus/.test(s));
+
+      expect(rest).toHaveLength(1);
+      const gate = rest[0].indexOf(":where(");
+      expect(rest[0].slice(0, gate)).toBe(".viz-shell .btn.btn-primary");
+      // the gate is the selector's last part: nothing after its closing parenthesis
+      expect(rest[0].endsWith(")")).toBe(true);
+      expect(splitList(rest[0].slice(gate + ":where(".length, -1))).toHaveLength(2);
+   });
+
+   it("keeps the focus ring in the dark shell: #8774's focus fill is light shell only", () => {
+      // in the dark shell the fill would be the hover fill (#F0A75A), so focus and hover would look alike
+      const fills = [...compiledGlobal().matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+         .filter(m => /background-color:\s*var\(--inet-focus-ring-color\)/.test(m[2]))
+         .flatMap(m => splitList(m[1]))
+         .filter(sel => sel.includes(".viz-shell .btn.btn-primary"));
+
+      expect(fills.length).toBeGreaterThanOrEqual(1);
+      fills.forEach(sel => expect(sel).toMatch(/^:where\(:root:not\(\.custom-theme\):not\(\.shell-dark\)\) /));
+   });
+
+   it("gives the base rule the dark shell's solid orange, on-primary label and lighter hover", () => {
+      const dark = declarations(block(read("scss/_shell-dark.scss"), ":root.shell-dark"));
+
+      expect(runtimeTokens().get("--inet-button-primary-bg-color")).toBe("var(--inet-primary-color)");
+      expect(dark.get("--inet-button-primary-text-color")).toBe("var(--inet-dark-on-primary-text-color)");
+      expect(dark.get("--inet-button-primary-hover-bg-color")).toBe("#{$dark-link}");
+      expect(dark.has("--inet-button-primary-bg-color")).toBe(false);
    });
 });

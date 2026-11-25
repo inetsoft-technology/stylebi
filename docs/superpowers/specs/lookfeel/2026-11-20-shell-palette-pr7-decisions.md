@@ -30,6 +30,7 @@ are WCAG relative-luminance ratios, worked out from the hex values given. Vendor
 | D7 | Hover: one fixed grey per surface, with the beige midpoint `#E8E4DB` | Product owner, from a side-by-side comparison | Hover values in the map; keep the containers' gap rules for D2 |
 | O1 | Grey text on selected rows: darker in the light shell (`#5F5E56`); dark accepted and tracked | Product owner | One token value and its content re-declaration |
 | O3 | Custom-themed pages keep today's colours, including D1 | Product owner | The `custom-theme` gate, 6 template classes and the `login.css` gate |
+| D-PR7a | Dark shell: the modern primary button keeps the solid orange fill; #8470's tint stays in the light shell and dashboard content | Vendor rule, confirmed by the product owner from a side-by-side mockup | One `:where()` gate on the tint rule |
 
 ---
 
@@ -347,6 +348,40 @@ gate. Themes then lose up to 13 tokens on dashboards and the hover token in shel
   directly on the canvas gets the default-surface gap (white light, `#252428` dark). No shell
   screen with that layout was found.
 
+## D-PR7a. Dark shell: the modern primary button stays a solid fill
+
+**The issue.** #8470 (2026-11-23) turned the modern shell's primary button from a solid orange block
+into a tint: 35% of the primary mixed into the shell surface, a primary edge and the primary text
+colour. Its PR says "dark mode follows without its own rule", so nobody designed the dark result. In
+the dark shell the tint is `#644223`, a muddy brown 1.7:1 off the `#252428` surface, with a `#F6C590`
+label (5.7:1). Its 50% hover label is about 4.4:1, under 4.5:1 (noted in #8470's review). It is almost
+the `#65472E` brown the product owner rejected on 2026-11-18 for the dark disabled primary, because it
+"reads as a dim active button".
+
+**Decision.** In the dark shell the primary button keeps the base rule: a solid `#D97A1A` fill with
+the dark shell's on-primary label `#1C1B1F` (5.5:1) and the `#F0A75A` hover (8.5:1). Keyboard focus
+keeps the 2px surface gap and `#F0A75A` ring: #8774's focus fill (the ring colour, no ring) is gated
+off the dark shell, because there it equals the hover fill and focus would look like hover. The tint rule is gated with
+`:where(:not(:root.shell-dark *), :is(#{$dashboard-content}, #{$content-popup}) *)`, so its
+specificity is unchanged: the light shell and dashboard content (which restores the light shell's
+look) compute exactly as before. Disabled buttons keep the dark disabled values (2026-11-18).
+
+**Basis.** Of 18 sources checked, 5 entries from 4 systems support a solid fill for the primary
+action (Material 3, Apple HIG twice, AWS Cloudscape, and IBM Carbon weakly: a solid `$button-primary`
+container with `$text-on-color` text). None supports a tint or an outline for it:
+- Material 3: filled buttons "should be used for important, final actions"; tonal is "an alternative
+  middle ground between filled and outlined buttons"; outlined buttons "aren't the primary action".
+- Apple HIG: "a primary button uses an app's accent color"; its tinted style ranks below filled.
+- AWS Cloudscape keeps the primary fill solid in dark and flips the label dark
+  (`colorTextButtonPrimaryDefault: { light: '{colorWhite}', dark: '{colorNeutral950}' }`).
+
+None of the systems with documented dark tokens has an orange brand, so the orange case rests on the
+general pattern. An outlined variant (a surface fill with an orange edge and label) was mocked and not
+taken: next to a neutral secondary button it differs by its edge alone.
+
+**Not changed.** The light shell's tint (#8470's design). The same sources rank a tint below a filled
+button in light too; that is raised with #8470's author, not changed here.
+
 ## Not in this PR
 
 - Bug #81489's other items: rings that are missing on some controls, and keyboard reachability.
@@ -368,6 +403,13 @@ gate. Themes then lose up to 13 tokens on dashboards and the hover token in shel
 - Paired light and dark screenshots, and an axe colour-contrast sweep in both shells.
 
 ## Sources
+
+- D-PR7a: Material 3 buttons (material-web docs):
+  https://github.com/material-components/material-web/blob/main/docs/components/button.md ;
+  Apple HIG, Buttons: https://developer.apple.com/design/human-interface-guidelines/buttons ;
+  Cloudscape dark tokens:
+  https://github.com/cloudscape-design/components/blob/main/style-dictionary/visual-refresh/colors.ts
+  IBM Carbon, Button style: https://carbondesignsystem.com/components/button/style/
 
 - Bootstrap 5.2 buttons (danger hover shade, 50% focus shadow):
   https://getbootstrap.com/docs/5.2/components/buttons/
