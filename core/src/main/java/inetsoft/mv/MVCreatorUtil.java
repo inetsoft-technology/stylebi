@@ -27,6 +27,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.ConditionUtil;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.QueryManager;
 import inetsoft.uql.util.XUtil;
@@ -923,6 +924,22 @@ public class MVCreatorUtil {
     * Gets the column type
     */
    public static Class getColType(XTable table, MVColumn column, int index) {
+      return getColType(table, column, index, false);
+   }
+
+   /**
+    * Gets the column type.
+    *
+    * @param aggregateOutput true if the column is an aggregate output (measure) of an
+    *                        aggregated MV table. Its declared type is the type of the
+    *                        aggregate formula (e.g. double for Sum), but the live query of
+    *                        the table returns the values with the type the database gives
+    *                        them (e.g. integer for a SUM of an integer column on DB2), so
+    *                        the integral type of the data is kept for it (Bug #82319).
+    */
+   public static Class getColType(XTable table, MVColumn column, int index,
+                                  boolean aggregateOutput)
+   {
       String dtype = column.getColumn() != null ? column.getColumn().getDataType() : null;
       Class result = Tool.getDataClass(dtype);
 
@@ -944,10 +961,57 @@ public class MVCreatorUtil {
             if(Util.needEnlargeNumberType(result, originalCls)) {
                result = originalCls;
             }
+            // the aggregate of an aggregated MV holds the values of its build query, which
+            // is the live query of the table, so keep their integral type instead of the
+            // declared double/float, as the live query returns them (Bug #82319)
+            else if(aggregateOutput && (result == Double.class || result == Float.class) &&
+               isIntegralClass(originalCls))
+            {
+               result = originalCls;
+            }
          }
       }
 
       return result;
+   }
+
+   private static boolean isIntegralClass(Class cls) {
+      return cls == Integer.class || cls == Long.class || cls == Short.class ||
+         cls == Byte.class;
+   }
+
+   /**
+    * Checks if the measure column of an aggregated MV holds the output of an aggregate, i.e.
+    * it is not a group column of the aggregated MV table.
+    */
+   public static boolean isAggregateOutput(MVDef def, MVColumn column) {
+      ColumnRef ref = column == null ? null : column.getColumn();
+
+      if(ref == null || column.isDimension() || column instanceof DateMVColumn ||
+         column instanceof RangeMVColumn)
+      {
+         return false;
+      }
+
+      Worksheet ws = def == null ? null : def.getWorksheet();
+      TableAssembly assembly = ws == null ? null :
+         (TableAssembly) ws.getAssembly(def.getMVTable());
+      AggregateInfo ainfo = assembly == null ? null : assembly.getAggregateInfo();
+
+      if(ainfo != null) {
+         for(GroupRef group : ainfo.getGroups()) {
+            DataRef gref = group.getDataRef();
+            String alias = gref instanceof ColumnRef ? ((ColumnRef) gref).getAlias() : null;
+
+            if(gref != null && (Tool.equals(gref.getAttribute(), ref.getAttribute()) ||
+               Tool.equals(alias, ref.getAttribute())))
+            {
+               return false;
+            }
+         }
+      }
+
+      return true;
    }
 
    /**

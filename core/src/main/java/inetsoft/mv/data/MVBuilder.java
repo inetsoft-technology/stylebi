@@ -519,6 +519,8 @@ public final class MVBuilder {
       final String[] identifiers = new String[dcnt + mcnt];
       final Class[] types = omv != null ? omv.getTypes() : new Class[dcnt + mcnt];
       final XMetaInfo[] infos = omv != null ? omv.infos : new XMetaInfo[dcnt + mcnt];
+      this.mvdef = def;
+      this.aggregated = aggregated;
       initBreakOption(dimensions, measures);
 
       // Clear the range of mv columns since the values from
@@ -992,7 +994,8 @@ public final class MVBuilder {
       Class result = coltypes[index];
 
       if(result == null) {
-         result = MVCreatorUtil.getColType(table, column, index);
+         result = MVCreatorUtil.getColType(table, column, index,
+            aggregated && MVCreatorUtil.isAggregateOutput(mvdef, column));
          coltypes[index] = result;
       }
 
@@ -1016,6 +1019,8 @@ public final class MVBuilder {
    private static final Logger LOG =
       LoggerFactory.getLogger(MVBuilder.class);
    private MV mv;
+   private MVDef mvdef;
+   private boolean aggregated; // true if the mv table is aggregated
    // if set, the valid boundary to break blocks
    private int breakcol = -1;
    private int dbreak = -1; // break column in dimension index
