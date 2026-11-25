@@ -2095,7 +2095,7 @@ public class FormulaTableLens extends AbstractTableLens
     *
     * @return true if the text should be kept as is.
     */
-   static boolean isUnconvertibleBoolean(Class<?> type, Object val) {
+   public static boolean isUnconvertibleBoolean(Class<?> type, Object val) {
       if(!Boolean.class.equals(type) || !(val instanceof String)) {
          return false;
       }
@@ -2125,7 +2125,7 @@ public class FormulaTableLens extends AbstractTableLens
     *
     * @return true if the conversion saturates or wraps, false for other types and values.
     */
-   static boolean isOutOfRange(Class<?> type, Object val) {
+   public static boolean isOutOfRange(Class<?> type, Object val) {
       if(!(val instanceof Number)) {
          return false;
       }

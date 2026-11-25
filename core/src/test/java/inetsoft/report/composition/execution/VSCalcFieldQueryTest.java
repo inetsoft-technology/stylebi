@@ -17,6 +17,7 @@
  */
 package inetsoft.report.composition.execution;
 
+import inetsoft.graph.data.DataSet;
 import inetsoft.mv.MVManager;
 import inetsoft.report.*;
 import inetsoft.report.composition.ChangedAssemblyList;
@@ -33,6 +34,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
 import org.junit.jupiter.api.*;
@@ -822,6 +824,90 @@ class VSCalcFieldQueryTest {
             Arrays.asList(9.0, "true", 1.0, "false") : Arrays.asList(9.0, true, 1.0, false);
          assertEquals(expected, values, type);
       }
+   }
+
+   /** D(city, a, b) with Sum(a) as a viewsheet aggregate field and the aggregate calc big. */
+   private void initBig(String expression, String type) throws Exception {
+      initCityAb();
+      vs.addAggrField("D", new AggregateRef(new ColumnRef(new AttributeRef(null, "a")),
+                                            AggregateFormula.SUM));
+      addCalc("big", false, expression, type);
+   }
+
+   @Test
+   @DisplayName("Bug #82308: an aggregate calc value out of the range of " +
+      "the declared integer type is kept in a crosstab")
+   void outOfRangeDeclaredTypeKeptInCrosstab() throws Exception {
+      // Sum(a): A 9, B 1. Each case: expression, type, expected A, expected B
+      Object[][] cases = {
+         { "field['Sum([a])'] * 10000000000", XSchema.INTEGER, 9.0E10, 1.0E10 },
+         { "field['Sum([a])'] * -10000000000", XSchema.INTEGER, -9.0E10, -1.0E10 },
+         { "field['Sum([a])'] * 1e19", XSchema.LONG, 9.0E19, 1.0E19 },
+         // A is out of range and kept, B is in range and converted
+         { "field['Sum([a])'] * 10000", XSchema.SHORT, 90000.0, (short) 10000 },
+         { "field['Sum([a])'] * 100", XSchema.BYTE, 900.0, (byte) 100 },
+         // in range: converted, the fraction cut
+         { "field['Sum([a])'] * 2.5", XSchema.INTEGER, 22, 2 },
+      };
+
+      for(Object[] test : cases) {
+         tearDown();
+         initBig((String) test[0], (String) test[1]);
+         List<Object> values = crosstab(aggregate("a", "Sum", XSchema.INTEGER),
+                                        aggregate("big", "None", (String) test[1]));
+         String label = test[1] + " " + test[0];
+         assertEquals(Arrays.asList(9.0, test[2], 1.0, test[3]), values, label);
+      }
+   }
+
+   @Test
+   @DisplayName("Bug #82308: a text aggregate calc value declared Boolean " +
+      "that is not a boolean is kept in a crosstab")
+   void unconvertibleBooleanKeptInCrosstab() throws Exception {
+      initBig("field['Sum([a])'] > 5 ? 'abc' : 'true'", XSchema.BOOLEAN);
+      List<Object> values = crosstab(aggregate("a", "Sum", XSchema.INTEGER),
+                                     aggregate("big", "None", XSchema.BOOLEAN));
+      assertEquals(Arrays.asList(9.0, "abc", 1.0, true), values);
+   }
+
+   @Test
+   @DisplayName("Bug #82308: an aggregate calc value out of the range of " +
+      "the declared Integer type is kept in a chart")
+   void outOfRangeDeclaredTypeKeptInChart() throws Exception {
+      initBig("field['Sum([a])'] * 10000000000", XSchema.INTEGER);
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "C1");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "D"));
+      VSChartInfo info = chart.getVSChartInfo();
+      VSChartDimensionRef dim =
+         new VSChartDimensionRef(new ColumnRef(new AttributeRef(null, "city")));
+      dim.setGroupColumnValue("city");
+      info.addXField(dim);
+      VSChartAggregateRef agg = new VSChartAggregateRef();
+      agg.setColumnValue("big");
+      agg.setFormulaValue("None");
+      info.addYField(agg);
+      vs.addAssembly(chart);
+      start();
+
+      Object data = box.getData("C1");
+      assertInstanceOf(DataSet.class, data, "chart data");
+      DataSet set = (DataSet) data;
+      int col = -1;
+
+      for(int c = 0; c < set.getColCount(); c++) {
+         if(set.getHeader(c).contains("big")) {
+            col = c;
+         }
+      }
+
+      assertTrue(col >= 0, "column big");
+      Map<Object, Object> byCity = new HashMap<>();
+
+      for(int r = 0; r < set.getRowCount(); r++) {
+         byCity.put(set.getData("city", r), set.getData(col, r));
+      }
+
+      assertEquals(Map.of("A", 9.0E10, "B", 1.0E10), byCity);
    }
 
    /** D(city, a): the data set {2, 4, 4, 4, 5, 5, 7, 9} of one group. */

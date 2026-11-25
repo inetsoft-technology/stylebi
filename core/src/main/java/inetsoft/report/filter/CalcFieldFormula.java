@@ -18,6 +18,7 @@
 package inetsoft.report.filter;
 
 import inetsoft.report.StyleConstants;
+import inetsoft.report.lens.FormulaTableLens;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
@@ -342,7 +343,16 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
       }
 
       Object converted = Tool.getData(declaredType, result);
-      return converted == null ? result : converted;
+
+      // a narrowing cast saturates or wraps and a text that is not a boolean becomes false,
+      // so keep the result in those cases, as FormulaTableLens does for a row level calc field
+      if(converted == null || FormulaTableLens.isOutOfRange(cls, result) ||
+         FormulaTableLens.isUnconvertibleBoolean(cls, result))
+      {
+         return result;
+      }
+
+      return converted;
    }
 
    /**
