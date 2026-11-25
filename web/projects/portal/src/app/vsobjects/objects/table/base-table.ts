@@ -2475,6 +2475,26 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       return cell.cellLabel && cell.editorType != "Boolean" ? cell.cellLabel.toString() : "";
    }
 
+   /** Header columns narrower than this show the sort icon only on hover or when sorted. */
+   static readonly NARROW_SORT_WIDTH = 100;
+
+   isNarrowSort(width: number): boolean {
+      return width < BaseTable.NARROW_SORT_WIDTH;
+   }
+
+   /**
+    * How much of the header cell the sort icon takes from its text: "always" in a wide column,
+    * "hover" in a narrow one (the icon shows only then), and "none" when there is no icon.
+    * A sorted column always shows its icon, so it always keeps the room.
+    */
+   getSortSpace(width: number, sortable: boolean, sorted: boolean): string {
+      if(!sortable) {
+         return "none";
+      }
+
+      return !this.isNarrowSort(width) || sorted ? "always" : "hover";
+   }
+
    resetScroll(x: boolean = true, y: boolean = true) {
       if(x) {
          this.scrollX = 0;

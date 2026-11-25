@@ -125,17 +125,66 @@
   display: block;
 }
 
+// a faint icon at rest says the column can be sorted; hover brightens it, and a sorted column
+// shows it in full. In a narrow column the icon is hidden at rest, so it never covers the text.
+.sort-button:not(.col-sorted) {
+  opacity: 0.4;
+}
+
+.sort-button.sort-narrow:not(.col-sorted) {
+  visibility: hidden;
+}
+
 .table-cell:hover .sort-button {
   visibility: visible;
+  opacity: 0.85;
+}
+
+.table-cell .sort-button:hover {
+  opacity: 1;
 }
 
 .vs-header-cell-button-sort {
   position: absolute;
   right: 2px;
-  height: 18px;
-  width: 20px;
+  // the click area is 24px square; the glyph stays centered in it
+  height: 24px;
+  width: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   z-index: 20; // match z-index from .table-cell-content > .cell-editor
   overflow: hidden;
+}
+
+// The header sort icon is two small triangles, up and down, in place of the icon font's glyph.
+// An unsorted column shows both; a sorted one shows the active triangle in full and the other
+// faded. The color is the icon's own, so every theme and the sorted color still apply.
+.vs-header-cell-button-sort::before,
+.vs-header-cell-button-sort::after {
+  content: "";
+  display: block;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+}
+
+.vs-header-cell-button-sort::before {
+  border-bottom: 5px solid currentColor;
+}
+
+.vs-header-cell-button-sort::after {
+  border-top: 5px solid currentColor;
+}
+
+.vs-header-cell-button-sort.sort-ascending-icon::after,
+.vs-header-cell-button-sort.sort-value-ascending-icon::after,
+.vs-header-cell-button-sort.sort-descending-icon::before,
+.vs-header-cell-button-sort.sort-value-descending-icon::before {
+  opacity: 0.25;
 }
 
 td {

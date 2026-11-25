@@ -63,6 +63,19 @@
   }
 }
 
+// the sort icon keeps its own room, so it never covers the header text; the text is cut with an
+// ellipsis instead. In a narrow column the icon shows only on hover, so the room is taken then.
+.table-cell-content.sort-space,
+.table-cell-relative-container:hover .table-cell-content.sort-space-hover {
+  padding-right: 28px !important;
+}
+
+.table-cell-content.sort-space > .w-100 > div,
+.table-cell-relative-container:hover .table-cell-content.sort-space-hover > .w-100 > div {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .table-cell__drill-icon {
   position: absolute;
   left: 0;
