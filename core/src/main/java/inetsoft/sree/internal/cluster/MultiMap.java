@@ -52,6 +52,21 @@ public interface MultiMap<K, V> {
    void remove(K key, V value);
 
    /**
+    * Atomically replaces the value equal to {@code oldValue} that is stored under the key with
+    * {@code newValue}. Unlike a {@link #remove(Object, Object)} followed by a
+    * {@link #put(Object, Object)}, there is no moment without the value, and nothing is stored
+    * when the key no longer holds a value equal to {@code oldValue}, for example because it was
+    * removed concurrently.
+    *
+    * @param key      the key of the entry to replace
+    * @param oldValue the value to replace
+    * @param newValue the value to store in its place
+    * @return {@code true} if a value was replaced, {@code false} if the key holds no value
+    * equal to {@code oldValue}
+    */
+   boolean replace(K key, V oldValue, V newValue);
+
+   /**
     * Removes all the entries with the given key.
     *
     * @param key the key of the entries to remove

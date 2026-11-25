@@ -510,6 +510,14 @@ public abstract class RuntimeSheet {
    }
 
    /**
+    * Called after the sheet was rebuilt from its saved state in the cluster cache and put in
+    * this node's local map, for example because the node that held it died. It runs outside
+    * the cache lock, so it may make cluster calls.
+    */
+   void restored() {
+   }
+
+   /**
     * Check if is disposed.
     * @return <tt>true</tt> if disposed, <tt>false</tt> otherwise.
     */

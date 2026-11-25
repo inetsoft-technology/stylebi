@@ -79,6 +79,44 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
    }
 
    @Override
+   public boolean replace(K key, V oldValue, V newValue) {
+      return executeWithRetry(() -> {
+         for(int i = 0; i < MAX_REPLACE_ATTEMPTS; i++) {
+            Collection<V> list = cache.get(key);
+
+            if(list == null || !list.contains(oldValue)) {
+               return false;
+            }
+
+            List<V> updated = new ArrayList<>(list.size());
+            boolean added = false;
+
+            for(V v : list) {
+               // the value is stored once per key, see put()
+               if(Objects.equals(v, oldValue) || Objects.equals(v, newValue)) {
+                  if(!added) {
+                     updated.add(newValue);
+                     added = true;
+                  }
+               }
+               else {
+                  updated.add(v);
+               }
+            }
+
+            // compare-and-set on the key's list: fails if another node changed it after the
+            // get, in which case the list is read again
+            if(cache.replace(key, list, updated)) {
+               return true;
+            }
+         }
+
+         throw new IllegalStateException(
+            "Failed to replace a value of " + cache.getName() + " under concurrent updates");
+      });
+   }
+
+   @Override
    public Collection<V> remove(K key) {
       return executeWithRetry(() -> cache.getAndRemove(key));
    }
@@ -291,4 +329,5 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
 
    private final IgniteCache<K, Collection<V>> cache;
    private static final int MAX_RETRIES = 5;
+   private static final int MAX_REPLACE_ATTEMPTS = 100;
 }

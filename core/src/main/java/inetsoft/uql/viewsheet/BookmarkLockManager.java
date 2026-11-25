@@ -49,16 +49,56 @@ public class BookmarkLockManager {
    }
 
    public void lock(String key, String user, String runtimeId) {
-      BookmarkLock bookmarkLock = new BookmarkLock(user, runtimeId);
+      BookmarkLock bookmarkLock = new BookmarkLock(user, runtimeId, getLocalNodeId());
       MultiMap<String, BookmarkLock> lockMap = getLockMap();
       Collection<BookmarkLock> locks = lockMap.get(key);
+      BookmarkLock existing = find(locks, bookmarkLock);
 
-      // already locked
-      if(locks != null && locks.contains(bookmarkLock)) {
+      // already locked by this node
+      if(existing != null && Objects.equals(existing.nodeId, bookmarkLock.nodeId)) {
+         return;
+      }
+
+      // Bug #82336, an equal lock written by another node (the sheet was reloaded here after
+      // its owner died) is replaced, so the lock carries the node that now holds the sheet.
+      // BookmarkLock.equals ignores the node id, so the replace finds the old entry. The
+      // replace is atomic, so other users never see the bookmark unlocked in between.
+      if(existing != null && lockMap.replace(key, existing, bookmarkLock)) {
          return;
       }
 
       lockMap.put(key, bookmarkLock);
+   }
+
+   /**
+    * Re-assert the bookmark locks of a runtime sheet that was loaded on this node from the
+    * cluster cache, for example after the node that held it died. Every lock that the sheet
+    * still holds is moved to this node, so it is no longer treated as the lock of a dead
+    * node. A lock that the sheet no longer holds is not acquired again.
+    *
+    * @param user      the sheet's user name.
+    * @param runtimeId the sheet's runtime id.
+    */
+   public void relockAll(String user, String runtimeId) {
+      String nodeId = getLocalNodeId();
+
+      if(nodeId == null) {
+         return;
+      }
+
+      BookmarkLock bookmarkLock = new BookmarkLock(user, runtimeId, nodeId);
+      MultiMap<String, BookmarkLock> lockMap = getLockMap();
+
+      for(Map.Entry<String, BookmarkLock> entry : lockMap.entrySet()) {
+         BookmarkLock lock = entry.getValue();
+
+         if(Tool.equals(lock, bookmarkLock) && !nodeId.equals(lock.nodeId)) {
+            // a conditional replace, not lock(): the lock may have been released (the sheet
+            // disposed on another thread) since the entry set was read, and a put would then
+            // take a lock that no sheet holds and nothing ever removes
+            lockMap.replace(entry.getKey(), lock, bookmarkLock);
+         }
+      }
    }
 
    /**
@@ -101,13 +141,57 @@ public class BookmarkLockManager {
          return null;
       }
 
+      Set<String> liveNodes = null;
+
       for(BookmarkLock lock : locks) {
-         if(!Tool.equals(lock.user, user)) {
-            return lock.user;
+         if(Tool.equals(lock.user, user)) {
+            continue;
+         }
+
+         // Bug #82336, a lock held by a node that has left the cluster is not a lock: the
+         // runtime sheet that held it died with that node, and no node sweeps it any more.
+         // A lock without a node id was written by an older version and still counts.
+         if(lock.nodeId != null) {
+            if(liveNodes == null) {
+               liveNodes = getClusterNodeIds();
+            }
+
+            if(!liveNodes.contains(lock.nodeId)) {
+               continue;
+            }
+         }
+
+         return lock.user;
+      }
+
+      return null;
+   }
+
+   private static BookmarkLock find(Collection<BookmarkLock> locks, BookmarkLock lock) {
+      if(locks != null) {
+         for(BookmarkLock item : locks) {
+            if(Objects.equals(item, lock)) {
+               return item;
+            }
          }
       }
 
       return null;
+   }
+
+   private static String getLocalNodeId() {
+      try {
+         return Cluster.getInstance().getLocalNodeId();
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to get the local node id", ex);
+         return null;
+      }
+   }
+
+   private static Set<String> getClusterNodeIds() {
+      Set<String> nodes = Cluster.getInstance().getClusterNodeIds();
+      return nodes == null ? Collections.emptySet() : nodes;
    }
 
    private static final String BOOKMARK_LOCK_MAP_NAME = "BOOKMARK_LOCK_MAP";
@@ -118,8 +202,22 @@ public class BookmarkLockManager {
       }
 
       public BookmarkLock(String user, String runtimeId) {
+         this(user, runtimeId, null);
+      }
+
+      public BookmarkLock(String user, String runtimeId, String nodeId) {
          this.user = user;
          this.runtimeId = runtimeId;
+         this.nodeId = nodeId;
+      }
+
+      /**
+       * The id of the cluster node that holds the runtime sheet, or null for a lock written
+       * by an older version. It is not part of equals and hashCode, so a lock is found by its
+       * user and runtime id whichever node wrote it.
+       */
+      public String getNodeId() {
+         return nodeId;
       }
 
       @Override
@@ -141,6 +239,7 @@ public class BookmarkLockManager {
 
       private String user;
       private String runtimeId;
+      private String nodeId;
    }
 
 }
