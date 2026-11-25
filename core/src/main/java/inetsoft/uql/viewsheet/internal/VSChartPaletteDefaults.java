@@ -199,11 +199,12 @@ public final class VSChartPaletteDefaults {
    /**
     * The linear colour frames a picker hides, by client model name.
     *
-    * Hidden at family granularity: a family the house set succeeds goes, a family it does not stays.
-    * Amber and Teal succeed the single hues and Heat; Variance succeeds the diverging set. Multi-hue
-    * has no house member and survives whole, and so does Custom, kept for brand matching. Greys and
-    * Purples go with their family and have no individual successor - the linear analogue of the
-    * categorical Gray, which likewise has no individual successor and is retired the same way.
+    * Hidden at family granularity. Amber and Teal succeed the single hues and Heat; Variance
+    * succeeds the diverging set. The multi-hue family is hidden too: it has no house member, but
+    * its ColorBrewer look no longer fits beside the house ramps. Custom stays, kept for brand
+    * matching and one-offs. Greys and Purples go with their family and have no individual
+    * successor - the linear analogue of the categorical Gray, which likewise has no individual
+    * successor and is retired the same way.
     *
     * Hiding is a display concern. Nothing here is removed from resolution, so a chart already on any
     * of these keeps rendering it and keeps showing it selected.
@@ -224,6 +225,11 @@ public final class VSChartPaletteDefaults {
       "BrBGColorModel", "PiYGColorModel", "PRGnColorModel", "PuOrColorModel",
       "RdBuColorModel", "RdGyColorModel", "RdYlBuColorModel", "RdYlGnColorModel",
       "SpectralColorModel",
+      // multi-hue, left without a successor: the ColorBrewer look no longer fits beside the house
+      // ramps, and Custom covers brand matching
+      "BuGnColorModel", "BuPuColorModel", "GnBuColorModel", "OrRdColorModel",
+      "PuBuColorModel", "PuBuGnColorModel", "PuRdColorModel", "RdPuColorModel",
+      "YlGnBuColorModel", "YlGnColorModel", "YlOrBrColorModel", "YlOrRdColorModel",
       // Heat, succeeded by Amber
       "HeatColorModel");
 

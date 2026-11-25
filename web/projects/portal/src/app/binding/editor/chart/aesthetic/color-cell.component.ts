@@ -50,6 +50,7 @@ import {
    YlOrRdColorModel
 } from "../../../../common/data/visual-frame-model";
 import { AestheticIconCell } from "./aesthetic-icon-cell";
+import { OklabStop, oklabStops } from "./oklab-ramp";
 import { NgStyle } from "@angular/common";
 
 @Component({
@@ -206,6 +207,22 @@ export class ColorCell extends AestheticIconCell {
       str = str.substring(str.length - 6, str.length);
 
       return "#" + str;
+   }
+
+   /**
+    * The stops of the Custom strip. A smooth frame gets the in-between stops the chart's OKLab blend
+    * would produce, so the strip shows the ramp the chart draws.
+    */
+   get gradientStops(): OklabStop[] {
+      const from = this.getGradientColor(true);
+      const to = this.getGradientColor();
+      const hex = /^#[0-9a-f]{6}$/i;
+
+      if((<GradientColorModel>this.frameModel).smooth && hex.test(from) && hex.test(to)) {
+         return oklabStops(from, to);
+      }
+
+      return [{ color: from, offset: 0 }, { color: to, offset: 1 }];
    }
 
    getGradientColor(from: boolean = false) {
