@@ -905,10 +905,16 @@ a:not([href]) {
 }
 
 // Modern shell: the primary button is a tint of the primary with a primary edge and the primary
-// text colour (about 10:1 light, 7:1 dark), not a solid orange block. It stays the strongest button
-// beside a neutral secondary one, and the tint follows the theme primary and the shell surface, so
-// dark mode needs no separate rule. Classic organizations keep the solid fill above.
-.viz-shell .btn.btn-primary {
+// text colour (about 9:1 in light), not a solid orange block. It stays the strongest button beside a
+// neutral secondary one, and the tint follows the theme primary. Classic organizations keep the solid
+// fill above.
+// The dark shell keeps the solid fill (the base rule, with the dark shell's on-primary label and its
+// lighter hover): orange mixed into a dark surface is a muddy brown (#644223), 1.7:1 off the surface,
+// that reads as a disabled or lower-tier button, and its 50% hover label is 4.4:1. Filled is the
+// highest-emphasis style and tonal or tinted a lower tier (Material 3, Apple HIG; see the PR7
+// decision record, D-PR7a). The :where() keeps this rule's specificity, so the light shell and
+// dashboard content (which restores the light shell's look) compute exactly as before.
+.viz-shell .btn.btn-primary:where(:not(:root.shell-dark *), :is(#{$dashboard-content}, #{$content-popup}) *) {
   color: var(--inet-primary-text-color);
   background-color: color-mix(in srgb, var(--inet-primary-color) 35%, var(--inet-shell-surface-default));
   border: 1px solid var(--inet-primary-color);

@@ -1031,3 +1031,40 @@ describe("login page filled-button ring gap", () => {
       expect(valueOf(dialog.body, "--ln-focus-gap")).toBe("var(--ln-dialog-bg)");
    });
 });
+
+describe("modern primary button in the dark shell (PR7a)", () => {
+   const GATE = ":where(:not(:root.shell-dark *), :is(#{$dashboard-content}, #{$content-popup}) *)";
+   const TINT_RULE = `.viz-shell .btn.btn-primary${GATE}`;
+   const override = () => read("scss/_bootstrap-override.scss");
+   // compiled resting rules of the modern primary button: the selector before "{", not state branches
+   const tintSelectors = () => [...compiledGlobal().matchAll(/(?:^|\})\s*([^{}]*\.viz-shell \.btn\.btn-primary[^{}]*)\{/g)]
+      .map(m => m[1].trim())
+      .filter(s => !/:hover|:focus|:active|\.focus/.test(s));
+
+   it("tints the button only outside the dark shell, or inside dashboard content", () => {
+      const rule = block(override(), TINT_RULE);
+
+      expect(rule).toContain("background-color: color-mix(in srgb, var(--inet-primary-color) 35%, var(--inet-shell-surface-default));");
+      expect(override()).not.toMatch(/^\.viz-shell \.btn\.btn-primary\s*\{/m);
+   });
+
+   it("keeps the tint rule's specificity: the gate is inside :where()", () => {
+      expect(TINT_RULE).toMatch(/^\.viz-shell \.btn\.btn-primary:where\(/);
+      expect(variables()).toMatch(/^\$content-popup:/m);
+   });
+
+   it("leaves the dark shell to the solid base rule: no compiled resting tint rule without the gate", () => {
+      const selectors = tintSelectors();
+
+      expect(selectors.length).toBeGreaterThanOrEqual(1);
+      selectors.forEach(s => expect(s).toContain(":where(:not(:root.shell-dark *), :is(.vs-pane"));
+   });
+
+   it("gives the base rule the dark shell's solid orange, on-primary label and lighter hover", () => {
+      const dark = read("scss/_shell-dark.scss");
+
+      expect(variables()).toMatch(/--inet-button-primary-bg-color:\s*var\(--inet-primary-color\);/);
+      expect(dark).toMatch(/--inet-button-primary-text-color:\s*var\(--inet-dark-on-primary-text-color\);/);
+      expect(dark).toMatch(/--inet-button-primary-hover-bg-color:\s*#\{\$dark-link\};/);
+   });
+});
