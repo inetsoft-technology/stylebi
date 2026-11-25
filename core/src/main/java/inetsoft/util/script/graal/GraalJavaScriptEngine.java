@@ -221,6 +221,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             .build();
          // test every Java.type name, not just a context's first lookup (bug #77396)
          ScriptHostAccess.installTypeLookupCheck(context, classFilter);
+         // a varargs constructor call must not rebind later constructions (bug #82259)
+         JavaClassProxy.forceUncachedConstructorSelection(context);
 
          // FIX B: reset per-Source error counts on (re)init
          resetErrorCounts();
