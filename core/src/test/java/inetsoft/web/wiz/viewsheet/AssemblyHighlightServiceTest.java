@@ -1837,7 +1837,9 @@ class AssemblyHighlightServiceTest {
          () -> h.service.set("tok", principal(), "Image1", null, fontOnly("Bold", "Arial"),
                              false, ""));
 
-      assertTrue(thrown.getMessage().contains("foreground"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("foreground tint or a background"),
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("font alone paints nothing"), thrown.getMessage());
    }
 
    @Test
