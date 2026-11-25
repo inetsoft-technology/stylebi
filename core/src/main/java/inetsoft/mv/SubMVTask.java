@@ -110,7 +110,12 @@ public final class SubMVTask extends AbstractMapTask {
                data = query.execute(mv);
             }
             catch(Exception e) {
-               if(SUtil.isDefaultVSGloballyVisible()) {
+               // a failed block must fail the map task (reported through the job's failure
+               // channel), never return null data, which the reducer cannot merge
+               if(!SUtil.isDefaultVSGloballyVisible()) {
+                  throw e;
+               }
+               else {
                   Principal oPrincipal = ThreadContext.getContextPrincipal();
                   IdentityID pId = IdentityID.getIdentityIDFromKey(oPrincipal.getName());
                   pId.setOrgID(Organization.getDefaultOrganizationID());
@@ -120,6 +125,13 @@ public final class SubMVTask extends AbstractMapTask {
 
                   try {
                      data = query.execute(mv);
+                  }
+                  catch(Exception retryEx) {
+                     if(retryEx != e) {
+                        retryEx.addSuppressed(e);
+                     }
+
+                     throw retryEx;
                   }
                   finally {
                      ThreadContext.setContextPrincipal(oPrincipal);
