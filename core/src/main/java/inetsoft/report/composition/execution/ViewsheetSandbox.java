@@ -1244,6 +1244,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // keep Viewsheet.resetWS() off the copy the query runs on (77915)
       ntable.setProperty(Viewsheet.VS_BOUND_TABLE, "true");
       ws.addAssembly(ntable);
+      applyAllRows(ntable, vobj, ws);
       MVManager mgr = MVManager.getManager();
 
       // strip off the prefix VS_
@@ -1277,6 +1278,37 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       return ntable;
+   }
+
+   /**
+    * Apply the "Include all rows" option of a table or crosstab to the logical model table its
+    * query runs on. The base bound table is shared by every assembly bound to the same source,
+    * so the copy of it that carries the option is private to this assembly's query.
+    *
+    * @param ntable the bound copy of the viewsheet table the query of the assembly runs on.
+    * @param vobj   the viewsheet assembly the query is for.
+    * @param ws     the worksheet of the table.
+    */
+   private static void applyAllRows(TableAssembly ntable, VSAssembly vobj, Worksheet ws) {
+      if(!(vobj != null && vobj.getVSAssemblyInfo() instanceof TableDataVSAssemblyInfo tinfo) ||
+         !(ntable instanceof MirrorTableAssembly mirror))
+      {
+         return;
+      }
+
+      List<String> allRows = tinfo.getAllRows();
+
+      if(allRows.isEmpty() || !(mirror.getTableAssembly() instanceof BoundTableAssembly bound) ||
+         bound.getSourceInfo().getType() != SourceInfo.MODEL)
+      {
+         return;
+      }
+
+      BoundTableAssembly copy = (BoundTableAssembly) bound.copyAssembly(ntable.getName() + "A");
+      copy.setAllRows(allRows);
+      copy.setProperty(Viewsheet.VS_BOUND_TABLE, "true");
+      ws.addAssembly(copy);
+      mirror.setTableAssemblies(new TableAssembly[] { copy });
    }
 
    /**

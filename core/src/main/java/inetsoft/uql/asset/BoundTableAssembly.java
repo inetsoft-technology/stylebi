@@ -74,6 +74,22 @@ public class BoundTableAssembly extends AbstractTableAssembly {
    }
 
    /**
+    * Get the logical model entities whose rows are all included ("Include all rows").
+    * @return the entity names, never null.
+    */
+   public List<String> getAllRows() {
+      return getBoundTableInfo().getAllRows();
+   }
+
+   /**
+    * Set the logical model entities whose rows are all included ("Include all rows").
+    * @param allRows the entity names, null or empty for none.
+    */
+   public void setAllRows(List<String> allRows) {
+      getBoundTableInfo().setAllRows(allRows);
+   }
+
+   /**
     * Check if the mirror assembly is valid.
     */
    @Override
