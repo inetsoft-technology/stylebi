@@ -25,26 +25,18 @@ import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
-
-import java.util.*;
-import java.util.stream.Stream;
-
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.*;
+import java.util.stream.Stream;
+
 import static org.junit.jupiter.api.Assertions.*;
 
-@ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
-                      initializers = ConfigurationContextInitializer.class)
-@SreeHome
-@Tag("core")
 /**
  * The calculated measures (Change, Value Of, Running Total, Moving, Percent of total) of a
  * crosstab whose innermost row dimension has Top N with "Group all others together": the
@@ -58,6 +50,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * [Month] or [Year, Month], the calculation along Month, "Compute trend and comparison for
  * totals" off.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
+@Tag("core")
 class CrossTabFilterOthersCalcTest {
    private static final String SUM = "Sum(Total)";
    private static final String CALC = "C Sum(Total)";

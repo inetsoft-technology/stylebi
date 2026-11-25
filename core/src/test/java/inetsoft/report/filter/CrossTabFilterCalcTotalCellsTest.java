@@ -28,7 +28,6 @@ import java.util.*;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -39,16 +38,16 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import static org.junit.jupiter.api.Assertions.*;
 import static inetsoft.report.filter.CrossTabFilterTestSupport.*;
 
-@ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
-                      initializers = ConfigurationContextInitializer.class)
-@SreeHome
-@Tag("core")
 /**
  * Calculators on total cells with "Compute Trend and Comparison for Totals" on. The
  * expectations are properties of the calculator definitions, checked against the plain
  * Sum cells of the same crosstab; none is copied from an output.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
+@Tag("core")
 class CrossTabFilterCalcTotalCellsTest {
    private static final int YEARS = 2;
    private static final int MONTHS = 3;

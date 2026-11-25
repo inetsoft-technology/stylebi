@@ -25,7 +25,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
@@ -34,15 +33,15 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import static org.junit.jupiter.api.Assertions.*;
 import static inetsoft.report.filter.CrossTabFilterTestSupport.*;
 
+/**
+ * Formulas that need all rows of a tuple (a second column, a rank or a spread) must give
+ * the same result in a group total as the formula fed with the rows of that tuple.
+ */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("core")
-/**
- * Formulas that need all rows of a tuple (a second column, a rank or a spread) must give
- * the same result in a group total as the formula fed with the rows of that tuple.
- */
 class CrossTabFilterTupleAggregateTest {
    // columns: R1, R2, C1, X, Y; two rows per existing (R1, R2, C1) combination
    private Object[][] data() {

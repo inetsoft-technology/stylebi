@@ -17,34 +17,24 @@
  */
 package inetsoft.report.filter;
 
-import inetsoft.report.composition.graph.calc.*;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
-
-import java.util.*;
-import java.util.stream.Stream;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.*;
+import java.util.stream.Stream;
+
 import static org.junit.jupiter.api.Assertions.*;
 
-@ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
-                      initializers = ConfigurationContextInitializer.class)
-@SreeHome
-@Tag("core")
 /**
  * The server's maximum number of query rows ({@code query.runtime.maxrow}, Enterprise Manager
  * Performance settings, 0 means no limit) cuts a crosstab while the filter aggregates. The
@@ -55,6 +45,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * Caller: CrossTabFilter.insertPair through genTuples, for every report or viewsheet crosstab;
  * the setting is read once per filter ({@code Util.getRuntimeMaxRows}).
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
+@Tag("core")
 class CrossTabFilterMaxRowsTest {
    private static final String PROPERTY = "query.runtime.maxrow";
    private String original;

@@ -201,7 +201,7 @@ public class CrossTabFilterTest {
                Double expected = aggregate(data, m, rowKey, colKey);
                Object actual = f.getObject(r, c);
 
-               if(!same(expected, actual)) {
+               if(!sameNumber(expected, actual)) {
                   problems.add(String.format("%s row=%s col=%s expected=%s actual=%s",
                                              KINDS[m] + "(" + measure + ")", Arrays.toString(rowKey),
                                              Arrays.toString(colKey), expected, actual));
@@ -353,16 +353,6 @@ public class CrossTabFilterTest {
          }
 
          return set;
-      }
-
-      private static boolean same(Double expected, Object actual) {
-         if(expected == null) {
-            return actual == null || (actual instanceof Number && ((Number) actual).doubleValue() == 0)
-               || "".equals(actual);
-         }
-
-         return actual instanceof Number
-            && Math.abs(((Number) actual).doubleValue() - expected) < 1e-9;
       }
 
       private static String lastPath(TableDataPath path) {

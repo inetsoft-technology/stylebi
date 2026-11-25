@@ -31,7 +31,6 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.ThreadContext;
 import inetsoft.web.binding.service.VSBindingService;
-import inetsoft.web.viewsheet.controller.table.BaseTableDrillService;
 import inetsoft.web.viewsheet.controller.table.CrosstabDrillService;
 import inetsoft.web.viewsheet.event.table.DrillEvent;
 import inetsoft.web.viewsheet.event.table.ImmutableDrillEvent;
@@ -40,8 +39,6 @@ import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 
-import java.lang.reflect.Method;
-import java.security.Principal;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.util.*;
@@ -69,7 +66,7 @@ import static org.mockito.Mockito.when;
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 public class CrosstabDrillServiceTest {
    private final DcInMemoryViewsheetFixture fixture = new DcInMemoryViewsheetFixture();
 
@@ -100,16 +97,18 @@ public class CrosstabDrillServiceTest {
          .thenAnswer(inv -> new ChangedAssemblyList());
       CrosstabDrillHandler handler = new CrosstabDrillHandler(
          viewsheetService, lifecycle, mock(RuntimeViewsheetRef.class));
-      CrosstabDrillService service = new CrosstabDrillService(
-         lifecycle, viewsheetService, handler, mock(VSBindingService.class));
-      Method method = BaseTableDrillService.class.getDeclaredMethod(
-         "processDrill", String.class, DrillEvent.class, Principal.class,
-         CommandDispatcher.class, String.class, boolean.class);
-      method.setAccessible(true);
-      method.invoke(service, sheet.rvs().getID(),
+      // processDrill is protected: a subclass exposes it so a failure is not wrapped
+      var service = new CrosstabDrillService(
+         lifecycle, viewsheetService, handler, mock(VSBindingService.class))
+      {
+         void drillForTest(String id, DrillEvent event) throws Exception {
+            processDrill(id, event, ThreadContext.getPrincipal(), mock(CommandDispatcher.class),
+                         null, false);
+         }
+      };
+      service.drillForTest(sheet.rvs().getID(),
                     ImmutableDrillEvent.builder().assemblyName(name).row(row).col(0).drillOp(op)
-                       .direction("y").field(field).build(),
-                    ThreadContext.getPrincipal(), mock(CommandDispatcher.class), null, false);
+                       .direction("y").field(field).build());
    }
 
    @Test
