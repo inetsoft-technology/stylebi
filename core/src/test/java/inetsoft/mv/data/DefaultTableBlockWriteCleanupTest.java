@@ -35,6 +35,8 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -54,22 +56,22 @@ import static org.mockito.Mockito.when;
 class DefaultTableBlockWriteCleanupTest {
    @Test
    void failedColumnWriteDeletesTempFiles() throws Exception {
-      int before = swapFiles().length;
+      Set<String> before = swapFileNames();
 
       DefaultTableBlock block = newBlock(3, true);
       assertThrows(IOException.class, () -> block.write(sink()));
 
-      assertEquals(before, swapFiles().length);
+      assertNoNewSwapFiles(before);
    }
 
    @Test
    void successfulWriteDeletesTempFiles() throws Exception {
-      int before = swapFiles().length;
+      Set<String> before = swapFileNames();
 
       DefaultTableBlock block = newBlock(3, false);
       block.write(sink());
 
-      assertEquals(before, swapFiles().length);
+      assertNoNewSwapFiles(before);
    }
 
    /**
@@ -102,10 +104,17 @@ class DefaultTableBlockWriteCleanupTest {
       return block;
    }
 
-   private static File[] swapFiles() throws IOException {
+   // names, not a count: other blocks' finalizers delete their own swap files at any time
+   private static void assertNoNewSwapFiles(Set<String> before) throws IOException {
+      Set<String> added = swapFileNames();
+      added.removeAll(before);
+      assertEquals(Set.of(), added, "temp files left in the cache directory");
+   }
+
+   private static Set<String> swapFileNames() throws IOException {
       File dir = new File(FileSystemService.getInstance().getCacheDirectory());
-      File[] files = dir.listFiles((d, name) -> name.startsWith("mvcolswap"));
-      return files == null ? new File[0] : files;
+      String[] names = dir.list((d, name) -> name.startsWith("mvcolswap"));
+      return names == null ? new HashSet<>() : new HashSet<>(Arrays.asList(names));
    }
 
    private static WritableByteChannel sink() {
