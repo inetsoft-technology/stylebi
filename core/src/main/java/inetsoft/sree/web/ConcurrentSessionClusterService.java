@@ -37,7 +37,8 @@ import java.util.function.Supplier;
  */
 public class ConcurrentSessionClusterService extends AbstractSessionService {
    ConcurrentSessionClusterService(Supplier<Integer> maxSessions) {
-      this(maxSessions, true, ConcurrentSessionClusterService.class.getName() + ".licenseMap");
+      this(maxSessions, true, ConcurrentSessionClusterService.class.getName() + ".licenseMap",
+           true);
    }
 
    /**
@@ -45,14 +46,34 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
     * @param maxSessions Maximum # of concurrent sessions.
     * @param logoutAfterFail Whether to log the user out after a failure.
     * @param clusterMapName name of the distributed map that contains the licenses.
+    * @param adoptLiveSessions true if a license whose owner node stopped heartbeating, but whose
+    *                          session is still logged in, is taken over by this node instead of
+    *                          being dropped. Must be false for a pool whose slots are released by
+    *                          their own per-JVM timer (the viewer pool), because an adopted slot
+    *                          would never be released by that timer.
     */
    ConcurrentSessionClusterService(Supplier<Integer> maxSessions, boolean logoutAfterFail,
-                                   String clusterMapName)
+                                   String clusterMapName, boolean adoptLiveSessions)
+   {
+      this(maxSessions, logoutAfterFail, clusterMapName, adoptLiveSessions, HEARTBEAT_TIMEOUT,
+           60000L);
+   }
+
+   /**
+    * Test seam: the heartbeat timeout and the update period can be overridden.
+    * @param updatePeriod period of the background update in milliseconds, or a value less than
+    *                     or equal to 0 to not schedule it (the caller invokes
+    *                     {@link #updateLicenses()}).
+    */
+   ConcurrentSessionClusterService(Supplier<Integer> maxSessions, boolean logoutAfterFail,
+                                   String clusterMapName, boolean adoptLiveSessions,
+                                   long heartbeatTimeout, long updatePeriod)
    {
       this.clusterLicenses = Cluster.getInstance().getReplicatedMap(clusterMapName);
       this.maxSessions = maxSessions;
       this.logoutAfterFail = logoutAfterFail;
-      LicenseUpdater updater = new LicenseUpdater();
+      this.adoptLiveSessions = adoptLiveSessions;
+      this.heartbeatTimeout = heartbeatTimeout;
       this.runner = Executors.newSingleThreadScheduledExecutor(r -> {
          Thread t = new Thread(r, "ConcurrentSessionLicenseUpdater");
          t.setDaemon(true);
@@ -61,7 +82,10 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
 
       // Background thread which refreshes heartbeat timestamps in the distributed
       // map and removes entries from nodes that have stopped heartbeating.
-      runner.scheduleAtFixedRate(updater, 1, 60, TimeUnit.SECONDS);
+      if(updatePeriod > 0) {
+         runner.scheduleAtFixedRate(
+            this::updateLicenses, 1000L, updatePeriod, TimeUnit.MILLISECONDS);
+      }
    }
 
    /**
@@ -221,6 +245,8 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
       LoggerFactory.getLogger(ConcurrentSessionClusterService.class);
 
    private static final long HEARTBEAT_TIMEOUT = 180000L;
+   private final long heartbeatTimeout;
+   private final boolean adoptLiveSessions;
 
    private final Map<ClientInfo, ClusterLicense> clusterLicenses;
    private final ScheduledExecutorService runner;
@@ -231,45 +257,60 @@ public class ConcurrentSessionClusterService extends AbstractSessionService {
       ConcurrentSessionClusterService.class.getName() + ".lock";
 
    /**
-    * Runnable which maintains heartbeat timestamps in the distributed license map.
-    * Every 60 seconds, this updates the timestamp of each license owned by this node
-    * and removes any licenses whose timestamp has not been updated within
-    * {@link #HEARTBEAT_TIMEOUT}, which indicates the owning node has crashed.
+    * Refreshes the heartbeat timestamp of each license owned by this node, and handles any
+    * license whose timestamp has not been updated within the heartbeat timeout, which indicates
+    * the owning node has stopped. A session is not owned by the node that created it (sessions
+    * are kept in replicated caches and survive the loss of a node), so if the session of such a
+    * license is still logged in, the license is taken over by this node and keeps counting
+    * against the limit; otherwise it is released.
     */
-   private class LicenseUpdater implements Runnable {
-      /**
-       * Updates the license file in the dataspace.
-       */
-      @Override
-      public void run() {
-         Lock lock = Cluster.getInstance().getLock(LICENSE_LOCK_NAME);
-         lock.lock();
+   void updateLicenses() {
+      Lock lock = Cluster.getInstance().getLock(LICENSE_LOCK_NAME);
+      lock.lock();
 
-         try {
-            List<ClientInfo> toRemove = new ArrayList<>();
+      try {
+         List<ClientInfo> toRemove = new ArrayList<>();
+         Map<ClientInfo, ClusterLicense> toAdopt = new HashMap<>();
+         final long currentTime = System.currentTimeMillis();
 
-            for(Map.Entry<ClientInfo, ClusterLicense> entry : clusterLicenses.entrySet()) {
-               final ClusterLicense license = entry.getValue();
-               final long currentTime = System.currentTimeMillis();
+         for(Map.Entry<ClientInfo, ClusterLicense> entry : clusterLicenses.entrySet()) {
+            final ClusterLicense license = entry.getValue();
 
-               // Refresh the heartbeat timestamp for sessions owned by this node.
-               if(license.getNodeId().equals(uuid)) {
-                  license.setTimestamp(currentTime);
-                  clusterLicenses.put(entry.getKey(), license);
-               }
-
-               // If no heartbeat received in over 3 minutes, assume the node died
-               // and free the license for other nodes to use.
-               if((currentTime - license.getTimestamp()) > HEARTBEAT_TIMEOUT) {
-                  toRemove.add(entry.getKey());
-               }
+            // Refresh the heartbeat timestamp for sessions owned by this node.
+            if(license.getNodeId().equals(uuid)) {
+               license.setTimestamp(currentTime);
+               clusterLicenses.put(entry.getKey(), license);
             }
 
-            toRemove.forEach(clusterLicenses::remove);
+            // If no heartbeat received in over 3 minutes, assume the node died.
+            if((currentTime - license.getTimestamp()) > heartbeatTimeout) {
+               if(!adoptLiveSessions) {
+                  toRemove.add(entry.getKey());
+                  continue;
+               }
+
+               try {
+                  if(SecurityEngine.getSecurity().isActiveUser(license.getPrincipal())) {
+                     toAdopt.put(entry.getKey(),
+                                 new ClusterLicense(license.getPrincipal(), uuid, currentTime));
+                  }
+                  else {
+                     toRemove.add(entry.getKey());
+                  }
+               }
+               catch(Exception e) {
+                  // leave the license for the next pass
+                  LOG.warn("Failed to check the session of a license held by a stopped node",
+                           e);
+               }
+            }
          }
-         finally {
-            lock.unlock();
-         }
+
+         toRemove.forEach(clusterLicenses::remove);
+         toAdopt.forEach(clusterLicenses::put);
+      }
+      finally {
+         lock.unlock();
       }
    }
 
