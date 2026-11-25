@@ -221,10 +221,9 @@
   opacity: 0.2 !important;
 }
 
-// the move handle takes the same two-tone pair as the resize handles: halo fill, stroke ring, and
-// the stroke for its glyph (the move icon has no colour of its own)
+// the move handle takes the same two-tone pair as the resize handles: halo fill and stroke ring (its
+// glyph colour is set in _composer-overlay.scss)
 .composer-object__move-handle {
   border: 1px solid var(--inet-composer-overlay-stroke, var(--inet-default-border-color));
   background: var(--inet-composer-overlay-halo, var(--inet-shell-surface-default));
-  color: var(--inet-composer-overlay-stroke, inherit);
 }

@@ -127,12 +127,18 @@ describe("composer overlay consumers", () => {
    // owner review 1, must-fix 1: the move icon has no colour of its own; on the white halo fill it must
    // take the stroke (the wizard pane is outside the content restore, so it inherited the dark shell's
    // light text); themed pages inherit as before
+   // the glyph is an icon font colour from var(--inet-icon-color) on the icon class (global.css), so the
+   // handle's own color never reaches it: the gated partial points --inet-icon-color at the stroke on the
+   // three move handles (a themed page keeps its icon colour); live check: computed icon colour = stroke
    it("moveHandlesHaveAStrokeGlyph", () => {
-      const glyph = /color:\s*var\(--inet-composer-overlay-stroke,\s*inherit\)/;
-      expect(rule(container(), /^\.composer-object__move-handle\s*\{/m)).toMatch(glyph);
-      expect(rule(layout(), /^\.layout-object__move-handle\s*\{/m)).toMatch(glyph);
+      const glyph = rule(read(__dirname, "_composer-overlay.scss"),
+         /^:root:where\(:not\(\.custom-theme\)\)\s+:is\(\.composer-object__move-handle,\s*\.layout-object__move-handle,\s*\.vs-wizard-object__move-handle\)\s*\{/m);
+      expect(glyph).toMatch(/--inet-icon-color:\s*var\(--inet-composer-overlay-stroke\)/);
+      // no dead color declarations left on the handles themselves
+      expect(rule(container(), /^\.composer-object__move-handle\s*\{/m)).not.toMatch(/(^|\s)color:/);
+      expect(rule(layout(), /^\.layout-object__move-handle\s*\{/m)).not.toMatch(/(^|\s)color:/);
       expect(rule(read(app, "vs-wizard/gui/objects/vs-wizard-object.component.scss"), /^\.vs-wizard-object__move-handle\s*\{/m))
-         .toMatch(glyph);
+         .not.toMatch(/(^|\s)color:/);
    });
 
    it("titleAndListCellHandlesAreTwoToneInTheComposerOnly", () => {

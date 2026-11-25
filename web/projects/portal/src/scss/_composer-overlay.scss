@@ -30,6 +30,15 @@
   --inet-composer-overlay-band: solid;
 }
 
+// The move handles' glyph (an icon font) draws in var(--inet-icon-color), set on the icon class in
+// global.css, so a colour on the handle never reaches it. On the white halo fill it takes the stroke,
+// in the dashboard editor, the layout pane and the wizard grid (the wizard pane is outside the dark
+// shell's content restore, where the icon colour is the shell's light one). Gated here, so a themed
+// page keeps its icon colour.
+:root:where(:not(.custom-theme)) :is(.composer-object__move-handle, .layout-object__move-handle, .vs-wizard-object__move-handle) {
+  --inet-icon-color: var(--inet-composer-overlay-stroke);
+}
+
 // The marquee on the composer's three authoring panes (the dashboard, layout and wizard panes pass
 // selectionBoxClass="selection-box composer-selection-box"; the chart brush and cell marquees keep
 // .selection-box alone): a 1px stroke ring with a 1px halo inside it, and one absolute fill, the
