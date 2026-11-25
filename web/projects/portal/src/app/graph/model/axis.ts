@@ -23,6 +23,8 @@ export interface Axis extends ChartObject {
    sortOp: string;
    axisOps: string[];
    axisFields: string[];
+   /** The drill op of each field, parallel to axisFields ("" for none). Unlike axisOps it is never reversed. */
+   axisFieldOps?: string[];
    /** The date level of each drillable field ("Month"), "" for a field with none. */
    axisLevels?: string[];
    /** The date level each field's drill up goes to, "" if unknown or not possible. */

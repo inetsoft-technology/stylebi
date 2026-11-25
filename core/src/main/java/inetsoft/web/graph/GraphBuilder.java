@@ -649,6 +649,7 @@ public class GraphBuilder {
             .axisType(axisType)
             .sortOp(sortOp)
             .axisOps(axisOps)
+            .axisFieldOps(axisOps)
             .axisFields(axisFields)
             .axisSizes(axisSizes)
             .secondary(secondary)
