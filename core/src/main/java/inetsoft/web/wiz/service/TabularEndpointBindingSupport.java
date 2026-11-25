@@ -159,12 +159,26 @@ public final class TabularEndpointBindingSupport {
       Map<String, String> supplied = parameters == null
          ? new LinkedHashMap<>() : new LinkedHashMap<>(parameters);
       List<String> missing = new ArrayList<>();
+      List<String> invalid = new ArrayList<>();
+      boolean enforceChoices = !CUSTOM_ENDPOINT.equals(trimmedEndpoint);
 
       for(RestParameter parameter : params.getParameters()) {
          String value = supplied.remove(parameter.getName());
 
          if(value != null && !value.isBlank()) {
-            parameter.setValue(value.trim());
+            // A parameter whose placeholder is a closed list ("Cash|Accrual") takes only those
+            // values: the vendor answers any other spelling with a 400 that names no cause.
+            String resolved = enforceChoices
+               ? RestParameterChoices.resolve(parameter.getPlaceholder(), value.trim())
+               : value.trim();
+
+            if(resolved == null) {
+               invalid.add(TabularQueryContractSupport.invalidValueText(
+                  parameter.getName(), value.trim(), parameter.getPlaceholder()));
+               continue;
+            }
+
+            parameter.setValue(resolved);
          }
          else if(parameter.isRequired()) {
             missing.add(parameter.getName());
@@ -182,9 +196,10 @@ public final class TabularEndpointBindingSupport {
       // than the one that was asked for and reports success, and the likeliest cause is a caller
       // using another endpoint's contract, which no later step can detect.
       TabularQueryContractSupport.requireValidParameters(
-         "Endpoint '" + trimmedEndpoint + "'", missing, supplied.keySet(),
+         "Endpoint '" + trimmedEndpoint + "'", missing, supplied.keySet(), invalid,
          params.getParameters().stream()
-            .map(p -> p.getName() + (p.isRequired() ? " (required)" : ""))
+            .map(p -> RestParameterChoices.describeParameter(
+               p.getName(), p.isRequired(), p.getPlaceholder()))
             .collect(Collectors.joining(", ")));
 
       paramProp.setValue(query, params);

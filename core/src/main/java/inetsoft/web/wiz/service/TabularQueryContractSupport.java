@@ -223,7 +223,8 @@ public final class TabularQueryContractSupport {
                elements.stream().allMatch(e -> TabularUtil.compositeElementName(e) != null);
 
             if(namesOk) {
-               fillNamedSkeleton(query, prop, name, value, dsName);
+               fillNamedSkeleton(query, prop, name, value, dsName,
+                                 hasCatalogueEndpoint(query, pmap));
             }
             else {
                throw new IllegalArgumentException(
@@ -639,7 +640,8 @@ public final class TabularQueryContractSupport {
     * non-empty and every element carries a name before calling this.
     */
    private static void fillNamedSkeleton(TabularQuery query, PropertyMeta prop, String name,
-                                         Object requestedValue, String dsName) throws Exception
+                                         Object requestedValue, String dsName,
+                                         boolean enforceChoices) throws Exception
    {
       if(!(requestedValue instanceof Map)) {
          throw new IllegalArgumentException(
@@ -658,6 +660,7 @@ public final class TabularQueryContractSupport {
       @SuppressWarnings("unchecked")
       Map<String, Object> supplied = new LinkedHashMap<>((Map<String, Object>) requestedValue);
       List<String> missing = new ArrayList<>();
+      List<String> invalid = new ArrayList<>();
       Map<String, String> filled = new LinkedHashMap<>();
 
       for(Object element : elements) {
@@ -667,8 +670,20 @@ public final class TabularQueryContractSupport {
 
          if(vText != null && !vText.isBlank()) {
             String trimmed = vText.trim();
-            TabularUtil.compositeElementSetValue(element, trimmed);
-            filled.put(elementName, trimmed);
+            String placeholder = TabularUtil.compositeElementPlaceholder(element);
+
+            // A closed placeholder list is enforced only for a catalogue endpoint: a query built
+            // from a hand-written suffix carries placeholders the caller wrote itself.
+            String resolved = enforceChoices
+               ? RestParameterChoices.resolve(placeholder, trimmed) : trimmed;
+
+            if(resolved == null) {
+               invalid.add(invalidValueText(elementName, trimmed, placeholder));
+               continue;
+            }
+
+            TabularUtil.compositeElementSetValue(element, resolved);
+            filled.put(elementName, resolved);
          }
          else if(Boolean.TRUE.equals(TabularUtil.compositeElementRequired(element))) {
             missing.add(elementName);
@@ -676,7 +691,7 @@ public final class TabularQueryContractSupport {
       }
 
       requireValidParameters("'" + name + "' of '" + dsName + "'", missing, supplied.keySet(),
-                             describeElements(elements));
+                             invalid, describeElements(elements));
 
       // The skeleton object itself, not a copy -- some composite getters (RestParameters,
       // HttpParameter[]) return a FRESH value on every call, so mutating elements in place does
@@ -717,7 +732,20 @@ public final class TabularQueryContractSupport {
    static void requireValidParameters(String subject, Collection<String> missing,
                                       Collection<String> unknown, String contract)
    {
-      if(missing.isEmpty() && unknown.isEmpty()) {
+      requireValidParameters(subject, missing, unknown, List.of(), contract);
+   }
+
+   /**
+    * As {@link #requireValidParameters(String, Collection, Collection, String)}, and also refuses
+    * values that match none of a parameter's closed choice list, in the same single message.
+    *
+    * @param invalid one {@link #invalidValueText} entry per refused value.
+    */
+   static void requireValidParameters(String subject, Collection<String> missing,
+                                      Collection<String> unknown, Collection<String> invalid,
+                                      String contract)
+   {
+      if(missing.isEmpty() && unknown.isEmpty() && invalid.isEmpty()) {
          return;
       }
 
@@ -733,6 +761,11 @@ public final class TabularQueryContractSupport {
             .append(" no parameter(s) named: ").append(String.join(", ", unknown)).append('.');
       }
 
+      if(!invalid.isEmpty()) {
+         message.append(missing.isEmpty() && unknown.isEmpty() ? " has" : " It also has")
+            .append(" invalid value(s): ").append(String.join("; ", invalid)).append('.');
+      }
+
       message.append(" Its parameters are: ").append(contract).append('.');
 
       if(!missing.isEmpty()) {
@@ -744,12 +777,39 @@ public final class TabularQueryContractSupport {
 
    private static String describeElements(List<Object> elements) {
       return elements.stream()
-         .map(e -> {
-            String n = TabularUtil.compositeElementName(e);
-            Boolean req = TabularUtil.compositeElementRequired(e);
-            return n + (Boolean.TRUE.equals(req) ? " (required)" : "");
-         })
+         .map(e -> RestParameterChoices.describeParameter(
+            TabularUtil.compositeElementName(e),
+            Boolean.TRUE.equals(TabularUtil.compositeElementRequired(e)),
+            TabularUtil.compositeElementPlaceholder(e)))
          .collect(Collectors.joining(", "));
+   }
+
+   /**
+    * One refused value for {@link #requireValidParameters}: {@code Name = 'value' (must be one
+    * of: A | B)}, single-line whatever the caller sent.
+    */
+   static String invalidValueText(String name, String value, String placeholder) {
+      return name + " = '" + RestParameterChoices.oneLine(value, 60) + "' (must be one of: " +
+         RestParameterChoices.describeChoices(RestParameterChoices.closedChoices(placeholder)) +
+         ")";
+   }
+
+   /**
+    * Whether the query is bound to a catalogue endpoint: its {@code endpoint} property is set and
+    * is not the hand-written-suffix {@value TabularEndpointBindingSupport#CUSTOM_ENDPOINT}.
+    */
+   static boolean hasCatalogueEndpoint(TabularQuery query,
+                                       Map<String, PropertyMeta> pmap)
+   {
+      PropertyMeta endpointProp = pmap.get("endpoint");
+
+      if(endpointProp == null) {
+         return false;
+      }
+
+      Object endpoint = endpointProp.getValue(query);
+      return endpoint instanceof String s && !s.isBlank() &&
+         !TabularEndpointBindingSupport.CUSTOM_ENDPOINT.equals(s.trim());
    }
 
    private static String shapeOf(Object value) {

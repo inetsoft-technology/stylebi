@@ -551,6 +551,21 @@ public class TabularUtil {
    }
 
    /**
+    * A composite element's own placeholder, via its zero-arg {@code getPlaceholder()}
+    * ({@code RestParameter}). {@code null} when the element type has no such concept or on any
+    * reflection failure, never fatal here.
+    */
+   public static String compositeElementPlaceholder(Object element) {
+      try {
+         Object v = element.getClass().getMethod("getPlaceholder").invoke(element);
+         return v == null ? null : v.toString();
+      }
+      catch(Exception ex) {
+         return null;
+      }
+   }
+
+   /**
     * Whether a composite element declares itself required, via its zero-arg
     * {@code isRequired()}. {@code null} when the element type has no such concept at all (no
     * such method) -- distinct from an explicit {@code false}, since a caller may need to say
