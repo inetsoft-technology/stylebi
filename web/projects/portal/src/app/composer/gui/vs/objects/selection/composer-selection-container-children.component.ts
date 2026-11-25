@@ -211,6 +211,16 @@ export class ComposerSelectionContainerChildren extends VSSelectionContainerChil
       }
    }
 
+   /**
+    * The body is painted over the container's rounded box below the title, so it carries the
+    * container's bottom corners itself. Only for a rounded container, so a square one renders as
+    * before.
+    */
+   get bodyBorderRadius(): string {
+      const radius = this.vsObject.objectFormat.roundCorner ?? 0;
+      return radius > 0 ? `0px 0px ${radius}px ${radius}px` : null;
+   }
+
    getObjectTop(): number {
       return this.vsObject.objectFormat.top + this.vsObject.titleFormat.height;
    }

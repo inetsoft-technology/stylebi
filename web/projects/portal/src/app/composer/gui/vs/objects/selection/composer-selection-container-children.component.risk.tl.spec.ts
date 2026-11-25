@@ -43,7 +43,7 @@ import { DragService } from "../../../../../widget/services/drag.service";
 import { ComposerVsSearchService } from "../../composer-vs-search.service";
 import { VSObjectModel } from "../../../../../vsobjects/model/vs-object-model";
 
-async function renderComponent() {
+async function renderFixture(roundCorner?: number) {
    vi.spyOn(ComposerSelectionContainerChildren.prototype as any, "getBodyHeight").mockReturnValue(120);
 
    const { fixture } = await render(ComposerSelectionContainerChildren, {
@@ -87,6 +87,7 @@ async function renderComponent() {
             objectType: "VSSelectionContainer",
             objectFormat: {
                top: 10, left: 0, width: 200, height: 150,
+               roundCorner,
                border: { top: null, bottom: null, left: null, right: null },
             },
             titleFormat: { height: 30 },
@@ -97,7 +98,11 @@ async function renderComponent() {
          } as any,
       },
    });
-   return fixture.componentInstance as ComposerSelectionContainerChildren;
+   return fixture;
+}
+
+async function renderComponent() {
+   return (await renderFixture()).componentInstance as ComposerSelectionContainerChildren;
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -127,5 +132,29 @@ describe("ComposerSelectionContainerChildren — moveAssembly", () => {
       comp.moveAssembly({ event: {}, model: {} as VSObjectModel });
 
       expect(emitted).toHaveLength(0);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Bug #82330: the body is painted over the container's rounded box. In Composer the title is
+// always above it, so only the bottom corners are the container's.
+// ---------------------------------------------------------------------------
+
+describe("ComposerSelectionContainerChildren — rounded container corners", () => {
+   function body(fixture: any): HTMLElement {
+      return (fixture.nativeElement as HTMLElement).querySelector(".scrollbar-container").parentElement;
+   }
+
+   it("should round the bottom corners of the body with the container radius", async () => {
+      const fixture = await renderFixture(6);
+
+      expect(body(fixture).style.borderRadius).toBe("0px 0px 6px 6px");
+      expect(body(fixture).style.overflow).toBe("");
+   });
+
+   it("should leave a radius-0 container body unchanged", async () => {
+      const fixture = await renderFixture(0);
+
+      expect(body(fixture).style.borderRadius).toBe("");
    });
 });

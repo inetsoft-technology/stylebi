@@ -46,6 +46,11 @@ export class VSTitle implements OnChanges {
    @Input() formatPainterMode: boolean;
    @Input() textBackground: string = "white";
    @Input() cursorPointer: boolean;
+   /**
+    * CSS border-radius set by the host. Overrides the title format's radius, e.g. so a selection
+    * container's title follows the container's rounded top corners.
+    */
+   @Input() borderRadius: string;
    @Output() selectTitle = new EventEmitter<MouseEvent>();
    @Output() changeTitle = new EventEmitter<string>();
    @Output() titleResizeMove = new EventEmitter<number>();
@@ -61,6 +66,14 @@ export class VSTitle implements OnChanges {
       if(changes["titleSelected"] && !this.titleSelected) {
          this.editingTitle = false;
       }
+   }
+
+   get titleBorderRadius(): string {
+      if(this.borderRadius) {
+         return this.borderRadius;
+      }
+
+      return this.titleFormat?.roundCorner != null ? this.titleFormat.roundCorner + "px" : null;
    }
 
    public get viewer() {

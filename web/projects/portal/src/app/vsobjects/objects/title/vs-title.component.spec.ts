@@ -29,13 +29,14 @@ import { VSTitle } from "./vs-title.component";
 
 @Component({
    selector: "test-app",
-   template: "<vs-title [titleFormat]='titleFormat' [titleVisible]='titleVisible'></vs-title>",
+   template: "<vs-title [titleFormat]='titleFormat' [titleVisible]='titleVisible' [borderRadius]='borderRadius'></vs-title>",
    standalone: true,
    imports: [VSTitle]
 })
 class TestApp {
    public titleFormat = TestUtils.createMockVSFormatModel();
    public titleVisible: boolean = true;
+   public borderRadius: string = undefined;
 }
 
 describe("VSTitle", () => {
@@ -70,5 +71,26 @@ describe("VSTitle", () => {
       testApp.titleVisible = false;
       fixture.detectChanges();
       expect(titleDiv.style["display"]).toBe("none");
+   });
+
+   // Bug #82330: a host (selection container) can give the title rounder corners than its format.
+   it("should use the borderRadius input over the title format radius", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      const testApp = fixture.componentInstance;
+      testApp.titleFormat.roundCorner = 2;
+      testApp.borderRadius = "6px 6px 0px 0px";
+      fixture.detectChanges();
+
+      const titleDiv = fixture.debugElement.query(By.css(".vs-title")).nativeElement;
+      expect(titleDiv.style.borderRadius).toBe("6px 6px 0px 0px");
+   });
+
+   it("should use the title format radius when no borderRadius is given", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      fixture.componentInstance.titleFormat.roundCorner = 2;
+      fixture.detectChanges();
+
+      const titleDiv = fixture.debugElement.query(By.css(".vs-title")).nativeElement;
+      expect(titleDiv.style.borderRadius).toBe("2px");
    });
 });

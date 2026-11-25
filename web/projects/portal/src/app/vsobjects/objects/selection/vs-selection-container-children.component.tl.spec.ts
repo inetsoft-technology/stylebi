@@ -644,3 +644,69 @@ describe("VSSelectionContainerChildren - layout helpers", () => {
       );
    });
 });
+
+// Bug #82330: the children body is painted over the container's rounded box, so it must carry the
+// container's corners itself (and its top border line when it starts at the container top).
+describe("VSSelectionContainerChildren - rounded container corners", () => {
+   function withRadius(radius: number, titleVisible: boolean): VSSelectionContainerModel {
+      const model = makeVsObject({ titleVisible });
+      model.objectFormat.roundCorner = radius;
+      return model;
+   }
+
+   function query(fixture: any) {
+      const host: HTMLElement = fixture.nativeElement;
+      return {
+         body: host.querySelector(".selection-container-children") as HTMLElement,
+         scroll: host.querySelector(".scrollbar-container") as HTMLElement,
+         inner: host.querySelector(".scrollbar-container-inner") as HTMLElement,
+      };
+   }
+
+   it("should round only the bottom corners of the body when the container title is visible", async () => {
+      const { fixture } = await renderComponent({ model: withRadius(6, true), viewer: true });
+      const { body, inner } = query(fixture);
+
+      expect(body.style.borderRadius).toBe("0px 0px 6px 6px");
+      expect(body.style.borderTopStyle).toBe("");
+      expect(inner.style.borderRadius).toBe("");
+   });
+
+   it("should round all body corners, restore the top border and clip the inner top corners when the title is hidden", async () => {
+      const { fixture } = await renderComponent({ model: withRadius(6, false), viewer: true });
+      const { body, inner } = query(fixture);
+
+      expect(body.style.borderRadius).toBe("6px");
+      expect(body.style.borderTopWidth).toBe("1px");
+      expect(body.style.borderTopStyle).toBe("solid");
+      // container radius minus the 1px top border
+      expect(inner.style.borderRadius).toBe("5px 5px 0px 0px");
+   });
+
+   it("should keep the hover scrollbar outside the body: no overflow hidden on the body, full scroll width", async () => {
+      const { fixture } = await renderComponent({ model: withRadius(6, false), viewer: true });
+      const { body, scroll } = query(fixture);
+
+      expect(body.style.overflow).toBe("");
+      expect(getComputedStyle(body).overflow).not.toBe("hidden");
+      expect(scroll.style.width).toBe(`${300 + 12}px`);
+   });
+
+   it("should render a radius-0 container as before when the title is visible", async () => {
+      const { fixture } = await renderComponent({ model: withRadius(0, true), viewer: true });
+      const { body, inner } = query(fixture);
+
+      expect(body.style.borderRadius).toBe("");
+      expect(body.style.borderTopStyle).toBe("");
+      expect(inner.style.borderRadius).toBe("");
+   });
+
+   it("should render a radius-0 container as before when the title is hidden", async () => {
+      const { fixture } = await renderComponent({ model: withRadius(0, false), viewer: true });
+      const { body, inner } = query(fixture);
+
+      expect(body.style.borderRadius).toBe("");
+      expect(body.style.borderTopStyle).toBe("");
+      expect(inner.style.borderRadius).toBe("");
+   });
+});

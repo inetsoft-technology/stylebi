@@ -41,6 +41,7 @@
 
 import { provideHttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
+import { By } from "@angular/platform-browser";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -78,6 +79,7 @@ class VSTitleStub {
    @Input() formatPainterMode: boolean;
    @Input() titleFormat: any;
    @Input() titleContent: string;
+   @Input() borderRadius: string;
    @Output() titleResizeMove = new EventEmitter<any>();
    @Output() selectTitle = new EventEmitter<void>();
    @Output() changeTitle = new EventEmitter<string>();
@@ -556,5 +558,40 @@ describe("VSSelectionContainer - lifecycle and mobile max mode", () => {
       expect(unsubscribeSpy).toHaveBeenCalled();
       expect(comp["actionSubscription"]).toBeNull();
       expect(comp["subscriptions"]).toBeNull();
+   });
+});
+
+// Bug #82330: the container title is drawn over the container's top corners, so it gets the
+// container's radius on its top corners (same rule as VSSelection.headerBorderRadius).
+describe("VSSelectionContainer - title corners", () => {
+   function titleStub(fixture: any): VSTitleStub {
+      return fixture.debugElement.query(By.directive(VSTitleStub)).componentInstance;
+   }
+
+   it("should give the title the container's radius on its top corners", async () => {
+      const model = makeModel();
+      model.objectFormat.roundCorner = 6;
+      model.titleFormat.roundCorner = 0;
+      const { fixture } = await renderComponent({ model });
+
+      expect(titleStub(fixture).borderRadius).toBe("6px 6px 0px 0px");
+   });
+
+   it("should keep a rounder title corner and its own bottom corners", async () => {
+      const model = makeModel();
+      model.objectFormat.roundCorner = 6;
+      model.titleFormat.roundCorner = 10;
+      const { fixture } = await renderComponent({ model });
+
+      expect(titleStub(fixture).borderRadius).toBe("10px 10px 10px 10px");
+   });
+
+   it("should leave the title radius to the title format when the container has no radius", async () => {
+      const model = makeModel();
+      model.objectFormat.roundCorner = 0;
+      model.titleFormat.roundCorner = 3;
+      const { fixture } = await renderComponent({ model });
+
+      expect(titleStub(fixture).borderRadius).toBeFalsy();
    });
 });
