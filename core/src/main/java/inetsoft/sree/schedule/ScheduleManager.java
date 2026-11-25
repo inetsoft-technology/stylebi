@@ -1833,14 +1833,24 @@ public class ScheduleManager implements MessageListener {
       // a legacy identifier with no embedded org (entry.getOrgID() == null) is not checked here
       // at all -- the stored value is left to the runtime READ check (AbstractAssetEngine.
       // getSheet/checkAssetPermission0) at load time, the same as it was before this fix.
-      if(entry != null && entry.getOrgID() != null &&
-         !Tool.equals(entry.getOrgID(), orgID, false) &&
-         !(Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID(), false) &&
-           SUtil.isDefaultVSGloballyVisible(principal)))
-      {
+      if(entry != null && isForeignOrganization(entry.getOrgID(), orgID, principal)) {
          throw new inetsoft.sree.security.SecurityException(String.format(
             "Unauthorized access to viewsheet \"%s\" by %s", sheet, principal));
       }
+   }
+
+   /**
+    * Checks if an asset organization is another organization than {@code orgID}, ignoring case,
+    * except the default organization where it's globally visible to {@code principal}
+    * ({@link SUtil#isDefaultVSGloballyVisible}). An asset with no organization (a legacy
+    * identifier) is never foreign, it is left to the run-time READ check.
+    */
+   public static boolean isForeignOrganization(String entryOrgID, String orgID,
+                                               Principal principal)
+   {
+      return entryOrgID != null && !Tool.equals(entryOrgID, orgID, false) &&
+         !(Tool.equals(entryOrgID, Organization.getDefaultOrganizationID(), false) &&
+           SUtil.isDefaultVSGloballyVisible(principal));
    }
 
    /**

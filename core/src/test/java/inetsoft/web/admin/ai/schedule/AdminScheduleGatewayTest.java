@@ -1223,6 +1223,85 @@ class AdminScheduleGatewayTest {
       verify(scheduleManager, never()).setScheduleTask(anyString(), any(), any());
    }
 
+   // Bug #82341: a site admin creates a task of another organization's owner with a backup of a
+   // sheet of the default organization: refused in multi-tenant mode, as the viewsheet action is
+   @Test
+   void addScheduleTask_rejectsBackupOfSheetInAnotherOrganizationThanTheOwner() throws Exception {
+      IdentityID owner = new IdentityID("caller", "self-org");
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS)) {
+         sutil.when(SUtil::isMultiTenant).thenReturn(true);
+         stubOwnerPrincipal(sutil);
+
+         UnauthorizedAccessException ex = assertThrows(
+            UnauthorizedAccessException.class, () -> addBackupTaskAsSiteAdmin(owner, "host-org"));
+
+         assertTrue(ex.getMessage().contains(owner.convertToKey()), ex.getMessage());
+         assertTrue(ex.getMessage().contains("host-org"), ex.getMessage());
+         verify(scheduleManager, never()).setScheduleTask(anyString(), any(), any());
+      }
+   }
+
+   @Test
+   void addScheduleTask_allowsBackupOfSheetInTheOwnersOrganization() throws Exception {
+      IdentityID owner = new IdentityID("caller", "self-org");
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS)) {
+         sutil.when(SUtil::isMultiTenant).thenReturn(true);
+         stubOwnerPrincipal(sutil);
+         addBackupTaskAsSiteAdmin(owner, "self-org");
+      }
+
+      verify(scheduleManager).setScheduleTask(anyString(), any(), any());
+   }
+
+   @Test
+   void addScheduleTask_singleTenantDoesNotCompareTheBackupSheetOrganization() throws Exception {
+      IdentityID owner = new IdentityID("caller", "self-org");
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS)) {
+         sutil.when(SUtil::isMultiTenant).thenReturn(false);
+         stubOwnerPrincipal(sutil);
+         addBackupTaskAsSiteAdmin(owner, "host-org");
+      }
+
+      verify(scheduleManager).setScheduleTask(anyString(), any(), any());
+   }
+   // the owner principal needs a security provider, the default organization isn't shared
+   private void stubOwnerPrincipal(MockedStatic<SUtil> sutil) throws Exception {
+      SRPrincipal ownerPrincipal = mock(SRPrincipal.class);
+      sutil.when(() -> SUtil.getScheduleTaskOwnerPrincipal(any(), any(), anyBoolean()))
+         .thenReturn(ownerPrincipal);
+      sutil.when(() -> SUtil.isDefaultVSGloballyVisible(any())).thenReturn(false);
+   }
+
+
+   private void addBackupTaskAsSiteAdmin(IdentityID owner, String sheetOrg) throws Exception {
+      try(MockedStatic<XSessionService> sessionStatic = mockStatic(XSessionService.class);
+          MockedStatic<OrganizationManager> orgManagerStatic = mockStatic(OrganizationManager.class);
+          MockedStatic<inetsoft.web.admin.deploy.XAssetExportPermission> exportStatic =
+             mockStatic(inetsoft.web.admin.deploy.XAssetExportPermission.class))
+      {
+         exportStatic.when(() -> inetsoft.web.admin.deploy.XAssetExportPermission.isPermitted(
+            any(), any(), anyBoolean(), any())).thenReturn(true);
+         mockSession(sessionStatic);
+         OrganizationManager orgManager = mock(OrganizationManager.class);
+         when(orgManager.isSiteAdmin((Principal) any())).thenReturn(true);
+         when(orgManager.getCurrentOrgID()).thenReturn("self-org");
+         orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+         SRPrincipal admin = createPrincipal("caller", "self-org");
+
+         IndividualAssetBackupAction action = new IndividualAssetBackupAction();
+         action.setAssetIdentifiers(List.of(
+            "inetsoft.util.dep.ViewsheetAsset^1^128^__NULL__^Examples/Census^" + sheetOrg));
+         ScheduleTaskMetaData taskMetaData = new ScheduleTaskMetaData("task1", owner.convertToKey());
+
+         gateway.addScheduleTask(
+            taskMetaData, true, false, -1, -1, null, null, null,
+            Collections.emptyList(), List.of(action), null, "", admin);
+      }
+   }
+
    // Bug #77937: the API returns a stored password as a placeholder, which an added task has no
    // stored password for, so it must not be stored as the password itself
    @Test
