@@ -106,7 +106,7 @@ class GradientColorFrameSmoothTest {
    }
 
    @Test
-   void theWrapperReportsAndMarksAChangeInSmoothness() {
+   void theWrapperReportsAndMarksAChangeInSmoothness() throws Exception {
       GradientColorFrameWrapper wrapper =
          (GradientColorFrameWrapper) VisualFrameWrapper.wrap(frame(PINK, GREEN, false));
       wrapper.setChanged(false);
