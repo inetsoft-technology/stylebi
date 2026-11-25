@@ -378,6 +378,50 @@ class ConsoleMessageCaptureTest {
       assertEquals(2, read().entries().size(), "both script failures reach the Console");
    }
 
+   /**
+    * Round 2: VSBindingService.insertChild(doThrow) throws the FIRST entry of the list, and the
+    * selection add-filter write calls it inside the scope. VSAQuery adds an "ignore filtering"
+    * MessageException when a selection query returns one row, but only to a non-null list, so
+    * before the scope existed the write never saw it. This models that reader's loop on the
+    * scoped list; insertChild itself is not run here.
+    */
+   @Test
+   void aMessageOrConfirmExceptionIsInvisibleToAReaderThatThrowsTheFirstEntry() throws Exception {
+      ConsoleMessageCapture.scope(runtimeId, () -> {
+         List<Exception> list = WorksheetService.ASSET_EXCEPTIONS.get();
+         list.add(new MessageException("ignoring the filter", LogLevel.INFO, true,
+                                       ConfirmException.INFO));
+         list.add(new ConfirmException("locked", ConfirmException.WARNING));
+
+         assertEquals(0, list.size(), list.toString());
+         assertTrue(list.isEmpty());
+
+         for(Exception ex : WorksheetService.ASSET_EXCEPTIONS.get()) {
+            throw ex; // VSBindingService.insertChild, the mv on-demand branch
+         }
+
+         return null;
+      });
+
+      ConsoleMessageBuffer.Snapshot snapshot = read();
+      assertEquals(1, snapshot.entries().size(), "the Console still gets the MessageException");
+      assertEquals("INFO", snapshot.entries().get(0).type());
+      assertEquals("ignoring the filter", snapshot.entries().get(0).message());
+   }
+
+   @Test
+   void aLongMessageIsCutAndMarked() {
+      ConsoleMessageBuffer buffer = new ConsoleMessageBuffer();
+      buffer.add("INFO", "x".repeat(ConsoleMessageBuffer.MAX_MESSAGE_LENGTH + 500), null);
+      buffer.add("INFO", "short", null);
+
+      var entries = buffer.read(null, 10, 0).entries();
+      assertEquals(ConsoleMessageBuffer.MAX_MESSAGE_LENGTH + ConsoleMessageBuffer.TRUNCATION_MARK.length(),
+                   entries.get(0).message().length());
+      assertTrue(entries.get(0).message().endsWith(ConsoleMessageBuffer.TRUNCATION_MARK));
+      assertEquals("short", entries.get(1).message());
+   }
+
    private static MessageCommand message(MessageCommand.Type type, String text) {
       MessageCommand command = new MessageCommand();
       command.setType(type);

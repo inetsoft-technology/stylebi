@@ -53,7 +53,7 @@ class ViewsheetConsoleControllerTest {
       mvc.perform(get("/api/wiz/v1/agent/viewsheet/tok/console?limit=abc").principal(user))
          .andExpect(status().isBadRequest())
          .andExpect(jsonPath("$.errorCode").value("INVALID_ARGUMENT"))
-         .andExpect(jsonPath("$.error").exists());
+         .andExpect(jsonPath("$.error").value("The value of the \"limit\" parameter is not valid"));
    }
 
    @Test
@@ -61,7 +61,8 @@ class ViewsheetConsoleControllerTest {
       mvc.perform(post("/api/wiz/v1/agent/viewsheet/tok/console/levels").principal(user)
                      .contentType(MediaType.APPLICATION_JSON).content("not json"))
          .andExpect(status().isBadRequest())
-         .andExpect(jsonPath("$.errorCode").value("INVALID_ARGUMENT"));
+         .andExpect(jsonPath("$.errorCode").value("INVALID_ARGUMENT"))
+         .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.startsWith("The request body")));
    }
 
    @Test

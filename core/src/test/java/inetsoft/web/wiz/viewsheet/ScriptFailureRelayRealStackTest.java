@@ -456,6 +456,27 @@ class ScriptFailureRelayRealStackTest {
       assertEquals(List.of(), warnings);
    }
 
+   /**
+    * A property write on a table whose script fails: the write relays the failure as a warning and
+    * the Console gets ONE row for it (INFO), not an ERROR from the command the property service
+    * sends plus an INFO from the exception list.
+    */
+   @Test
+   void aScriptFailureDuringAPropertyWriteIsOneInfoRowInTheConsole() throws Exception {
+      RuntimeViewsheet rvs = open();
+      consoleScope = true;
+      addFailingExpressionCondition(rvs);
+      ConsoleMessageCapture.buffer(rvs.getID()).clear();
+
+      assemblyPropertyService(rvs).set("tok", principal(), TABLE, Map.of("title", "probe"), "");
+
+      var snapshot = ConsoleMessageCapture.buffer(rvs.getID()).read(null, 200, 0);
+      assertEquals(0, snapshot.error(), snapshot.entries().toString());
+      assertEquals(1, snapshot.entries().stream()
+                      .filter(e -> e.message().contains("assembly: " + TABLE)).count(),
+                   snapshot.entries().toString());
+   }
+
    @AfterEach
    void clearAssetExceptions() {
       WorksheetService.ASSET_EXCEPTIONS.remove();

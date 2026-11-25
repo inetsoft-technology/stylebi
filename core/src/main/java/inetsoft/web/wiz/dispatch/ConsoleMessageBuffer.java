@@ -38,6 +38,14 @@ public final class ConsoleMessageBuffer {
    /** Entries kept per runtime viewsheet; the oldest is evicted first. */
    public static final int CAPACITY = 200;
 
+   /**
+    * Longest message kept; a longer one (a failing script is quoted whole) is cut and marked, so
+    * 256 runtimes of 200 entries stay bounded.
+    */
+   public static final int MAX_MESSAGE_LENGTH = 2000;
+
+   public static final String TRUNCATION_MARK = "... [truncated]";
+
    public static final String ERROR = "ERROR";
    public static final String WARNING = "WARNING";
    public static final String INFO = "INFO";
@@ -65,6 +73,10 @@ public final class ConsoleMessageBuffer {
       if(entries.size() >= CAPACITY) {
          entries.removeFirst();
          dropped++;
+      }
+
+      if(message != null && message.length() > MAX_MESSAGE_LENGTH) {
+         message = message.substring(0, MAX_MESSAGE_LENGTH) + TRUNCATION_MARK;
       }
 
       long seq = SEQ.incrementAndGet();

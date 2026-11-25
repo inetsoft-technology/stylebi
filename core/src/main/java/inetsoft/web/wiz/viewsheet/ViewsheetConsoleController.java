@@ -85,8 +85,10 @@ public class ViewsheetConsoleController {
    @ExceptionHandler({ MethodArgumentTypeMismatchException.class,
                        HttpMessageNotReadableException.class })
    public ResponseEntity<Map<String, String>> handleBadInput(Exception e) {
-      return handlePairingException(
-         new PairingException("The request could not be read: " + e.getMessage()));
+      String text = e instanceof MethodArgumentTypeMismatchException mismatch ?
+         "The value of the \"" + mismatch.getName() + "\" parameter is not valid" :
+         "The request body must be a JSON object such as {\"levels\": [\"error\"]}";
+      return handlePairingException(new PairingException(text));
    }
 
    @ExceptionHandler(PairingException.class)

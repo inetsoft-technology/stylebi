@@ -211,14 +211,17 @@ public final class ConsoleMessageCapture {
    }
 
    /**
-    * The list a scope installs. Services read {@code ASSET_EXCEPTIONS} and act on what is in it:
-    * {@code VSObjectPropertyService.editObjectProperty} turns every entry that is not a
-    * {@code MessageException} or {@code ConfirmException} into an ERROR command, and the capturing
-    * dispatcher then fails the write after it was applied. That list used to be null unless a
-    * script failure had created it, so a scope must not make such a write fail. Only what a
-    * reader already handled as a script failure ({@code BaseTableService.SCRIPT_FAILURE_PREFIX},
-    * which {@code CapturingCommandDispatcher} reports as a warning) stays visible to readers;
-    * every entry is kept in {@link #all()} for the Console.
+    * The list a scope installs. Services read {@code ASSET_EXCEPTIONS} and act on what is in it,
+    * and every reader was written for a list that is null unless a script failure created it:
+    * {@code VSObjectPropertyService.editObjectProperty} turns each entry that is not a
+    * {@code MessageException} or {@code ConfirmException} into an ERROR command (which fails the
+    * write after it was applied), {@code VSBindingService.insertChild} throws the first entry it
+    * finds (the selection add-filter write), and {@code VSAQuery} takes its failover branch when
+    * the list is not empty. So a scope must not change what a reader sees: only a script failure
+    * whose text starts with {@code BaseTableService.SCRIPT_FAILURE_PREFIX} is visible to readers,
+    * the one kind they already handled (it is downgraded to the warning a write relays). Every
+    * other entry, a {@code MessageException} and a {@code ConfirmException} included, is kept only
+    * in {@link #all()} for the Console.
     */
    private static final class ScopedList extends ArrayList<Exception> {
       @Override
@@ -245,8 +248,7 @@ public final class ConsoleMessageCapture {
       }
 
       private static boolean visible(Exception ex) {
-         return ex instanceof MessageException || ex instanceof ConfirmException ||
-            ex instanceof ScriptException && ex.getMessage() != null &&
+         return ex instanceof ScriptException && ex.getMessage() != null &&
             ex.getMessage().startsWith(BaseTableService.SCRIPT_FAILURE_PREFIX);
       }
 
