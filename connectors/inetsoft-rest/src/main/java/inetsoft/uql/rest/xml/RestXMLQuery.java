@@ -133,6 +133,15 @@ public class RestXMLQuery extends AbstractRestQuery {
       paginationSpec.setZeroBasedPageIndex(zeroBasedPageNumber);
    }
 
+   /**
+    * Whether the selected endpoint's data is in the response headers rather than a body, so that
+    * the unpaged strategy should build a row from the headers. Never for a plain REST XML query;
+    * overridden by endpoint-driven queries.
+    */
+   public boolean resolveResponseInHeaders() {
+      return false;
+   }
+
    public boolean isSchemaUsed() {
       return schema != XMLSchema.NONE;
    }
