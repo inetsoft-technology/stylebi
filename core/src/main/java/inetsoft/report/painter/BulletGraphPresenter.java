@@ -47,6 +47,7 @@ public class BulletGraphPresenter implements Presenter {
     */
    public void setMaximum(double max) {
       this.max = max;
+      this.scaleSet = true;
    }
 
    /**
@@ -61,6 +62,7 @@ public class BulletGraphPresenter implements Presenter {
     */
    public void setMinimum(double min) {
       this.min = min;
+      this.scaleSet = true;
    }
 
    /**
@@ -75,6 +77,7 @@ public class BulletGraphPresenter implements Presenter {
     */
    public void setTarget(double target) {
       this.target = target;
+      this.scaleSet = true;
    }
 
    /**
@@ -90,6 +93,7 @@ public class BulletGraphPresenter implements Presenter {
     */
    public void setRange1(double range1) {
       this.range1 = range1;
+      this.scaleSet = true;
    }
 
    /**
@@ -105,6 +109,7 @@ public class BulletGraphPresenter implements Presenter {
     */
    public void setRange2(double range2) {
       this.range2 = range2;
+      this.scaleSet = true;
    }
 
    /**
@@ -120,6 +125,7 @@ public class BulletGraphPresenter implements Presenter {
     */
    public void setRange3(double range3) {
       this.range3 = range3;
+      this.scaleSet = true;
    }
 
    /**
@@ -222,15 +228,16 @@ public class BulletGraphPresenter implements Presenter {
     */
    public void setAutoScale(boolean autoScale) {
       this.autoScale = autoScale;
-      this.autoScaleSet = true;
+      this.scaleSet = true;
    }
 
    /**
-    * Scale to the column's data in the modern style, unless the author set Auto Scale either way.
-    * This is not a bean property, so it does not show in the presenter dialog or get saved.
+    * Scale to the column's data in the modern style, unless the author chose the scale: set Auto
+    * Scale either way, or set any of the minimum, maximum, ranges and target. This is not a bean
+    * property, so it does not show in the presenter dialog or get saved.
     */
    public void useModernAutoScale() {
-      if(!autoScaleSet) {
+      if(!scaleSet) {
          autoScale = true;
       }
    }
@@ -268,7 +275,7 @@ public class BulletGraphPresenter implements Presenter {
       copy.shadow = shadow;
       copy.fmt = fmt;
       copy.autoScale = autoScale;
-      copy.autoScaleSet = autoScaleSet;
+      copy.scaleSet = scaleSet;
       copy.statsResolver = statsResolver;
       return copy;
    }
@@ -298,7 +305,7 @@ public class BulletGraphPresenter implements Presenter {
       double span = hi - lo;
       BulletGraphPresenter copy = copy();
       copy.autoScale = false;
-      copy.autoScaleSet = true;
+      copy.scaleSet = true;
       copy.statsResolver = null;
       copy.min = lo;
       copy.max = hi;
@@ -714,8 +721,9 @@ public class BulletGraphPresenter implements Presenter {
    private boolean shadow;
    private Format fmt;
    private boolean autoScale = false;
-   // true once the author set Auto Scale, on or off, so the modern default leaves it alone
-   private boolean autoScaleSet = false;
+   // true once the author chose the scale, by setting Auto Scale either way or any of the minimum,
+   // maximum, ranges and target, so the modern default leaves it alone
+   private boolean scaleSet = false;
    // resolves the column's numbers at paint time, set by the table lens on a copy of the
    // presenter; not a bean property, so it is never shown in the dialog or saved
    private transient Supplier<ColumnStats> statsResolver;

@@ -78,6 +78,52 @@ class ModernAutoDefaultTest {
    }
 
    @Test
+   void aConfiguredMaximumIsTheAuthorsChoiceSoItIsNotScaledAway() throws Exception {
+      // a saved presenter that sets only the Maximum, as dashboards saved before Auto Maximum did
+      PresenterRef ref = new PresenterRef(BarPresenter.class.getName());
+      ref.setParameter("maximum", 200.0);
+      BarPresenter saved = (BarPresenter) ref.createPresenter();
+      ModernAutoDefault.apply(saved);
+      assertFalse(saved.isAutoMaximum());
+      assertEquals(200.0, saved.getMaximum());
+
+      PresenterRef ref2 = new PresenterRef(Bar2Presenter.class.getName());
+      ref2.setParameter("maximum", 200.0);
+      Bar2Presenter saved2 = (Bar2Presenter) ref2.createPresenter();
+      ModernAutoDefault.apply(saved2);
+      assertFalse(saved2.isAutoMaximum());
+
+      // a script that builds one with its maximum
+      BarPresenter scripted = new BarPresenter(500, Color.BLUE);
+      ModernAutoDefault.apply(scripted);
+      assertFalse(scripted.isAutoMaximum());
+
+      Bar2Presenter scripted2 = new Bar2Presenter(500, Color.BLUE, Color.RED);
+      ModernAutoDefault.apply(scripted2);
+      assertFalse(scripted2.isAutoMaximum());
+   }
+
+   @Test
+   void anyConfiguredBulletGraphSettingIsTheAuthorsChoice() throws Exception {
+      for(String name : new String[] { "maximum", "minimum", "target", "range1", "range2",
+                                       "range3" })
+      {
+         PresenterRef ref = new PresenterRef(BulletGraphPresenter.class.getName());
+         ref.setParameter(name, 50.0);
+         BulletGraphPresenter saved = (BulletGraphPresenter) ref.createPresenter();
+         ModernAutoDefault.apply(saved);
+         assertFalse(saved.isAutoScale(), name);
+      }
+
+      // colors are not part of the scale
+      PresenterRef colors = new PresenterRef(BulletGraphPresenter.class.getName());
+      colors.setParameter("color1", Color.RED);
+      BulletGraphPresenter styled = (BulletGraphPresenter) colors.createPresenter();
+      ModernAutoDefault.apply(styled);
+      assertTrue(styled.isAutoScale());
+   }
+
+   @Test
    void thePresentersOwnDefaultStaysOff() {
       assertFalse(new BarPresenter().isAutoMaximum());
       assertFalse(new Bar2Presenter().isAutoMaximum());
