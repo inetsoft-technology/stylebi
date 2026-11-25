@@ -131,6 +131,11 @@ public class PresenterService {
                g.fillRect(0, 0, width, height);
             }
 
+            // Common.paint fills the area it paints in with the background it is given, so a modern
+            // table passes a clear one: the cell's tint laid on again there showed as a box in the
+            // cell (the whole image for a presenter that fills its cell, such as a bar)
+            bg = presenterPaintBackground(bg, modern);
+
             Color fg = lens.getForeground(row, column);
             fg = fg == null ? Color.black : fg;
             g.setColor(fg);
@@ -216,6 +221,16 @@ public class PresenterService {
       }
 
       return background != null ? background : new Color(255, 255, 255, 0);
+   }
+
+   /**
+    * The background Common.paint is given for a presenter's image. It fills the area it paints in
+    * with that color before the presenter draws, so a modern table, whose cell already paints its
+    * own background, passes a clear one. A classic table passes the cell's background, as it
+    * always did.
+    */
+   static Color presenterPaintBackground(Color background, boolean modern) {
+      return modern ? new Color(255, 255, 255, 0) : background;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

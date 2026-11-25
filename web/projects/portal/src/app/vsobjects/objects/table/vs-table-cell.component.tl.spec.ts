@@ -410,6 +410,26 @@ describe("VSTableCell", () => {
          expect(comp.presenter).toContain("/Table1/0/0/88/16/");
       });
 
+      it("should also leave room for the cell's borders, so the image is not clipped", () => {
+         const { comp } = createComponent({
+            cell: {
+               vsFormatModel: {
+                  padding: { top: 4, left: 6, bottom: 4, right: 6 },
+               } as any,
+            },
+         });
+         comp.linkUri = "/";
+         comp.tableName = "Table1";
+         comp.width = 100;
+         comp.height = 24;
+         // what updateCell derives from 1px borders all round: the content box is 99 by 23
+         comp.hBorderWidth = 1;
+         comp.vBorderWidth = 1;
+
+         // 100 - 1 - (6 + 6) wide and 24 - 1 - (4 + 4) high
+         expect(comp.presenter).toContain("/Table1/0/0/87/15/");
+      });
+
       it("should keep the default padding allowance for a cell without padding of its own", () => {
          const { comp } = createComponent();
          comp.linkUri = "/";
