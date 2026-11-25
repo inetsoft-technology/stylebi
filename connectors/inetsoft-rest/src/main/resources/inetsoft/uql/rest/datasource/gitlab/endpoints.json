@@ -328,12 +328,12 @@
     {
       "paged": "true",
       "name": "Project Commit Discussion Items",
-      "suffix": "/v4/projects/{Project ID}/commits/{Commit ID}/discussions"
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit ID}/discussions"
     },
     {
       "paged": "false",
       "name": "Project Commit Discussion Item",
-      "suffix": "/v4/projects/{Project ID}/commits/{Commit ID}/discussions/{Discussion ID}"
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit ID}/discussions/{Discussion ID}"
     },
     {
       "paged": "true",

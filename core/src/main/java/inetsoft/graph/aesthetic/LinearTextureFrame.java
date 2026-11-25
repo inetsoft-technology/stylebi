@@ -51,7 +51,7 @@ public abstract class LinearTextureFrame extends TextureFrame {
       double min = scale.getMin();
       double max = scale.getMax();
 
-      return getTexture(Math.min(1, (v - min) / (max - min)));
+      return getTexture(Math.max(0, Math.min(1, (v - min) / (max - min))));
    }
 
    /**

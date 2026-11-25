@@ -74,7 +74,7 @@
     {
       "paged": "true", 
       "name": "Contact File Attachments", 
-      "suffix": "/v3.0//Contacts/{Contact ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
+      "suffix": "/v3.0/Contacts/{Contact ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
     }, 
     {
       "paged": "false", 

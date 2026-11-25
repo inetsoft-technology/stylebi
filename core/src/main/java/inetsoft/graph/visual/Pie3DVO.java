@@ -563,8 +563,16 @@ public class Pie3DVO extends ElementVO {
             rect = getPath(shape).getBounds2D();
          }
          else {
-            rect.createUnion(getPath(shape).getBounds2D());
+            rect = rect.createUnion(getPath(shape).getBounds2D());
          }
+      }
+
+      // paint() draws the 3d depth (paintBottom) below the top of the pie
+      if(rect != null && !overlay) {
+         Shape h2 = getScreenTransform().createTransformedShape(heightRect);
+         double height = h2.getBounds().getHeight() / MULTIPLE;
+         rect = rect.createUnion(new Rectangle2D.Double(
+            rect.getX(), rect.getY() - height, rect.getWidth(), height));
       }
 
       return rect;

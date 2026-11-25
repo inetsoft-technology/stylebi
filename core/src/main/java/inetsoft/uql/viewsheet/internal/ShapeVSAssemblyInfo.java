@@ -333,6 +333,7 @@ public class ShapeVSAssemblyInfo extends VSAssemblyInfo implements BaseAnnotatio
       super.resetRuntimeValues();
 
       lineStyleValue.setRValue(null);
+      shadow.setRValue(null);
    }
 
    /**

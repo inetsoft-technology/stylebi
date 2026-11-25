@@ -58,7 +58,7 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome(importResources = "EmbeddedVS1.zip")
-@Tag("core")
+@Tag("slow")
 @Tag("integration")
 class RuntimeViewsheetDefaultBookmarkTest {
    private static final String ORG = "host-org";

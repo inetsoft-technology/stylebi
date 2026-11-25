@@ -54,9 +54,11 @@ import java.util.concurrent.atomic.*;
  * The periodic touch-asset event is not queued again while the same event is held for the sheet
  * with only touch-asset events after it, so a refresh that takes longer than the refresh interval
  * cannot build a backlog, and a touch-asset (e.g. an auto save) is never moved before a later
- * event. A close is not held behind the running event unless other events are held, so closing a
- * busy sheet still cancels its query without overtaking a held event (e.g. a save) sent before the
- * close.
+ * event. A close is not held behind the running event unless events other than touch-assets and
+ * the reloads of table data (table data count, table reload, table mode, which the Composer queues
+ * behind a table that is still loading) are held, so closing a busy sheet still cancels its query
+ * without overtaking a held event (e.g. a save) sent before the close. The held touch-assets and
+ * table reloads are dropped when the close is sent.
  * <p>
  * The tickets are kept out of the message headers, which are copied into the
  * {@code ServiceProxyContext} of cluster calls. Only the ticket id is put in a header.
@@ -110,8 +112,20 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
             queue = new ArrayDeque<>();
             action.set(Action.SEND);
          }
-         else if(CLOSE_DESTINATIONS.contains(destination) && queue.size() == 1) {
-            // only the running event is queued, let the close cancel it
+         else if(CLOSE_DESTINATIONS.contains(destination) && onlyDiscardableHeld(queue)) {
+            // only the running event is queued, or only events that are of no use once the sheet
+            // is closed (periodic events like an auto save, and the reloads of table data that
+            // the Composer sends while a table loads) are held after it, let the close cancel
+            // the running event. The held ones are dropped, they must not run after the close
+            // (Bug #81374)
+            Iterator<Ticket> iterator = queue.iterator();
+            iterator.next();
+
+            while(iterator.hasNext()) {
+               tickets.remove(iterator.next().id);
+               iterator.remove();
+            }
+
             action.set(Action.SEND_UNORDERED);
             return queue;
          }
@@ -237,6 +251,54 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
       return false;
    }
 
+   /**
+    * Check if every event held after the running one (the head of the queue) can be dropped when
+    * the sheet is closed, see {@link #isDiscardableOnClose(String)}.
+    */
+   private static boolean onlyDiscardableHeld(Deque<Ticket> queue) {
+      Iterator<Ticket> iterator = queue.iterator();
+      iterator.next();
+
+      while(iterator.hasNext()) {
+         String heldDestination =
+            SimpMessageHeaderAccessor.getDestination(iterator.next().message.getHeaders());
+
+         if(!isDiscardableOnClose(heldDestination)) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * Check if a held event can be dropped when the sheet is closed. These events do not change
+    * what a save writes: the periodic events, and the reloads of table data (and the table mode
+    * that selects what is loaded). Dropping them is also what stops a close from being held
+    * behind a table that never finishes loading, as the Composer queues a table data count and a
+    * reload of the table behind the running one (Bug #81374). Any other held event (e.g. a save)
+    * is not dropped, and the close stays behind it.
+    */
+   private static boolean isDiscardableOnClose(String destination) {
+      if(destination == null) {
+         return false;
+      }
+
+      if(COALESCED_DESTINATIONS.contains(destination) ||
+         DISCARDABLE_ON_CLOSE_DESTINATIONS.contains(destination))
+      {
+         return true;
+      }
+
+      for(String prefix : DISCARDABLE_ON_CLOSE_PREFIXES) {
+         if(destination.startsWith(prefix)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
    private static int getSubscriberCount(MessageChannel channel) {
       return channel instanceof ExecutorSubscribableChannel execChannel ?
          execChannel.getSubscribers().size() : 0;
@@ -334,5 +396,13 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
    private static final String TOUCH_ASSET_DESTINATION = "/events/composer/touch-asset";
    // periodic events, a copy of one that is already held is dropped
    private static final Set<String> COALESCED_DESTINATIONS = Set.of(TOUCH_ASSET_DESTINATION);
+   // events that only (re)load the data of a table, see isDiscardableOnClose()
+   private static final Set<String> DISCARDABLE_ON_CLOSE_DESTINATIONS = Set.of(
+      "/events/composer/worksheet/table-data-count");
+   private static final List<String> DISCARDABLE_ON_CLOSE_PREFIXES = List.of(
+      "/events/ws/table/reload-table-data/",
+      "/events/table/reload-table-data",
+      "/events/composer/worksheet/table-mode/",
+      "/events/composer/worksheet/dependings-table-mode/");
    private static final Logger LOG = LoggerFactory.getLogger(SheetEventOrderInterceptor.class);
 }

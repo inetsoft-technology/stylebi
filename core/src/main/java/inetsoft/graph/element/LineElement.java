@@ -305,6 +305,9 @@ public class LineElement extends StackableElement {
          Map<String, BitSet> groupMap = new HashMap<>();
          Map<Integer, String> rowMap = new HashMap<>();
          Map<String, LineGeometry> geomap = new HashMap<>();
+         // geometry key -> group key; the group key is not recoverable from the geometry key
+         // by cutting at '|' since a group value or measure name may contain '|' (#82050)
+         Map<String, String> vkeyGroups = new HashMap<>();
 
          initGroupMap(data, groupMap, rowMap);
 
@@ -315,6 +318,7 @@ public class LineElement extends StackableElement {
                String vkey = key + "|" + vname;
                LineGeometry gobj = createGeometry(this, graph, vname, vmodel);
                geomap.put(vkey, gobj);
+               vkeyGroups.put(vkey, key);
             }
          }
 
@@ -405,7 +409,7 @@ public class LineElement extends StackableElement {
 
          // add geometries in sorted order
          for(String vkey : sortGeometry(geomap)) {
-            String key = vkey.substring(0, vkey.lastIndexOf("|"));
+            String key = vkeyGroups.get(vkey);
             BitSet keyRows = groupMap.get(key);
             BitSet nulls = nullMap.get(vkey);
             LineGeometry gobj = geomap.get(vkey);

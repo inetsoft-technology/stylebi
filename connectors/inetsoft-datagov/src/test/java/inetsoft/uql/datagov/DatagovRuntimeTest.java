@@ -58,6 +58,31 @@ class DatagovRuntimeTest {
       ConfigurationContext.getContext().setApplicationContext(null);
    }
 
+   @Test
+   void testTimestampColumnsAreDates() throws Exception {
+      URL url = getClass().getResource("timestamps.json");
+      DatagovDataSource dataSource = new DatagovDataSource();
+      dataSource.setURL(url.toExternalForm());
+      DatagovQuery query = new DatagovQuery();
+      query.setDataSource(dataSource);
+
+      XTableNode data = new DatagovRuntime().runQuery(query, new VariableTable());
+      assertEquals("FloatingTs", data.getName(0));
+      assertEquals("FixedTs", data.getName(1));
+      assertTrue(data.next());
+      assertThat(data.getObject(0), instanceOf(java.util.Date.class));
+      assertThat(data.getObject(1), instanceOf(java.util.Date.class));
+      assertEquals(java.time.Instant.parse("2024-01-15T13:45:30Z").toEpochMilli(),
+                   ((java.util.Date) data.getObject(1)).getTime());
+      assertEquals(java.time.LocalDateTime.parse("2024-01-15T13:45:30")
+                      .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                   ((java.util.Date) data.getObject(0)).getTime());
+      assertTrue(data.next());
+      assertNull(data.getObject(0));
+      assertNull(data.getObject(1));
+      assertEquals(java.util.Date.class, data.getType(1));
+   }
+
    /**
     * Tests the <tt>runQuery()</tt> method for proper operation.
     *
@@ -109,7 +134,10 @@ class DatagovRuntimeTest {
                Object[] rowData = new Object[row.length];
 
                for(int i = 0; i < row.length; i++) {
-                  if(i == 0 || i == 2 || i == 3 || i == 5) {
+                  if(i == 7) {
+                     rowData[i] = null; // JSON null in rows.json is a real null
+                  }
+                  else if(i == 0 || i == 2 || i == 3 || i == 5) {
                      rowData[i] = new BigDecimal(row[i]);
                   }
                   else {
@@ -130,6 +158,12 @@ class DatagovRuntimeTest {
 
          for(int i = 0; i < row.length; i++) {
             Object value = data.getObject(i);
+            if(i == 7) {
+               assertNull(value);
+               row[i] = null;
+               continue;
+            }
+
             assertNotNull(value);
             Class<?> expectedType = (i == 0 || i == 2 || i == 3 || i == 5) ?
                BigDecimal.class : String.class;
@@ -141,6 +175,29 @@ class DatagovRuntimeTest {
       }
 
       assertEquals(expectedData.size(), rowCount);
+   }
+
+   @Test
+   void testDataSourceReachableUrl() throws Exception {
+      DatagovDataSource dataSource = new DatagovDataSource();
+      dataSource.setURL(getClass().getResource("rows.json").toExternalForm());
+      assertDoesNotThrow(() -> new DatagovRuntime().testDataSource(dataSource, new VariableTable()));
+   }
+
+   @Test
+   void testDataSourceUnknownHost() {
+      DatagovDataSource dataSource = new DatagovDataSource();
+      dataSource.setURL("http://no-such-host-qa-c1.invalid/");
+      assertThrows(java.io.IOException.class,
+                   () -> new DatagovRuntime().testDataSource(dataSource, new VariableTable()));
+   }
+
+   @Test
+   void testDataSourceMalformedUrl() {
+      DatagovDataSource dataSource = new DatagovDataSource();
+      dataSource.setURL("notaurl");
+      assertThrows(java.net.MalformedURLException.class,
+                   () -> new DatagovRuntime().testDataSource(dataSource, new VariableTable()));
    }
 
    @Configuration

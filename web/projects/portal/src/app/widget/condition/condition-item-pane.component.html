@@ -22,7 +22,7 @@
       <condition-field-combo class="condition-edit-row__field-picker"
                              [field]="condition.field" [fieldsModel]="fieldsModel"
                              [addNoneItem]="addNoneItem" [grayedOutFields]="getGrayedOutFields()"
-                             [showOriginalName]="showOriginalName"
+                             [showOriginalName]="showOriginalName" [unbound]="isFieldUnbound()"
                              (onSelectField)="fieldChanged($event)"></condition-field-combo>
     </div>
     <div class="condition-edit-row__operator-group">

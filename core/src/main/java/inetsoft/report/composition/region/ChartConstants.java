@@ -256,11 +256,11 @@ public class ChartConstants {
    /**
     * This mask is used to extract the dash length.
     */
-   static final int DASH_MASK = GraphConstants.DASH_MASK;
+   public static final int DASH_MASK = GraphConstants.DASH_MASK;
    /**
     * This mask is used to extract the encoded line width from line styles.
     */
-   static final int WIDTH_MASK = GraphConstants.WIDTH_MASK;
+   public static final int WIDTH_MASK = GraphConstants.WIDTH_MASK;
    /**
     * This constant is used to signal no value (e.g. legend or border).
     */
@@ -592,6 +592,14 @@ public class ChartConstants {
     * Formula "Sum".
     */
    public static final String SUM_FORMULA = DateRangeRef.SUM_FORMULA;
+   /**
+    * Formula "First".
+    */
+   public static final String FIRST_FORMULA = XConstants.FIRST_FORMULA;
+   /**
+    * Formula "Last".
+    */
+   public static final String LAST_FORMULA = XConstants.LAST_FORMULA;
    /**
     * Formula "Set".
     */

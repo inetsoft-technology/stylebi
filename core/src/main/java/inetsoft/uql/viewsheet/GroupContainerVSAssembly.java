@@ -23,6 +23,7 @@ import inetsoft.uql.viewsheet.internal.*;
 
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * GroupContainerVSAssembly represents one container assembly contained in a
@@ -118,6 +119,65 @@ public class GroupContainerVSAssembly extends AbstractContainerVSAssembly {
       // calculated again in AbstractContainerVSAssembly
       info.setPixelOffset(new Point(upperLeft.x, upperLeft.y));
       info.setPixelSize(new Dimension(bottomRight.x - upperLeft.x, bottomRight.y - upperLeft.y));
+   }
+
+   /**
+    * Grow the layout size of the containers (tab/group) holding the assembly so that they
+    * cover the assembly's layout rectangle. A container is only ever enlarged, never shrunk
+    * below its designed size, and a container that has no layout size (not part of the
+    * layout) or is used as a pop component/tip view is left alone (Bug #81702, Bug #59133).
+    * @return the absolute names of the containers whose layout size changed, innermost first.
+    */
+   public static List<String> growContainersToFitLayout(
+      Viewsheet vs, VSAssembly assembly)
+   {
+      List<String> changed = new ArrayList<>();
+      VSAssembly child = assembly;
+      VSAssembly container = child == null ? null : child.getContainer();
+
+      while(container instanceof GroupContainerVSAssembly || container instanceof TabVSAssembly) {
+         if(growLayoutToFit(vs, container, child)) {
+            changed.add(container.getAbsoluteName());
+         }
+
+         child = container;
+         container = container.getContainer();
+      }
+
+      return changed;
+   }
+
+   private static boolean growLayoutToFit(Viewsheet vs, VSAssembly container,
+                                          VSAssembly child)
+   {
+      VSAssemblyInfo cinfo = container.getVSAssemblyInfo();
+      Dimension size = cinfo.getLayoutSize(false);
+      Point pos = cinfo.getLayoutPosition(false);
+
+      if(size == null || pos == null ||
+         VSUtil.isPopComponent(container.getAbsoluteName(), vs) ||
+         VSUtil.isTipView(container.getAbsoluteName(), vs))
+      {
+         return false;
+      }
+
+      VSAssemblyInfo info = child.getVSAssemblyInfo();
+      Dimension csize = info.getLayoutSize(false);
+      Point cpos = info.getLayoutPosition(false);
+
+      if(csize == null || cpos == null) {
+         return false;
+      }
+
+      int width = Math.max(size.width, cpos.x + csize.width - pos.x);
+      int height = Math.max(size.height, cpos.y + csize.height - pos.y);
+
+      if(width == size.width && height == size.height) {
+         return false;
+      }
+
+      cinfo.setLayoutSize(new Dimension(width, height));
+      return true;
    }
 
    /**

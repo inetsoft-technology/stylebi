@@ -358,7 +358,7 @@
     {
       "name": "Direct Message Comments",
       "paged": true,
-      "suffix": "/api/core/v3 /dms/{Direct Message ID}/comments?filter={Filter?}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}"
+      "suffix": "/api/core/v3/dms/{Direct Message ID}/comments?filter={Filter?}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}"
     },
     {
       "name": "Direct Message Images",

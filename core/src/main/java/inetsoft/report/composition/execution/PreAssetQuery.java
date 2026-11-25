@@ -1693,11 +1693,21 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          return sexp.isMergeable();
       }
 
-      if(!isExpressionMergeable(exp)) {
+      // expressions that refer to each other (a = field['b'], b = field['a']) are not mergeable
+      if(!mergeableVisiting.add(exp)) {
          return false;
       }
 
-      return getExpressionColumn(exp, format, false) != null;
+      try {
+         if(!isExpressionMergeable(exp)) {
+            return false;
+         }
+
+         return getExpressionColumn(exp, format, false) != null;
+      }
+      finally {
+         mergeableVisiting.remove(exp);
+      }
    }
 
    /**
@@ -2705,6 +2715,23 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
    private String getExpressionColumn(ExpressionRef column, AttributeFormat format, boolean quote,
                                       boolean warnOnNull)
+   {
+      if(!columnVisiting.add(column)) {
+         LOG.warn("Circular reference in expression column [" + getTable().getName() + ":" +
+                  column.toView() + "]: " + column.getExpression());
+         return null;
+      }
+
+      try {
+         return getExpressionColumn0(column, format, quote, warnOnNull);
+      }
+      finally {
+         columnVisiting.remove(column);
+      }
+   }
+
+   private String getExpressionColumn0(ExpressionRef column, AttributeFormat format,
+                                       boolean quote, boolean warnOnNull)
    {
       boolean aliased = column instanceof AliasDataRef;
       ColumnSelection cols = getTable().getColumnSelection();
@@ -5083,6 +5110,10 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
    private transient Boolean sqlite;
    private Map<DataRef, ColumnRef> colmap = new HashMap<>(); // optimization
    private Map<Tuple, Object> exprAttrs = new Object2ObjectOpenHashMap<>();
+   private final Set<ExpressionRef> mergeableVisiting =
+      Collections.newSetFromMap(new IdentityHashMap<>());
+   private final Set<ExpressionRef> columnVisiting =
+      Collections.newSetFromMap(new IdentityHashMap<>());
    private Map<String, List<AttributeRef>> expr2Attrs = new Object2ObjectOpenHashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(PreAssetQuery.class);

@@ -309,7 +309,8 @@ export class LogicalModelComponent implements OnInit, DoCheck, OnDestroy {
                this.notifications.success(msg);
             },
             err => {
-               this.notifications.danger("_#(js:data.logicalmodel.saveModelError)");
+               this.notifications.danger(err?.error?.error === "messageException" && !!err.error.message
+                  ? err.error.message : "_#(js:data.logicalmodel.saveModelError)");
             }
          );
    }

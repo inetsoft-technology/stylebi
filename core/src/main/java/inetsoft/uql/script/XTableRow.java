@@ -77,6 +77,11 @@ public class XTableRow implements ScriptArrayScope {
       return null;
    }
 
+   @Override
+   public boolean isIndexValid(long index) {
+      return index >= 0 && index < table.getColCount();
+   }
+
    /**
     * Get the number of indexed elements.
     */

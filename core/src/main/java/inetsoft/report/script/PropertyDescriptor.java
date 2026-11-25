@@ -185,6 +185,13 @@ public class PropertyDescriptor {
    }
 
    /**
+    * Check if this property can be set (has a setter method).
+    */
+   public boolean hasSetter() {
+      return setter != null;
+   }
+
+   /**
     * Get the type of this property.
     */
    public Class getType() {
@@ -586,11 +593,48 @@ public class PropertyDescriptor {
       }
       catch(Exception ex) {
          LOG.error("Failed to covert " + val + " to type " + type, ex);
-         throw new RuntimeException("Can't convert (" + val + ") to [" + type +
-                                    "]");
+         // shown to the script author (VSAScriptable.reportPutFailure): no Java names
+         throw new RuntimeException(
+            JSObject.getConvertFailureMessage(val, describeType(type)), ex);
       }
 
       return val;
+   }
+
+   /**
+    * Describe a conversion target type in words a script author understands.
+    */
+   private static String describeType(Class<?> type) {
+      if(type == Position.class) {
+         return "a position (two numbers: x and y, e.g. [1, 2])";
+      }
+      else if(type == Size.class) {
+         return "a size (two numbers: width and height, e.g. [3, 2])";
+      }
+      else if(type == BorderColors.class) {
+         return "border colors (four colors: top, left, bottom and right, " +
+            "e.g. ['red', 'red', 'blue', 'blue'])";
+      }
+      else if(type == Hyperlink.class || type == Hyperlink.Ref.class) {
+         return "a hyperlink";
+      }
+      else if(type == XFormatInfo.class) {
+         return "a format (e.g. ['DecimalFormat', '#,##0'])";
+      }
+      else if(type == GradientColor.class) {
+         return "a gradient color";
+      }
+      else if(type == ShapeShadow.class) {
+         return "a shadow";
+      }
+      else if(type == PresenterRef.class || type == Presenter.class) {
+         return "a presenter";
+      }
+      else if(type == TableLens.class || type == DataSet.class) {
+         return "a table";
+      }
+
+      return JSObject.describeType(type);
    }
 
    private static Integer parseObjToInteger(Object obj) {

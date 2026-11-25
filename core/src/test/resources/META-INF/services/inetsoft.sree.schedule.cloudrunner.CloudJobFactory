@@ -1,1 +1,2 @@
 inetsoft.sree.schedule.cloudrunner.ScheduleTaskCloudJobAttributionTest$AttributionJobFactory
+inetsoft.sree.schedule.jobstore.ClusterJobStoreTaskTimeoutTest$TimeoutJobFactory

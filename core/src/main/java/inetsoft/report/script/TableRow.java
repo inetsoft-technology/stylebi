@@ -461,6 +461,15 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
    }
 
    @Override
+   public boolean isIndexValid(long index) {
+      if(index < 0 && min >= 0) {
+         return true; // previous row
+      }
+
+      return min <= index && index < length || getColMap().containsKey(index + "");
+   }
+
+   @Override
    public long getArraySize() {
       return length;
    }

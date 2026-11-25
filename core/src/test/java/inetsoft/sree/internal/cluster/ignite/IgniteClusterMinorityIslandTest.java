@@ -21,9 +21,11 @@ import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.test.*;
+import inetsoft.util.FileSystemService;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.health.ClusterHealthService;
 import inetsoft.util.health.ClusterHealthStatus;
+import inetsoft.util.swap.XSwapper;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.configuration.ClientConnectorConfiguration;
@@ -45,12 +47,16 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.*;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
 
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.*;
@@ -337,6 +343,187 @@ class IgniteClusterMinorityIslandTest {
       }
       finally {
          nodes.closeAll();
+      }
+   }
+
+   /**
+    * Feature #79134: a registered swap file of a live JVM that the sweeping island lost from its
+    * topology must survive the island's sweeps while the owner's lease advances, a dead owner's
+    * file in the same run is still swept, and without the lease the file is swept as before.
+    * The test thread stands in for the owner's lease writer (the harness is one JVM, so the real
+    * writer cannot be separated per island); the real writer and kill -9 are checked live. The
+    * on-disk names are literals on purpose, they are an external contract.
+    */
+   @Test
+   void swapLeaseKeepsLivePeerFileAcrossASplitAndDeadOwnerFileIsStillSwept() throws Exception {
+      Nodes nodes = startNodes(3);
+      AtomicBoolean writing = new AtomicBoolean(true);
+      Thread writer = null;
+      long base = 1_700_000_000_000L + (System.nanoTime() & 0xFFFFFFL);
+      long liveSeed = base + 1;
+      long deadSeed = base + 2;
+      long controlSeed = base + 3;
+      File cache = FileSystemService.getInstance().getCacheFolder();
+      File liveFile = new File(cache, "s" + liveSeed + "_1_s.tdat");
+      File deadFile = new File(cache, "s" + deadSeed + "_1_s.tdat");
+      File controlFile = new File(cache, "s" + controlSeed + "_1_s.tdat");
+      Path leaseDir = cache.toPath().resolve("__persistent__swap-seeds");
+      Path liveLease = leaseDir.resolve("swap-seed-" + liveSeed + ".lease");
+      Path controlLease = leaseDir.resolve("swap-seed-" + controlSeed + ".lease");
+
+      try {
+         IgniteCluster n1 = nodes.get(0);
+         IgniteCluster n3 = nodes.get(2);
+         String n1Id = n1.getLocalNodeId();
+         byte[] bytes = new byte[4096];
+         new Random(79134L).nextBytes(bytes);
+
+         for(File file : new File[] { liveFile, deadFile, controlFile }) {
+            Files.write(file.toPath(), bytes);
+            assertTrue(file.setLastModified(
+               System.currentTimeMillis() - 2 * XSwapper.SWAP_FILE_GRACE_PERIOD));
+         }
+
+         Map<Long, String> seeds = n1.getMap(XSwapper.SWAP_SEED_MAP);
+         DistributedMap<String, Integer> files = n1.getMap(XSwapper.SWAP_FILE_MAP);
+         seeds.put(liveSeed, n1Id);
+         seeds.put(deadSeed, "dead-node");
+         seeds.put(controlSeed, "dead-node-control");
+
+         for(File file : new File[] { liveFile, deadFile, controlFile }) {
+            files.put(file.getAbsolutePath(), 1);
+         }
+
+         // the replicated maps reach n3 before the split
+         Map<Long, String> n3Seeds = n3.getMap(XSwapper.SWAP_SEED_MAP);
+         await().atMost(Duration.ofSeconds(30)).until(() ->
+            n3Seeds.containsKey(liveSeed) && n3Seeds.containsKey(deadSeed) &&
+               n3Seeds.containsKey(controlSeed));
+
+         // stands in for n1's refresh thread; the control lease is written once and never again
+         writeLease(leaseDir, liveSeed, System.currentTimeMillis(), n1Id);
+         writeLease(leaseDir, controlSeed, System.currentTimeMillis(), "control");
+         long[] counter = { System.currentTimeMillis() };
+         writer = new Thread(() -> {
+            while(writing.get()) {
+               try {
+                  writeLease(leaseDir, liveSeed, ++counter[0], n1Id);
+                  Thread.sleep(200L);
+               }
+               catch(InterruptedException e) {
+                  return;
+               }
+               catch(Exception e) {
+                  // a failed write is retried, as the real writer does
+               }
+            }
+         }, "test swap lease writer");
+         writer.setDaemon(true);
+         writer.start();
+
+         int[] ports = nodes.discoveryPorts();
+         BLOCKED.put(ports[2], new HashSet<>(Set.of(ports[0], ports[1])));
+         BLOCKED.put(ports[0], new HashSet<>(Set.of(ports[2])));
+         BLOCKED.put(ports[1], new HashSet<>(Set.of(ports[2])));
+         await().atMost(Duration.ofSeconds(90)).until(() ->
+            servers(n3) == 1 && servers(nodes.get(0)) == 2 && servers(nodes.get(1)) == 2);
+
+         // premise: the live owner is gone from the island's topology
+         assertFalse(n3.getClusterNodeIds().contains(n1Id),
+                     "the island must not see the live peer: " + n3.getClusterNodeIds());
+
+         for(int sweep = 1; sweep <= 5; sweep++) {
+            sweepLikeTheCacheSweeps(n3, cache);
+            assertFalse(n3.getClusterNodeIds().contains(n1Id), "premise, sweep " + sweep);
+            assertTrue(liveFile.exists(), "live peer's swap file swept in sweep " + sweep);
+            assertTrue(controlFile.exists(), "leased control file swept in sweep " + sweep);
+            assertFalse(deadFile.exists(), "dead owner's file kept in sweep " + sweep);
+            assertEquals(n1Id, n3Seeds.get(liveSeed), "live seed removed in sweep " + sweep);
+            Thread.sleep(1000L);
+         }
+
+         // negative control, same run: without its lease a file of an absent owner is swept
+         Files.delete(controlLease);
+         sweepLikeTheCacheSweeps(n3, cache);
+         assertFalse(controlFile.exists(), "file without a lease must be swept (topology only)");
+         assertTrue(liveFile.exists(), "live file must still be protected");
+
+         // the split heals (Ignite does not merge the islands); the protected file is intact
+         BLOCKED.clear();
+         Thread.sleep(2 * CONFIRM_MILLIS);
+         sweepLikeTheCacheSweeps(n3, cache);
+         assertTrue(liveFile.exists(), "live file swept after the heal");
+         assertArrayEquals(bytes, Files.readAllBytes(liveFile.toPath()),
+                           "protected file must still be readable and unchanged");
+      }
+      finally {
+         BLOCKED.clear();
+         writing.set(false);
+
+         if(writer != null) {
+            writer.interrupt();
+            writer.join(5000L);
+         }
+
+         nodes.closeAll();
+
+         for(File file : new File[] { liveFile, deadFile, controlFile }) {
+            Files.deleteIfExists(file.toPath());
+         }
+
+         Files.deleteIfExists(liveLease);
+         Files.deleteIfExists(controlLease);
+         Files.deleteIfExists(leaseDir.resolve("swap-seed-" + liveSeed + ".lease.tmp"));
+      }
+   }
+
+   /**
+    * Applies the predicate of the cache sweeps ({@code XSwapper.sweepDeadSeedSwapFiles}) to the
+    * given node: a .tdat file past the grace period that the node's registered view does not
+    * protect is deleted, then the stale registry entries are removed, under the node's own lock.
+    */
+   private static void sweepLikeTheCacheSweeps(IgniteCluster node, File cache) {
+      Lock lock = node.getLock(XSwapper.SWAP_FILE_MAP_LOCK);
+      lock.lock();
+
+      try {
+         XSwapper.RegisteredSwapFiles registered = new XSwapper.RegisteredSwapFiles(node);
+         File[] list = cache.listFiles();
+
+         for(int i = 0; list != null && i < list.length; i++) {
+            if(!list[i].isDirectory() && list[i].getName().endsWith(".tdat") &&
+               !registered.contains(list[i]) &&
+               System.currentTimeMillis() - list[i].lastModified() >=
+                  XSwapper.SWAP_FILE_GRACE_PERIOD)
+            {
+               list[i].delete();
+            }
+         }
+
+         registered.removeStaleEntries();
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   // line 1 = counter, line 2 = node id; temp file then atomic move, like a real writer
+   private static void writeLease(Path dir, long seed, long counter, String nodeId)
+      throws IOException
+   {
+      Files.createDirectories(dir);
+      Path target = dir.resolve("swap-seed-" + seed + ".lease");
+      Path temp = dir.resolve("swap-seed-" + seed + ".lease.tmp");
+      String content = counter + "\n" + "node=" + nodeId + "\n";
+      Files.writeString(temp, content, StandardCharsets.UTF_8);
+
+      try {
+         Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+      }
+      catch(IOException e) {
+         Files.writeString(target, content, StandardCharsets.UTF_8);
+         Files.deleteIfExists(temp);
       }
    }
 

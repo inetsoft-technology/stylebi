@@ -40,4 +40,19 @@ public interface ScriptArrayScope extends ScriptScope {
     */
    default void setArrayElement(long index, Object value) {
    }
+
+   /**
+    * Whether the given index is a valid position of this array. When
+    * {@link #getArrayElement(long)} returns {@code null} for an index that is not
+    * valid, {@link ArrayProxy} hands the script {@code undefined} (as a JS array does
+    * for a missing element, and as Rhino did) instead of {@code null}; a {@code null}
+    * for a valid index (a real null element) stays {@code null}. The default is
+    * {@code true}, so a scope that does not override this keeps returning
+    * {@code null}. This is only consulted on the script read path;
+    * {@link #getArrayElement(long)} itself still returns {@code null} to Java callers.
+    * (#81786)
+    */
+   default boolean isIndexValid(long index) {
+      return true;
+   }
 }

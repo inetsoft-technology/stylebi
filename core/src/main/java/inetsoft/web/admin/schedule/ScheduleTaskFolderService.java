@@ -19,6 +19,7 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.schedule.ScheduleFolderLock;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.SecurityException;
@@ -43,6 +44,7 @@ import java.io.FileNotFoundException;
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 
 @Service
@@ -102,12 +104,22 @@ public class ScheduleTaskFolderService {
                                                    objectType, actionTimestamp,
                                                    ActionRecord.ACTION_STATUS_SUCCESS, null);
 
+      // Bug #81905, the parent is read again under the folder lock, so the entries other nodes
+      // added since the first read are not overwritten
+      Lock folderLock = ScheduleFolderLock.acquire(null);
+
       try {
          AssetFolder newFolder = new AssetFolder();
          newFolder.setOwner(parentfolder.getOwner());
          indexedStorage.putXMLSerializable(folderEntry.toIdentifier(), newFolder);
-         parentfolder.addEntry(folderEntry);
-         indexedStorage.putXMLSerializable(parentEntry.toIdentifier(), parentfolder);
+         AssetFolder current = getTaskFolder(parentEntry.toIdentifier());
+
+         if(current == null) {
+            throw new FileNotFoundException(parentEntry.getPath());
+         }
+
+         current.addEntry(folderEntry);
+         indexedStorage.putXMLSerializable(parentEntry.toIdentifier(), current);
       }
       catch(Exception e) {
          if(e instanceof ConfirmException) {
@@ -122,6 +134,8 @@ public class ScheduleTaskFolderService {
          throw new RuntimeException(e);
       }
       finally {
+         folderLock.unlock();
+
          if(actionRecord != null) {
             Audit.getInstance().auditAction(actionRecord, principal);
          }
@@ -132,11 +146,19 @@ public class ScheduleTaskFolderService {
       throws Exception
    {
       AssetEntry parentEntry = folderEntry.getParent();
-      AssetFolder parentFolder =  getTaskFolder(parentEntry.toIdentifier());
-      parentFolder.removeEntry(folderEntry);
+      Lock folderLock = ScheduleFolderLock.acquire(null);
 
-      indexedStorage.putXMLSerializable(parentEntry.toIdentifier(), parentFolder);
-      indexedStorage.remove(folderEntry.toIdentifier());
+      try {
+         AssetFolder parentFolder = getTaskFolder(parentEntry.toIdentifier());
+         parentFolder.removeEntry(folderEntry);
+
+         indexedStorage.putXMLSerializable(parentEntry.toIdentifier(), parentFolder);
+         indexedStorage.remove(folderEntry.toIdentifier());
+      }
+      finally {
+         folderLock.unlock();
+      }
+
       // Bug #78217, the folder is already removed, a failed permission write must not stop the
       // removal of the other folders
       AbstractAssetEngine.removePermissionBestEffort(
@@ -627,11 +649,20 @@ public class ScheduleTaskFolderService {
       opidentifier = opentry.toIdentifier();
       npidentifier = npentry.toIdentifier();
 
-      npfolder = getTaskFolder(npidentifier);
+      // Bug #81905, each parent folder is read, changed and written under a short folder lock,
+      // which is not held while the tasks are saved through the ScheduleManager
+      Lock folderLock = ScheduleFolderLock.acquire(null);
 
-      if(npfolder != null) {
-         npfolder.addEntry(nentry);
-         indexedStorage.putXMLSerializable(npidentifier, npfolder);
+      try {
+         npfolder = getTaskFolder(npidentifier);
+
+         if(npfolder != null) {
+            npfolder.addEntry(nentry);
+            indexedStorage.putXMLSerializable(npidentifier, npfolder);
+         }
+      }
+      finally {
+         folderLock.unlock();
       }
 
       AssetEntry[] entries = ofolder.getEntries();
@@ -659,15 +690,22 @@ public class ScheduleTaskFolderService {
 
       indexedStorage.putXMLSerializable(nidentifier, nfolder);
       updatePermission(ResourceType.SCHEDULE_TASK_FOLDER, oentry.getPath(), nentry.getPath());
-      opfolder = getTaskFolder(opidentifier);
       boolean pathChanged = !Tool.equals(oidentifier, nidentifier);
+      folderLock = ScheduleFolderLock.acquire(null);
 
-      if(opfolder != null) {
-         if(pathChanged) {
-            opfolder.removeEntry(oentry);
+      try {
+         opfolder = getTaskFolder(opidentifier);
+
+         if(opfolder != null) {
+            if(pathChanged) {
+               opfolder.removeEntry(oentry);
+            }
+
+            indexedStorage.putXMLSerializable(opidentifier, opfolder);
          }
-
-         indexedStorage.putXMLSerializable(opidentifier, opfolder);
+      }
+      finally {
+         folderLock.unlock();
       }
 
       for(int i = 0; i < entries.length; i++) {
@@ -695,20 +733,29 @@ public class ScheduleTaskFolderService {
          scheduleManager.checkScheduleTaskSave(task.getTaskId(), task, principal);
       }
 
-      AssetFolder npfolder = getTaskFolder(targetEntry.toIdentifier());
-      AssetFolder opfolder = getTaskFolder(parentEntry.toIdentifier());
+      // Bug #81905, both folders are changed under one folder lock (one lock per organization, so
+      // there is no lock order); the save of the task below is outside of it
+      Lock folderLock = ScheduleFolderLock.acquire(null);
 
-      if(npfolder != null) {
-         npfolder.addEntry(taskEntry);
-         indexedStorage.putXMLSerializable(targetEntry.toIdentifier(), npfolder);
-      }
+      try {
+         AssetFolder npfolder = getTaskFolder(targetEntry.toIdentifier());
+         AssetFolder opfolder = getTaskFolder(parentEntry.toIdentifier());
 
-      if(opfolder != null) {
-         opfolder.removeEntry(taskEntry);
-         indexedStorage.putXMLSerializable(parentEntry.toIdentifier(), opfolder);
+         if(npfolder != null) {
+            npfolder.addEntry(taskEntry);
+            indexedStorage.putXMLSerializable(targetEntry.toIdentifier(), npfolder);
+         }
+
+         if(opfolder != null) {
+            opfolder.removeEntry(taskEntry);
+            indexedStorage.putXMLSerializable(parentEntry.toIdentifier(), opfolder);
+         }
+         else if(parentEntry.isRoot()) {
+            indexedStorage.remove(taskEntry.toIdentifier());
+         }
       }
-      else if(parentEntry.isRoot()) {
-         indexedStorage.remove(taskEntry.toIdentifier());
+      finally {
+         folderLock.unlock();
       }
 
       changeTaskFolder(taskEntry, targetEntry, principal);
@@ -746,17 +793,21 @@ public class ScheduleTaskFolderService {
       if(taskFolderPath != null) {
          folderEntry = new AssetEntry( AssetRepository.GLOBAL_SCOPE,
             AssetEntry.Type.SCHEDULE_TASK_FOLDER, taskFolderPath, null);
-         AssetFolder folder = getTaskFolder(folderEntry.toIdentifier());
          AssetEntry oldTaskEntry = new AssetEntry(
             AssetRepository.GLOBAL_SCOPE,
             AssetEntry.Type.SCHEDULE_TASK, "/" + taskName, null);
+         Lock folderLock = ScheduleFolderLock.acquire(null);
 
-         if(folder != null && folder.containsEntry(oldTaskEntry)) {
-            folder.removeEntry(oldTaskEntry);
+         try {
+            AssetFolder folder = getTaskFolder(folderEntry.toIdentifier());
 
-            if(folderEntry != null && folder != null) {
+            if(folder != null && folder.containsEntry(oldTaskEntry)) {
+               folder.removeEntry(oldTaskEntry);
                indexedStorage.putXMLSerializable(folderEntry.toIdentifier(), folder);
             }
+         }
+         finally {
+            folderLock.unlock();
          }
       }
    }

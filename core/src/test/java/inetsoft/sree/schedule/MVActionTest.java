@@ -33,6 +33,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -83,6 +84,33 @@ class MVActionTest {
       Throwable thrown = assertThrows(
          RuntimeException.class, () -> invokeCreateMV("100", future));
 
+      assertSame(timeoutException, thrown.getCause());
+      verify(future).cancel(true);
+   }
+
+   @Test
+   void waitsForTheConfiguredNumberOfMillisecondsWhenTimeoutPropertyIsPositive()
+      throws Throwable
+   {
+      Future<String> future = mockFuture();
+      when(future.get(1500L, TimeUnit.MILLISECONDS)).thenReturn(null);
+
+      invokeCreateMV("1500", future);
+
+      verify(future).get(1500L, TimeUnit.MILLISECONDS);
+      verify(future, never()).get();
+   }
+
+   @Test
+   void timeoutErrorNamesTheMvAndReportsTheTimeoutInWholeSeconds() throws Throwable {
+      Future<String> future = mockFuture();
+      TimeoutException timeoutException = new TimeoutException("simulated timeout");
+      when(future.get(2000L, TimeUnit.MILLISECONDS)).thenThrow(timeoutException);
+
+      RuntimeException thrown = assertThrows(
+         RuntimeException.class, () -> invokeCreateMV("2000", future));
+
+      assertEquals("MV creation timed out after 2s: mv1", thrown.getMessage());
       assertSame(timeoutException, thrown.getCause());
       verify(future).cancel(true);
    }

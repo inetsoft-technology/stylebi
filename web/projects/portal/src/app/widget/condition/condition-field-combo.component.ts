@@ -56,6 +56,8 @@ export class ConditionFieldComboComponent implements OnChanges, OnInit {
    @Input() addNoneItem: boolean = true;
    @Input() enabled: boolean = true;
    @Input() showOriginalName: boolean = false;
+   // the field is no longer available (display only)
+   @Input() unbound: boolean = false;
    @Output() onSelectField: EventEmitter<any> = new EventEmitter<any>();
    @ViewChild(FixedDropdownDirective) fieldsDropdown: FixedDropdownDirective;
    noneItem: DataRef = {name: "None", view: "_#(js:None)", fakeNone: true};
@@ -273,6 +275,10 @@ export class ConditionFieldComboComponent implements OnChanges, OnInit {
    getTooltip(fld: DataRef): string {
       if(fld == null) {
          return "";
+      }
+
+      if(this.unbound) {
+         return "_#(js:This field is not bound in the chart. The highlight does not apply until it is bound again, or select another field.)";
       }
 
       let tooltip: string = "";

@@ -22,6 +22,7 @@
   <div class="modal-body" enterSubmit (onEnter)="ok()">
     <condition-pane [provider]="provider" [fields]="model.fields" [table]="model?.tableName"
       [conditionList]="model.conditionList" [isHighlight]="isHighlight"
+      [unboundFields]="model.unboundFields"
       [vsId]="runtimeId"
       (conditionListChange)="conditionListChanged($event)"
       (conditionChange)="conditionChanged($event)"

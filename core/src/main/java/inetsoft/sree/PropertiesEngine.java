@@ -1153,6 +1153,68 @@ public class PropertiesEngine {
       return properties;
    }
 
+   /**
+    * Merges the stored properties of an organization into this node's in-memory properties, so
+    * that an organization rename or removal sees what the other cluster nodes just saved
+    * (Bug #81618). A change stored by another node reaches the in-memory properties only after
+    * the debounced reload, so enumerating the in-memory properties right after the change
+    * misses it. This is a read-only catch-up: a stored property that is missing from or differs
+    * in the in-memory properties is put there without marking it changed, because it is
+    * already stored. A property with a pending local change is kept, and nothing is reloaded or
+    * published.
+    *
+    * @param orgId the ID of the organization whose properties are merged.
+    */
+   public void syncOrgScopedProperties(String orgId) {
+      KeyValueStorage<String> storage = getStorage();
+
+      if(storage == null || orgId == null) {
+         return;
+      }
+
+      String prefix = getOrgPropertyPrefix(orgId);
+      Map<String, String> stored = new HashMap<>();
+
+      try {
+         storage.stream().forEach(p -> {
+            String key = p.getKey();
+
+            if(key != null && p.getValue() != null &&
+               (key.startsWith(prefix) || LogManager.isOrgLogProperty(key, orgId)))
+            {
+               stored.put(key, p.getValue());
+            }
+         });
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to read the properties of organization {} from storage", orgId, e);
+         return;
+      }
+
+      if(stored.isEmpty()) {
+         return;
+      }
+
+      propertiesLock.lock();
+
+      try {
+         Properties prop = getLoadedProperties();
+
+         synchronized(changedProps) {
+            for(Map.Entry<String, String> entry : stored.entrySet()) {
+               if(!changedProps.contains(entry.getKey()) &&
+                  !Tool.equals(prop.getProperty(entry.getKey()), entry.getValue()))
+               {
+                  prop.put(entry.getKey(), entry.getValue());
+               }
+            }
+         }
+      }
+      finally {
+         propertiesLock.unlock();
+      }
+   }
+
    private void loadFromStorage(Properties properties, KeyValueStorage<String> storage) {
       if(properties instanceof LayerProperties) {
          ((LayerProperties) properties).load(storage);

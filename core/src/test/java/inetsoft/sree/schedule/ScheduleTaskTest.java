@@ -54,7 +54,13 @@ import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
+import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -168,6 +174,279 @@ public class ScheduleTaskTest {
       assertEquals(Long.parseLong(shipped), ScheduleTask.DEFAULT_TASK_TIMEOUT,
                    "DEFAULT_TASK_TIMEOUT must track schedule.task.timeout in " +
                    "defaults.properties so the fallback does not silently change the timeout");
+   }
+
+   @ParameterizedTest(name = "schedule.task.timeout [{0}] is returned unchanged, without a warning")
+   @ValueSource(strings = { "0", "-1", "9223372036854775807" })
+   void getTaskTimeoutReturnsNumericValueUnchangedAndDoesNotWarn(String propertyValue) {
+      List<ILoggingEvent> events = captureTaskLog(() -> {
+         try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+            sreeEnv.when(() -> SreeEnv.getProperty("schedule.task.timeout"))
+               .thenReturn(propertyValue);
+
+            assertEquals(Long.parseLong(propertyValue), ScheduleTask.getTaskTimeout(),
+                         "a valid numeric value, including zero and negatives, must not be " +
+                         "replaced by the default");
+         }
+      });
+
+      assertTrue(events.stream().noneMatch(e -> e.getLevel() == Level.WARN),
+                 "a valid numeric value must not produce a warning: " + events);
+   }
+
+   @ParameterizedTest(name = "pinned current behavior: schedule.task.timeout [{0}] with a " +
+      "blank is rejected and falls back to the default with a warning")
+   @ValueSource(strings = { "300000 ", " 300000" })
+   void getTaskTimeoutPinnedCurrentBehaviorBlankPaddedValueFallsBack(String propertyValue) {
+      List<ILoggingEvent> events = captureTaskLog(() -> {
+         try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+            sreeEnv.when(() -> SreeEnv.getProperty("schedule.task.timeout"))
+               .thenReturn(propertyValue);
+
+            assertEquals(ScheduleTask.DEFAULT_TASK_TIMEOUT, ScheduleTask.getTaskTimeout());
+         }
+      });
+
+      assertEquals(1, events.stream().filter(e -> e.getLevel() == Level.WARN).count(),
+                   "the fallback must be reported once: " + events);
+   }
+
+   @Test
+   void getTaskTimeoutPinnedCurrentBehaviorLeadingPlusSignIsAccepted() {
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("schedule.task.timeout")).thenReturn("+5000");
+
+         assertEquals(5000L, ScheduleTask.getTaskTimeout());
+      }
+   }
+
+   @Test
+   void getTaskTimeoutFallsBackAndWarnsWhenValueOverflowsLong() {
+      List<ILoggingEvent> events = captureTaskLog(() -> {
+         try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+            sreeEnv.when(() -> SreeEnv.getProperty("schedule.task.timeout"))
+               .thenReturn("9223372036854775808");
+
+            assertEquals(ScheduleTask.DEFAULT_TASK_TIMEOUT, ScheduleTask.getTaskTimeout());
+         }
+      });
+
+      assertEquals(1, events.stream().filter(e -> e.getLevel() == Level.WARN).count(),
+                   "the fallback must be reported once: " + events);
+   }
+
+   @Test
+   void getTaskTimeoutWarnsOnceNamingThePropertyWhenValueIsMissing() {
+      List<ILoggingEvent> events = captureTaskLog(() -> {
+         try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+            sreeEnv.when(() -> SreeEnv.getProperty("schedule.task.timeout")).thenReturn(null);
+
+            assertEquals(ScheduleTask.DEFAULT_TASK_TIMEOUT, ScheduleTask.getTaskTimeout());
+         }
+      });
+
+      List<ILoggingEvent> warnings =
+         events.stream().filter(e -> e.getLevel() == Level.WARN).toList();
+      assertEquals(1, warnings.size(), "one warning expected: " + events);
+      String message = warnings.get(0).getFormattedMessage();
+      assertTrue(message.contains("schedule.task.timeout"), message);
+      assertTrue(message.contains("null"), "the missing value must be quoted: " + message);
+   }
+
+   @ParameterizedTest(name = "a task with schedule.task.timeout [{0}] is not timed out")
+   @ValueSource(strings = { "0", "-1" })
+   void runWaitsForSlowActionWithoutTimeoutWhenTimeoutIsNotPositive(String propertyValue)
+      throws Throwable
+   {
+      TimedAction action = new TimedAction(1500L);
+      ScheduleTask task = new ScheduleTask("timeout-disabled-task");
+      task.addAction(action);
+
+      runDoRun(task, propertyValue);
+
+      assertTrue(action.finished.await(5, TimeUnit.SECONDS), "the action must run to the end");
+      assertFalse(action.cancelled, "a non-positive timeout must never cancel the task");
+      assertFalse(action.interrupted, "a non-positive timeout must never interrupt the action");
+   }
+
+   @Test
+   void runTimesOutAndCancelsActionWhenTimeoutElapses() throws Throwable {
+      TimedAction action = new TimedAction(0L);
+      ScheduleTask task = new ScheduleTask("timeout-task");
+      task.addAction(action);
+
+      RuntimeException error = assertThrows(RuntimeException.class,
+                                            () -> runDoRun(task, "500"));
+
+      assertTrue(error.getMessage().contains("Schedule Task Timeout exceeded!"),
+                 error.getMessage());
+      assertTrue(action.cancelled, "the running action must be told to cancel");
+      assertTrue(action.finished.await(5, TimeUnit.SECONDS));
+   }
+
+   @Test
+   void runTimesOutWhileWaitingForEarlierActionsBeforeSequencedMvAction() throws Throwable {
+      BlockingAction earlier = new BlockingAction();
+      SequencedMVAction mvAction = new SequencedMVAction();
+      ScheduleTask task = new ScheduleTask("mv-wait-timeout-task");
+      task.addAction(earlier);
+      task.addAction(mvAction);
+
+      RuntimeException error = assertThrows(RuntimeException.class,
+                                            () -> runDoRun(task, "300"));
+
+      assertTrue(error.getMessage().contains("waiting for MV actions"), error.getMessage());
+      assertTrue(earlier.interrupted.await(5, TimeUnit.SECONDS),
+                 "the earlier action's future must be cancelled with interruption");
+      assertFalse(mvAction.ran, "the sequenced MV action must not start after the timeout");
+   }
+
+   @Test
+   void runWaitsWithoutBoundForEarlierActionsWhenTimeoutIsZero() throws Throwable {
+      TimedAction earlier = new TimedAction(300L);
+      SequencedMVAction mvAction = new SequencedMVAction();
+      ScheduleTask task = new ScheduleTask("mv-wait-unbounded-task");
+      task.addAction(earlier);
+      task.addAction(mvAction);
+
+      runDoRun(task, "0");
+
+      assertTrue(earlier.finished.await(5, TimeUnit.SECONDS));
+      assertTrue(mvAction.ran, "the sequenced MV action must run after the earlier action ends");
+   }
+
+   private List<ILoggingEvent> captureTaskLog(Runnable body) {
+      Logger logger = (Logger) LoggerFactory.getLogger(ScheduleTask.class);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+
+      try {
+         body.run();
+         return new ArrayList<>(appender.list);
+      }
+      finally {
+         logger.detachAppender(appender);
+      }
+   }
+
+   /**
+    * Calls the private doRun on the test thread, with the timeout property mocked, against a
+    * small private action pool (the shared pool reads properties while it is being built, which
+    * the static mock would break) and with the task marked as running so cancel() reaches the
+    * actions.
+    */
+   private static void runDoRun(ScheduleTask task, String timeoutProperty) throws Throwable {
+      Field poolField = ScheduleTask.class.getDeclaredField("threadPool");
+      poolField.setAccessible(true);
+      Object originalPool = poolField.get(null);
+      Class<?> factoryClass =
+         Class.forName("inetsoft.sree.schedule.ScheduleTask$GroupedThreadFactory");
+      java.lang.reflect.Constructor<?> constructor = factoryClass.getDeclaredConstructor();
+      constructor.setAccessible(true);
+      ExecutorService pool = Executors.newFixedThreadPool(
+         4, (java.util.concurrent.ThreadFactory) constructor.newInstance());
+      Field runningField = ScheduleTask.class.getDeclaredField("running");
+      runningField.setAccessible(true);
+
+      poolField.set(null, pool);
+      runningField.setBoolean(task, true);
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("schedule.task.timeout"))
+            .thenReturn(timeoutProperty);
+         java.lang.reflect.Method method =
+            ScheduleTask.class.getDeclaredMethod("doRun", java.security.Principal.class);
+         method.setAccessible(true);
+
+         try {
+            method.invoke(task, (java.security.Principal) null);
+         }
+         catch(java.lang.reflect.InvocationTargetException e) {
+            throw e.getCause();
+         }
+      }
+      finally {
+         poolField.set(null, originalPool);
+         pool.shutdownNow();
+      }
+   }
+
+   /** Runs for the given time, or until cancelled when the time is zero. */
+   public static class TimedAction implements ScheduleAction, CancelableAction {
+      private final long runMillis;
+      final CountDownLatch release = new CountDownLatch(1);
+      final CountDownLatch finished = new CountDownLatch(1);
+      volatile boolean cancelled;
+      volatile boolean interrupted;
+
+      TimedAction(long runMillis) {
+         this.runMillis = runMillis;
+      }
+
+      @Override
+      public void run(java.security.Principal principal) {
+         try {
+            if(runMillis > 0) {
+               Thread.sleep(runMillis);
+            }
+            else {
+               release.await();
+            }
+         }
+         catch(InterruptedException e) {
+            interrupted = true;
+         }
+         finally {
+            finished.countDown();
+         }
+      }
+
+      @Override
+      public void cancel() {
+         cancelled = true;
+         release.countDown();
+      }
+   }
+
+   /** Blocks until its thread is interrupted. */
+   public static class BlockingAction implements ScheduleAction {
+      final CountDownLatch interrupted = new CountDownLatch(1);
+
+      @Override
+      public void run(java.security.Principal principal) {
+         try {
+            new CountDownLatch(1).await();
+         }
+         catch(InterruptedException e) {
+            interrupted.countDown();
+         }
+      }
+   }
+
+   /** An MV action that the task treats as sequenced and that only records that it ran. */
+   public static class SequencedMVAction extends MVAction {
+      volatile boolean ran;
+
+      SequencedMVAction() {
+         super(namedMv());
+      }
+
+      private static inetsoft.mv.MVDef namedMv() {
+         inetsoft.mv.MVDef mv = mock(inetsoft.mv.MVDef.class);
+         when(mv.getName()).thenReturn("sequenced-mv");
+         return mv;
+      }
+
+      @Override
+      boolean isSequenced() {
+         return true;
+      }
+
+      @Override
+      public void run(java.security.Principal principal) {
+         ran = true;
+      }
    }
 
    @Test

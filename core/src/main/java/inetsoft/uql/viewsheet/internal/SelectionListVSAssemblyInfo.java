@@ -343,7 +343,7 @@ public class SelectionListVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
 
       SelectionValue[] svalues = slist.getAllSelectionValues();
       VSCompositeFormat format = svalues[0].getFormat();
-      boolean isListCellWrap = format.isWrapping();
+      boolean isListCellWrap = format != null && format.isWrapping();
       int nrow = svalues.length % ncol == 0 ? (svalues.length / ncol) : (svalues.length / ncol) + 1;
       double cellWidth = getPixelSize().width / ncol;
       double barSize = 0;
@@ -378,7 +378,8 @@ public class SelectionListVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
             for(int j = 0; j < ncol && (i * ncol + j) < svalues.length; j++) {
                svalue = svalues[i * ncol + j];
                format = svalue.getFormat();
-               double cellHeight2 = Common.getWrapTextHeight(svalue.getLabel(), cellWidth,
+               double cellHeight2 = format == null ? getCellHeight() :
+                  Common.getWrapTextHeight(svalue.getLabel(), cellWidth,
                   format.getFont(), format.getAlignment());
                rowHeight = Math.max(cellHeight2, rowHeight);
             }

@@ -101,6 +101,42 @@ class HostBeanProxyTest {
    }
 
    @Test
+   void beanWriteReachesSetterOnScriptConstructedSpecsAndScales() {
+      // (#81619) a script-built AxisSpec/LinearScale/LegendSpec/TextSpec must take a
+      // bean-style assignment, not drop it silently.
+      LegacyJavaShim.install(ctx, ctx.getBindings("js"), ScriptHostAccess.classFilter());
+
+      assertFalse(ctx.eval("js",
+         "var o = new inetsoft.graph.AxisSpec(); o.lineVisible = false; o.isLineVisible()")
+                     .asBoolean());
+      assertEquals(5, ctx.eval("js",
+         "var o = new inetsoft.graph.scale.LinearScale(); o.min = 5; o.getMin()").asDouble());
+      assertFalse(ctx.eval("js",
+         "var o = new inetsoft.graph.LegendSpec(); o.visible = false; o.isVisible()")
+                     .asBoolean());
+      assertEquals(30, ctx.eval("js",
+         "var o = new inetsoft.graph.TextSpec(); o.rotation = 30; o.getRotation()").asDouble());
+   }
+
+   @Test
+   void scriptConstructedSpecsAndScalesPassToDeclaredParameters() {
+      // (#81619) wrapped specs/scales must still unwrap where a Java method declares
+      // the exact type (setTextSpec(TextSpec), setXScale(LinearScale), setScale(Scale)).
+      LegacyJavaShim.install(ctx, ctx.getBindings("js"), ScriptHostAccess.classFilter());
+
+      ctx.eval("js",
+         "var axis = new inetsoft.graph.AxisSpec();" +
+         "var ts = new inetsoft.graph.TextSpec(); ts.rotation = 30;" +
+         "axis.setTextSpec(ts);" +
+         "var coord = new inetsoft.graph.coord.RectCoord();" +
+         "var sc = new inetsoft.graph.scale.LinearScale(); sc.min = 5;" +
+         "coord.setXScale(sc);" +
+         "globalThis.__r = axis.getTextSpec().getRotation() + ':' + coord.getXScale().getMin();");
+
+      assertEquals("30:5", ctx.getBindings("js").getMember("__r").asString());
+   }
+
+   @Test
    void scriptConstructedElementPassesToGraphElementConstructor() {
       // (#76969) the reported chart script: since #76915 a script-built `elem` is a
       // HostBeanProxy, and a host constructor is not a HostBeanProxy receiver, so

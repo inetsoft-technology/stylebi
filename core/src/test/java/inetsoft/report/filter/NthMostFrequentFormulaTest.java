@@ -19,7 +19,6 @@
 package inetsoft.report.filter;
 
 import inetsoft.util.Tool;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -291,7 +290,6 @@ class NthMostFrequentFormulaTest {
       assertNull(frequent.getResult());
    }
 
-   @Disabled("Bug #81215: ModeFormula text getDoubleResult() throws")
    @Test
    @DisplayName("GetDoubleResult of a text mode is 0.0, like other non-numeric objects")
    void doubleResultOfText_isZeroWithoutException() {
@@ -314,9 +312,8 @@ class NthMostFrequentFormulaTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): case-different texts with " +
-      "equal counts")
-   void pin_caseDifferentTie() {
+   @DisplayName("Case-different texts with equal counts: the smaller one wins (#80953 Q4)")
+   void caseDifferentTie() {
       NthMostFrequentFormula forward = new NthMostFrequentFormula(1);
       NthMostFrequentFormula reverse = new NthMostFrequentFormula(1);
       addAll(forward, "B", "B", "a", "a");

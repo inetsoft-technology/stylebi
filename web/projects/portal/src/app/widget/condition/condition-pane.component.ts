@@ -64,6 +64,7 @@ export class ConditionPane implements OnInit {
    @Input() onlyOr: boolean = false;
    @Input() isVSContext = true;
    @Input() isHighlight: boolean = false;
+   @Input() unboundFields: string[];
    @Input() showExpression = true;
    @Input() fillParent: boolean;
    @Input() showOriginalName: boolean = false;

@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.lang.reflect.Method;
+import java.text.Format;
 import java.util.*;
 
 /**
@@ -224,6 +225,13 @@ public abstract class VisualFrame implements Cloneable, Serializable {
     */
    @TernMethod
    public LegendSpec getLegendSpec() {
+      return getMergedLegendSpec();
+   }
+
+   /**
+    * Get this frame's legend spec with the format merged from the scale.
+    */
+   private LegendSpec getMergedLegendSpec() {
       if(legendSpec0 == null) {
          legendSpec0 = createLegendSpec();
       }
@@ -254,7 +262,7 @@ public abstract class VisualFrame implements Cloneable, Serializable {
 
       if(spec.getFormat() == null && spec2.getFormat() != null) {
          legend = (LegendSpec) legend.clone();
-         spec.setFormat(spec2.getFormat());
+         legend.getTextSpec().setFormat(spec2.getFormat());
       }
 
       return legend;
@@ -305,6 +313,8 @@ public abstract class VisualFrame implements Cloneable, Serializable {
 
       Object[] labels = vals.clone();
       TextFrame textFrame = legendSpec.getTextFrame();
+      // include the format merged from the scale (82073)
+      Format format = getMergedLegendSpec().getTextSpec().getFormat();
 
       for(int i = 0; i < labels.length; i++) {
          // no need to format the label, VLabel will do it, if here format the
@@ -319,12 +329,12 @@ public abstract class VisualFrame implements Cloneable, Serializable {
             // if the original (e.g. date) is not mapped, try the formatted string and
             // see if it's mapped (45614).
             if(labels[i] != null && labels[i] == olabel &&
-               legendSpec.getTextSpec().getFormat() != null && !(olabel instanceof String))
+               format != null && !(olabel instanceof String))
             {
                String nlabel = null;
 
                try {
-                  nlabel = legendSpec.getTextSpec().getFormat().format(labels[i]);
+                  nlabel = format.format(labels[i]);
                }
                catch(Exception ex) {
                   nlabel = labels[i].toString();

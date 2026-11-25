@@ -51,7 +51,7 @@
         {
             "name": "Contact Groups",
             "paged": false,
-            "suffix": "/api.xro/2.0/ContactGroups/{ContactGroup ID?}?&where={Filter?}"
+            "suffix": "/api.xro/2.0/ContactGroups/{ContactGroup ID?}?where={Filter?}"
         },
         {
             "name": "Credit Notes",
@@ -139,7 +139,7 @@
             "name": "Quotes",
             "paged": true,
             "paginationPath": "$.Quotes.length()",
-            "suffix": "/api.xro/2.0/Quotes/{Quote ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&Status={Status?}&&DateFrom={From Date?:yyyy-MM-dd}&DateTo={To Date?:yyyy-MM-dd}&&ExpiryDateFrom={From Expiry Date?:yyyy-MM-dd}&ExpiryDateTo={To Expiry Date?:yyyy-MM-dd}&ContactID={Contact ID?}"
+            "suffix": "/api.xro/2.0/Quotes/{Quote ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&Status={Status?}&DateFrom={From Date?:yyyy-MM-dd}&DateTo={To Date?:yyyy-MM-dd}&ExpiryDateFrom={From Expiry Date?:yyyy-MM-dd}&ExpiryDateTo={To Expiry Date?:yyyy-MM-dd}&ContactID={Contact ID?}"
         },
         {
             "name": "Receipts",
@@ -149,7 +149,7 @@
         {
             "name": "Repeating Invoices",
             "paged": false,
-            "suffix": "/api.xro/2.0/RepeatingInvoices/{Repeating Invoice ID?}?&where={Filter?}"
+            "suffix": "/api.xro/2.0/RepeatingInvoices/{Repeating Invoice ID?}?where={Filter?}"
         },
         {
             "name": "1099 Report",
@@ -164,7 +164,7 @@
         {
             "name": "Aged Receivables By Contact",
             "paged": false,
-            "suffix": "/2.0/Reports/AgedReceivablesByContact?contactID={Contact ID}&&date={Date?:yyyy-MM-dd}&fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}"
+            "suffix": "/2.0/Reports/AgedReceivablesByContact?contactID={Contact ID}&date={Date?:yyyy-MM-dd}&fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}"
         },
         {
             "name": "Balance Sheet",

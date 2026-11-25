@@ -2297,14 +2297,15 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    }
 
    /**
-    * Header corners that meet the card's corners take the card's radius, or they draw square over
-    * it. A collapsed dropdown is all header, so its bottom corners meet the card's too.
+    * Header corners that meet the card's corners are at least as round as the card's, or they draw
+    * square over it. A title that sets a rounder corner keeps it. A collapsed dropdown is all
+    * header, so its bottom corners meet the card's too.
     */
    get headerBorderRadius(): string {
       const card = this.model.objectFormat.roundCorner ?? 0;
       const title = this.model.titleFormat.roundCorner ?? 0;
-      const top = card > 0 ? card : title;
-      const bottom = card > 0 && this.model.dropdown && this.isHidden ? card : title;
+      const top = card > 0 ? Math.max(card, title) : title;
+      const bottom = card > 0 && this.model.dropdown && this.isHidden ? Math.max(card, title) : title;
       return `${top}px ${top}px ${bottom}px ${bottom}px`;
    }
 

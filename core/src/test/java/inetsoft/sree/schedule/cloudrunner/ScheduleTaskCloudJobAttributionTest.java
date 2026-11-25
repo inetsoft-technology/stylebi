@@ -75,7 +75,7 @@ class ScheduleTaskCloudJobAttributionTest {
       cloudRunner.setType(AttributionJobFactory.TYPE);
       config.setCloudRunner(cloudRunner);
 
-      PropertiesEngine properties = mock(PropertiesEngine.class);
+      properties = mock(PropertiesEngine.class);
       when(properties.getProperty(eq("schedule.task.timeout"), anyBoolean())).thenReturn("10000");
 
       ApplicationContext appContext = mock(ApplicationContext.class);
@@ -174,6 +174,32 @@ class ScheduleTaskCloudJobAttributionTest {
       assertEquals(job.executionId, cancel.getExecutionId());
    }
 
+   @Test
+   void runnerFailureMessageIsNotWrappedIntoAGenericMessage() throws Exception {
+      Future<String> run = execute(new ScheduleTaskCloudJob());
+      AttributionJob job = awaitStarted();
+
+      broadcast(new CloudJobResult(TASK, false, "container exited with code 3", job.executionId));
+
+      String message = run.get(5, TimeUnit.SECONDS);
+      assertTrue(message.startsWith(FAILED), message);
+      assertTrue(message.contains("container exited with code 3"),
+                 "the runner's failure message must reach the job listener, got: " + message);
+   }
+
+   @Test
+   void timeoutMessageIsNotWrappedIntoAGenericMessage() throws Exception {
+      when(properties.getProperty(eq("schedule.task.timeout"), anyBoolean())).thenReturn("300");
+      Future<String> run = execute(new ScheduleTaskCloudJob());
+      AttributionJob job = awaitStarted();
+
+      String message = run.get(5, TimeUnit.SECONDS);
+      assertTrue(message.startsWith(FAILED), message);
+      assertTrue(message.contains("timed out"),
+                 "the timeout must be reported as such, got: " + message);
+      assertTrue(job.stopped, "a timed out cloud job must be stopped");
+   }
+
    private Future<String> execute(ScheduleTaskCloudJob cloudJob) {
       JobDetail detail = JobBuilder.newJob(ScheduleTaskCloudJob.class)
          .withIdentity(TASK, "test")
@@ -213,6 +239,7 @@ class ScheduleTaskCloudJobAttributionTest {
    private final BlockingQueue<Object> sent = new LinkedBlockingQueue<>();
    private final ExecutorService executor = Executors.newCachedThreadPool();
    private Cluster cluster;
+   private PropertiesEngine properties;
    private ApplicationContext savedAppContext;
 
    public static class AttributionJobFactory implements CloudJobFactory {

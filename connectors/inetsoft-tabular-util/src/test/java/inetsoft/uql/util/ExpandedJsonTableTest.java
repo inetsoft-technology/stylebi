@@ -367,6 +367,50 @@ class ExpandedJsonTableTest {
       assertEquals(XSchema.STRING, jsonTable.getColumnType("values.col"));
    }
 
+   @Test
+   public void dateLikeTextKeepsSourceTextInStringColumn() {
+      for(String[] col : DateLikeCases.STRING_COLUMNS) {
+         final ExpandedJsonTable jsonTable =
+            new ExpandedJsonTable(DateLikeCases.toExpandedJson(col), Integer.MAX_VALUE);
+         XNodeTable tbl = new XNodeTable(jsonTable);
+         tbl.moreRows(999);
+
+         assertEquals(String.class, tbl.getColType(0), Arrays.toString(col));
+
+         for(int i = 0; i < col.length; i++) {
+            assertEquals(col[i], tbl.getObject(i + 1, 0), Arrays.toString(col) + " row " + i);
+         }
+      }
+   }
+
+   @Test
+   public void dateLikeTextBeforeNumberKeepsSourceText() {
+      String json = "[{\"values\": [{\"col\": \"4/9/2030\"}, {\"col\": 5}]}]";
+      XNodeTable tbl = new XNodeTable(new ExpandedJsonTable(json, Integer.MAX_VALUE));
+      tbl.moreRows(999);
+
+      assertEquals(String.class, tbl.getColType(0));
+      assertEquals("4/9/2030", tbl.getObject(1, 0));
+   }
+
+   @Test
+   public void allDateLikeColumnStaysTyped() {
+      DateLikeCases.assertTypedColumns((col) ->
+         new ExpandedJsonTable(DateLikeCases.toExpandedJson(col), Integer.MAX_VALUE));
+   }
+
+   @Test
+   public void explicitStringTypeKeepsSourceText() {
+      final ExpandedJsonTable jsonTable = new ExpandedJsonTable((String) null);
+      jsonTable.setColumnType("values.col", XSchema.STRING);
+      jsonTable.load(DateLikeCases.toExpandedJson(new String[] { "4/9/2030", "5/1/2030" }));
+      XNodeTable tbl = new XNodeTable(jsonTable);
+      tbl.moreRows(999);
+
+      assertEquals("4/9/2030", tbl.getObject(1, 0));
+      assertEquals("5/1/2030", tbl.getObject(2, 0));
+   }
+
    private void assertTableEquals(XTable expected, XTable actual) {
       assertNotNull(actual);
       expected.moreRows(XTable.EOT);

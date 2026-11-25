@@ -46,6 +46,8 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
+import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
@@ -994,6 +996,23 @@ public final class VSEventUtil {
    }
 
    /**
+    * Go on after a component script failed while a viewsheet is refreshed or scaled, as
+    * {@link ViewsheetSandbox#executeView} does: the failure is reported as a non-blocking
+    * message through the request's asset exceptions instead of aborting the whole refresh
+    * (Bug #82107). A stopped script (timeout or cancel) and a table load failure (Bug #78083)
+    * still propagate.
+    */
+   public static void tolerateScriptError(ScriptException ex) {
+      ScriptTimeoutGuard.rethrowStop(ex);
+      TableLoadException.rethrow(ex);
+      List<Exception> exs = WorksheetService.ASSET_EXCEPTIONS.get();
+
+      if(exs != null) {
+         exs.add(ex);
+      }
+   }
+
+   /**
     * Apply scale of assembly.
     */
    private static void applyAssemblyScale(VSAssembly assembly, Point2D.Double scaleRatio,
@@ -1002,7 +1021,13 @@ public final class VSEventUtil {
       throws Exception
    {
       if(assembly instanceof TextVSAssembly) {
-         box.executeScript(assembly);
+         try {
+            box.executeScript(assembly);
+         }
+         catch(ScriptException ex) {
+            // a failing component script must not abort the scaling (82107)
+            tolerateScriptError(ex);
+         }
       }
 
       if(isFloat) {

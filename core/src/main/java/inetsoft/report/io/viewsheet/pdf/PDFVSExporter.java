@@ -202,40 +202,54 @@ public class PDFVSExporter extends AbstractVSExporter {
       }
 
       if(playout != null) {
-         try {
-            executeViewDynamicValues(viewsheet, layoutBox);
+         // a failing component script is skipped while the print layout reads its data, as in
+         // the canvas export (Bug #81796)
+         try(ViewsheetSandbox.ExportScriptSkip skip = ViewsheetSandbox.skipScriptErrorsForExport()) {
+            exportPrintLayout(box, viewsheet, layoutBox, playout);
          }
-         catch(Exception ex) {
-            // fail on a table that failed to load, as the canvas path does (#78518)
-            TableLoadException.rethrow(ex);
-            LOG.error("Failed to execute dynamic values", ex);
+         finally {
+            box.clearExportSkippedScript();
          }
-
-         viewsheet.updateCSSFormat("pdf", null, layoutBox);
-
-         // the canvas path records a failed onLoad script in prepareSheet(), which this branch
-         // never reaches. The script belongs to the sheet being exported, not to the embedded
-         // sheet whose layout is rendered, so take the error from the outer sandbox. (#78219)
-         box.prepareForExport();
-
-         VsToReportConverter converter = createReportConverter(layoutBox);
-
-         if(box.getExportScriptError() != null) {
-            converter.setScriptErrorMessage(
-               Catalog.getCatalog().getString("vs.export.onLoadScriptFailed"));
-         }
-
-         ReportSheet report = converter.generateReport();
-
-         // Build a list of report sheets instead of generating a printlayout
-         // pdf here so we can build a CompositeSheet later; see write()
-         reportList.add(report);
 
          return;
       }
 
       canvasExported = true;
       super.export(box, sheet, index, helper);
+   }
+
+   private void exportPrintLayout(ViewsheetSandbox box, Viewsheet viewsheet,
+                                  ViewsheetSandbox layoutBox, PrintLayout playout)
+      throws Exception
+   {
+      try {
+         executeViewDynamicValues(viewsheet, layoutBox);
+      }
+      catch(Exception ex) {
+         // fail on a table that failed to load, as the canvas path does (#78518)
+         TableLoadException.rethrow(ex);
+         LOG.error("Failed to execute dynamic values", ex);
+      }
+
+      viewsheet.updateCSSFormat("pdf", null, layoutBox);
+
+      // the canvas path records a failed onLoad script in prepareSheet(), which this branch
+      // never reaches. The script belongs to the sheet being exported, not to the embedded
+      // sheet whose layout is rendered, so take the error from the outer sandbox. (#78219)
+      box.prepareForExport();
+
+      VsToReportConverter converter = createReportConverter(layoutBox);
+
+      if(box.getExportScriptError() != null) {
+         converter.setScriptErrorMessage(
+            Catalog.getCatalog().getString("vs.export.onLoadScriptFailed"));
+      }
+
+      ReportSheet report = converter.generateReport();
+
+      // Build a list of report sheets instead of generating a printlayout
+      // pdf here so we can build a CompositeSheet later; see write()
+      reportList.add(report);
    }
 
    /**

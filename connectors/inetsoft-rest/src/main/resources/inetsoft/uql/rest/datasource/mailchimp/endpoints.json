@@ -17,7 +17,7 @@
     },
     {
       "name": "Automations",
-      "suffix": "/3.0/automations?fields={Fields?}&exclude_fields={Exclude Fields?}&before_create_time={Before Create Time?}&since_create_time={Since Create Time?}&before_send_time={Before Send Time?}&since_send_time={Since Send Time?}&status={Status?}",
+      "suffix": "/3.0/automations?fields={Fields?}&exclude_fields={Exclude Fields?}&before_create_time={Before Create Time?}&since_create_time={Since Create Time?}&before_start_time={Before Start Time?}&since_start_time={Since Start Time?}&status={Status?}",
       "paged": "true",
       "lookups": [
         {
@@ -555,7 +555,7 @@
     {
       "name": "List Activity",
       "suffix": "/3.0/lists/{List ID}/activity?fields={Fields?}&exclude_fields={Exclude Fields?}",
-      "paged": "false"
+      "paged": "true"
     },
     {
       "name": "List Clients",
@@ -604,12 +604,12 @@
     },
     {
       "name": "List Member Tags",
-      "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/events?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/tags?fields={Fields?}&exclude_fields={Exclude Fields?}",
       "paged": "true"
     },
     {
       "name": "List Member Events",
-      "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/tags?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/events?fields={Fields?}&exclude_fields={Exclude Fields?}",
       "paged": "true"
     },
     {
@@ -816,7 +816,7 @@
     },
     {
       "name": "Campaign E-commerce Activity",
-      "suffix": "/3.0/reports/{Campaign ID}/ecommerce-product-activity?fields={Fields?}&exclude_fields={Exclude Fields?}&since={Campaign opens since?}",
+      "suffix": "/3.0/reports/{Campaign ID}/ecommerce-product-activity?fields={Fields?}&exclude_fields={Exclude Fields?}",
       "paged": "true"
     },
     {
@@ -862,7 +862,7 @@
     },
     {
       "name": "Templates",
-      "suffix": "/3.0/templates?fields={Fields?}&exclude_fields={Exclude Fields?}&created_by={Created By?}&since_created_at={Since Created At?}&before_created_at={Before Created At?}&type={Template Type?}&category={Category?}&folder_id={Folder ID?}",
+      "suffix": "/3.0/templates?fields={Fields?}&exclude_fields={Exclude Fields?}&created_by={Created By?}&since_date_created={Since Date Created?}&before_date_created={Before Date Created?}&type={Template Type?}&category={Category?}&folder_id={Folder ID?}",
       "paged": "true",
       "lookups": [
         {

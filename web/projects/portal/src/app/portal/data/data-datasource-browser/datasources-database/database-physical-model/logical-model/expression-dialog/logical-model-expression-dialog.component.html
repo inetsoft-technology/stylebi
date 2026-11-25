@@ -31,6 +31,11 @@
               _#(data.logicalmodel.expressionNameRequired)
             </span>
           }
+          @if (nameControl.hasError('illegalStr')) {
+            <span class="invalid-feedback">
+              _#(data.logicalmodel.attributeNamePeriod)
+            </span>
+          }
         </div>
         <div class="form-floating logical-model-expression-dialog__field">
           <custom-select formControlName="parent"

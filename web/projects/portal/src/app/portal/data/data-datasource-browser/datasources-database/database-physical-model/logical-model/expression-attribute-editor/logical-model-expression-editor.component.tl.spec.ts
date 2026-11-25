@@ -26,13 +26,23 @@
  *   Group 4 [Risk 1] - attribute setter toggles editable for base elements
  */
 
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, provideHttpClient } from "@angular/common/http";
 import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
+import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
-import { UntypedFormControl } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { render, waitFor } from "@testing-library/angular";
+import { http as mswHttp, HttpResponse as MswHttpResponse } from "msw";
 
+import { server } from "@test-mocks/server";
 import { ScriptPane } from "../../../../../../../widget/dialog/script-pane/script-pane.component";
+import { SplitPane } from "../../../../../../../widget/split-pane/split-pane.component";
+import { DropdownView } from "../../../../../../../widget/dropdown-view/dropdown-view.component";
+import { TreeDropdownComponent } from "../../../../../../../widget/tree/tree-dropdown.component";
 import { AttributeModel } from "../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
+import { AttributeFormattingPane } from "../attribute-editor/format-dialog/attribute-formatting-pane.component";
+import { LogicalModelAttributeEditor } from "../attribute-editor/logical-model-attribute-editor.component";
 import { LogicalModelExpressionEditor } from "./logical-model-expression-editor.component";
 
 const CHECK_EXPRESSION_URI = "../api/data/logicalModel/attribute/expression";
@@ -210,5 +220,103 @@ describe("LogicalModelExpressionEditorComponent - single pass", () => {
 
          expect(comp.editable).toBe(true);
       });
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Bug #82123: the expression editor must put its name control into the form it
+// is given (the logical model's form that the toolbar Save button checks), not a
+// private form, so an invalid expression name disables Save.
+// ---------------------------------------------------------------------------
+
+@Component({ selector: "split-pane", template: "<ng-content></ng-content>" })
+class SplitPaneStub {}
+
+@Component({ selector: "script-pane", template: "" })
+class ScriptPaneStub {}
+
+@Component({ selector: "tree-dropdown", template: "" })
+class TreeDropdownStub {}
+
+@Component({ selector: "dropdown-view", template: "" })
+class DropdownViewStub {}
+
+@Component({ selector: "attribute-formatting-pane", template: "" })
+class AttributeFormattingPaneStub {}
+
+describe("Bug #82123 - name validation reaches the parent form", () => {
+   async function renderWithParentForm(existNames: string[] = []) {
+      server.use(
+         mswHttp.post("*/logicalModel/tables/nodes",
+            () => MswHttpResponse.json({ label: "root", children: [] }))
+      );
+      TestBed.overrideComponent(LogicalModelAttributeEditor, {
+         remove: { imports: [TreeDropdownComponent, DropdownView, AttributeFormattingPane] },
+         add: { imports: [TreeDropdownStub, DropdownViewStub, AttributeFormattingPaneStub] },
+      });
+
+      const form = new UntypedFormGroup({});
+      const { fixture } = await render(LogicalModelExpressionEditor, {
+         inputs: {
+            form,
+            existNames,
+            attribute: makeAttribute(),
+            databaseName: "Orders",
+            physicalModelName: "Model",
+            logicalModelName: "LM1",
+         },
+         providers: [
+            provideHttpClient(),
+            { provide: NgbModal, useValue: { open: vi.fn() } },
+         ],
+         importOverrides: [
+            { replace: SplitPane, with: SplitPaneStub },
+            { replace: ScriptPane, with: ScriptPaneStub },
+         ],
+         schemas: [NO_ERRORS_SCHEMA],
+      });
+
+      const comp = fixture.componentInstance as LogicalModelExpressionEditor;
+      // Both the editor and its attribute editor post to the fields URI on init; wait for
+      // them so no response lands after the fixture is destroyed.
+      await waitFor(() => expect(comp.columnTreeRoot).toBeDefined());
+      return { comp, form };
+   }
+
+   afterEach(() => vi.restoreAllMocks());
+
+   it("should add the name control to the form passed in", async () => {
+      const { comp, form } = await renderWithParentForm();
+
+      expect(comp.form).toBe(form);
+      expect(form.contains("name")).toBe(true);
+      expect(form.valid).toBe(true);
+   });
+
+   it("should make the passed-in form invalid for a name with a period", async () => {
+      const { form } = await renderWithParentForm();
+
+      form.get("name").setValue("a.b");
+
+      expect(form.get("name").hasError("periodInName")).toBe(true);
+      expect(form.invalid).toBe(true);
+   });
+
+   it("should make the passed-in form invalid for an empty name", async () => {
+      const { form } = await renderWithParentForm();
+
+      form.get("name").setValue("");
+
+      expect(form.get("name").hasError("required")).toBe(true);
+      expect(form.invalid).toBe(true);
+   });
+
+   it("should make the passed-in form invalid for a name used by a sibling attribute", async () => {
+      const { form } = await renderWithParentForm(["taken"]);
+
+      form.get("name").setValue("taken");
+
+      expect(form.get("name").hasError("exists")).toBe(true);
+      expect(form.invalid).toBe(true);
    });
 });

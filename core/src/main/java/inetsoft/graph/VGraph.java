@@ -1393,7 +1393,7 @@ public class VGraph extends BoundedContainer {
 
       for(int i = 0; i < sorted.size(); i++) {
          Visualizable visual = sorted.get(i);
-         Rectangle2D visualBounds = visual.getBounds();
+         Rectangle2D visualBounds = visual.getPaintBounds();
 
          if(visual.getZIndex() < 0 || !insideClip(clipBounds, visualBounds, visual) ||
             !ctx.paintVisual(visual))

@@ -26,6 +26,7 @@ import { NotificationsComponent } from "../../../../../../../widget/notification
 import { StringWrapper } from "../../../../../model/datasources/database/string-wrapper";
 import { TreeNodeModel } from "../../../../../../../widget/tree/tree-node-model";
 import { GetModelEvent } from "../../../../../model/datasources/database/events/get-model-event";
+import { FormValidators } from "../../../../../../../../../../shared/util/form-validators";
 import { ScriptPane } from "../../../../../../../widget/dialog/script-pane/script-pane.component";
 import { CustomSelectOption, CustomSelectComponent } from "../../../../../../../widget/custom-select/custom-select.component";
 
@@ -214,7 +215,7 @@ export class LogicalModelExpressionDialog implements OnInit, OnDestroy {
    private initFormControl() {
       this.form = new UntypedFormGroup({
          name: new UntypedFormControl(this.name, [
-            Validators.required
+            Validators.required, FormValidators.cannotContain(["."])
          ]),
          parent: new UntypedFormControl(this.parent, [
             Validators.required

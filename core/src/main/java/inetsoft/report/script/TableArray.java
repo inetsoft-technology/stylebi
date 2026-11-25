@@ -316,7 +316,7 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
 
          return row;
       }
-      else {
+      else if(lens != null) {
          if(LOG.isDebugEnabled()) {
             LOG.warn(
                "Row[{}] not found in: {} {} rows", index, lens.getClass(), lens.getRowCount(),
@@ -329,6 +329,11 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
       }
 
       return null;
+   }
+
+   @Override
+   public boolean isIndexValid(long index) {
+      return index >= min && index < getArraySize();
    }
 
    @Override

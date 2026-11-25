@@ -126,7 +126,7 @@
     {
       "name": "Variable Group",
       "paged": false,
-      "suffix": "/crm/v2/settings/Variable Groups/{Variable Group ID}"
+      "suffix": "/crm/v2/settings/variable_groups/{Variable Group ID}"
     },
     {
       "name": "Blueprint",

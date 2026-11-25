@@ -115,13 +115,19 @@ public class MarchingSquaresContour {
       path.moveTo(x * xscale, y * yscale);
       pt = start.getCrossingPoint(start.nextSide(prevSide));
 
-      double xPrev = c + pt.getX();
-      double yPrev = r + pt.getY();
+      // last emitted point, compared with each new point to skip duplicates
+      double xPrev = x;
+      double yPrev = y;
+      x = c + pt.getX();
+      y = r + pt.getY();
 
       prevSide = start.nextSide(prevSide);
 
-      if(Math.abs(x - xPrev) > E && Math.abs(y - yPrev) > E) {
+      // the exit crossing of the start cell
+      if(isNewPoint(x, y, xPrev, yPrev)) {
          path.lineTo(x * xscale, y * yscale);
+         xPrev = x;
+         yPrev = y;
       }
 
       switch(prevSide) {
@@ -146,13 +152,6 @@ public class MarchingSquaresContour {
          pt = curCell.getCrossingPoint(curCell.nextSide(prevSide));
          x = c + pt.getX();
          y = r + pt.getY();
-
-         if(Math.abs(x - xPrev) > E && Math.abs(y - yPrev) > E) {
-            path.lineTo(x * xscale, y * yscale);
-         }
-
-         xPrev = x;
-         yPrev = y;
          prevSide = curCell.nextSide(prevSide);
 
          switch(prevSide) {
@@ -171,9 +170,24 @@ public class MarchingSquaresContour {
 
          curCell.clearIndex();
          curCell = cells[r][c];
+
+         // the exit crossing of the last cell is the moveTo point, closePath draws that edge
+         if(curCell != start && isNewPoint(x, y, xPrev, yPrev)) {
+            path.lineTo(x * xscale, y * yscale);
+            xPrev = x;
+            yPrev = y;
+         }
       }
 
       path.closePath();
+   }
+
+   /**
+    * Check if a point is finite and differs from the previous point on either axis.
+    */
+   private boolean isNewPoint(double x, double y, double xPrev, double yPrev) {
+      return Double.isFinite(x) && Double.isFinite(y) &&
+         (Math.abs(x - xPrev) > E || Math.abs(y - yPrev) > E);
    }
 
    private double[][] fillData(double[][] data, double[] levels) {

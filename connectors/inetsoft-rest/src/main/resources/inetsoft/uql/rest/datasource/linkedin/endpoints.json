@@ -32,7 +32,7 @@
       "name": "Ad Account Users",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adAccountUsers?&q=account&totals=true&Account={Sponsored Account URN}"
+      "suffix": "/rest/adAccountUsers?q=account&totals=true&Account={Sponsored Account URN}"
     },
     {
       "name": "Campaign Group",

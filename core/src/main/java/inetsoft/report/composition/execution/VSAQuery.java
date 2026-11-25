@@ -18,10 +18,15 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.report.CellBindingInfo;
+import inetsoft.report.TableCellBinding;
+import inetsoft.report.TableLayout;
+import inetsoft.report.TableLayout.TableCellBindingInfo;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.report.internal.XNodeMetaTable;
+import inetsoft.report.internal.binding.BindingTool;
 import inetsoft.report.lens.MaxRowsTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
@@ -1685,6 +1690,91 @@ public abstract class VSAQuery {
       }
    }
 
+   /**
+    * Get the text of everything in a calc table that can use a column of its base table: the
+    * bindings and the scripts of its cells, and the sort of its table.
+    */
+   private String getCalcTableUsedText(CalcTableVSAssembly calc, TableAssembly table) {
+      StringBuilder text = new StringBuilder();
+      TableLayout layout =
+         ((inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo) calc.getInfo()).getTableLayout();
+
+      if(layout != null) {
+         for(CellBindingInfo cinfo : layout.getCellInfos(true)) {
+            if(!(cinfo instanceof TableCellBindingInfo)) {
+               continue;
+            }
+
+            TableCellBindingInfo tinfo = (TableCellBindingInfo) cinfo;
+            text.append(';').append(tinfo.getValue());
+            String second = BindingTool.getSecondFormula(tinfo.getFormula());
+
+            if(second != null) {
+               text.append(';').append(second);
+            }
+
+            TableCellBinding cell = tinfo.getCellBinding();
+
+            if(cell != null && cell.getExpression() != null) {
+               text.append(';').append(cell.getExpression());
+            }
+         }
+      }
+
+      SortInfo sinfo = table.getSortInfo();
+
+      if(sinfo != null) {
+         for(SortRef sort : sinfo.getSorts()) {
+            text.append(';').append(sort.getName());
+         }
+      }
+
+      return text.toString();
+   }
+
+   private static void removePassThrough(ColumnSelection cols, String name) {
+      for(int i = cols.getAttributeCount() - 1; i >= 0; i--) {
+         DataRef col = cols.getAttribute(i);
+
+         if(name.equals(col.getName()) || name.equals(col.getAttribute())) {
+            cols.removeAttribute(i);
+         }
+      }
+   }
+
+   /**
+    * Get the names of the hidden columns that only the private selection holds, with the
+    * literal parts of a name built at run time joined, field['o' + 'k'] reads "ok".
+    *
+    * @return the names, or null if the private selection differs from the public one in
+    *         another way (a selection), or a name is built from more than literals.
+    */
+   private static List<String> getHiddenExtraNames(ColumnSelection priv, ColumnSelection pub) {
+      ColumnSelection visible = new ColumnSelection();
+      List<String> names = new ArrayList<>();
+
+      for(int i = 0; i < priv.getAttributeCount(); i++) {
+         DataRef ref = priv.getAttribute(i);
+
+         if(pub.getAttribute(ref.getName()) != null ||
+            !(ref instanceof ColumnRef) || ((ColumnRef) ref).isVisible())
+         {
+            visible.addAttribute(ref);
+         }
+         else {
+            String name = ref.getName().replaceAll("['\"]\\s*\\+\\s*['\"]", "");
+
+            if(name.contains("'") || name.contains("\"") || name.contains("+")) {
+               return null;
+            }
+
+            names.add(name);
+         }
+      }
+
+      return visible.equals(pub) ? names : null;
+   }
+
    private boolean removeUnusedCalcField(TableAssembly table) {
       // the structure of the table assembly is
       //   table - aggragetInfo and public columnSelection reflects whether field is used
@@ -1702,8 +1792,13 @@ public abstract class VSAQuery {
          return false;
       }
 
-      // should not have any selection
-      if(!childPriv.equals(childPub)) {
+      // should not have any selection. the hidden columns that only the private selection
+      // holds are the base columns of the calc field expressions (VSUtil.addCalcBaseRefs),
+      // a name built at run time, field['o' + 'k'], adds one that is no column of the table,
+      // and they are not a selection (bug #81627)
+      List<String> hiddenNames = getHiddenExtraNames(childPriv, childPub);
+
+      if(hiddenNames == null) {
          return false;
       }
 
@@ -1711,7 +1806,16 @@ public abstract class VSAQuery {
       ColumnSelection privcols = table.getColumnSelection(false);
       AggregateInfo ainfo = table.getAggregateInfo();
       // all columns used in table, including columns referenced from expression
-      String allCols = Stream.concat(childPriv.stream(), privcols.stream())
+      // the temporary crosstab of a freehand table is bound to every column like the table
+      boolean calcTable = getAssembly() instanceof CalcTableVSAssembly || isCalcTableCrosstab();
+      Set<String> detailCalcNames = !calcTable ? Collections.emptySet() :
+         childPriv.stream()
+            .filter(ref -> ref instanceof CalculateRef && ((CalculateRef) ref).isBaseOnDetail())
+            .map(DataRef::getName).collect(Collectors.toSet());
+      // the table of a calc table is bound to every column of its base table, so a detail
+      // calc field appearing there says nothing about whether a cell uses it (bug #81627)
+      String allCols = Stream.concat(childPriv.stream(), privcols.stream()
+            .filter(ref -> !detailCalcNames.contains(ref.getAttribute())))
          .filter(ref -> ref instanceof ColumnRef)
          .map(ref -> ((ColumnRef) ref).getDataRef())
          .filter(Objects::nonNull)
@@ -1719,19 +1823,41 @@ public abstract class VSAQuery {
                : ref.getAttribute())
          .collect(Collectors.joining(";"));
 
-      ConditionListWrapper conds = table.getPreRuntimeConditionList();
+      // the columns read by a name built at run time are used by the calc fields
+      for(String name : hiddenNames) {
+         allCols += ";" + name;
+      }
 
-      if(conds != null) {
+      if(getAssembly() instanceof CalcTableVSAssembly) {
+         allCols += ";" + getCalcTableUsedText((CalcTableVSAssembly) getAssembly(), table);
+      }
+
+      // the conditions of the table, and the ones of the assembly that are applied to the
+      // table after this pruning
+      List<ConditionListWrapper> condLists = new ArrayList<>();
+      condLists.add(table.getPreRuntimeConditionList());
+
+      if(getAssembly() instanceof DynamicBindableVSAssembly) {
+         condLists.add(((DynamicBindableVSAssembly) getAssembly()).getPreConditionList());
+      }
+
+      for(ConditionListWrapper conds : condLists) {
+         if(conds == null) {
+            continue;
+         }
+
          for(int i = 0; i < conds.getConditionSize(); i += 2) {
             ConditionItem item = conds.getConditionItem(i);
             DataRef ref = AssetUtil.getBaseAttribute(item.getAttribute());
 
             if(ref instanceof DateRangeRef) {
                ref = ((DateRangeRef) ref).getDataRef();
+            }
 
-               if(ref != null) {
-                  allCols += ";" + ref.getAttribute();
-               }
+            // a calc field read only by an ordinary condition must stay, or the filter
+            // silently disappears (bug #81627)
+            if(ref != null) {
+               allCols += ";" + ref.getAttribute();
             }
          }
       }
@@ -1742,7 +1868,7 @@ public abstract class VSAQuery {
          if(ref instanceof CalculateRef && ((CalculateRef) ref).isBaseOnDetail()) {
             CalculateRef calc = (CalculateRef) ref;
 
-            boolean inSelection = usedInSelection(pubcols, calc);
+            boolean inSelection = !calcTable && usedInSelection(pubcols, calc);
             boolean inGroup = usedInGroup(ainfo, calc);
             boolean inAggregate = usedInAggregate(ainfo, calc);
             boolean inAllCols = allCols.contains(ref.getName());
@@ -1755,7 +1881,15 @@ public abstract class VSAQuery {
             {
                pubcols.getAttribute(ref.getName());
                childPriv.removeAttribute(i);
-               childPub.removeAttribute(i);
+               // the private selection can hold hidden columns, so its index is not the public one
+               childPub.removeAttribute(childPub.getAttribute(ref.getName()));
+
+               // the table of a calc table holds the column of the removed calc field too
+               if(calcTable) {
+                  removePassThrough(pubcols, ref.getName());
+                  removePassThrough(privcols, ref.getName());
+               }
+
                return true;
             }
          }
@@ -1837,7 +1971,53 @@ public abstract class VSAQuery {
     */
    private boolean usedInCrosstabDimension(CalculateRef calc) {
       VSAssembly assembly = getAssembly();
-      return assembly instanceof CrosstabDataVSAssembly;
+
+      if(!(assembly instanceof CrosstabDataVSAssembly)) {
+         return false;
+      }
+
+      // the temporary crosstab of a freehand table is built from the cells, so only the fields
+      // its headers and aggregates name are used (bug #81627)
+      if(isCalcTableCrosstab()) {
+         return usedInCrosstabInfo(((CrosstabVSAssembly) assembly).getVSCrosstabInfo(), calc);
+      }
+
+      return true;
+   }
+
+   private boolean isCalcTableCrosstab() {
+      VSAssembly assembly = getAssembly();
+      return assembly instanceof CrosstabVSAssembly &&
+         assembly.getName().startsWith(CalcTableVSAQuery.TEMP_ASSEMBLY_PREFIX);
+   }
+
+   private static boolean usedInCrosstabInfo(VSCrosstabInfo cinfo, CalculateRef calc) {
+      if(cinfo == null) {
+         return true;
+      }
+
+      List<DataRef> refs = new ArrayList<>();
+      Stream.of(cinfo.getRowHeaders(), cinfo.getColHeaders(), cinfo.getAggregates())
+         .filter(Objects::nonNull).forEach(arr -> refs.addAll(Arrays.asList(arr)));
+      String name = calc.getName();
+
+      for(DataRef ref : refs) {
+         if(ref == null || Tool.equals(ref.getName(), name) ||
+            Tool.equals(ref.getAttribute(), name))
+         {
+            return true;
+         }
+
+         if(ref instanceof VSAggregateRef) {
+            DataRef second = ((VSAggregateRef) ref).getSecondaryColumn();
+
+            if(second != null && Tool.equals(second.getAttribute(), name)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**
