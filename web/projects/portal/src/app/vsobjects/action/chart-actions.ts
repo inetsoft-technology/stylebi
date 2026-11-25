@@ -23,6 +23,7 @@ import { XSchema } from "../../common/data/xschema";
 import { GraphTypes } from "../../common/graph-types";
 import { DrillLevel } from "../../composer/data/vs/drill-level";
 import { Axis } from "../../graph/model/axis";
+import { AxisDrillField, drillLevelLabel, getAxisDrillFields } from "../../graph/model/axis-drill";
 import { ChartRegion } from "../../graph/model/chart-region";
 import { ChartTool } from "../../graph/model/chart-tool";
 import { Legend } from "../../graph/model/legend";
@@ -341,6 +342,9 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
          }
       ]));
 
+      // before the group below, which stays the last one
+      groups.push(new AssemblyActionGroup(this.axisDrillActions(false)));
+
       // show-data, the max-mode pair and Edit were toolbar-only, so right-click could not reach
       // them — max-mode in particular, whose whole purpose is rescuing a chart too small to read,
       // and Edit, which is the viewer's only route into the binding editor and so has to survive a
@@ -610,7 +614,76 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
       groups.push(new AssemblyActionGroup(
          this.model.vizModern ? stableFirst : legacyOrder));
 
+      // its own group, so the toolbar draws the pair apart from the other buttons
+      groups.push(new AssemblyActionGroup(this.axisDrillActions(true)));
+
       return super.createToolbarActions(groups, true);
+   }
+
+   /**
+    * How many drillable axis fields have an action. The lists are built once, so each field has a
+    * fixed slot that reads the model when it is asked; a chart with more has the rest drilled by
+    * the axis buttons.
+    */
+   static readonly AXIS_DRILL_SLOTS = 4;
+
+   private axisDrillFields(): AxisDrillField[] {
+      return getAxisDrillFields(this.model.axes);
+   }
+
+   /**
+    * Where the axis drill buttons are not shown, the actions are not either.
+    */
+   private axisDrillAllowed(): boolean {
+      return !this.vsWizardPreview && !this.contextProvider.vsWizard &&
+         !this.model.dateComparisonDefined && !this.isDataTip() && !this.isPopComponent();
+   }
+
+   /**
+    * Drill up and drill down of the axis fields, not to be confused with the drill filter actions,
+    * which drill the selection. A single field is in the toolbar and in the menu; several are in the
+    * menu only, each named after its field.
+    *
+    * @param toolbar true for the toolbar actions: those of a single field only.
+    */
+   private axisDrillActions(toolbar: boolean): AssemblyAction[] {
+      const actions: AssemblyAction[] = [];
+
+      for(let slot = 0; slot < ChartActions.AXIS_DRILL_SLOTS; slot++) {
+         if(toolbar && slot > 0) {
+            break;
+         }
+
+         for(const up of [true, false]) {
+            const sign = up ? "-" : "+";
+
+            actions.push({
+               id: () => "chart axis-drill-" + (up ? "up" : "down") + ":" + slot,
+               label: () => this.axisDrillLabel(slot, up),
+               // the menu renders labels only
+               icon: () => !toolbar ? null : up ? "minus-box-outline-icon" : "plus-box-outline-icon",
+               enabled: () => true,
+               visible: () => {
+                  const fields = this.axisDrillFields();
+                  return !!fields[slot] && fields[slot].op.includes(sign) &&
+                     (!toolbar || fields.length === 1) && this.axisDrillAllowed();
+               }
+            });
+         }
+      }
+
+      return actions;
+   }
+
+   private axisDrillLabel(slot: number, up: boolean): string {
+      const fields = this.axisDrillFields();
+      const field = fields[slot];
+      const level = field ? drillLevelLabel(up ? field.up : field.down) : "";
+      const text = level
+         ? (up ? "_#(js:Drill Up to)" : "_#(js:Drill Down to)") + " " + level
+         : (up ? "_#(js:Drill Up Axis)" : "_#(js:Drill Down Axis)");
+
+      return field && fields.length > 1 ? field.label + ": " + text : text;
    }
 
    protected drillDownVisible(): boolean {
