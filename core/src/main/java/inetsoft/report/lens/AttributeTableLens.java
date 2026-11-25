@@ -487,6 +487,23 @@ public class AttributeTableLens extends AbstractTableLens
       return ap.withMaximumResolver(() -> getAutoMaximum(r, c, absolute, ignoreOutliers));
    }
 
+   // The slots of a scan result, one array per data path:
+   //   the largest positive value, and the largest absolute value,
+   //   the smallest and the largest value, and the sum and count of the numbers,
+   //   the largest and the smallest value that is not an outlier (see OutlierFence), the largest
+   //   absolute value that is not an outlier, and the median.
+   private static final int SCAN_POS_MAX = 0;
+   private static final int SCAN_ABS_MAX = 1;
+   private static final int SCAN_MIN = 2;
+   private static final int SCAN_MAX = 3;
+   private static final int SCAN_SUM = 4;
+   private static final int SCAN_COUNT = 5;
+   private static final int SCAN_FENCE_HIGH = 6;
+   private static final int SCAN_FENCE_ABS = 7;
+   private static final int SCAN_FENCE_LOW = 8;
+   private static final int SCAN_MEDIAN = 9;
+   private static final int SCAN_SLOTS = 10;
+
    /**
     * Get the data maximum of the cells that share the cell's data path (for a plain table,
     * the cells of the column with that path; for a crosstab or calc table, all cells with
@@ -504,18 +521,13 @@ public class AttributeTableLens extends AbstractTableLens
     *                       outliers has the same maximum either way.
     */
    protected double getAutoMaximum(int r, int c, boolean absolute, boolean ignoreOutliers) {
-      TableDataDescriptor desc = getDescriptor();
-      boolean column = desc == null || desc.getType() == TableDataDescriptor.NORMAL_TABLE;
-      Object scope = column ? Integer.valueOf(c) : AUTO_MAX_ALL_CELLS;
-      Map<Object, double[]> maxes = getAutoMaximumScan(scope, column ? c : -1, desc);
-      TableDataPath path = desc == null ? null : desc.getCellDataPath(r, c);
-      double[] max = maxes.get(path != null ? path : Integer.valueOf(c));
+      double[] max = getScanSlots(r, c);
 
       if(max == null) {
          return Double.NaN;
       }
 
-      double real = max[absolute ? 1 : 0];
+      double real = max[absolute ? SCAN_ABS_MAX : SCAN_POS_MAX];
 
       if(!ignoreOutliers) {
          return real;
@@ -528,17 +540,26 @@ public class AttributeTableLens extends AbstractTableLens
    }
 
    /**
-    * Get the smallest, largest and average number of the cells that share the cell's data path,
-    * from the same scan as the data maximum.
-    * @return the numbers, or null if there are none.
+    * The scan result of the cells that share the cell's data path (for a plain table, the cells of
+    * the column with that path; for a crosstab or calc table, all cells with that path).
+    * @return the slots of the scan result, or null if the path has no number.
     */
-   protected ColumnStats getAutoStats(int r, int c) {
+   private double[] getScanSlots(int r, int c) {
       TableDataDescriptor desc = getDescriptor();
       boolean column = desc == null || desc.getType() == TableDataDescriptor.NORMAL_TABLE;
       Object scope = column ? Integer.valueOf(c) : AUTO_MAX_ALL_CELLS;
       Map<Object, double[]> maxes = getAutoMaximumScan(scope, column ? c : -1, desc);
       TableDataPath path = desc == null ? null : desc.getCellDataPath(r, c);
-      double[] max = maxes.get(path != null ? path : Integer.valueOf(c));
+      return maxes.get(path != null ? path : Integer.valueOf(c));
+   }
+
+   /**
+    * Get the smallest, largest and average number of the cells that share the cell's data path,
+    * from the same scan as the data maximum.
+    * @return the numbers, or null if there are none.
+    */
+   protected ColumnStats getAutoStats(int r, int c) {
+      double[] max = getScanSlots(r, c);
 
       if(max == null || max[SCAN_COUNT] <= 0) {
          return null;
@@ -636,11 +657,7 @@ public class AttributeTableLens extends AbstractTableLens
 
             TableDataPath path = desc == null ? null : desc.getCellDataPath(r, c);
             double[] max = maxes.computeIfAbsent(path != null ? path : Integer.valueOf(c),
-                                                 k -> new double[] { Double.NaN, Double.NaN,
-                                                                     Double.NaN, Double.NaN,
-                                                                     0, 0, Double.NaN,
-                                                                     Double.NaN, Double.NaN,
-                                                                     Double.NaN });
+                                                 k -> newScanSlots());
             values.computeIfAbsent(path != null ? path : Integer.valueOf(c),
                                    k -> new DoubleList()).add(val);
             double abs = Math.abs(val);
@@ -656,12 +673,12 @@ public class AttributeTableLens extends AbstractTableLens
             max[SCAN_SUM] += val;
             max[SCAN_COUNT]++;
 
-            if(val > 0 && !(max[0] >= val)) {
-               max[0] = val;
+            if(val > 0 && !(max[SCAN_POS_MAX] >= val)) {
+               max[SCAN_POS_MAX] = val;
             }
 
-            if(abs > 0 && !(max[1] >= abs)) {
-               max[1] = abs;
+            if(abs > 0 && !(max[SCAN_ABS_MAX] >= abs)) {
+               max[SCAN_ABS_MAX] = abs;
             }
          }
       }
@@ -700,6 +717,15 @@ public class AttributeTableLens extends AbstractTableLens
       return maxes;
    }
 
+   // an empty scan result: no value yet, a zero sum and a zero count
+   private static double[] newScanSlots() {
+      double[] slots = new double[SCAN_SLOTS];
+      Arrays.fill(slots, Double.NaN);
+      slots[SCAN_SUM] = 0;
+      slots[SCAN_COUNT] = 0;
+      return slots;
+   }
+
    /** A growing list of numbers. */
    private static final class DoubleList {
       void add(double value) {
@@ -719,19 +745,6 @@ public class AttributeTableLens extends AbstractTableLens
       private double[] data = new double[16];
       private int count;
    }
-
-   // the slots of a scan result: the largest positive value and the largest absolute value, then
-   // the smallest and largest value, and the sum and count of the numbers
-   private static final int SCAN_MIN = 2;
-   private static final int SCAN_MAX = 3;
-   private static final int SCAN_SUM = 4;
-   private static final int SCAN_COUNT = 5;
-   // then the largest value that is not an outlier (of the values, and of their absolute values),
-   // the smallest value that is not an outlier, and the median
-   private static final int SCAN_FENCE_HIGH = 6;
-   private static final int SCAN_FENCE_ABS = 7;
-   private static final int SCAN_FENCE_LOW = 8;
-   private static final int SCAN_MEDIAN = 9;
 
    private boolean isBaseCancelled() {
       TableLens lens = table;
