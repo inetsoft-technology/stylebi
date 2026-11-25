@@ -88,7 +88,12 @@ describe("composer overlay tokens", () => {
 
    it("noPaneScopedSelectionBoxSelector", () => {
       // a descendant selector such as .vs-pane .selection-box would also restyle the chart brush and
-      // the table cell marquees drawn inside the pane (C1); the composer marquee has its own class
+      // the table cell marquees drawn inside the pane (C1); the composer marquee has its own class.
+      // Limits: this is a flat text match that stops at { ; , so it catches one-line selectors like
+      // ".vs-pane .selection-box" or ".layout-pane > div .selection-box" but NOT nested SCSS (a
+      // .selection-box rule inside a .vs-pane block), :is(.vs-pane, ...) .selection-box, or
+      // #{$dashboard-content} interpolation; the dark shell's existing .selection-box rules
+      // (_shell-dark.scss:563, :738) pass only because of that. Review covers those forms.
       const offenders = scssFiles(src).filter(f =>
          /(\.vs-pane|\.layout-pane|vs-wizard-pane|\.scroll-container)[^{};,]*\.selection-box/.test(readFileSync(f, "utf-8")));
       expect(offenders.map(f => relative(src, f))).toEqual([]);
@@ -231,6 +236,19 @@ describe("composer overlay consumers", () => {
       const move = rule(layout(), /^\.layout-object__move-handle\s*\{/m);
       expect(move).toMatch(/border:\s*1px solid var\(--inet-composer-overlay-stroke,\s*var\(--inet-default-border-color\)\)/);
       expect(move).toMatch(/background:\s*var\(--inet-composer-overlay-halo,\s*var\(--inet-shell-surface-default\)\)/);
+   });
+
+   // owner review 2, must-fix 1: the AI assistant bundle's unscoped .resize-handle.top/.bottom {left:0;
+   // right:0} and .left/.right {top:0; bottom:0} pull the right and bottom handles onto the top-left
+   // corner (their rings stacked into a "four-pane" mark); the corner rules set only their own edges,
+   // so the opposite offsets are reset here. Stacking as on the canvas: the move handle comes first in
+   // the template, so the resize handles paint above it.
+   it("layoutHandlesStayOnTheirCornersAboveTheMoveHandle", () => {
+      expect(rule(layout(), /^\.resize-handle\.bg-primary\.right\s*\{/m)).toMatch(/left:\s*auto/);
+      expect(rule(layout(), /^\.resize-handle\.bg-primary\.bottom\s*\{/m)).toMatch(/top:\s*auto/);
+      const html = read(app, "composer/gui/vs/layouts/layout-object.component.html");
+      expect(html.indexOf("layout-object__move-handle")).toBeGreaterThan(0);
+      expect(html.indexOf("layout-object__move-handle")).toBeLessThan(html.indexOf("resize-handle bg-primary top left"));
    });
 
    const PANES = [

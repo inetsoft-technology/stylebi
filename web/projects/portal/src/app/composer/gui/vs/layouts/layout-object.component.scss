@@ -146,6 +146,18 @@ span.wrapper {
   border: 1px solid var(--inet-composer-overlay-stroke, transparent);
 }
 
+// The same bundle also sets the opposite offsets (.resize-handle.top/.bottom {left: 0; right: 0},
+// .left/.right {top: 0; bottom: 0}); the corner rules in _moving-resize.scss set only their own edges,
+// so those stray offsets pulled the right and bottom handles onto the top-left corner. Reset them.
+// Without the bundle these are the defaults, so nothing else changes.
+.resize-handle.bg-primary.right {
+  left: auto;
+}
+
+.resize-handle.bg-primary.bottom {
+  top: auto;
+}
+
 .layout-object__move-handle {
   border: 1px solid var(--inet-composer-overlay-stroke, var(--inet-default-border-color));
   background: var(--inet-composer-overlay-halo, var(--inet-shell-surface-default));
