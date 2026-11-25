@@ -505,6 +505,9 @@ public class JDBCHandler extends XHandler {
          uniformSQL.clearCachedString();
       }
 
+      // the text is generated from the structure, not the user's sql string kept as written,
+      // which may end with ';' or a line comment (Bug #82305)
+      boolean generatedSql = uniformSQL != null && !uniformSQL.hasSQLString();
       String sql = replaceEscCharacter(xquery.getSQLAsString(), JDBCUtil.getAllTableAliases(xquery));
       // the hint was reset on the private clone above, so it is true only if sql generated in
       // this method was sorted, whether it is generated now or was saved as the sql string
@@ -622,12 +625,20 @@ public class JDBCHandler extends XHandler {
          }
 
          sql = applyQueryFilter(conn, sql, params, user);
+         // the flags depend only on the dialect, so look the helper up by product name
+         // instead of getSQLHelper(xds), which may query DB metadata through XRepository
+         SQLHelper dialect = SQLHelper.getSQLHelper(SQLHelper.getProductName(xds));
+         // appended before the variables are replaced and the cache key is built, e.g. the
+         // ClickHouse join_use_nulls setting (Bug #82305)
+         String executionSuffix = generatedSql ? dialect.getExecutionSuffix(uniformSQL) : null;
+
+         if(executionSuffix != null) {
+            sql += executionSuffix;
+         }
+
          VarSQL varsql = new VarSQL();
          varsql.setSQLType(isproc ? VarSQL.SQLType.PROC : VarSQL.SQLType.STATEMENT);
-         // the flag depends only on the dialect, so look the helper up by product name
-         // instead of getSQLHelper(xds), which may query DB metadata through XRepository
-         varsql.setBackslashIsEscapeChar(
-            SQLHelper.getSQLHelper(SQLHelper.getProductName(xds)).isBackslashEscapeChar());
+         varsql.setBackslashIsEscapeChar(dialect.isBackslashEscapeChar());
          sql = varsql.replaceVariables(sql, params);
          List<Object> vars = varsql.getParameterValues();
          List<String> names = varsql.getParameterNames();
@@ -1189,6 +1200,30 @@ public class JDBCHandler extends XHandler {
                      else {
                         throw ex;
                      }
+                  }
+                  else if(!querytimeout && !cancelled && executionSuffix != null &&
+                          retry == 0 && origSQL.endsWith(executionSuffix) &&
+                          dialect.isExecutionSuffixRejected(ex))
+                  {
+                     // e.g. a readonly ClickHouse user can't set join_use_nulls, run the
+                     // query as before rather than fail it (Bug #82305)
+                     LOG.warn("The database rejected \"{}\" for data source {}, the query " +
+                                 "runs without it: {}", executionSuffix.trim(),
+                              xds.getFullName(), ex.getMessage());
+                     origSQL = origSQL.substring(0, origSQL.length() - executionSuffix.length());
+
+                     try {
+                        stmt.close();
+                     }
+                     catch(Exception ignore) {
+                        // the statement failed, it may be closed already
+                     }
+
+                     if(conn.isClosed()) {
+                        conn = getConnection(params, user);
+                     }
+
+                     retry++;
                   }
                   else if(!querytimeout && !cancelled &&
                           isproc && hasNullParams && retry == 0)

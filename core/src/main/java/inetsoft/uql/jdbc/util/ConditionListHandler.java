@@ -536,9 +536,11 @@ public class ConditionListHandler {
     * Make a contains / starting with value match literally. The value is a variable that
     * VarSQL splices into the quoted pattern later, so it is replaced in the variable table
     * by its LIKE-escaped form (%, _ and the escape character, plus [ on SQL Server), and
-    * the matching ESCAPE clause is returned for the caller to append to the pattern.
-    * Returns an empty string and leaves the value as is when the data source's dialect is
-    * not known to support ESCAPE, or when the value is not a string variable (an inline
+    * the dialect's escape clause ({@link SQLHelper#getLikeEscapeClause(char)}, empty for
+    * ClickHouse, whose LIKE escape is a built-in backslash) is returned for the caller to
+    * append to the pattern.
+    * Returns an empty string and leaves the value as is when the data source's dialect has
+    * no LIKE escape character, or when the value is not a string variable (an inline
     * literal or a SQL expression), so the generated SQL is unchanged there.
     */
    private String escapeLikeVariable(XExpression expression, VariableTable vars) {
@@ -579,7 +581,7 @@ public class ConditionListHandler {
       }
 
       vars.put(name, helper.escapeLikeValue((String) value));
-      return " ESCAPE '" + esc + "'";
+      return helper.getLikeEscapeClause(esc);
    }
 
    private Object fixConditionValue(XExpression field, Object condValue) {

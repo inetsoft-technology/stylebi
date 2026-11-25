@@ -646,6 +646,14 @@ public class ConcatenatedQuery extends AssetQuery {
 
       UniformSQL ssql = new UniformSQL(sb.toString(), false);
 
+      // the text keeps whether the children hold an outer join StyleBI created (Bug #82305)
+      for(AssetQuery mquery : queries) {
+         if(mquery.getUniformSQL().hasGeneratedOuterJoin()) {
+            ssql.setHint(UniformSQL.HINT_GENERATED_OUTER_JOIN, true);
+            break;
+         }
+      }
+
       if(fsql != null) {
          ssql.setBackupSelection((XSelection) fsql.getSelection().clone());
          ssql.setSelection((XSelection) fsql.getSelection().clone());

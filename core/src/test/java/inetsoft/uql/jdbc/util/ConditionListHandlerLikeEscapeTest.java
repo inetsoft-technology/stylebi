@@ -275,11 +275,59 @@ class ConditionListHandlerLikeEscapeTest {
 
    @Test
    void dialectWithoutEscapeSupportIsUnchanged() throws Exception {
-      String sql = generate(dataSource("ch", "com.clickhouse.jdbc.ClickHouseDriver",
-                                       "jdbc:clickhouse://localhost/x", "clickhouse"),
+      // pins the current behaviour of a dialect with no LIKE escape char (ClickHouse used to
+      // be the example here; it escapes since Bug #82304)
+      String sql = generate(dataSource("hive", "org.apache.hive.jdbc.HiveDriver",
+                                       "jdbc:hive2://localhost/x", "hive"),
                             XCondition.CONTAINS, "a_b");
       assertTrue(sql.endsWith("LIKE '%a_b%'"), sql);
       assertFalse(sql.contains("ESCAPE"), sql);
+   }
+
+   // ---- Bug #82304: ClickHouse LIKE has a built-in backslash escape and no ESCAPE clause ----
+
+   private static JDBCDataSource clickhouse() {
+      return dataSource("ch", "com.clickhouse.jdbc.ClickHouseDriver",
+                        "jdbc:clickhouse://localhost/x", "clickhouse");
+   }
+
+   static Stream<Arguments> clickhouseValues() {
+      // value as typed -> expected end of the executed text; each backslash of the LIKE
+      // pattern is doubled once more by the ClickHouse string literal
+      return Stream.of(
+         Arguments.of(XCondition.CONTAINS, "a_b", "LIKE '%a\\\\_b%'"),
+         Arguments.of(XCondition.STARTING_WITH, "hel_", "LIKE 'hel\\\\_%'"),
+         Arguments.of(XCondition.CONTAINS, "l%o", "LIKE '%l\\\\%o%'"),
+         Arguments.of(XCondition.CONTAINS, "a\\b", "LIKE '%a\\\\\\\\b%'"),
+         Arguments.of(XCondition.CONTAINS, "x\\", "LIKE '%x\\\\\\\\%'"),
+         Arguments.of(XCondition.CONTAINS, "O'Brien", "LIKE '%O''Brien%'"));
+   }
+
+   @ParameterizedTest
+   @MethodSource("clickhouseValues")
+   void clickhouseEscapesWithBackslashAndNoEscapeClause(int op, String value, String end)
+      throws Exception
+   {
+      String sql = generate(clickhouse(), op, value);
+      assertTrue(sql.endsWith(end), sql);
+      assertFalse(sql.contains("ESCAPE"), sql);
+   }
+
+   @Test
+   void clickhouseLikeOperatorStaysAPattern() throws Exception {
+      String sql = generate(clickhouse(), XCondition.LIKE, "a_b%");
+      assertTrue(sql.endsWith("LIKE 'a_b%'"), sql);
+      assertFalse(sql.contains("ESCAPE"), sql);
+   }
+
+   @Test
+   void clickhouseHelperEscapesLikeValuesAndLiterals() {
+      SQLHelper helper = SQLHelper.getSQLHelper("clickhouse");
+      assertTrue(helper.isBackslashEscapeChar());
+      assertEquals(Character.valueOf('\\'), helper.getLikeEscapeChar());
+      assertEquals("a\\_b\\%c\\\\d", helper.escapeLikeValue("a_b%c\\d"));
+      assertEquals("", helper.getLikeEscapeClause('\\'));
+      assertEquals(" ESCAPE '!'", new SQLHelper().getLikeEscapeClause('!'));
    }
 
    @Test
