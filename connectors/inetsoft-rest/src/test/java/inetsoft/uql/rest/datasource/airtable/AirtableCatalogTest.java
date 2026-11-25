@@ -673,6 +673,74 @@ class AirtableCatalogTest {
    }
 
    // ===================================================================================
+   // Bug #82268: Time Zone and User Locale are optional on Records
+   // ===================================================================================
+
+   @Test
+   void recordsDeclaresTimeZoneAndUserLocaleAsOptional() {
+      AirtableQuery query = new AirtableQuery();
+      query.setDataSource(dataSource);
+      query.setEndpoint("Records");
+      RestParameters parameters = query.getParameters();
+
+      assertTrue(parameters.findParameter("Base ID").isRequired());
+      assertTrue(parameters.findParameter("Table Name").isRequired());
+      assertFalse(parameters.findParameter("Time Zone").isRequired());
+      assertFalse(parameters.findParameter("User Locale").isRequired());
+   }
+
+   @Test
+   void recordsReadsRowsWithoutATimeZoneOrUserLocaleAndSendsNeitherInTheRequest()
+      throws Exception
+   {
+      stubRecords();
+
+      XTableNode table = runRecords(null, null);
+
+      assertTrue(table.next());
+      verify(1, getRequestedFor(urlPathEqualTo("/v0/appAAA111/Orders"))
+         .withQueryParam("timeZone", absent()).withQueryParam("userLocale", absent()));
+   }
+
+   @Test
+   void recordsStillSendsTheTimeZoneAndUserLocaleItIsGiven() throws Exception {
+      stubRecords();
+
+      XTableNode table = runRecords("UTC", "en");
+
+      assertTrue(table.next());
+      verify(1, getRequestedFor(urlPathEqualTo("/v0/appAAA111/Orders"))
+         .withQueryParam("timeZone", equalTo("UTC")).withQueryParam("userLocale", equalTo("en")));
+   }
+
+   private void stubRecords() {
+      stubFor(get(urlPathEqualTo("/v0/appAAA111/Orders")).willReturn(okJson(
+         "{\"records\":[{\"id\":\"rec1\",\"createdTime\":\"2026-01-01T00:00:00.000Z\"," +
+         "\"fields\":{\"Units\":12}},{\"id\":\"rec2\",\"createdTime\":" +
+         "\"2026-01-02T00:00:00.000Z\",\"fields\":{\"Units\":14}}]}")));
+   }
+
+   private XTableNode runRecords(String timeZone, String userLocale) throws Exception {
+      AirtableQuery query = new AirtableQuery();
+      query.setDataSource(dataSource);
+      query.setEndpoint("Records");
+      RestParameters parameters = query.getParameters();
+      parameters.findParameter("Base ID").setValue("appAAA111");
+      parameters.findParameter("Table Name").setValue("Orders");
+
+      if(timeZone != null) {
+         parameters.findParameter("Time Zone").setValue(timeZone);
+      }
+
+      if(userLocale != null) {
+         parameters.findParameter("User Locale").setValue(userLocale);
+      }
+
+      query.setParameters(parameters);
+      return runtime.runQuery(query, new VariableTable());
+   }
+
+   // ===================================================================================
    // fixtures
    // ===================================================================================
 
