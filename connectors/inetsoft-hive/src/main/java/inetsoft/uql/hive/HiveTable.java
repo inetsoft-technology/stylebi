@@ -24,9 +24,13 @@ import inetsoft.util.swap.XSwappableObjectList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Types;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Class that represents a result set from a Hive server
@@ -43,16 +47,18 @@ public class HiveTable extends XTableNode {
       ResultSetMetaData meta = result.getMetaData();
       columnCount = meta.getColumnCount();
       types = new Class[columnCount];
-      columnNames = new String[columnCount];
+      String[] names = new String[columnCount];
 
       // Bug #82332: read the columns from the metadata before the row loop, so a result
       // with no rows still has its column names and types
       for(int i = 0; i < columnCount; i++) {
          //ResultSet columns start with index 1
          int resultSetIndex = i + 1;
-         types[i] = sqlhandler.convertToJava(meta.getColumnType(resultSetIndex));
-         columnNames[i] = meta.getColumnName(resultSetIndex);
+         types[i] = getColumnClass(meta.getColumnType(resultSetIndex));
+         names[i] = meta.getColumnName(resultSetIndex);
       }
+
+      columnNames = getColumnNames(names);
 
       while(result.next()) {
          ResultSetRow row = new ResultSetRow();
@@ -61,6 +67,73 @@ public class HiveTable extends XTableNode {
       }
 
       table.complete();
+   }
+
+   /**
+    * Gets the Java class of a column from its SQL type. SQLTypes.convertToJava maps only
+    * Types.BIT to Boolean, and Hive reports a BOOLEAN column as Types.BOOLEAN.
+    */
+   private Class getColumnClass(int sqlType) {
+      if(sqlType == Types.BOOLEAN) {
+         return Boolean.class;
+      }
+
+      return sqlhandler.convertToJava(sqlType);
+   }
+
+   /**
+    * Gets the column names without the table qualifier that HiveServer2 adds to the
+    * columns of a SELECT * (hive.resultset.use.unique.column.names), so the columns
+    * have the names the table describes. A column whose unqualified name is shared by
+    * another column, as in a join of two tables with the same column, keeps its
+    * qualified name so the columns stay distinguishable.
+    *
+    * @param names the column names reported by the driver.
+    *
+    * @return the column names.
+    */
+   static String[] getColumnNames(String[] names) {
+      String[] shortNames = new String[names.length];
+      Map<String, Integer> counts = new HashMap<>();
+
+      for(int i = 0; i < names.length; i++) {
+         shortNames[i] = getUnqualifiedName(names[i]);
+
+         if(shortNames[i] != null) {
+            counts.merge(shortNames[i], 1, Integer::sum);
+         }
+      }
+
+      String[] result = new String[names.length];
+
+      for(int i = 0; i < names.length; i++) {
+         boolean unique = shortNames[i] != null && counts.get(shortNames[i]) == 1;
+         result[i] = unique ? shortNames[i] : names[i];
+      }
+
+      return result;
+   }
+
+   private static String getUnqualifiedName(String name) {
+      if(name == null) {
+         return null;
+      }
+
+      int dot = name.lastIndexOf('.');
+      return dot > 0 && dot < name.length() - 1 ? name.substring(dot + 1) : name;
+   }
+
+   /**
+    * Converts a cell value to the value stored in the table. A BINARY value is returned
+    * by the driver as a byte array, which has no usable text form, so it is stored as
+    * text, the same form the jdbc.blob.type=text setting gives for a JDBC data source.
+    */
+   static Object toCellValue(Object value) {
+      if(value instanceof byte[]) {
+         return new String((byte[]) value, StandardCharsets.UTF_8);
+      }
+
+      return value;
    }
 
    /**
@@ -179,9 +252,9 @@ public class HiveTable extends XTableNode {
                //ResultSet column starts with Index 1
                int resultIndex = i + 1;
 
-               rowContent[i] =
+               rowContent[i] = toCellValue(
                   sqlhandler.getObject(res, resultIndex,
-                           res.getMetaData().getColumnType(resultIndex));
+                           res.getMetaData().getColumnType(resultIndex)));
             }
          }
          catch(Exception ex) {
