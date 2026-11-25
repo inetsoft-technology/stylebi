@@ -19,6 +19,7 @@ package inetsoft.report.composition.graph;
 
 import inetsoft.graph.AxisSpec;
 import inetsoft.graph.EGraph;
+import inetsoft.graph.GraphConstants;
 import inetsoft.graph.aesthetic.SizeFrame;
 import inetsoft.graph.coord.RectCoord;
 import inetsoft.graph.data.BoxDataSet;
@@ -100,6 +101,10 @@ public class GraphDefault {
                percentScale.getAxisSpec().getTextSpec().setColor(
                   gen.desc.getPlotDescriptor().getParetoLineColor());
             }
+
+            // the grid follows the value axis ticks
+            percentScale.getAxisSpec().setGridStyle(GraphConstants.NONE);
+            yaxis.setEdgeGridTrimmed(true);
          }
 
          if(yscale instanceof LinearScale) {
