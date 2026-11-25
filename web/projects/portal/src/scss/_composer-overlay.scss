@@ -1,0 +1,28 @@
+/*!
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+// Composer overlay two-tone (Feature #80673 phase 2, PR8).
+// Selection indicators drawn over dashboard content (handles, the selection and layout outlines, the
+// authoring marquee) use one content-independent pair: a dark stroke and a light halo at least 9:1
+// apart, so one of them reaches 3:1 against any solid background (WCAG 1.4.11, technique C40). The
+// values are the same in both shells, and live here, outside the inet-runtime-tokens mixin, so the
+// dark shell's content restore and PR7's light pins never reach them. Themed pages (EE custom
+// theme JARs) leave them undeclared, and every consumer falls back to its earlier value.
+:root:where(:not(.custom-theme)) {
+  --inet-composer-overlay-stroke: #123C44;
+  --inet-composer-overlay-halo: #FFFFFF;
+}
