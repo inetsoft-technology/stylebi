@@ -228,11 +228,11 @@ public class SharedMVUtil {
             }
 
             try {
-               ClusterUtil.deleteClusterMV(def.getName());
+               ClusterUtil.deleteClusterMV(rdef.getName());
             }
             catch(Exception ex) {
                LOG.warn("Failed to remove mv file '"
-                           + def.getName() + "'", ex);
+                           + rdef.getName() + "'", ex);
             }
          }
       }
