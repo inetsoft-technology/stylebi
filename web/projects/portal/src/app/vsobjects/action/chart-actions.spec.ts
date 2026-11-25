@@ -554,7 +554,7 @@ describe("ChartActions", () => {
       selectXAxis(model);
       model.adhocFilterEnabled = true;
       expect(menuActions[2].actions[1].visible()).toBe(true);
-      expect(toolbarActions[1].actions[6].visible()).toBe(true);
+      expect(toolbarActions[2].actions[6].visible()).toBe(true);
 
       //bug #18149, should not display hyperlink and highlight when select legend of map chart
       model.chartType = GraphTypes.CHART_MAP;
@@ -653,8 +653,8 @@ describe("ChartActions", () => {
 
       //bug #20958
       model.maxMode = true;
-      expect(toolbarActions[1].actions[9].visible()).toBeFalsy();
-      expect(toolbarActions[1].actions[10].visible()).toBeTruthy();
+      expect(toolbarActions[2].actions[9].visible()).toBeFalsy();
+      expect(toolbarActions[2].actions[10].visible()).toBeTruthy();
    });
 
    it("check status of menu actions and toolbar actions in viewer and preview", () => {
@@ -1960,13 +1960,48 @@ describe("ChartActions", () => {
             .map(a => a.icon())).toEqual([null, null]);
       });
 
-      it("shows only the direction the op allows", () => {
+      it("shows both buttons in the toolbar and disables the direction the op cannot drill", () => {
+         const model = createModel();
+         model.axes = [axisOf(["Year(OrderDate)"], ["+"], { axisLevels: ["Year"], axisUpLevels: [""] })];
+         const actions = new ChartActions(model, popService, viewerContext);
+         const toolbar = axisDrillGroup(actions.toolbarActions).actions.filter(a => a.visible());
+
+         expect(toolbar.map(a => a.id()))
+            .toEqual(["chart axis-drill-up:0", "chart axis-drill-down:0"]);
+         expect(toolbar.map(a => a.enabled())).toEqual([false, true]);
+         expect(toolbar[0].label()).toBe("_#(js:Already at) _#(js:Year)");
+         expect(toolbar[1].label()).toBe("_#(js:Drill Down to) _#(js:Day)");
+      });
+
+      it("hides the direction the op cannot drill in the menu", () => {
          const model = createModel();
          model.axes = [axisOf(["Year(OrderDate)"], ["+"])];
          const actions = new ChartActions(model, popService, viewerContext);
-         const visible = axisDrillGroup(actions.toolbarActions).actions.filter(a => a.visible());
+         const menu = axisDrillGroup(actions.menuActions).actions.filter(a => a.visible());
 
-         expect(visible.map(a => a.id())).toEqual(["chart axis-drill-down:0"]);
+         expect(menu.map(a => a.id())).toEqual(["chart axis-drill-down:0"]);
+         expect(menu[0].enabled()).toBe(true);
+      });
+
+      it("has the pair first in the toolbar, ahead of the chart's own group", () => {
+         const model = createModel();
+         model.axes = [axisOf(["Month(OrderDate)"], ["-+"])];
+         const actions = new ChartActions(model, popService, viewerContext);
+         const chartGroups = actions.toolbarActions
+            .filter(g => g.actions.some(a => a.id().startsWith("chart ")));
+
+         expect(chartGroups[0].actions.every(a => a.id().startsWith("chart axis-drill"))).toBe(true);
+         expect(chartGroups[1].actions.some(a => a.id() === "chart show-data")).toBe(true);
+      });
+
+      it("shows no pair on a chart with nothing to drill", () => {
+         const model = createModel();
+         const actions = new ChartActions(model, popService, viewerContext);
+
+         expect(axisDrillGroup(actions.toolbarActions).visible).toBeFalsy();
+
+         model.axes = [axisOf(["Region"], [""])];
+         expect(axisDrillGroup(actions.toolbarActions).visible).toBeFalsy();
       });
 
       it("falls back to a label without a level when the server named no target", () => {

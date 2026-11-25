@@ -600,6 +600,10 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
       // edit up from last changes nothing in the viewer, where Properties always takes the third
       // slot under the gate and edit overflows either way.
       const primary = this.composer ? [edit, propertiesToolbar] : [propertiesToolbar, edit];
+      // its own group, and the first one, so the strip draws the pair first and apart from the other
+      // buttons, and a cap on the strip's length does not push it behind the kebab
+      groups.push(new AssemblyActionGroup(this.axisDrillActions(true)));
+
       const stableFirst = [
          showData, openMaxMode, closeMaxMode, ...primary,
          drillDown, drillUp, brush, clearBrush, zoom, clearZoom, excludeData,
@@ -613,9 +617,6 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
 
       groups.push(new AssemblyActionGroup(
          this.model.vizModern ? stableFirst : legacyOrder));
-
-      // its own group, so the toolbar draws the pair apart from the other buttons
-      groups.push(new AssemblyActionGroup(this.axisDrillActions(true)));
 
       return super.createToolbarActions(groups, true);
    }
@@ -644,6 +645,10 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
     * which drill the selection. A single field is in the toolbar and in the menu; several are in the
     * menu only, each named after its field.
     *
+    * In the toolbar a drillable field always shows both buttons, and the one the field cannot drill
+    * is disabled, so the pair does not change shape as the chart drills. The menu hides what cannot
+    * be done.
+    *
     * @param toolbar true for the toolbar actions: those of a single field only.
     */
    private axisDrillActions(toolbar: boolean): AssemblyAction[] {
@@ -659,14 +664,17 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
 
             actions.push({
                id: () => "chart axis-drill-" + (up ? "up" : "down") + ":" + slot,
-               label: () => this.axisDrillLabel(slot, up),
+               label: () => this.axisDrillLabel(slot, up, toolbar),
                // the menu renders labels only
                icon: () => !toolbar ? null : up ? "minus-box-outline-icon" : "plus-box-outline-icon",
-               enabled: () => true,
+               enabled: () => {
+                  const field = this.axisDrillFields()[slot];
+                  return !toolbar || !!field && field.op.includes(sign);
+               },
                visible: () => {
                   const fields = this.axisDrillFields();
-                  return !!fields[slot] && fields[slot].op.includes(sign) &&
-                     (!toolbar || fields.length === 1) && this.axisDrillAllowed();
+                  return !!fields[slot] && (toolbar ? fields.length === 1 : fields[slot].op.includes(sign)) &&
+                     this.axisDrillAllowed();
                }
             });
          }
@@ -675,13 +683,20 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
       return actions;
    }
 
-   private axisDrillLabel(slot: number, up: boolean): string {
+   private axisDrillLabel(slot: number, up: boolean, toolbar: boolean = false): string {
       const fields = this.axisDrillFields();
       const field = fields[slot];
       const level = field ? drillLevelLabel(up ? field.up : field.down) : "";
-      const text = level
+      let text = level
          ? (up ? "_#(js:Drill Up to)" : "_#(js:Drill Down to)") + " " + level
          : (up ? "_#(js:Drill Up Axis)" : "_#(js:Drill Down Axis)");
+
+      // a disabled toolbar button says where the chart already is
+      const here = field ? drillLevelLabel(field.level) : "";
+
+      if(toolbar && field && !field.op.includes(up ? "-" : "+") && here) {
+         text = "_#(js:Already at) " + here;
+      }
 
       return field && fields.length > 1 ? field.label + ": " + text : text;
    }
