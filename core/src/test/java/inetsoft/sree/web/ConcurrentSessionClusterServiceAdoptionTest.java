@@ -146,8 +146,9 @@ class ConcurrentSessionClusterServiceAdoptionTest {
 
    @Test
    void freshLicenseOfOtherNodeIsUntouched() throws Exception {
-      ConcurrentSessionClusterService other = service(2, true);
-      ConcurrentSessionClusterService survivor = service(2, true);
+      // large timeout: nothing may age out during the test, whatever the machine load
+      ConcurrentSessionClusterService other = service(2, true, 60000L);
+      ConcurrentSessionClusterService survivor = service(2, true, 60000L);
       SRPrincipal a = principal("a");
       SRPrincipal b = principal("b");
       // "a" is not logged in, but its license is fresh, so it must not be removed
@@ -217,8 +218,12 @@ class ConcurrentSessionClusterServiceAdoptionTest {
    }
 
    private ConcurrentSessionClusterService service(int max, boolean adopt) {
+      return service(max, adopt, TIMEOUT);
+   }
+
+   private ConcurrentSessionClusterService service(int max, boolean adopt, long timeout) {
       ConcurrentSessionClusterService s = new ConcurrentSessionClusterService(
-         () -> max, true, adopt ? MAP : MAP + ".viewer", adopt, TIMEOUT, 0L);
+         () -> max, true, adopt ? MAP : MAP + ".viewer", adopt, timeout, 0L);
       services.add(s);
       return s;
    }
