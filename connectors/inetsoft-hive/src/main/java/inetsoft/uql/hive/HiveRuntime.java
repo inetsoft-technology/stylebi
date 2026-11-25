@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.*;
+import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
 
@@ -208,7 +209,8 @@ public class HiveRuntime extends TabularRuntime {
                i++;
             }
 
-            String word = sql.substring(start, i).toUpperCase();
+            // Locale.ROOT: under a Turkish locale "insert".toUpperCase() is not "INSERT"
+            String word = sql.substring(start, i).toUpperCase(Locale.ROOT);
 
             if(first == null) {
                if(!READ_ONLY_KEYWORDS.contains(word)) {

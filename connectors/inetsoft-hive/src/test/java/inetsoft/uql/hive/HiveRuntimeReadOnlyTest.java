@@ -24,6 +24,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.sql.Connection;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -81,6 +82,24 @@ class HiveRuntimeReadOnlyTest {
    })
    void refusesOtherStatements(String sql) {
       assertThrows(IllegalArgumentException.class, () -> HiveRuntime.requireReadOnlyQuery(sql));
+   }
+
+   @Test
+   void keywordsAreMatchedIndependentOfTheDefaultLocale() {
+      Locale saved = Locale.getDefault();
+
+      try {
+         // in Turkish, "i".toUpperCase() is a dotted capital I
+         Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+         assertDoesNotThrow(() -> HiveRuntime.requireReadOnlyQuery(
+            "with q as (select * from victim) select * from q"));
+         assertDoesNotThrow(() -> HiveRuntime.requireReadOnlyQuery("describe victim"));
+         assertThrows(IllegalArgumentException.class, () -> HiveRuntime.requireReadOnlyQuery(
+            "with q as (select * from other) insert into victim select * from q"));
+      }
+      finally {
+         Locale.setDefault(saved);
+      }
    }
 
    @Test
