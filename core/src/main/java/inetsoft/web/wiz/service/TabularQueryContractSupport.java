@@ -675,7 +675,7 @@ public final class TabularQueryContractSupport {
             // A closed placeholder list is enforced only for a catalogue endpoint: a query built
             // from a hand-written suffix carries placeholders the caller wrote itself.
             String resolved = enforceChoices
-               ? RestParameterChoices.resolve(placeholder, trimmed) : trimmed;
+               ? RestParameterChoices.resolveValue(placeholder, trimmed) : trimmed;
 
             if(resolved == null) {
                invalid.add(invalidValueText(elementName, trimmed, placeholder));
@@ -786,12 +786,17 @@ public final class TabularQueryContractSupport {
 
    /**
     * One refused value for {@link #requireValidParameters}: {@code Name = 'value' (must be one
-    * of: A | B)}, single-line whatever the caller sent.
+    * of: A | B)} for a closed list, {@code Name = 'value' (must be a date in the format: F)} for a
+    * date-format placeholder, single-line whatever the caller sent.
     */
    static String invalidValueText(String name, String value, String placeholder) {
-      return name + " = '" + RestParameterChoices.oneLine(value, 60) + "' (must be one of: " +
-         RestParameterChoices.describeChoices(RestParameterChoices.closedChoices(placeholder)) +
-         ")";
+      List<String> choices = RestParameterChoices.closedChoices(placeholder);
+      String expected = choices.isEmpty()
+         ? "must be a date in the format: " +
+            RestParameterChoices.describeDateFormats(RestParameterChoices.dateFormats(placeholder))
+         : "must be one of: " + RestParameterChoices.describeChoices(choices);
+
+      return name + " = '" + RestParameterChoices.oneLine(value, 60) + "' (" + expected + ")";
    }
 
    /**

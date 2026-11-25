@@ -17,8 +17,12 @@
  */
 package inetsoft.web.wiz.service;
 
+import java.time.DateTimeException;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -30,7 +34,14 @@ import java.util.regex.Pattern;
  * API accepts, but the same field also carries open lists ({@code en|es|...}), alternative date
  * formats ({@code yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}), bracket groups
  * ({@code utm-[campaigns|contents]}) and plain hints. Only a CLOSED list is enforced; everything
- * else stays a hint, so a value that builds today is never refused by this class.</p>
+ * else stays a hint for {@link #resolve}.</p>
+ *
+ * <p>A placeholder whose every part is a year-first ISO date format ({@code YYYY-MM-DD},
+ * {@code yyyy-MM-ddTHH:mm:ssZ}, ...) declares what the vendor parses, and a vendor typically
+ * answers a value it cannot parse with the UNFILTERED result rather than an error. That is checked
+ * by {@link #resolveDate}, which {@link #resolveValue} runs when the placeholder is not a closed
+ * list; a placeholder it cannot classify with confidence ({@code dd-mm-YYYY}, {@code yyyy}, a
+ * non-date alternative) stays a hint.</p>
  *
  * <p>The rule is mirrored by the composer plugin
  * ({@code plugin/shared/core/src/tabular/restParameterChoices.ts}) and both are pinned by the same
@@ -51,6 +62,28 @@ final class RestParameterChoices {
 
    /** A run of the same format letter, e.g. {@code yy}, {@code MM}, {@code dd}. */
    private static final Pattern DATE_RUN = Pattern.compile("([yYMdDHhmsSTZ])\\1");
+
+   /**
+    * One date-format part, lower-cased and unquoted: a year-first ISO date with an optional time
+    * ({@code yyyy-mm-dd}, {@code yyyy-mm-ddthh:mm:ssz}, {@code yyyy-mm-dd hh:mm}, fractional
+    * seconds as {@code .sss}).
+    */
+   private static final Pattern DATE_LAYOUT = Pattern.compile(
+      "^y{4}-m{2}-d{2}(?:[t ]h{2}:m{2}(?::s{2}(?:\\.s{1,3})?)?z?)?$");
+
+   private static final Pattern ISO_DATE = Pattern.compile("^(\\d{4})-(\\d{2})-(\\d{2})$");
+
+   private static final Pattern ISO_DATE_TIME = Pattern.compile(
+      "^(\\d{4})-(\\d{2})-(\\d{2})[T ](\\d{2}):(\\d{2})(?::(\\d{2})(?:\\.\\d{1,9})?)?" +
+      "(?:Z|[+-]\\d{2}(?::?\\d{2})?)?$");
+
+   /** A year-first date with {@code /} or {@code .} separators: unambiguous, so it is normalized. */
+   private static final Pattern YEAR_FIRST =
+      Pattern.compile("^(\\d{4})[/.](\\d{2})[/.](\\d{2})$");
+
+   private static final Pattern COMPACT_DATE = Pattern.compile("^(\\d{4})(\\d{2})(\\d{2})$");
+
+   private static final Pattern EPOCH = Pattern.compile("^\\d{10,13}(?:\\.\\d+)?$");
 
    /**
     * The declared choices of a CLOSED placeholder list, trimmed and in catalogue order, or an
@@ -77,6 +110,31 @@ final class RestParameterChoices {
       }
 
       return choices.size() < 2 ? List.of() : List.copyOf(choices);
+   }
+
+   /**
+    * The trimmed parts of a placeholder that is a year-first ISO date layout in EVERY part, or an
+    * empty list when any part is something else (then the placeholder stays a hint).
+    */
+   static List<String> dateFormats(String placeholder) {
+      if(placeholder == null || placeholder.isBlank()) {
+         return List.of();
+      }
+
+      List<String> parts = new ArrayList<>();
+
+      for(String raw : placeholder.split("\\|", -1)) {
+         String t = raw.trim();
+         String layout = t.toLowerCase().replace("'", "").replace("\u2019", "");
+
+         if(!DATE_LAYOUT.matcher(layout).matches()) {
+            return List.of();
+         }
+
+         parts.add(t);
+      }
+
+      return List.copyOf(parts);
    }
 
    /**
@@ -143,6 +201,101 @@ final class RestParameterChoices {
       }
 
       return String.join(",", out);
+   }
+
+   /**
+    * Resolve a supplied value against the placeholder: the closed-list rule of {@link #resolve}
+    * when the placeholder is a closed list, otherwise the date rule of {@link #resolveDate}.
+    *
+    * @return the value to use, or {@code null} when the value is refused.
+    */
+   static String resolveValue(String placeholder, String value) {
+      if(value == null || value.isBlank() || value.contains("$(")) {
+         return value;
+      }
+
+      return closedChoices(placeholder).isEmpty()
+         ? resolveDate(placeholder, value) : resolve(placeholder, value);
+   }
+
+   /**
+    * Check a supplied value against a date-format placeholder.
+    *
+    * <p>A value is kept when it is a real calendar date ({@code 2020-01-01}) or, when the
+    * placeholder declares a time, a date-time in the ISO layout or a Unix epoch of 10-13 digits.
+    * A year-first date written with {@code /} or {@code .} (and {@code yyyyMMdd} for a date-only
+    * placeholder) is rewritten to {@code yyyy-MM-dd}. Anything else, including a day-first date
+    * that cannot be told from a month-first one, is refused. A placeholder that is not a date
+    * format, a blank value or a variable reference is accepted unchanged.</p>
+    *
+    * @return the value to use, or {@code null} when the value is refused.
+    */
+   static String resolveDate(String placeholder, String value) {
+      if(value == null || value.isBlank() || value.contains("$(")) {
+         return value;
+      }
+
+      List<String> formats = dateFormats(placeholder);
+
+      if(formats.isEmpty()) {
+         return value;
+      }
+
+      boolean withTime = formats.stream().anyMatch(f -> f.length() > 10);
+      String v = value.trim();
+      Matcher m = ISO_DATE.matcher(v);
+
+      if(m.matches()) {
+         return validDate(m) ? v : null;
+      }
+
+      if(withTime) {
+         m = ISO_DATE_TIME.matcher(v);
+
+         if(m.matches()) {
+            return validDate(m) && validTime(m) ? v : null;
+         }
+
+         if(EPOCH.matcher(v).matches()) {
+            return v;
+         }
+      }
+
+      m = YEAR_FIRST.matcher(v);
+
+      if(!m.matches() && !withTime) {
+         m = COMPACT_DATE.matcher(v);
+      }
+
+      return m.matches() && validDate(m)
+         ? m.group(1) + "-" + m.group(2) + "-" + m.group(3) : null;
+   }
+
+   private static boolean validDate(Matcher m) {
+      try {
+         LocalDate.of(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)),
+                      Integer.parseInt(m.group(3)));
+         return true;
+      }
+      catch(DateTimeException e) {
+         return false;
+      }
+   }
+
+   private static boolean validTime(Matcher m) {
+      try {
+         LocalTime.of(Integer.parseInt(m.group(4)), Integer.parseInt(m.group(5)),
+                      m.group(6) == null ? 0 : Integer.parseInt(m.group(6)));
+         return true;
+      }
+      catch(DateTimeException e) {
+         return false;
+      }
+   }
+
+   /** The declared date formats spelled for a single-line message. */
+   static String describeDateFormats(List<String> formats) {
+      return oneLine(String.join(" | ", formats), 80);
    }
 
    /** The choices spelled for a single-line message, capped at {@link #MAX_LISTED}. */
