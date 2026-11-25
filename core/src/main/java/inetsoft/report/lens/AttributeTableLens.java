@@ -26,6 +26,7 @@ import inetsoft.report.painter.BarPresenter;
 import inetsoft.report.painter.BulletGraphPresenter;
 import inetsoft.report.painter.ColumnStats;
 import inetsoft.report.painter.IconCounterPresenter;
+import inetsoft.report.painter.OutlierFence;
 import inetsoft.report.painter.PresenterPainter;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
@@ -482,7 +483,8 @@ public class AttributeTableLens extends AbstractTableLens
       }
 
       boolean absolute = ap.absoluteMaximum();
-      return ap.withMaximumResolver(() -> getAutoMaximum(r, c, absolute));
+      boolean ignoreOutliers = ap.isIgnoreOutliers();
+      return ap.withMaximumResolver(() -> getAutoMaximum(r, c, absolute, ignoreOutliers));
    }
 
    /**
@@ -493,6 +495,15 @@ public class AttributeTableLens extends AbstractTableLens
     * @return the maximum, or NaN if there is none.
     */
    protected double getAutoMaximum(int r, int c, boolean absolute) {
+      return getAutoMaximum(r, c, absolute, false);
+   }
+
+   /**
+    * Get the data maximum, optionally leaving out outliers (see {@link OutlierFence}).
+    * @param ignoreOutliers true to take the largest value that is not an outlier. A column with no
+    *                       outliers has the same maximum either way.
+    */
+   protected double getAutoMaximum(int r, int c, boolean absolute, boolean ignoreOutliers) {
       TableDataDescriptor desc = getDescriptor();
       boolean column = desc == null || desc.getType() == TableDataDescriptor.NORMAL_TABLE;
       Object scope = column ? Integer.valueOf(c) : AUTO_MAX_ALL_CELLS;
@@ -500,7 +511,20 @@ public class AttributeTableLens extends AbstractTableLens
       TableDataPath path = desc == null ? null : desc.getCellDataPath(r, c);
       double[] max = maxes.get(path != null ? path : Integer.valueOf(c));
 
-      return max == null ? Double.NaN : max[absolute ? 1 : 0];
+      if(max == null) {
+         return Double.NaN;
+      }
+
+      double real = max[absolute ? 1 : 0];
+
+      if(!ignoreOutliers) {
+         return real;
+      }
+
+      double fenced = max[absolute ? SCAN_FENCE_ABS : SCAN_FENCE_HIGH];
+
+      // a fence with no positive value to draw to leaves the real maximum
+      return fenced > 0 && fenced < real ? fenced : real;
    }
 
    /**
@@ -520,7 +544,15 @@ public class AttributeTableLens extends AbstractTableLens
          return null;
       }
 
-      return new ColumnStats(max[SCAN_MIN], max[SCAN_MAX], max[SCAN_SUM] / max[SCAN_COUNT]);
+      double mean = max[SCAN_SUM] / max[SCAN_COUNT];
+      double fenceLow = max[SCAN_FENCE_LOW];
+      double fenceHigh = max[SCAN_FENCE_HIGH];
+      double median = max[SCAN_MEDIAN];
+
+      return new ColumnStats(max[SCAN_MIN], max[SCAN_MAX], mean,
+                             Double.isNaN(fenceLow) ? max[SCAN_MIN] : fenceLow,
+                             Double.isNaN(fenceHigh) ? max[SCAN_MAX] : fenceHigh,
+                             Double.isNaN(median) ? mean : median);
    }
 
    /**
@@ -577,6 +609,8 @@ public class AttributeTableLens extends AbstractTableLens
     */
    private Map<Object, double[]> scanAutoMaximum(int col, TableDataDescriptor desc) {
       Map<Object, double[]> maxes = new HashMap<>();
+      // every number of each data path, for the quartiles that tell the outliers
+      Map<Object, DoubleList> values = new HashMap<>();
       TableLens table = this.table;
 
       if(table == null) {
@@ -604,7 +638,11 @@ public class AttributeTableLens extends AbstractTableLens
             double[] max = maxes.computeIfAbsent(path != null ? path : Integer.valueOf(c),
                                                  k -> new double[] { Double.NaN, Double.NaN,
                                                                      Double.NaN, Double.NaN,
-                                                                     0, 0 });
+                                                                     0, 0, Double.NaN,
+                                                                     Double.NaN, Double.NaN,
+                                                                     Double.NaN });
+            values.computeIfAbsent(path != null ? path : Integer.valueOf(c),
+                                   k -> new DoubleList()).add(val);
             double abs = Math.abs(val);
 
             if(Double.isNaN(max[SCAN_MIN]) || val < max[SCAN_MIN]) {
@@ -628,7 +666,58 @@ public class AttributeTableLens extends AbstractTableLens
          }
       }
 
+      // the fences, from the values of each path, which are then dropped
+      for(Map.Entry<Object, double[]> e : maxes.entrySet()) {
+         DoubleList list = values.get(e.getKey());
+
+         if(list == null) {
+            continue;
+         }
+
+         double[] sorted = list.sorted();
+         double[] fence = OutlierFence.of(sorted);
+         double[] abs = new double[sorted.length];
+
+         for(int i = 0; i < abs.length; i++) {
+            abs[i] = Math.abs(sorted[i]);
+         }
+
+         Arrays.sort(abs);
+         double[] absFence = OutlierFence.of(abs);
+         double[] slots = e.getValue();
+
+         if(fence != null) {
+            slots[SCAN_FENCE_LOW] = fence[0];
+            slots[SCAN_FENCE_HIGH] = fence[1];
+            slots[SCAN_MEDIAN] = fence[2];
+         }
+
+         if(absFence != null) {
+            slots[SCAN_FENCE_ABS] = absFence[1];
+         }
+      }
+
       return maxes;
+   }
+
+   /** A growing list of numbers. */
+   private static final class DoubleList {
+      void add(double value) {
+         if(count == data.length) {
+            data = Arrays.copyOf(data, count * 2);
+         }
+
+         data[count++] = value;
+      }
+
+      double[] sorted() {
+         double[] copy = Arrays.copyOf(data, count);
+         Arrays.sort(copy);
+         return copy;
+      }
+
+      private double[] data = new double[16];
+      private int count;
    }
 
    // the slots of a scan result: the largest positive value and the largest absolute value, then
@@ -637,6 +726,12 @@ public class AttributeTableLens extends AbstractTableLens
    private static final int SCAN_MAX = 3;
    private static final int SCAN_SUM = 4;
    private static final int SCAN_COUNT = 5;
+   // then the largest value that is not an outlier (of the values, and of their absolute values),
+   // the smallest value that is not an outlier, and the median
+   private static final int SCAN_FENCE_HIGH = 6;
+   private static final int SCAN_FENCE_ABS = 7;
+   private static final int SCAN_FENCE_LOW = 8;
+   private static final int SCAN_MEDIAN = 9;
 
    private boolean isBaseCancelled() {
       TableLens lens = table;

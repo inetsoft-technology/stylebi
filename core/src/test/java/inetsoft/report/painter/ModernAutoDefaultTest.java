@@ -124,6 +124,49 @@ class ModernAutoDefaultTest {
    }
 
    @Test
+   void theModernDefaultLeavesOutliersOutUnlessTheAuthorSaidOtherwise() throws Exception {
+      BarPresenter bar = (BarPresenter) created(BarPresenter.class, null);
+      ModernAutoDefault.apply(bar);
+      assertTrue(bar.isIgnoreOutliers());
+
+      Bar2Presenter bar2 = (Bar2Presenter) created(Bar2Presenter.class, null);
+      ModernAutoDefault.apply(bar2);
+      assertTrue(bar2.isIgnoreOutliers());
+
+      BulletGraphPresenter bullet = (BulletGraphPresenter) created(BulletGraphPresenter.class, null);
+      ModernAutoDefault.apply(bullet);
+      assertTrue(bullet.isIgnoreOutliers());
+
+      // an author who turned it off keeps it off
+      for(Class<? extends inetsoft.report.Presenter> cls : java.util.List.of(
+         BarPresenter.class, Bar2Presenter.class, BulletGraphPresenter.class))
+      {
+         inetsoft.report.internal.table.PresenterRef ref =
+            new inetsoft.report.internal.table.PresenterRef(cls.getName());
+         ref.setParameter("ignoreOutliers", false);
+         inetsoft.report.Presenter off = ref.createPresenter();
+         ModernAutoDefault.apply(off);
+         assertFalse(isIgnoring(off), cls.getSimpleName());
+      }
+   }
+
+   @Test
+   void thePresentersOwnDefaultForIgnoreOutliersIsOffAndItIsADialogProperty() throws Exception {
+      assertFalse(new BarPresenter().isIgnoreOutliers());
+      assertFalse(new Bar2Presenter().isIgnoreOutliers());
+      assertFalse(new BulletGraphPresenter().isIgnoreOutliers());
+
+      for(Class<?> cls : java.util.List.of(BarPresenter.class, Bar2Presenter.class,
+                                           BulletGraphPresenter.class))
+      {
+         java.beans.PropertyDescriptor[] descs =
+            new inetsoft.report.internal.table.PresenterRef(cls.getName()).getPropertyDescriptors();
+         assertTrue(java.util.Arrays.stream(descs).anyMatch(d -> "ignoreOutliers".equals(d.getName())),
+                    cls.getSimpleName());
+      }
+   }
+
+   @Test
    void thePresentersOwnDefaultStaysOff() {
       assertFalse(new BarPresenter().isAutoMaximum());
       assertFalse(new Bar2Presenter().isAutoMaximum());
@@ -164,6 +207,18 @@ class ModernAutoDefaultTest {
 
       assertEquals(1, bulletBarWidth(bullet, 0.2));
       assertEquals(0, bulletBarWidth(bullet, 0.0));
+   }
+
+   private static boolean isIgnoring(Presenter presenter) {
+      if(presenter instanceof BarPresenter bar) {
+         return bar.isIgnoreOutliers();
+      }
+
+      if(presenter instanceof Bar2Presenter bar) {
+         return bar.isIgnoreOutliers();
+      }
+
+      return ((BulletGraphPresenter) presenter).isIgnoreOutliers();
    }
 
    private static Presenter created(Class<? extends Presenter> cls, Boolean auto)

@@ -19,11 +19,23 @@ package inetsoft.report.painter;
 
 /**
  * The numbers of a table column that a presenter can scale itself to. NaN and infinite values are
- * left out of all three.
+ * left out of all of them.
  *
- * @param min  the smallest value.
- * @param max  the largest value.
- * @param mean the average value.
+ * @param min       the smallest value.
+ * @param max       the largest value.
+ * @param mean      the average value.
+ * @param cappedMin the smallest value that is not an outlier (see {@link OutlierFence}).
+ * @param cappedMax the largest value that is not an outlier.
+ * @param median    the middle value.
  */
-public record ColumnStats(double min, double max, double mean) {
+public record ColumnStats(double min, double max, double mean, double cappedMin, double cappedMax,
+                          double median)
+{
+   /**
+    * Stats of a column with no outliers: the capped range is the whole range and the median is
+    * taken as the mean.
+    */
+   public ColumnStats(double min, double max, double mean) {
+      this(min, max, mean, min, max, mean);
+   }
 }

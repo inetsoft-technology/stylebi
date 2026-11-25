@@ -179,6 +179,16 @@ public class PresenterPropertyDialogServiceBarColorTest {
    }
 
    @Test
+   public void aModernTableShowsIgnoreOutliersTickedAndAClassicTableDoesNot() throws Exception {
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      store(new PresenterRef(BAR), new PresenterPainter(5, new BarPresenter(100, TINT)));
+      assertEquals(Boolean.TRUE, flag(model(BAR), "ignoreOutliers"));
+
+      info.setVizMark(null);
+      assertEquals(Boolean.FALSE, flag(model(BAR), "ignoreOutliers"));
+   }
+
+   @Test
    public void aClassicTableShowsAutoMaximumUnticked() throws Exception {
       store(new PresenterRef(BAR), new PresenterPainter(5, new BarPresenter(100, TINT)));
 

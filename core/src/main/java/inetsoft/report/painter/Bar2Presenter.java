@@ -121,6 +121,34 @@ public class Bar2Presenter implements AutoMaximumPresenter {
    }
 
    /**
+    * Check if the data maximum leaves out outliers, so one huge value does not flatten the rest of
+    * the column.
+    */
+   @Override
+   public boolean isIgnoreOutliers() {
+      return ignoreOutliers;
+   }
+
+   /**
+    * Set whether the data maximum leaves out outliers. Only used while Auto Maximum is on.
+    */
+   public void setIgnoreOutliers(boolean ignoreOutliers) {
+      this.ignoreOutliers = ignoreOutliers;
+      this.outliersSet = true;
+   }
+
+   /**
+    * Leave outliers out of the data maximum in the modern style, unless the author set Ignore
+    * Outliers either way. This is not a bean property, so it does not show in the presenter dialog
+    * or get saved.
+    */
+   public void useModernIgnoreOutliers() {
+      if(!outliersSet) {
+         ignoreOutliers = true;
+      }
+   }
+
+   /**
     * Scale to the column's data in the modern style, unless the author chose the scale: set Auto
     * Maximum either way, or set a Maximum. This is not a bean property, so it does not show in the
     * presenter dialog or get saved.
@@ -146,15 +174,18 @@ public class Bar2Presenter implements AutoMaximumPresenter {
       copy.bg = bg;
       copy.autoMaximum = autoMaximum;
       copy.scaleSet = scaleSet;
+      copy.ignoreOutliers = ignoreOutliers;
+      copy.outliersSet = outliersSet;
       copy.maxResolver = resolver;
       return copy;
    }
 
    /**
-    * Get the maximum used for drawing: the data maximum when auto maximum is on and one is
-    * available, otherwise the configured maximum.
+    * The data maximum the table lens resolved while auto maximum is on, or NaN when there is none
+    * (auto maximum is off, no resolver was given, or the column has no positive number), in which
+    * case the configured maximum is used.
     */
-   private double getDrawingMaximum() {
+   private double resolvedMaximum() {
       if(autoMaximum && maxResolver != null) {
          double dataMax = maxResolver.getAsDouble();
 
@@ -163,7 +194,16 @@ public class Bar2Presenter implements AutoMaximumPresenter {
          }
       }
 
-      return max;
+      return Double.NaN;
+   }
+
+   /**
+    * Get the maximum used for drawing: the data maximum when auto maximum is on and one is
+    * available, otherwise the configured maximum.
+    */
+   private double getDrawingMaximum() {
+      double dataMax = resolvedMaximum();
+      return Double.isNaN(dataMax) ? max : dataMax;
    }
 
    /**
@@ -184,25 +224,41 @@ public class Bar2Presenter implements AutoMaximumPresenter {
          g.clipRect(x, y, w, h);
 
          x += w / 2;
-         double max = getDrawingMaximum();
+         double resolved = resolvedMaximum();
+         double max = Double.isNaN(resolved) ? this.max : resolved;
          double n = ((Number) v).doubleValue();
 
          // @by galr added the ceil so small values in the presenter will
          // not disappear (0.5 could be rounded to 0 and thus an empty bar).
+         // a value beyond the maximum that left outliers out is one: a full half bar, broken near
+         // its end
+         boolean capped = ignoreOutliers && !Double.isNaN(resolved) && Math.abs(n) > resolved;
+
          if(n < 0) {
-            int width = (int) Math.ceil(-n * w / (2 * max));
+            int width = capped ? w / 2 : (int) Math.ceil(-n * w / (2 * max));
 
             g.setColor(neg != null ? neg : DEFAULT_NEGATIVE_COLOR);
-            g.fillRect(x - width, y + 2, width, h - 4);
+
+            if(capped) {
+               CappedBar.fill(g, x, y + 2, width, h - 4, false);
+            }
+            else {
+               g.fillRect(x - width, y + 2, width, h - 4);
+            }
          }
          else {
-            int width = (int) Math.ceil(n * w / (2 * max));
+            int width = capped ? w - w / 2 : (int) Math.ceil(n * w / (2 * max));
 
             if(color != null) {
                g.setColor(color);
             }
 
-            g.fillRect(x, y + 2, width, h - 4);
+            if(capped) {
+               CappedBar.fill(g, x, y + 2, width, h - 4, true);
+            }
+            else {
+               g.fillRect(x, y + 2, width, h - 4);
+            }
          }
 
          g.setColor(oc);
@@ -312,7 +368,8 @@ public class Bar2Presenter implements AutoMaximumPresenter {
          return false;
       }
 
-      return max == bar2.max && autoMaximum == bar2.autoMaximum;
+      return max == bar2.max && autoMaximum == bar2.autoMaximum &&
+         ignoreOutliers == bar2.ignoreOutliers;
    }
 
    /**
@@ -327,6 +384,7 @@ public class Bar2Presenter implements AutoMaximumPresenter {
       hash += psize == null ? 0 : psize.hashCode();
       hash += Math.abs(Math.round(max));
       hash += autoMaximum ? 31 : 0;
+      hash += ignoreOutliers ? 37 : 0;
       return hash;
    }
 
@@ -382,6 +440,9 @@ public class Bar2Presenter implements AutoMaximumPresenter {
    // true once the author chose the scale, by setting Auto Maximum either way or a Maximum, so the
    // modern default leaves it alone
    private boolean scaleSet = false;
+   // leave outliers out of the data maximum, and whether the author set it either way
+   private boolean ignoreOutliers = false;
+   private boolean outliersSet = false;
    // resolves the data maximum at paint time, set by the table lens on a copy of the
    // presenter; not a bean property, so it is never shown in the dialog or saved
    private transient DoubleSupplier maxResolver;
