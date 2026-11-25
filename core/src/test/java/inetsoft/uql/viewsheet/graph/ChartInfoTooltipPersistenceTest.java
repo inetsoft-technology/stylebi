@@ -166,6 +166,44 @@ class ChartInfoTooltipPersistenceTest {
    }
 
    @Test
+   void autoFollowsAModernOwnerWhenGateOff() {
+      VSChartInfo info = new VSChartInfo();
+      info.setOwnerModern(true);
+
+      assertEquals(ChartInfo.TooltipStyle.CARD, info.getTooltipStyle(),
+                   "a modern-marked chart keeps the card tooltip in a gate-off org");
+   }
+
+   @Test
+   void autoFollowsAClassicOwnerWhenGateOn() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      VSChartInfo info = new VSChartInfo();
+      info.setOwnerModern(false);
+
+      assertEquals(ChartInfo.TooltipStyle.DEFAULT, info.getTooltipStyle(),
+                   "an unmarked chart keeps the classic tooltip in a gate-on org");
+   }
+
+   @Test
+   void explicitStyleIgnoresTheOwner() {
+      VSChartInfo info = new VSChartInfo();
+      info.setOwnerModern(true);
+      info.setTooltipStyleValue(ChartInfo.TooltipStyle.DEFAULT);
+
+      assertEquals(ChartInfo.TooltipStyle.DEFAULT, info.getTooltipStyle());
+   }
+
+   @Test
+   void cloneKeepsTheOwner() {
+      VSChartInfo info = new VSChartInfo();
+      info.setOwnerModern(true);
+
+      VSChartInfo copy = (VSChartInfo) info.clone();
+
+      assertEquals(ChartInfo.TooltipStyle.CARD, copy.getTooltipStyle());
+   }
+
+   @Test
    void unknownTooltipStyleAttributeFallsBackToDefault() throws Exception {
       Document doc = Tool.parseXML(
          new StringReader("<VSChartInfo tooltipStyle=\"BOGUS\"/>"));

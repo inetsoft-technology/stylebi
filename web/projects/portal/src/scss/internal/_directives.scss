@@ -312,31 +312,30 @@ table.scrollable-table {
   @include plain-tooltip-surface;
 }
 
-// Modern visualization gate. The tooltip surfaces are global classes, so the gate is a
-// descendant selector on the org-level shell class rather than :host-context.
-.viz-shell {
+// The modern tooltip rules. $s narrows each tooltip surface to the tooltips the rules apply to.
+@mixin modern-tooltip-surfaces($s) {
   // Item 1 — a position:fixed overlay should not carry the card's own in-flow elevation.
-  .widget__default-tooltip,
-  .widget__card-tooltip,
-  .hidden__annotation-tooltip {
+  .widget__default-tooltip#{$s},
+  .widget__card-tooltip#{$s},
+  .hidden__annotation-tooltip#{$s} {
     box-shadow: var(--inet-shadow-overlay);
   }
 
   // Item 3 — 1px is not on the radius scale (2/3/4/6/pill).
-  .widget__default-tooltip,
-  .hidden__annotation-tooltip {
+  .widget__default-tooltip#{$s},
+  .hidden__annotation-tooltip#{$s} {
     border-radius: var(--inet-radius-sm);
   }
 
   // Item 3 — 8px is not on the scale either; 6px is the chart card's own radius, so the card
   // tooltip becomes visibly the same family of surface as the card it belongs to.
-  .widget__card-tooltip {
+  .widget__card-tooltip#{$s} {
     border-radius: var(--inet-radius-xl);
   }
 
   // Item 5 — 12px is not a token. Body copy on a surface is --inet-font-size-base.
-  .widget__default-tooltip,
-  .hidden__annotation-tooltip {
+  .widget__default-tooltip#{$s},
+  .hidden__annotation-tooltip#{$s} {
     font-size: var(--inet-font-size-base);
   }
 
@@ -344,7 +343,7 @@ table.scrollable-table {
   // 16→14→13→12→11 ramp stepped 2,1,1,1, and below ~14px a 1px difference is not a signal.
   // De-emphasis moves from opacity to the text ramp: opacity fades a whole subtree and cannot
   // express "lighter" in a dark theme.
-  .widget__card-tooltip {
+  .widget__card-tooltip#{$s} {
     // value
     .tt-tier-1,
     .tt-stack-total {
@@ -396,14 +395,24 @@ table.scrollable-table {
     }
   }
 
-  // The tail's SVG chrome draws the outline, so the tailed card must stay flat even under the
-  // gate — the gated .widget__card-tooltip shadow above would otherwise win on specificity.
-  .widget__card-tooltip--tailed {
+  // The tail's SVG chrome draws the outline, so the tailed card must stay flat even when modern —
+  // the .widget__card-tooltip shadow above would otherwise win on specificity.
+  .widget__card-tooltip--tailed#{$s} {
     background-color: transparent;
     border-color: transparent;
     box-shadow: none;
   }
 }
+
+// Modern visualization gate. The tooltip surfaces are global classes, so the gate is a
+// descendant selector on the org-level shell class rather than :host-context. A chart tooltip
+// follows its chart's own mark instead (widget__tooltip--modern / --classic, set by the caller);
+// :where keeps these selectors at the specificity the dark rules below are ordered against.
+.viz-shell {
+  @include modern-tooltip-surfaces(":not(:where(.widget__tooltip--classic))");
+}
+
+@include modern-tooltip-surfaces(".widget__tooltip--modern");
 
 // Dark tooltips. Keyed off a class the tooltip element carries itself, resolved per tooltip by
 // TooltipDirective from the assembly the hovered element sits in -- NOT off the shell. A tooltip is

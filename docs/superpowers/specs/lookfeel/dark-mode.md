@@ -53,8 +53,8 @@ Key facts:
 - **Browser styling follows the assembly**, not the org: `viz-modern` and `viz-dark` classes sit on
   each assembly wrapper, and tooltips carry their own `widget__tooltip--dark` class. Tokens are in
   `web/projects/portal/src/scss/_viz-tokens.scss`.
-- **Three reads still follow the org gate,** each an accepted cost: tooltip style AUTO resolution,
-  inline-SVG animation, and the shell body classes (`viz-shell`, `viz-shell-dark`).
+- **One read still follows the org gate:** the shell body classes (`viz-shell`, `viz-shell-dark`).
+  Chart tooltip style, tooltip look and inline SVG follow the chart's mark (Bug #82254).
 
 ## Exports
 

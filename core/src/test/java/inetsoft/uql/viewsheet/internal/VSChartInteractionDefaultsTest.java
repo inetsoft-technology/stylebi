@@ -18,6 +18,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class VSChartInteractionDefaultsTest {
+   private static final VizContext MODERN = VizContext.of(VizMark.MODERN_LIGHT);
+   private static final VizContext CLASSIC = VizContext.of((VizMark) null);
+
    @AfterEach
    void reset() {
       SreeEnv.setProperty("viewsheet.modernVisualization", null);
@@ -25,49 +28,39 @@ class VSChartInteractionDefaultsTest {
    }
 
    @Test
-   void onWhenNothingIsSet() {
-      // the shipped default resolves the gate on, so an untouched install gets inline SVG
-      SreeEnv.setProperty("viewsheet.modernVisualization", null);
-      assertTrue(VSChartInteractionDefaults.isInlineSvg());
+   void markedChartIsInlineWithGateOff() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+      assertTrue(VSChartInteractionDefaults.isInlineSvg(MODERN));
    }
 
    @Test
-   void offWhenGateExplicitlyOff() {
-      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
-      assertFalse(VSChartInteractionDefaults.isInlineSvg());
+   void unmarkedChartIsAnImageWithGateOn() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      assertFalse(VSChartInteractionDefaults.isInlineSvg(CLASSIC));
    }
 
    @Test
-   void explicitTrueStillWinsWhenLegacy() {
-      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+   void explicitTrueWinsForAnUnmarkedChart() {
       SreeEnv.setProperty("graph.svg.inline", "true");
-      assertTrue(VSChartInteractionDefaults.isInlineSvg());
+      assertTrue(VSChartInteractionDefaults.isInlineSvg(CLASSIC));
    }
 
    @Test
-   void followsModernWhenUnset() {
-      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-      assertTrue(VSChartInteractionDefaults.isInlineSvg());
-   }
-
-   @Test
-   void explicitFalseOptsOutOfModern() {
-      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+   void explicitFalseWinsForAMarkedChart() {
       SreeEnv.setProperty("graph.svg.inline", "false");
-      assertFalse(VSChartInteractionDefaults.isInlineSvg());
+      assertFalse(VSChartInteractionDefaults.isInlineSvg(MODERN));
    }
 
    @Test
    void emptyValueCountsAsUnset() {
-      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("graph.svg.inline", "");
-      assertTrue(VSChartInteractionDefaults.isInlineSvg());
+      assertTrue(VSChartInteractionDefaults.isInlineSvg(MODERN));
+      assertFalse(VSChartInteractionDefaults.isInlineSvg(CLASSIC));
    }
 
    @Test
    void anyNonTrueValueIsOff() {
-      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("graph.svg.inline", "no");
-      assertFalse(VSChartInteractionDefaults.isInlineSvg());
+      assertFalse(VSChartInteractionDefaults.isInlineSvg(MODERN));
    }
 }
