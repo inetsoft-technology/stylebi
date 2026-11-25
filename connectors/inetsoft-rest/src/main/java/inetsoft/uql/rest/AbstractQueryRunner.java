@@ -52,6 +52,7 @@ public abstract class AbstractQueryRunner<T extends AbstractRestQuery> implement
       table.applyQueryColumnTypes(query);
       table.setDmyOrder(query.getDmyOrder());
       table.setMaxRows(query.getMaxRows());
+      table.setDeclaredObjectColumns(query.declaredObjectColumns());
       return table;
    }
 

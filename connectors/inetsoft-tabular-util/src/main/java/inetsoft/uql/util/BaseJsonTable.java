@@ -34,6 +34,7 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
+import java.util.function.Predicate;
 
 /**
  * A class to map a Json array to a table.
@@ -444,6 +445,70 @@ abstract public class BaseJsonTable extends XTableNode {
       this.truncated = true;
    }
 
+   /**
+    * Declares the nested objects the query selects, so that an object that is null on every
+    * row still produces its leaf columns instead of a single column named after the object.
+    * Empty by default, which leaves the columns purely data-driven.
+    *
+    * @param declared object path (as this table names columns, relative to the row root) to the
+    *                 recursive leaf paths under it, e.g. {@code folder -> [folder.id]}.
+    */
+   public void setDeclaredObjectColumns(Map<String, List<String>> declared) {
+      this.declaredObjectColumns = declared == null ? Collections.emptyMap() : declared;
+   }
+
+   public Map<String, List<String>> getDeclaredObjectColumns() {
+      return declaredObjectColumns;
+   }
+
+   /**
+    * Maximum number of rows scanned when discovering columns and checking declared objects.
+    */
+   protected static final int HEADER_SCAN_ROWS = 10000;
+
+   /**
+    * Replaces the column of each declared object that is null on every scanned row with the
+    * declared leaf columns. Leaves already present are not repeated, so rows that mix null and
+    * non-null objects lose the stray object column. Non-null data is untouched.
+    *
+    * @param headers the discovered column names.
+    * @param allNull tells whether a column is null on every scanned row.
+    *
+    * @return {@code headers} itself when nothing changed, otherwise the new column names.
+    */
+   protected List<String> applyDeclaredObjectColumns(List<String> headers,
+                                                     Predicate<String> allNull)
+   {
+      if(declaredObjectColumns.isEmpty()) {
+         return headers;
+      }
+
+      List<String> result = headers;
+
+      for(Map.Entry<String, List<String>> e : declaredObjectColumns.entrySet()) {
+         int idx = result.indexOf(e.getKey());
+
+         if(idx < 0 || !allNull.test(e.getKey())) {
+            continue;
+         }
+
+         if(result == headers) {
+            result = new ArrayList<>(headers);
+         }
+
+         result.remove(idx);
+         int at = idx;
+
+         for(String leaf : e.getValue()) {
+            if(!result.contains(leaf)) {
+               result.add(at++, leaf);
+            }
+         }
+      }
+
+      return result;
+   }
+
    public Object getJsonMetadata() {
       return jsonMetadata;
    }
@@ -497,6 +562,7 @@ abstract public class BaseJsonTable extends XTableNode {
    private final boolean usLocale = Locale.getDefault().equals(Locale.US);
    private Boolean dmyOrder;
    private Object jsonMetadata;
+   private Map<String, List<String>> declaredObjectColumns = Collections.emptyMap();
 
    private static final java.util.regex.Pattern OFFSET_PATTERN = java.util.regex.Pattern.compile(
       "^(.*\\d:\\d{2}(?::\\d{2}(?:[.,]\\d+)?)?)\\s*(?:Z|[+-]\\d{2}(?::?\\d{2})?)$");
