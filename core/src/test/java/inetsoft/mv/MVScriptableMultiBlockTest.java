@@ -89,20 +89,14 @@ class MVScriptableMultiBlockTest {
       assertEquals(3, ((Number) built.scriptable().getMember("MinValue")).intValue());
    }
 
-   // MaxValue ignores NULLs, as SQL MAX does.
-   // Pinned, looks unintended (Bug #82219): MinValue is NULL as soon as one block has a NULL in
-   // the column.
-   // The dictionary of a block keeps NULL as its first (smallest) value and the blocks are
-   // compared with NULL lowest. SQL MIN ignores NULLs, and so does the path of a column without a
-   // dictionary since Bug #78246 ("an all-null block has no min").
-   // When #82219 is fixed, change the assertNull below to assertEquals("b", ...) rather than
-   // removing it.
+   // MaxValue and MinValue both ignore NULLs, as SQL MAX / MIN do, even though the dictionary of
+   // a block keeps NULL as its first value (Bug #82219).
    @Test
-   void nullValueMakesMinValueNull() {
+   void nullValueIsIgnoredByMaxAndMinValue() {
       Built built = build(XSchema.STRING, null, "m", "c", "b", "y", "z", "k", "p");
 
       assertEquals("z", built.scriptable().getMember("MaxValue"));
-      assertNull(built.scriptable().getMember("MinValue")); // #82219: should be "b"
+      assertEquals("b", built.scriptable().getMember("MinValue"));
 
       // without the NULL the smallest value is found
       assertEquals("b", build(XSchema.STRING, "n", "m", "c", "b", "y", "z", "k", "p")
