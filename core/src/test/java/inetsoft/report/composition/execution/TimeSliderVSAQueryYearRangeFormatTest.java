@@ -29,6 +29,8 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TimeSliderVSAssemblyInfo;
+import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.context.annotation.Bean;
@@ -38,7 +40,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Method;
 import java.sql.Timestamp;
-import java.util.Date;
+import java.text.Format;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -66,6 +69,7 @@ import static org.mockito.Mockito.*;
 class TimeSliderVSAQueryYearRangeFormatTest {
    private Worksheet ws;
    private Viewsheet vs;
+   private TimeSliderVSQueryHolder last;
 
    @BeforeEach
    void setUp() {
@@ -173,6 +177,66 @@ class TimeSliderVSAQueryYearRangeFormatTest {
       assertEquals("MMM yyyy", data.getXMetaInfo("max").getXFormatInfo().getFormatSpec());
    }
 
+   /**
+    * The reported symptom: with the MV, the labels of a month range slider bound to a year
+    * level date range column read "2002" ... "2005" (as without the MV), not "2002 Jan".
+    */
+   @Test
+   void yearDateRangeColumnLabelsAreYears() throws Exception {
+      List<String> labels = sliderLabels(runSlider(ORDERS, "range", meta("yyyy")));
+
+      assertEquals("2002", labels.get(0));
+      assertEquals("2005", labels.get(labels.size() - 1));
+   }
+
+   /** A plain date column still gets the month label pattern, as before. */
+   @Test
+   void plainDateColumnLabelsKeepMonthPattern() throws Exception {
+      List<String> labels = sliderLabels(runSlider(ORDERS, "ORDER_DATE", meta("yyyy")));
+      Format month = Tool.createDateFormat(TimeSliderVSAssembly.LABEL_MONTH_PATTERN, locale());
+
+      assertEquals(month.format(date(2002, 0, 1)), labels.get(0));
+      assertEquals(month.format(date(2005, 0, 1)), labels.get(labels.size() - 1));
+   }
+
+   /**
+    * Label the slider as getData does: the default format of the min/max table (built from
+    * the column meta as AbstractTableLens does) becomes the slider default format, and the
+    * data is {min, max + 1 month, max}.
+    */
+   private List<String> sliderLabels(XEmbeddedTable data) throws Exception {
+      XMetaInfo info = data.getXMetaInfo("max");
+      Format dfmt = info == null || info.getXFormatInfo() == null ? null :
+         TableFormat.getFormat(info.getXFormatInfo().getFormat(),
+                               info.getXFormatInfo().getFormatSpec(), locale());
+      last.slider.setDefaultFormat(dfmt);
+
+      Date max = (Date) data.getObject(1, 0);
+      Calendar cal = new GregorianCalendar();
+      cal.setTime(max);
+      cal.add(Calendar.MONTH, 1);
+      last.query.refreshSelectionValue(new Object[] { data.getObject(1, 1), cal.getTime(), max });
+
+      SelectionList slist = last.slider.getSelectionList();
+      List<String> labels = new ArrayList<>();
+
+      for(int i = 0; i < slist.getSelectionValueCount(); i++) {
+         SelectionValue value = slist.getSelectionValue(i);
+
+         if(!(value instanceof SelectionValue.UpperExclusiveEndValue)) {
+            labels.add(value.getLabel());
+         }
+      }
+
+      assertFalse(labels.isEmpty(), "slider labels");
+      return labels;
+   }
+
+   private static Locale locale() {
+      Locale locale = Catalog.getCatalog().getLocale();
+      return locale == null ? Locale.getDefault() : locale;
+   }
+
    private void assertYyyyKept(String table, String column) throws Exception {
       XEmbeddedTable data = runSlider(table, column, meta("yyyy"));
 
@@ -251,6 +315,7 @@ class TimeSliderVSAQueryYearRangeFormatTest {
       Method getTableAssembly = TimeSliderVSAQuery.class.getDeclaredMethod("getTableAssembly");
       getTableAssembly.setAccessible(true);
       Object result = getTableAssembly.invoke(query);
+      last = new TimeSliderVSQueryHolder(query, slider);
 
       assertInstanceOf(DataTableAssembly.class, result,
                        "MV branch must return the embedded min/max table");
@@ -281,6 +346,9 @@ class TimeSliderVSAQueryYearRangeFormatTest {
 
    private static Date date(int year, int month, int day) {
       return new Timestamp(new java.util.GregorianCalendar(year, month, day).getTimeInMillis());
+   }
+
+   private record TimeSliderVSQueryHolder(TimeSliderVSAQuery query, TimeSliderVSAssembly slider) {
    }
 
    @Configuration
