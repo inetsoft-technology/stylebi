@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.util.Properties;
+import java.util.Set;
 
 /**
  * Class that provides Hive database connection and query execution utility
@@ -50,6 +51,9 @@ public class HiveRuntime extends TabularRuntime {
       Connection conn = null;
 
       try{
+         // Bug #82333: the connector is read-only; refuse a write or DDL statement before
+         // anything is sent to Hive
+         requireReadOnlyQuery(sql);
          conn = getConnection(ds);
          Statement stmt = conn.createStatement();
          res = stmt.executeQuery(sql);
@@ -101,7 +105,8 @@ public class HiveRuntime extends TabularRuntime {
     * @return Connection
     * @throws Exception
     */
-   private Connection getConnection(HiveDataSource ds) throws Exception{
+   // package-private so tests can prove a refused statement never opens a connection
+   Connection getConnection(HiveDataSource ds) throws Exception{
       Driver hiveDriver = getDriver(ds);
       String url = constructUrl(ds);
       Properties props = new Properties();
@@ -140,5 +145,130 @@ public class HiveRuntime extends TabularRuntime {
       }
    }
 
+   /**
+    * Bug #82333: only a single read-only statement is allowed: SELECT, WITH ... SELECT,
+    * SHOW, DESCRIBE or DESC. Leading whitespace and comments (-- and block comments),
+    * keyword case and a trailing semicolon are tolerated. Any other statement, a WITH
+    * clause that feeds an INSERT, or any content after the first statement terminator is
+    * refused. Applied to the final query text (after variable substitution).
+    *
+    * @throws IllegalArgumentException if the text is not a single read-only statement.
+    */
+   static void requireReadOnlyQuery(String sql) {
+      if(sql == null) {
+         throw new IllegalArgumentException(READ_ONLY_MESSAGE);
+      }
+
+      int n = sql.length();
+      int i = 0;
+      String first = null;
+      boolean terminated = false;
+
+      while(i < n) {
+         char c = sql.charAt(i);
+         char c2 = i + 1 < n ? sql.charAt(i + 1) : ' ';
+
+         if(Character.isWhitespace(c)) {
+            i++;
+         }
+         else if(c == '-' && c2 == '-') {
+            while(i < n && sql.charAt(i) != '\n' && sql.charAt(i) != '\r') {
+               i++;
+            }
+         }
+         else if(c == '/' && c2 == '*') {
+            int end = sql.indexOf("*/", i + 2);
+
+            if(end < 0) {
+               throw new IllegalArgumentException(READ_ONLY_MESSAGE);
+            }
+
+            i = end + 2;
+         }
+         else if(terminated) {
+            // content after the statement terminator
+            throw new IllegalArgumentException(READ_ONLY_MESSAGE);
+         }
+         else if(c == ';') {
+            terminated = true;
+            i++;
+         }
+         else if(c == '\'' || c == '"') {
+            // string literal; a backslash escapes the next character
+            i = skipQuoted(sql, i, c, true);
+         }
+         else if(c == '`') {
+            // quoted identifier; a doubled backtick is an escaped backtick
+            i = skipQuoted(sql, i, c, false);
+         }
+         else if(Character.isLetter(c) || c == '_') {
+            int start = i;
+
+            while(i < n && (Character.isLetterOrDigit(sql.charAt(i)) || sql.charAt(i) == '_')) {
+               i++;
+            }
+
+            String word = sql.substring(start, i).toUpperCase();
+
+            if(first == null) {
+               if(!READ_ONLY_KEYWORDS.contains(word)) {
+                  throw new IllegalArgumentException(READ_ONLY_MESSAGE);
+               }
+
+               first = word;
+            }
+            else if("WITH".equals(first) && "INSERT".equals(word)) {
+               // WITH ... INSERT INTO/OVERWRITE writes
+               throw new IllegalArgumentException(READ_ONLY_MESSAGE);
+            }
+         }
+         else if(first == null) {
+            // the statement must start with a keyword
+            throw new IllegalArgumentException(READ_ONLY_MESSAGE);
+         }
+         else {
+            i++;
+         }
+      }
+
+      if(first == null) {
+         throw new IllegalArgumentException(READ_ONLY_MESSAGE);
+      }
+   }
+
+   /**
+    * Returns the index just past the quoted text that starts at {@code start}.
+    */
+   private static int skipQuoted(String sql, int start, char quote, boolean backslashEscape) {
+      int n = sql.length();
+      int i = start + 1;
+
+      while(i < n) {
+         char c = sql.charAt(i);
+
+         if(backslashEscape && c == '\\') {
+            i += 2;
+         }
+         else if(c == quote) {
+            if(!backslashEscape && i + 1 < n && sql.charAt(i + 1) == quote) {
+               i += 2;
+            }
+            else {
+               return i + 1;
+            }
+         }
+         else {
+            i++;
+         }
+      }
+
+      // unterminated quote
+      throw new IllegalArgumentException(READ_ONLY_MESSAGE);
+   }
+
+   private static final String READ_ONLY_MESSAGE =
+      "Only a single SELECT statement is allowed; the Hive connector is read-only.";
+   private static final Set<String> READ_ONLY_KEYWORDS =
+      Set.of("SELECT", "WITH", "SHOW", "DESCRIBE", "DESC");
    private static final Logger LOG = LoggerFactory.getLogger(HiveRuntime.class.getName());
 }
