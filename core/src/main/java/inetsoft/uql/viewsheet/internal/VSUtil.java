@@ -3113,6 +3113,29 @@ public final class VSUtil {
     * Get the op for the date dimension.
     */
    private static String getDateDrillOp(XDimensionRef dim, DataRef[] refs, boolean chart, XCube cube) {
+      return getDateDrill(dim, refs, chart, cube).op();
+   }
+
+   /**
+    * What a date dimension drills to: the op, and for a continuous level that is replaced in place
+    * the levels it drills up and down to.
+    *
+    * @param op      "", "+", "-" or "-+".
+    * @param inPlace true if the drill replaces the date level of the field, false if it adds or
+    *                removes a field of a date hierarchy.
+    * @param level   the date level of the dimension.
+    * @param up      the level a drill up goes to, or -1.
+    * @param down    the level a drill down goes to, or -1.
+    */
+   private record DateDrill(String op, boolean inPlace, int level, int up, int down) {
+   }
+
+   /**
+    * Get the op, and where it leads, for the date dimension.
+    */
+   private static DateDrill getDateDrill(XDimensionRef dim, DataRef[] refs, boolean chart,
+                                         XCube cube)
+   {
       int rank0 = -1; // the ranking of dim in the hierarchy
       int rank2 = -1; // the max ranking of other dims in refs
       int[] levels = new int[refs.length];
@@ -3138,7 +3161,7 @@ public final class VSUtil {
       }
 
       if(rank0 <= 0) {
-         return "";
+         return new DateDrill("", false, level0, -1, -1);
       }
 
       int nlevel = GraphUtil.getDrillDownDateLevel(level0);
@@ -3169,17 +3192,56 @@ public final class VSUtil {
          }
 
          if(ops.length() > 0) {
-            return ops;
+            return new DateDrill(ops, true, level0, plevel, nlevel);
          }
       }
 
       for(int level : levels) {
          if(nlevel == level && !last) {
-            return "-";
+            return new DateDrill("-", false, level0, -1, -1);
          }
       }
 
-      return rank0 >= rank2 ? (last ? "" : "+") : "-";
+      return new DateDrill(rank0 >= rank2 ? (last ? "" : "+") : "-", false, level0, -1, -1);
+   }
+
+   /**
+    * Get the date levels a chart field drills between, for the labels of its drill buttons. Only a
+    * date level that is replaced in place has a target: a drill that adds or removes a field of a
+    * date hierarchy, and a cube hierarchy, give the field's own level and no target.
+    *
+    * @param dim  the dimension of the chart field.
+    * @param cube the cube of the chart, or null.
+    * @param refs the dimensions bound to the field's axis.
+    *
+    * @return {the date level of the field, the level a drill up goes to, the level a drill down
+    * goes to}, as DateRangeRef range values ("Month", "Quarter", ...) with "" for none, or null if
+    * the field is not a date that can be drilled.
+    */
+   public static String[] getChartDrillTargets(XDimensionRef dim, XCube cube, DataRef[] refs) {
+      if(dim == null || refs == null || !dim.isDateTime()) {
+         return null;
+      }
+
+      // a cube hierarchy, or a date the cube knows, drills along the cube
+      if(cube != null && (getCubeDrillOp(dim, cube, refs) != null ||
+                          dim instanceof VSDimensionRef vdim && isCubeContainRef(vdim, cube)))
+      {
+         return null;
+      }
+
+      DateDrill drill = getDateDrill(dim, refs, true, cube);
+
+      if(drill.op().isEmpty()) {
+         return null;
+      }
+
+      String up = drill.inPlace() && drill.op().contains("-") && drill.up() != -1
+         ? DateRangeRef.getRangeValue(drill.up()) : "";
+      String down = drill.inPlace() && drill.op().contains("+") && drill.down() != -1
+         ? DateRangeRef.getRangeValue(drill.down()) : "";
+
+      return new String[] { DateRangeRef.getRangeValue(drill.level()), up, down };
    }
 
    /**

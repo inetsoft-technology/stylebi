@@ -23,6 +23,12 @@ export interface Axis extends ChartObject {
    sortOp: string;
    axisOps: string[];
    axisFields: string[];
+   /** The date level of each drillable field ("Month"), "" for a field with none. */
+   axisLevels?: string[];
+   /** The date level each field's drill up goes to, "" if unknown or not possible. */
+   axisUpLevels?: string[];
+   /** The date level each field's drill down goes to, "" if unknown or not possible. */
+   axisDownLevels?: string[];
    axisSizes: number[];
    secondary: boolean;
    sortField?: string;

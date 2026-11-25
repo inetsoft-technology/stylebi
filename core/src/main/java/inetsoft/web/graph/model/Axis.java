@@ -49,6 +49,22 @@ public abstract class Axis extends ChartObject {
    public abstract Optional<String[]> axisFields();
 
    /**
+    * The date level of each field that can be drilled, as a DateRangeRef range value ("Month"),
+    * or "" for a field that has none.
+    */
+   public abstract Optional<String[]> axisLevels();
+
+   /**
+    * The date level a drill up of each field goes to, or "" if it is not known or not possible.
+    */
+   public abstract Optional<String[]> axisUpLevels();
+
+   /**
+    * The date level a drill down of each field goes to, or "" if it is not known or not possible.
+    */
+   public abstract Optional<String[]> axisDownLevels();
+
+   /**
     * The size of each level of this axis
     */
    public abstract Optional<int[]> axisSizes();
