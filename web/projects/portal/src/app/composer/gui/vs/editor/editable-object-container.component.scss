@@ -37,12 +37,9 @@
 }
 
 // selection container children sit inside an overflow:hidden scroller sized to the child,
-// so draw the selection/highlight outline inside the box instead of outside it. The two-tone
-// halo (box-shadow, outside the box) would be clipped there and sit in a different band, so a
-// child keeps a one-tone outline.
+// so draw the selection/highlight outline inside the box instead of outside it.
 .container-child > .object {
   outline-offset: -2px;
-  box-shadow: none;
 }
 
 .handle {
@@ -169,6 +166,14 @@
 .active.viz-modern .object,
 .active.viz-dark .object {
   outline-style: dashed;
+}
+
+// A selection-container child draws its outline inside its box (.container-child > .object above)
+// in a scroller that clips to the child, where the outward halo would sit in another band, so it
+// keeps a one-tone outline. .container-child and .active are on the same element: this rule must be
+// as specific as .active .object and come after it.
+.active.container-child > .object {
+  box-shadow: none;
 }
 
 .drop-target {

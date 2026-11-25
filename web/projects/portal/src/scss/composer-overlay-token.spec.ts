@@ -139,7 +139,11 @@ describe("composer overlay consumers", () => {
       expect(layout()).toMatch(/\.active \.viz-dark \.object\s*\{\s*outline-style:\s*dashed;\s*\}/);
       // a selection-container child's outline sits inside its box (offset -2px) in a scroller that clips:
       // no outward halo there
-      expect(rule(container(), /^\.container-child > \.object\s*\{/m)).toMatch(/box-shadow:\s*none/);
+      // .container-child and .active sit on the same element, so the rule must be as specific as
+      // .active .object and come after it to win
+      expect(rule(container(), /^\.active\.container-child > \.object\s*\{/m)).toMatch(/box-shadow:\s*none/);
+      expect(container().search(/^\.active\.container-child > \.object\s*\{/m))
+         .toBeGreaterThan(container().search(/^\.active \.object\s*\{/m));
    });
 
    it("outlineStatesDontStack", () => {
