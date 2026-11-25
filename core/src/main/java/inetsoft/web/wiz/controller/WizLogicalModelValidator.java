@@ -717,8 +717,8 @@ final class WizLogicalModelValidator {
          Map<String, String> columns = tables.get(table);
 
          if(columns == null) {
-            add(path + ".table", "table \"" + tableName + "\" is not in the database",
-                TABLE_NOT_IN_VIEW);
+            add(path + ".table", "table \"" + tableName + "\" is not in the database, or cannot be " +
+                "resolved in the database's default schema", TABLE_NOT_IN_VIEW);
             return null;
          }
 

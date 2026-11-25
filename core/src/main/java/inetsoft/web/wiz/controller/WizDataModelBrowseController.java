@@ -20,6 +20,7 @@ package inetsoft.web.wiz.controller;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.erm.XDataModel;
+import inetsoft.uql.erm.XPartition;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.controller.database.*;
 import inetsoft.web.portal.model.database.*;
@@ -103,8 +104,54 @@ public class WizDataModelBrowseController {
             tables.add(new PhysicalTable(table.label(), columns));
          }
 
-         return new PhysicalTablesResponse(database, view, tables);
+         List<String> unresolved = unresolvedTables(dataModel.getPartition(view), tables);
+
+         if(!unresolved.isEmpty() && tables.isEmpty()) {
+            throw new WizDataModelErrors.DmFailure(INVALID, "view", unresolvedNote(unresolved));
+         }
+
+         String note = unresolved.isEmpty() ? null : unresolvedNote(unresolved);
+         return new PhysicalTablesResponse(database, view, tables, unresolved, note);
       });
+   }
+
+   /**
+    * The physical tables of the view (not aliases or inline views) that are not among the tables
+    * the database metadata resolved.
+    */
+   private static List<String> unresolvedTables(XPartition partition, List<PhysicalTable> tables) {
+      List<String> unresolved = new ArrayList<>();
+
+      if(partition == null) {
+         return unresolved;
+      }
+
+      Set<String> resolved = new HashSet<>();
+
+      for(PhysicalTable table : tables) {
+         resolved.add(table.name());
+      }
+
+      XPartition aliased = partition.applyAutoAliases();
+      Enumeration<XPartition.PartitionTable> e = aliased.getTables();
+
+      while(e.hasMoreElements()) {
+         XPartition.PartitionTable table = e.nextElement();
+         String name = table.getName();
+
+         if(table.getType() == inetsoft.uql.erm.PartitionTable.PHYSICAL &&
+            aliased.getAutoAlias(name) == null && !resolved.contains(name))
+         {
+            unresolved.add(name);
+         }
+      }
+
+      return unresolved;
+   }
+
+   private static String unresolvedNote(List<String> unresolved) {
+      return "tables " + unresolved + " of the view cannot be found in the database metadata " +
+         "(a name stored without a schema is looked up in the database's default schema)";
    }
 
    private BrowseResponse doBrowse(BrowseRequest request, String database, Set<String> kinds,

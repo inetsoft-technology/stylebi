@@ -849,6 +849,12 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
                                      tableTypes, null, additional);
          }
 
+         // a table stored without a schema is resolved by the database in its default schema,
+         // but the listed nodes may be qualified (e.g. SA.ORDERS), so the name never equals
+         if(tableNode == null && table.getSchema() == null && table.getCatalog() == null) {
+            tableNode = getDefaultSchemaTableNode(tableAlias, schemas, tableTypes, additional);
+         }
+
          if(tableNode == null) {
             XPartition.PartitionTable tbl = partition.getPartitionTable(tableAlias);
 
@@ -973,6 +979,28 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
       return tableNode;
    }
 
+   /**
+    * Finds the table of a bare name in the default schema of the data source.
+    *
+    * @return the table node, or <tt>null</tt> if the data source has no default schema or the
+    *         schema has no such table.
+    */
+   private XNode getDefaultSchemaTableNode(String tableAlias, XNode schemas, XNode tableTypes,
+                                           String additional)
+      throws Exception
+   {
+      Object defaultSchema = schemas.getAttribute("defaultSchema");
+
+      if(defaultSchema == null || defaultSchema.toString().isEmpty() ||
+         findParent(schemas, defaultSchema.toString(), false) == null)
+      {
+         return null;
+      }
+
+      return findTableNode(defaultSchema.toString(), tableAlias, schemas, null, tableTypes,
+                           false, additional, true);
+   }
+
    private String findSchema(XDataSource xds, String tableName) {
       int dot = tableName.lastIndexOf(".");
 
@@ -986,6 +1014,19 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
    private XNode findTableNode(String schema, String tableAlias, XNode schemas,
                                XNode parent, XNode tableTypes, boolean checkPath,
                                String additional)
+      throws Exception
+   {
+      return findTableNode(schema, tableAlias, schemas, parent, tableTypes, checkPath,
+                           additional, false);
+   }
+
+   /**
+    * @param bareName <tt>true</tt> to match the table name within the schema, instead of the
+    *                 qualified name of the table.
+    */
+   private XNode findTableNode(String schema, String tableAlias, XNode schemas,
+                               XNode parent, XNode tableTypes, boolean checkPath,
+                               String additional, boolean bareName)
       throws Exception
    {
       if(schema != null) {
@@ -1018,7 +1059,8 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
          for(int j = 0; j < tables.getChildCount(); j++) {
             XNode node = tables.getChild(j);
             node.setAttribute("additional", additional);
-            String qName = XAgent.getAgent(xds).getQualifiedName(node, xds);
+            String qName = bareName ? node.getName() :
+               XAgent.getAgent(xds).getQualifiedName(node, xds);
 
             if(qName.equals(tableAlias)) {
                tableNode = node;
