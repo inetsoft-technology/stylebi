@@ -188,6 +188,37 @@ class SheetPaneListWriterTest {
       fixture.assertNothingWritten();
    }
 
+   /**
+    * An assembly with no sub-components (a Text) is a childless leaf with no data, keyed by the
+    * assembly name -- the same key rule the Composer dialog uses -- so it is writable, and a list
+    * read from the sheet (which can hold such an entry) writes back unchanged.
+    */
+   @Test
+   void aChildlessLeafIsKeyedByItsLabelAndReadModifyWriteRoundTrips() throws Exception {
+      Fixture fixture = new Fixture(model(true));
+
+      fixture.service.set("tok", principal(), Map.of(
+         "localizationPane.localized",
+         List.of(map("name", "Text1", "textId", "t1.id"),
+                 map("name", "B5Chart^_^Title", "textId", "old.id"))), "");
+
+      List<LocalizationComponent> localized = fixture.written().localizationPane().getLocalized();
+      assertEquals(2, localized.size());
+      assertEquals("Text1", localized.get(0).getName());
+      assertEquals("t1.id", localized.get(0).getTextId());
+
+      // The sheet already holds a Text1 entry; echoing the list it reads is accepted.
+      Fixture roundTrip = new Fixture(model(true));
+      List<Object> echoed = new ArrayList<>();
+
+      for(LocalizationComponent existing : roundTrip.currentLocalized()) {
+         echoed.add(map("name", existing.getName(), "textId", existing.getTextId()));
+      }
+
+      roundTrip.service.set("tok", principal(), Map.of("localizationPane.localized", echoed), "");
+      assertEquals(2, roundTrip.written().localizationPane().getLocalized().size());
+   }
+
    @Test
    void anUnrelatedPatchLeavesBothListsAsRead() throws Exception {
       Fixture fixture = new Fixture(model(true));
@@ -213,13 +244,18 @@ class SheetPaneListWriterTest {
             .data("B5Chart^_^Title").build();
          TreeNodeModel chart = TreeNodeModel.builder().label("B5Chart").children(List.of(title))
             .build();
+         // An assembly with no sub-components: a childless leaf, no data, keyed by its label.
+         TreeNodeModel text = TreeNodeModel.builder().label("Text1").leaf(true).build();
          LocalizationPaneModel pane = new LocalizationPaneModel();
-         pane.setComponents(TreeNodeModel.builder().label("Components").children(List.of(chart))
-                               .build());
+         pane.setComponents(TreeNodeModel.builder().label("Components")
+                               .children(List.of(chart, text)).build());
          LocalizationComponent existing = new LocalizationComponent();
          existing.setName("B5Chart^_^Title");
          existing.setTextId("old.id");
-         pane.setLocalized(new ArrayList<>(List.of(existing)));
+         LocalizationComponent existingText = new LocalizationComponent();
+         existingText.setName("Text1");
+         existingText.setTextId("Text1");
+         pane.setLocalized(new ArrayList<>(List.of(existing, existingText)));
          builder.localizationPane(pane);
       }
 
@@ -250,8 +286,14 @@ class SheetPaneListWriterTest {
    private static final class Fixture {
       final ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
       final SheetPropertyService service;
+      final ViewsheetPropertyDialogModel model;
+
+      List<LocalizationComponent> currentLocalized() {
+         return new ArrayList<>(model.localizationPane().getLocalized());
+      }
 
       Fixture(ViewsheetPropertyDialogModel model) throws Exception {
+         this.model = model;
          when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
          RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
          when(rvs.getID()).thenReturn("rt1");

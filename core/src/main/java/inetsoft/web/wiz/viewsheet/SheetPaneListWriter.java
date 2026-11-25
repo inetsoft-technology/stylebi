@@ -43,12 +43,6 @@ final class SheetPaneListWriter {
    private SheetPaneListWriter() {
    }
 
-   /** True when the resolved patch names either list path. */
-   static boolean touches(Collection<String> resolvedPaths) {
-      return resolvedPaths.contains(PropertyAliases.FILTERS_SHARED_PATH) ||
-         resolvedPaths.contains(PropertyAliases.LOCALIZED_PATH);
-   }
-
    /** True for the two paths this class applies, so the generic path writer skips them. */
    static boolean handles(String resolvedPath) {
       return PropertyAliases.FILTERS_SHARED_PATH.equals(resolvedPath) ||
@@ -180,8 +174,15 @@ final class SheetPaneListWriter {
          return;
       }
 
-      if(node.leaf() && node.data() != null) {
-         names.add(String.valueOf(node.data()));
+      // The key the Composer dialog stores for a selected node: its data when it has one (a
+      // sub-component, "Chart1^_^Title"), else its label (an assembly with no sub-components,
+      // such as Text, is a childless leaf keyed by the assembly name).
+      if(node.leaf()) {
+         Object key = node.data() != null ? node.data() : node.label();
+
+         if(key != null) {
+            names.add(String.valueOf(key));
+         }
       }
 
       for(TreeNodeModel child : node.children()) {
