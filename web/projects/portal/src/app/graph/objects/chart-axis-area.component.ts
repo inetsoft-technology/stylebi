@@ -61,6 +61,9 @@ import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive
     imports: [OutOfZoneDirective, ChartImageDirective]
 })
 export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChanges {
+   /** The length of a drill pill along its axis, in px; matches .axis-drill-pill in the stylesheet. */
+   static readonly DRILL_PILL_LENGTH = 40;
+
    @Input() scrollbarWidth: number;
    @Input() hideSortIcon: boolean = false;
    @Input() supportHyperlink: boolean;
@@ -632,15 +635,40 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
                                                                (Math.abs(18 % Math.min(b , 18))), 0);
    }
 
+   /**
+    * The drill pill of a field sits at the trailing end of its row on an x axis, and at the top of
+    * its column on a y axis. The sort icon takes the other end, so the two never share a corner.
+    */
    getDrillIconLeft(i: number): number {
       if(this.chartObject.axisType == "y") {
          return this.getDrillIconPosition(i);
       }
       else if(this.chartObject.axisType == "x") {
-         return -Math.min(this.chartObject.layoutBounds.x, 18);
+         return Math.max(0, this.chartObject.layoutBounds.width - ChartAxisArea.DRILL_PILL_LENGTH);
       }
 
       return null;
+   }
+
+   /**
+    * The top of the pill: the top of a y axis, and on an x axis the vertical centre of the labels of
+    * the field's row (see {@link #getLabelCenter}); the stylesheet centres the pill on it.
+    */
+   getDrillIconTop(i: number): number {
+      if(this.chartObject.axisType == "y") {
+         return 0;
+      }
+
+      const rowSize = this.chartObject.axisSizes?.[i] ?? this.chartObject.layoutBounds.height;
+      return this.getDrillIconPosition(i) + this.getLabelCenter(rowSize);
+   }
+
+   /**
+    * Where the label text of an x axis row is centred, from the top of the row. The labels sit in
+    * the lower part of the row, below the tick: ink rows 13 to 21 of a 24px row.
+    */
+   private getLabelCenter(rowSize: number): number {
+      return rowSize * 0.7;
    }
 
    public updateChartObject(): void {
@@ -720,8 +748,10 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
    }
 
    get showSortIcon(): boolean {
+      // "none" means the axis cannot be sorted (a time axis, say), so there is nothing to show
       return !this.hideSortIcon && (this.drillVisible || this.onTitle) &&
-         (!!this.chartObject ? !this.chartObject.sortFieldIsCalc : true);
+         (!!this.chartObject ?
+            !this.chartObject.sortFieldIsCalc && this.chartObject.sortOp !== "none" : true);
    }
 
    get minWidth(): number {
@@ -767,15 +797,17 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
       }
    }
 
-   getSortIconTop(axisOps: string[]): number {
-      const drillIconHeight: number = this.chartObject.axisType == "y" ? 22 : 0;
-      const drillIcon = axisOps.findIndex(a => a !== "") != -1;
+   /**
+    * The sort icon is at the leading end of the axis, in the gap before the first label of an x
+    * axis and at the bottom of a y axis, where the drill pills (trailing end, top) are not. On an x
+    * axis this is the centre of the labels, and the stylesheet centres the icon on it.
+    */
+   getSortIconTop(): number {
+      const height = this.chartObject.layoutBounds.height;
 
-      if(this.drillVisible && drillIcon) {
-         return this.chartObject.layoutBounds.height - drillIconHeight - 20;
-      }
-      else {
-         return this.chartObject.layoutBounds.height - drillIconHeight;
-      }
+      // the icon is 18px and the axis area clips what is outside it, so keep it inside the row
+      return this.chartObject.axisType == "y" ?
+         height - ChartAxisArea.DRILL_PILL_LENGTH - 2 :
+         Math.min(this.getLabelCenter(height), height - 9);
    }
 }

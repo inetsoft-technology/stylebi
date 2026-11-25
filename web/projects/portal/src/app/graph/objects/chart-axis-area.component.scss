@@ -15,6 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+/* the border of the drill pill and the sort icon: stronger than a hairline so they stand out from the
+   labels and grid lines they sit over */
+:host {
+  --axis-icon-border: color-mix(in srgb, currentColor 55%, transparent);
+}
+
 .chart-axis-area {
   position: absolute;
   overflow: hidden;
@@ -42,14 +48,89 @@
   cursor:default;
   /* The drill icon button may be over other clickable chart regions, but should take precedent */
   z-index: 999;
-  border-radius: 3px;
-  letter-spacing: -2px;
+}
 
-  i {
-    /* fill in gaps between drill areas so overlapping area would not jump on each other */
-    padding: 1px;
-    padding-right: 2px;
+/* The drill buttons of one field as one small pill, minus then plus along an x axis and plus above
+   minus down a y axis. It is faint until the pointer is on it. The plus and minus are drawn, as the
+   sort icon's triangles are, so they match it. */
+.axis-drill-pill {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: stretch;
+  box-sizing: border-box;
+  width: 40px;
+  height: 18px;
+  background: var(--inet-shell-surface-default);
+  border: 1px solid var(--axis-icon-border);
+  border-radius: 9px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  opacity: 0.9;
+  transition: opacity 120ms;
+
+  &:hover {
+    opacity: 1;
   }
+
+  /* on an x axis the pill is centred on the labels of its row */
+  &:not(&--vertical) {
+    transform: translateY(-50%);
+  }
+
+  &--vertical {
+    flex-direction: column;
+    width: 18px;
+    height: 40px;
+  }
+}
+
+.axis-drill-pill__btn {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  cursor: pointer;
+  background: transparent;
+
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    background: currentColor;
+    transform: translate(-50%, -50%);
+  }
+
+  /* the horizontal bar of the minus and of the plus */
+  &::before {
+    width: 9px;
+    height: 1.5px;
+  }
+
+  /* the vertical bar of the plus */
+  &--plus::after {
+    width: 1.5px;
+    height: 9px;
+  }
+
+  /* the divider between the two, drawn on the minus: its right edge on an x axis, its top on a y axis */
+  &--minus {
+    border-right: 1px solid var(--axis-icon-border);
+  }
+}
+
+.axis-drill-pill--vertical .axis-drill-pill__btn--minus {
+  border-right: 0;
+  border-top: 1px solid var(--axis-icon-border);
+}
+
+/* A direction the field cannot drill stays in place, so the pill keeps its size. */
+.axis-drill-pill__off {
+  opacity: 0.35;
+  pointer-events: none;
+  cursor: default;
 }
 
 .axis__sort-icon {
@@ -58,19 +139,86 @@
   cursor: pointer;
 }
 
+/* The sort icon is a pill the size of the drill pill, with the same border: 18 by 40 down a y axis,
+   and on an x axis 40 by 18 and centred on the labels. */
 .axis__sort-icon--surface {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 18px;
+  height: 40px;
   background: var(--inet-shell-surface-default);
-  border: 1px solid var(--inet-default-border-color);
-  border-radius: var(--inet-radius-sm);
+  border: 1px solid var(--axis-icon-border);
+  border-radius: 9px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  opacity: 0.9;
+  transition: opacity 120ms;
+
+  &:hover {
+    opacity: 1;
+  }
 }
 
-.chart-axis-area-scroll-container {
-  position: absolute;
-  overflow: visible;
+.axis__sort-icon--horizontal {
+  width: 40px;
+  height: 18px;
+  transform: translateY(-50%);
 }
 
-.no-actions {
-  pointer-events: none;
+/* The sort icon is two small chevrons, up over down, in place of the icon font's glyph. An unsorted
+   axis shows both; a sorted one shows the active chevron in full and the other faded, in the sorted
+   color. They are stroked like the drill pill's plus and minus. */
+.axis__sort-icon .floating-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  justify-content: space-around;
+  width: 100%;
+  height: 100%;
+  /* the divider between the two chevrons, as in the drill pill */
+  background: linear-gradient(to bottom, transparent calc(50% - 0.5px), var(--axis-icon-border) calc(50% - 0.5px),
+    var(--axis-icon-border) calc(50% + 0.5px), transparent calc(50% + 0.5px));
+
+  &::before,
+  &::after {
+    content: "";
+    display: block;
+    box-sizing: border-box;
+    width: 6px;
+    height: 6px;
+  }
+
+  /* up chevron; the box is rotated about its centre, so pull it down to sit on the pair's centre */
+  &::before {
+    border-left: 1.5px solid currentColor;
+    border-top: 1.5px solid currentColor;
+    transform: translateY(1px) rotate(45deg);
+  }
+
+  /* down chevron */
+  &::after {
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: translateY(-1px) rotate(45deg);
+  }
+
+  &.sort-ascending-icon,
+  &.sort-descending-icon {
+    color: var(--inet-viz-sorted-color, currentColor);
+  }
+
+  &.sort-ascending-icon::after,
+  &.sort-descending-icon::before {
+    opacity: 0.25;
+  }
+}
+
+.axis__sort-icon.axis__sort-icon--horizontal .floating-icon {
+  flex-direction: row;
+  background: linear-gradient(to right, transparent calc(50% - 0.5px), var(--axis-icon-border) calc(50% - 0.5px),
+    var(--axis-icon-border) calc(50% + 0.5px), transparent calc(50% + 0.5px));
 }
 
 .floating-icon {
