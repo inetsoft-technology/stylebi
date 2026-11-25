@@ -155,11 +155,13 @@ public final class VSObjectChromeDefaults {
    }
 
    /**
-    * The color of the box around the Traffic Light's lights on a modern table: the object border
-    * neutral, softer than the classic gray. Null for a classic table, which keeps its own box.
+    * The color of the box around the Traffic Light's lights on a modern table: a mid neutral from
+    * the text color over the card, so it follows the theme and stays visible on a tinted row (the
+    * object border neutral, 1.5:1 on a white card, was nearly invisible). Null for a classic table,
+    * which keeps its own box.
     */
    public static Color trafficLightHousingColor(VizContext ctx) {
-      return ctx != null && ctx.modern ? objectBorderColor(ctx) : null;
+      return ctx != null && ctx.modern ? blend(ink(ctx), HOUSING_STRENGTH, cardBackground(ctx)) : null;
    }
 
    /**
@@ -322,6 +324,8 @@ public final class VSObjectChromeDefaults {
    public static final int CARD_TINT_ALPHA = 15;
 
    // modern warm-neutral object chrome (light mode)
+   // how much of the text color the Traffic Light's housing has, over the card
+   private static final float HOUSING_STRENGTH = 0.55f;
    private static final Color OBJECT_BORDER = new Color(0xD9D5CC);
    private static final Color PAGE_BG = new Color(0xF8F7F4);
    private static final Color CARD_BG = new Color(0xFFFFFF);
