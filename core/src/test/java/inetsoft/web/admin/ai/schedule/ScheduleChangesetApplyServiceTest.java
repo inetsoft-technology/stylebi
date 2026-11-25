@@ -85,6 +85,11 @@ class ScheduleChangesetApplyServiceTest {
          .thenAnswer(inv -> {
             String s = inv.getArgument(0);
 
+            // an empty password (an action that has none) is read back as it is
+            if(s.isEmpty()) {
+               return s;
+            }
+
             if(!s.startsWith("TKN:")) {
                throw new IllegalArgumentException("not a token");
             }
@@ -606,6 +611,121 @@ class ScheduleChangesetApplyServiceTest {
    // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------
+
+   // -------------------------------------------------------------------------
+   // Bug #82274: update, and a create in a folder
+   // -------------------------------------------------------------------------
+
+   private static ScheduleChangeRequest updateChange(String taskId, ScheduleTaskPatch patch) {
+      ScheduleChangeRequest change = new ScheduleChangeRequest();
+      change.setVerb(ScheduleChangeRequest.VERB_UPDATE);
+      change.setTaskId(taskId);
+      change.setPatch(patch);
+      return change;
+   }
+
+   private static ScheduleTaskPatch disablePatch() {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setEnabled(false);
+      return patch;
+   }
+
+   private static inetsoft.sree.schedule.ScheduleTask disabledTask() {
+      inetsoft.sree.schedule.ScheduleTask task = sreeTask("t1", "admin");
+      task.setEnabled(false);
+      return task;
+   }
+
+   @Test void appliesAnUpdateAndReportsAppliedWhenTheStoredTaskIsThePlannedOne() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask existing = sreeTask("t1", "admin");
+      ScheduleTaskPatch patch = disablePatch();
+      when(scheduleManager.getScheduleTask("t1"))
+         .thenReturn(existing)         // preview
+         .thenReturn(existing)         // re-resolve inside apply()
+         .thenReturn(existing)         // apply: capture before-state
+         .thenReturn(disabledTask());  // apply: verify
+      when(scheduleGateway.buildUpdatedTask(eq("t1"), eq(patch), any(), eq(user)))
+         .thenAnswer(inv -> disabledTask());
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ApplyResult result = service.apply(applyRequest("disable a task", updateChange("t1", patch)),
+                                         user, null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.rollbackFailures());
+      verify(scheduleGateway).storeUpdatedTask(eq("t1"), any(), eq(user));
+      verify(scheduleGateway, never()).removeScheduleTask(anyString(), any(), any());
+      verify(scheduleGateway, never()).addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(),
+         anyLong(), any(), any(), any(), any(), any(), any(), any(), any());
+   }
+
+   // An update whose stored result is not the planned task is restored from the pre-image captured
+   // during apply, in the folder the task was in.
+   @Test void restoresThePreImageWhenTheStoredTaskIsNotThePlannedOne() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask existing = sreeTask("t1", "admin");
+      ScheduleTaskPatch patch = disablePatch();
+      when(scheduleManager.getScheduleTask("t1"))
+         .thenReturn(existing)   // preview
+         .thenReturn(existing)   // re-resolve inside apply()
+         .thenReturn(existing)   // apply: capture before-state
+         .thenReturn(existing)   // apply: verify, still enabled so not the planned task
+         .thenReturn(existing);  // rollback verify, the pre-image is back
+      when(scheduleGateway.buildUpdatedTask(eq("t1"), eq(patch), any(), eq(user)))
+         .thenAnswer(inv -> disabledTask());
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ApplyResult result = service.apply(applyRequest("disable a task", updateChange("t1", patch)),
+                                         user, null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> restored =
+         ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+      verify(scheduleManager).setScheduleTask(eq("t1"), restored.capture(), any(), eq(user), any());
+      assertTrue(restored.getValue().isEnabled());
+      assertNotSame(existing, restored.getValue());
+   }
+
+   @Test void reportsRollbackFailedWhenTheRestoredTaskIsNotThePreImage() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask existing = sreeTask("t1", "admin");
+      ScheduleTaskPatch patch = disablePatch();
+      when(scheduleManager.getScheduleTask("t1"))
+         .thenReturn(existing)
+         .thenReturn(existing)
+         .thenReturn(existing)
+         .thenReturn(existing)           // verify: not the planned task
+         .thenReturn(disabledTask());    // rollback verify: still not the pre-image
+      when(scheduleGateway.buildUpdatedTask(eq("t1"), eq(patch), any(), eq(user)))
+         .thenAnswer(inv -> disabledTask());
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ApplyResult result = service.apply(applyRequest("disable a task", updateChange("t1", patch)),
+                                         user, null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertFalse(result.rollbackFailures().isEmpty());
+   }
+
+   @Test void createsInTheFolderTheChangeNames() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      ScheduleChangeRequest change = createChange(spec);
+      change.setPath("Finance/Reports");
+      inetsoft.uql.asset.AssetEntry folder = new inetsoft.uql.asset.AssetEntry(
+         inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE,
+         inetsoft.uql.asset.AssetEntry.Type.SCHEDULE_TASK_FOLDER, "Finance/Reports", null);
+      when(scheduleGateway.resolveCreateFolder("Finance/Reports", user)).thenReturn(folder);
+      when(scheduleManager.getScheduleTask(taskId))
+         .thenReturn(null)
+         .thenReturn(null)
+         .thenReturn(sreeTask("t1", "admin"));
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+
+      ApplyResult result = service.apply(applyRequest("create in a folder", change), user, null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(scheduleGateway).addScheduleTask(any(), eq(true), anyBoolean(), anyLong(), anyLong(),
+         any(), any(), any(), any(), any(), any(), any(), eq(folder), eq(user));
+   }
 
    private ScheduleApplyRequest applyRequest(String task, ScheduleChangeRequest... changes)
       throws Exception

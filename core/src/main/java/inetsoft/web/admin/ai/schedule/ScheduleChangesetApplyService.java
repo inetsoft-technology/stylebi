@@ -142,9 +142,14 @@ public class ScheduleChangesetApplyService {
 
             try {
                if(ScheduleChangeRequest.VERB_CREATE.equals(original.getVerb())) {
-                  applyCreate(txId, reviewedTask, taskId, original.getSpec(), backupRef,
-                             req.getReviewOutcome(), user, linkURI, results, undoable,
+                  applyCreate(txId, reviewedTask, taskId, original.getSpec(), original.getPath(),
+                             backupRef, req.getReviewOutcome(), user, linkURI, results, undoable,
                              mutationEntered);
+               }
+               else if(ScheduleChangeRequest.VERB_UPDATE.equals(original.getVerb())) {
+                  applyUpdate(txId, reviewedTask, taskId, original.getPatch(), change.proposedValue(),
+                              backupRef, req.getReviewOutcome(), user, linkURI, results, undoable,
+                              mutationEntered);
                }
                else {
                   stillChanged = applyDelete(txId, reviewedTask, taskId, backupRef, req.getReviewOutcome(), user,
@@ -209,7 +214,7 @@ public class ScheduleChangesetApplyService {
    }
 
    private void applyCreate(String txId, String task, String taskId,
-                            CreateScheduleTaskRequest spec, String backupRef,
+                            CreateScheduleTaskRequest spec, String path, String backupRef,
                             String reviewOutcome, Principal user, String linkURI,
                             List<ApplyOutcome> results, List<Undo> undoable,
                             AtomicBoolean mutationEntered)
@@ -228,11 +233,22 @@ public class ScheduleChangesetApplyService {
          spec.isDeleteIfNotScheduledToRun(), spec.getStartDate(), spec.getEndDate(),
          spec.getDescription(), spec.getLocale(), spec.getExecuteAsID(), spec.getConditions(),
          spec.getActions(), link, user);
+      // the folder is resolved before the write, a refused folder proves nothing was touched
+      AssetEntry folder = scheduleGateway.resolveCreateFolder(path, user);
       mutationEntered.set(true);
-      scheduleGateway.addScheduleTask(meta, spec.isEnabled(), spec.isDeleteIfNotScheduledToRun(),
-         spec.getStartDate(), spec.getEndDate(), spec.getDescription(), spec.getLocale(),
-         spec.getExecuteAsID(), spec.getConditions(), spec.getActions(), spec.getOwner().getOrgID(),
-         link, user);
+
+      if(folder == null) {
+         scheduleGateway.addScheduleTask(meta, spec.isEnabled(), spec.isDeleteIfNotScheduledToRun(),
+            spec.getStartDate(), spec.getEndDate(), spec.getDescription(), spec.getLocale(),
+            spec.getExecuteAsID(), spec.getConditions(), spec.getActions(),
+            spec.getOwner().getOrgID(), link, user);
+      }
+      else {
+         scheduleGateway.addScheduleTask(meta, spec.isEnabled(), spec.isDeleteIfNotScheduledToRun(),
+            spec.getStartDate(), spec.getEndDate(), spec.getDescription(), spec.getLocale(),
+            spec.getExecuteAsID(), spec.getConditions(), spec.getActions(),
+            spec.getOwner().getOrgID(), link, folder, user);
+      }
 
       String after = ScheduleXmlProjection.project(scheduleManager.getScheduleTask(taskId));
       boolean verified = after != null;
@@ -244,8 +260,47 @@ public class ScheduleChangesetApplyService {
 
       if(verified) {
          undoable.add(new Undo(ScheduleChangeRequest.VERB_CREATE, taskId,
-                               spec.getOwner().getOrgID(), null, null, null));
+                               spec.getOwner().getOrgID(), null, null, null, null));
       }
+   }
+
+   /**
+    * Stores the update and checks the stored task is the one the plan showed. The pre-image is a
+    * deep copy of the stored task captured here, so the rollback restores every stored field,
+    * secrets included. The undo is queued once the write was entered, whatever the check says, so
+    * a task that came out different from the plan is restored too.
+    */
+   private void applyUpdate(String txId, String task, String taskId, ScheduleTaskPatch patch,
+                            String expected, String backupRef, String reviewOutcome,
+                            Principal user, String linkURI, List<ApplyOutcome> results,
+                            List<Undo> undoable, AtomicBoolean mutationEntered)
+      throws Exception
+   {
+      inetsoft.sree.schedule.ScheduleTask beforeTask = scheduleManager.getScheduleTask(taskId);
+      String before = ScheduleXmlProjection.project(beforeTask);
+      String orgId = beforeTask == null ? null : beforeTask.getOwner().getOrgID();
+      inetsoft.sree.schedule.ScheduleTask preImage = deepCopy(beforeTask);
+      String link = linkURI == null ? null : Tool.replaceLocalhost(linkURI);
+      // every refusal of the save precedes its first write
+      inetsoft.sree.schedule.ScheduleTask candidate =
+         scheduleGateway.buildUpdatedTask(taskId, patch, link, user);
+      scheduleManager.checkScheduleTaskSave(taskId, candidate, user);
+
+      mutationEntered.set(true);
+      scheduleGateway.storeUpdatedTask(taskId, candidate, user);
+      undoable.add(new Undo(ScheduleChangeRequest.VERB_UPDATE, taskId, orgId, beforeTask,
+                            preImage, null, before));
+
+      String after = ScheduleXmlProjection.project(scheduleManager.getScheduleTask(taskId));
+      // the plan is made without a request, so the link of the saving request is not compared
+      boolean verified = after != null && ScheduleXmlProjection.withoutLinkUris(after)
+         .equals(ScheduleXmlProjection.withoutLinkUris(expected));
+      String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
+      results.add(new ApplyOutcome(taskId, before, after, status,
+                                   verified ? null :
+                                   "the stored task differs from the planned task after the update"));
+      writeAudit(txId, task, taskId, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_APPLY,
+                before, after, status, backupRef, reviewOutcome, user);
    }
 
    private String applyDelete(String txId, String task, String taskId, String backupRef,
@@ -286,7 +341,7 @@ public class ScheduleChangesetApplyService {
 
       if(verified) {
          undoable.add(new Undo(ScheduleChangeRequest.VERB_DELETE, taskId, orgId, beforeTask,
-                               recreateTask, permission));
+                               recreateTask, permission, before));
       }
 
       return stillChanged;
@@ -314,6 +369,23 @@ public class ScheduleChangesetApplyService {
                if(!verified) {
                   failures.add(new RollbackFailure(undo.taskId,
                      "rollback of create reported the task as still present after delete"));
+               }
+            }
+            else if(ScheduleChangeRequest.VERB_UPDATE.equals(undo.originalVerb)) {
+               // Undo an update: save the pre-image captured during apply back, in its folder.
+               scheduleManager.setScheduleTask(undo.taskId, undo.recreateTask,
+                                               getFolderEntry(undo.storedTask, undo.orgId), user,
+                                               undo.storedTask);
+               boolean verified = undo.beforeProjection != null && undo.beforeProjection.equals(
+                  ScheduleXmlProjection.project(scheduleManager.getScheduleTask(undo.taskId)));
+               writeAudit(txId, task, undo.taskId, ActionRecord.ACTION_NAME_EDIT,
+                         AdminChangeRecord.ACTION_ROLLBACK, null, null,
+                         verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED,
+                         backupRef, reviewOutcome, user);
+
+               if(!verified) {
+                  failures.add(new RollbackFailure(undo.taskId,
+                     "rollback of update did not restore the task as it was stored before"));
                }
             }
             else {
@@ -436,8 +508,10 @@ public class ScheduleChangesetApplyService {
    private static final class Undo {
       Undo(String originalVerb, String taskId, String orgId,
            inetsoft.sree.schedule.ScheduleTask storedTask,
-           inetsoft.sree.schedule.ScheduleTask recreateTask, Permission permission)
+           inetsoft.sree.schedule.ScheduleTask recreateTask, Permission permission,
+           String beforeProjection)
       {
+         this.beforeProjection = beforeProjection;
          this.originalVerb = originalVerb;
          this.taskId = taskId;
          this.orgId = orgId;
@@ -449,7 +523,9 @@ public class ScheduleChangesetApplyService {
       final String originalVerb;
       final String taskId;
       final String orgId;
-      // The fields below are only set when originalVerb is delete.
+      /** The projection of the task before the change, for the verbs that restore it. */
+      final String beforeProjection;
+      // The fields below are only set when originalVerb is delete or update.
       /** The task as it was stored before the delete. */
       final inetsoft.sree.schedule.ScheduleTask storedTask;
       /** A deep copy of {@link #storedTask}, the task to re-create. */
