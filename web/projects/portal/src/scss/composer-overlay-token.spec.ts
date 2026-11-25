@@ -111,4 +111,31 @@ describe("composer overlay consumers", () => {
       expect(viewer).toMatch(/background-color:\s*var\(--inet-shell-surface-default\)\s*!important/);
       expect(viewer).toMatch(/border:\s*1px solid var\(--inet-composer-selected-outline\)/);
    });
+
+   const layout = () => read(app, "composer/gui/vs/layouts/layout-object.component.scss");
+   const HALO_RING = /box-shadow:\s*0 0 0 2px var\(--inet-composer-overlay-halo,\s*transparent\)/;
+
+   it("outlinesAreTwoToneAndKeepTheirStyle", () => {
+      // canvas: a 2px stroke outline with a 2px halo under it, so dash and dot gaps show the halo
+      const canvas = rule(container(), /^\.active \.object\s*\{/m);
+      expect(canvas).toMatch(/outline:\s*2px dotted var\(--inet-composer-overlay-stroke,\s*var\(--inet-viz-assembly-outline\)\)/);
+      expect(canvas).toMatch(HALO_RING);
+      expect(canvas).not.toMatch(/outline-offset/);
+      // legacy dotted, modern and dark dashed (C5)
+      expect(rule(container(), /^\.active\.viz-modern \.object,\s*\r?\n\.active\.viz-dark \.object\s*\{/m).trim())
+         .toBe("outline-style: dashed;");
+      // layout pane: the stroke on its 2px dotted border, the halo as a ring outside it
+      const lay = rule(layout(), /^\.active \.object\s*\{/m);
+      expect(lay).toMatch(/border:\s*2px dotted var\(--inet-composer-overlay-stroke,\s*var\(--inet-viz-assembly-outline\)\)/);
+      expect(lay).toMatch(HALO_RING);
+   });
+
+   it("outlineStatesDontStack", () => {
+      // search result and drop zone draw a solid 2px outline over the same 2px band, which hides the halo
+      expect(rule(container(), /^\.search-result\s*\{/m)).toMatch(/outline:\s*2px solid !important/);
+      expect(rule(read(__dirname, "_themeable.scss"), /^\.bd-highlight-med\s*\{/m))
+         .toMatch(/outline:\s*2px solid var\(--inet-drag-drop-highlight-color\) !important/);
+      // the layout search result replaces the border, so it drops the halo ring
+      expect(rule(layout(), /^\.active \.object\.search-result\s*\{/m)).toMatch(/box-shadow:\s*none/);
+   });
 });

@@ -148,8 +148,15 @@
   z-index: 2;
 }
 
+// The selection outline is the composer's two-tone overlay pair (_composer-overlay.scss): the dark
+// stroke as the outline and the light halo as a 2px ring under it, so the gaps of the dotted or
+// dashed outline show the halo instead of the content, and the outline reads on any dashboard
+// background. A search result or drop zone draws its own solid 2px outline over the same band,
+// which covers the halo. A themed page leaves the pair undeclared: the assembly outline colour and
+// no halo, as before.
 .active .object  {
-  outline: 2px dotted var(--inet-viz-assembly-outline);
+  outline: 2px dotted var(--inet-composer-overlay-stroke, var(--inet-viz-assembly-outline));
+  box-shadow: 0 0 0 2px var(--inet-composer-overlay-halo, transparent);
 }
 
 // Modern/dark objects switch to the dashed treatment; legacy objects keep the

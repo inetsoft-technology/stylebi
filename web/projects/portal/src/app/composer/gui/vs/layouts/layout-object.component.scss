@@ -49,8 +49,17 @@ span.wrapper {
   line-height: normal;
 }
 
+// the composer's two-tone overlay pair (_composer-overlay.scss): the dark stroke on the dotted or
+// dashed border, the light halo as a 2px ring just outside it. A themed page keeps the assembly
+// outline colour and no halo.
 .active .object {
-  border: 2px dotted var(--inet-viz-assembly-outline);
+  border: 2px dotted var(--inet-composer-overlay-stroke, var(--inet-viz-assembly-outline));
+  box-shadow: 0 0 0 2px var(--inet-composer-overlay-halo, transparent);
+}
+
+// a search result replaces the border with its own, so the halo ring goes with it
+.active .object.search-result {
+  box-shadow: none;
 }
 
 // .viz-modern/.viz-dark live on an intermediate .object-container ancestor of .object
