@@ -57,7 +57,6 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashSet;
@@ -287,7 +286,17 @@ class ModernGanttTicksTest {
       assertEquals(CLASSIC_DAY, texts(ticks(timeAxis(gantt(GANTT_DAY, null, SMALL), SMALL))));
       assertEquals(CLASSIC_DAY, texts(ticks(timeAxis(gantt(GANTT_DAY, null, WIDE), WIDE))));
       assertEquals(CLASSIC_MULTI, texts(ticks(timeAxis(gantt(GANTT_MULTI, null, WIDE), WIDE))));
-      assertEquals(CLASSIC_YEARS, texts(ticks(timeAxis(gantt(GANTT_YEARS, null, SMALL), SMALL))));
+
+      // which years the classic thinning hides depends on the font
+      List<Tick> years = ticks(timeAxis(gantt(GANTT_YEARS, null, SMALL), SMALL));
+      ExtendedDateFormat day = new ExtendedDateFormat("yyyy-MM-dd");
+      String where = texts(years).toString();
+
+      assertEquals(CLASSIC_YEARS, years.stream().map(t -> day.format(t.value())).toList(), where);
+      assertTrue(years.stream().filter(t -> t.text() != null).count() > 1,
+                 "premise: shown labels " + where);
+      assertTrue(years.stream().allMatch(t -> t.text() == null ||
+                                         t.text().equals(day.format(t.value()))), where);
    }
 
    @Test
@@ -382,9 +391,10 @@ class ModernGanttTicksTest {
    // today's labels (null for a hidden one)
    private static final List<String> CLASSIC_DAY = List.of("2026-03-02");
    private static final List<String> CLASSIC_MULTI = List.of("2026-03-02", "03-03", "03-04");
-   private static final List<String> CLASSIC_YEARS = Arrays.asList(
-      "2016-01-01", null, "2018-01-01", null, "2020-01-01", null, "2022-01-01", null,
-      "2024-01-01", null, "2026-01-01");
+   // the dates of the classic year ticks
+   private static final List<String> CLASSIC_YEARS = List.of(
+      "2016-01-01", "2017-01-01", "2018-01-01", "2019-01-01", "2020-01-01", "2021-01-01",
+      "2022-01-01", "2023-01-01", "2024-01-01", "2025-01-01", "2026-01-01");
    private static final List<String> INCREMENT_DAY = List.of("2026-03-02");
    private static final List<String> TODAYS_HOURS = List.of(
       "2026-03-02 20", "03-02 21", "03-02 22", "03-02 23", "03-03 00", "03-03 01", "03-03 02",
