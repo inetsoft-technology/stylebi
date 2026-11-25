@@ -85,30 +85,31 @@ public class ScheduleChangePlanService {
 
       List<PlanChange> changes = new ArrayList<>();
       Set<String> seenTaskIds = new HashSet<>();
-      Set<String> compensableDeletes = new HashSet<>();
+      Set<String> compensableChanges = new HashSet<>();
       int index = 0;
 
       for(ScheduleChangeRequest change : req.getChanges()) {
          String label = "changes[" + index++ + "]";
-         changes.add(resolveOne(label, change, user, seenTaskIds, compensableDeletes));
+         changes.add(resolveOne(label, change, user, seenTaskIds, compensableChanges));
       }
 
-      // Both verbs are risk:high (spec §4), so signoff is always required. The storage snapshot is
+      // Every verb is risk:high (spec §4), so signoff is always required. The storage snapshot is
       // skipped only when every change is a task create (a create refuses an existing task id and
-      // its undo deletes the new task, Bug #80650) or a delete whose rollback provably re-creates
-      // the task (Bug #81073, see rollbackProvablyRecreates).
+      // its undo deletes the new task, Bug #80650), a delete whose rollback provably re-creates
+      // the task (Bug #81073, see rollbackProvablyRecreates), or an update whose rollback provably
+      // re-saves the captured pre-image (same check).
       String planHash = hash(changes);
       String task = req.getTask().trim();
       boolean requiresBackup = StorageBackupPolicy.requiresBackup(
          req.getChanges(),
          c -> ScheduleChangeRequest.VERB_CREATE.equals(normalizeVerb("", c.getVerb())) ||
-            compensableDeletes.contains(c.getTaskId()));
+            compensableChanges.contains(c.getTaskId()));
       return new ResolvedPlan(task, Collections.unmodifiableList(changes),
                               requiresBackup, true, planHash, TaskAuditToken.issue(planHash, task));
    }
 
    private PlanChange resolveOne(String label, ScheduleChangeRequest change, Principal user,
-                                 Set<String> seenTaskIds, Set<String> compensableDeletes)
+                                 Set<String> seenTaskIds, Set<String> compensableChanges)
       throws Exception
    {
       if(change == null) {
@@ -121,21 +122,29 @@ public class ScheduleChangePlanService {
          return resolveCreate(label, change, user, seenTaskIds);
       }
 
-      return resolveDelete(label, change, user, seenTaskIds, compensableDeletes);
+      if(ScheduleChangeRequest.VERB_UPDATE.equals(verb)) {
+         return resolveUpdate(label, change, user, seenTaskIds, compensableChanges);
+      }
+
+      return resolveDelete(label, change, user, seenTaskIds, compensableChanges);
    }
 
-   /** Accepts "create"/"delete" verbatim; the tool layer normalizes natural aliases before this
+   /** Accepts "create"/"update"/"delete" verbatim; the tool layer normalizes natural aliases before this
     * point (see {@code plugin/admin/src/tools/normalize.ts#normalizeVerb}), so anything reaching
     * here that is not exactly one of the two canonical verbs is a genuine caller error, not an
     * unrecognized alias -- fail loud rather than guess. */
    private static String normalizeVerb(String label, String verb) {
-      if(ScheduleChangeRequest.VERB_CREATE.equals(verb) || ScheduleChangeRequest.VERB_DELETE.equals(verb)) {
+      if(ScheduleChangeRequest.VERB_CREATE.equals(verb) ||
+         ScheduleChangeRequest.VERB_UPDATE.equals(verb) ||
+         ScheduleChangeRequest.VERB_DELETE.equals(verb))
+      {
          return verb;
       }
 
       throw new IllegalArgumentException(
-         label + ".verb: must be \"" + ScheduleChangeRequest.VERB_CREATE + "\" or \"" +
-         ScheduleChangeRequest.VERB_DELETE + "\", got " + String.valueOf(verb));
+         label + ".verb: must be \"" + ScheduleChangeRequest.VERB_CREATE + "\", \"" +
+         ScheduleChangeRequest.VERB_UPDATE + "\" or \"" + ScheduleChangeRequest.VERB_DELETE +
+         "\", got " + String.valueOf(verb));
    }
 
    private PlanChange resolveCreate(String label, ScheduleChangeRequest change, Principal user,
@@ -165,13 +174,22 @@ public class ScheduleChangePlanService {
          throw new IllegalArgumentException(label + ".spec.owner: " + e.getMessage());
       }
 
-      requireSupportedConditions(label, spec.getConditions());
+      requireSupportedConditions(label + ".spec", spec.getConditions());
       requireNoPermissionResets(label, spec.getConditions(), user);
-      requireSupportedActions(label, spec.getActions());
-      requireExistingViewsheets(label, spec.getActions());
+      requireSupportedActions(label + ".spec", spec.getActions());
+      requireExistingViewsheets(label + ".spec", spec.getActions());
 
       String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
       requireUnseen(label, taskId, seenTaskIds);
+      requireCompletionTargets(label + ".spec", spec.getConditions(), taskId);
+
+      // the folder is resolved for its refusals only, the apply resolves it again
+      try {
+         scheduleGateway.resolveCreateFolder(change.getPath(), user);
+      }
+      catch(IllegalArgumentException e) {
+         throw new IllegalArgumentException(label + "." + e.getMessage());
+      }
 
       if(scheduleManager.getScheduleTask(taskId) != null) {
          throw new IllegalArgumentException(
@@ -220,6 +238,11 @@ public class ScheduleChangePlanService {
       }
 
       String proposed = projectSpec(spec);
+
+      if(!AdminScheduleFolderGateway.isRootPath(change.getPath())) {
+         proposed += ";path=" + AdminScheduleFolderGateway.normalizePath(change.getPath());
+      }
+
       return new PlanChange(taskId, spec.getOwner().getOrgID(), null, proposed,
                             AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true,
                             "create schedule task");
@@ -237,6 +260,100 @@ public class ScheduleChangePlanService {
       }
 
       return sheets;
+   }
+
+   /**
+    * Resolves an update: the stored task with the patch applied, built by the same gateway code
+    * the apply stores, so the plan shows the whole task as it would be and the same refusals
+    * apply. A patch that changes nothing is refused rather than planned as a no-op.
+    */
+   private PlanChange resolveUpdate(String label, ScheduleChangeRequest change, Principal user,
+                                    Set<String> seenTaskIds, Set<String> compensableChanges)
+      throws Exception
+   {
+      String taskId = change.getTaskId();
+
+      if(taskId == null || taskId.isBlank()) {
+         throw new IllegalArgumentException(label + ".taskId: required for verb=update");
+      }
+
+      if(change.getSpec() != null) {
+         throw new IllegalArgumentException(
+            label + ".spec: not used for verb=update; send the fields to change as patch");
+      }
+
+      if(change.getPath() != null) {
+         throw new IllegalArgumentException(
+            label + ".path: not used for verb=update; move a task with the schedule task folder " +
+            "area's moveTask");
+      }
+
+      ScheduleTaskPatch patch = change.getPatch();
+
+      if(patch == null || patch.getDescription() == null && patch.getLocale() == null &&
+         patch.getEnabled() == null && patch.getDeleteIfNotScheduledToRun() == null &&
+         patch.getStartDate() == null && patch.getEndDate() == null &&
+         patch.getConditions() == null && patch.getActions() == null)
+      {
+         throw new IllegalArgumentException(
+            label + ".patch: at least one field to change is required for verb=update");
+      }
+
+      requireUnseen(label, taskId, seenTaskIds);
+      inetsoft.sree.schedule.ScheduleTask existing = scheduleManager.getScheduleTask(taskId);
+
+      if(existing == null) {
+         throw new IllegalArgumentException(label + ".taskId: no task exists with id \"" + taskId + "\"");
+      }
+
+      if(!existing.isRemovable()) {
+         throw new IllegalArgumentException(
+            label + ".taskId: \"" + taskId + "\" is a built-in/system task and cannot be " +
+            "updated here");
+      }
+
+      if(patch.getConditions() != null) {
+         requireSupportedConditions(label + ".patch", patch.getConditions());
+         requireNoPermissionResets(label, patch.getConditions(), user, ".patch");
+         requireCompletionTargets(label + ".patch", patch.getConditions(), taskId);
+      }
+
+      if(patch.getActions() != null) {
+         requireSupportedActions(label + ".patch", patch.getActions());
+         requireExistingViewsheets(label + ".patch", patch.getActions());
+      }
+
+      inetsoft.sree.schedule.ScheduleTask candidate;
+
+      try {
+         candidate = scheduleGateway.buildUpdatedTask(taskId, patch, null, user);
+         scheduleManager.checkScheduleTaskSave(taskId, candidate, user);
+      }
+      catch(Exception e) {
+         if(e instanceof IllegalArgumentException) {
+            throw e;
+         }
+
+         throw new IllegalArgumentException(
+            label + ".patch: the update would be refused for \"" + taskId + "\": " +
+            (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
+      }
+
+      String current = ScheduleXmlProjection.project(existing);
+      String proposed = ScheduleXmlProjection.project(candidate);
+
+      if(current.equals(proposed)) {
+         throw new IllegalArgumentException(
+            label + ".patch: every field already has the requested value, nothing to update");
+      }
+
+      if(rollbackProvablyRecreates(taskId, existing, user)) {
+         compensableChanges.add(taskId);
+      }
+
+      return new PlanChange(taskId, existing.getOwner().getOrgID(), current, proposed,
+                            AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true,
+                            "update schedule task");
    }
 
    private PlanChange resolveDelete(String label, ScheduleChangeRequest change, Principal user,
@@ -274,6 +391,19 @@ public class ScheduleChangePlanService {
             label + ".taskId: \"" + taskId + "\" is a built-in/system task and cannot be deleted " +
             "-- the server marks it non-removable for every caller regardless of permission, the " +
             "same restriction the Enterprise Manager task list enforces by disabling Delete for it");
+      }
+
+      // Enterprise Manager refuses to delete a task another task waits on (a completion
+      // condition names it), which would leave that task never firing.
+      if(existing.getOwner() != null) {
+         Vector<inetsoft.sree.schedule.ScheduleTask> allTasks =
+            scheduleManager.getScheduleTasks(existing.getOwner().getOrgID());
+
+         if(allTasks != null && scheduleManager.hasDependency(allTasks, taskId)) {
+            throw new IllegalArgumentException(
+               label + ".taskId: another task has a completion condition that waits on \"" +
+               taskId + "\"; update or delete that task first");
+         }
       }
 
       // Inverse-permission preflight (spec §4): a delete's rollback is a re-create of the captured
@@ -346,32 +476,107 @@ public class ScheduleChangePlanService {
       }
    }
 
+   /** @param label the path of the object holding {@code conditions}, e.g. {@code changes[0].spec} */
    private static void requireSupportedConditions(String label, List<ScheduleCondition> conditions) {
       if(conditions == null || conditions.isEmpty()) {
-         throw new IllegalArgumentException(label + ".spec.conditions: at least one is required");
+         throw new IllegalArgumentException(label + ".conditions: at least one is required");
       }
 
       for(int i = 0; i < conditions.size(); i++) {
+         String at = label + ".conditions[" + i + "]";
+
+         if(conditions.get(i) instanceof CompletionCondition completion) {
+            if(completion.getTaskName() == null || completion.getTaskName().isBlank()) {
+               throw new IllegalArgumentException(at + ".taskName: required");
+            }
+
+            if(completion.getOwner() == null || completion.getOwner().isBlank()) {
+               throw new IllegalArgumentException(
+                  at + ".owner: required, the owner of the task to wait for");
+            }
+
+            continue;
+         }
+
          if(!(conditions.get(i) instanceof TimeCondition)) {
             throw new IllegalArgumentException(
-               label + ".spec.conditions[" + i + "]: only time conditions are supported in this " +
-               "area (got " + conditions.get(i).getClass().getSimpleName() + ")");
+               at + ": only time and completion conditions are supported in this area (got " +
+               (conditions.get(i) == null ? "null" : conditions.get(i).getClass().getSimpleName()) +
+               ")");
          }
 
          TimeCondition tc = (TimeCondition) conditions.get(i);
-         ScheduleConditionConverter.requireKnownTimeRange(
-            label + ".spec.conditions[" + i + "]", tc.getTimeRange());
-         ScheduleConditionConverter.requireKnownTimeZone(
-            label + ".spec.conditions[" + i + "]", tc.getTimeZone());
-         ScheduleConditionConverter.requireTimeOfDayInRange(
-            label + ".spec.conditions[" + i + "]", tc);
+         ScheduleConditionConverter.requireKnownTimeRange(at, tc.getTimeRange());
+         ScheduleConditionConverter.requireKnownTimeZone(at, tc.getTimeZone());
+         ScheduleConditionConverter.requireTimeOfDayInRange(at, tc);
 
          if(tc.getType() == TimeCondition.Type.AT && tc.getDate() == null) {
             throw new IllegalArgumentException(
-               label + ".spec.conditions[" + i + "].date: an ISO 8601 date is required for " +
-               "\"AT\"-type conditions");
+               at + ".date: an ISO 8601 date is required for \"AT\"-type conditions");
          }
       }
+   }
+
+   /**
+    * Refuses a completion condition whose target task does not exist, is the task itself, or
+    * (through the tasks it waits on) waits on the task itself. Neither the schedule manager nor
+    * Enterprise Manager's save checks any of this, a cycle would leave the tasks in it waiting
+    * forever.
+    *
+    * @param selfTaskId the id of the task the conditions belong to.
+    */
+   private void requireCompletionTargets(String label, List<ScheduleCondition> conditions,
+                                         String selfTaskId)
+   {
+      for(int i = 0; i < conditions.size(); i++) {
+         if(!(conditions.get(i) instanceof CompletionCondition completion)) {
+            continue;
+         }
+
+         String at = label + ".conditions[" + i + "]";
+         String targetId = ScheduleManager.getTaskId(
+            completion.getOwner(), completion.getTaskName(), null);
+
+         if(targetId.equals(selfTaskId)) {
+            throw new IllegalArgumentException(at + ": a task cannot wait on itself");
+         }
+
+         if(scheduleManager.getScheduleTask(targetId) == null) {
+            throw new IllegalArgumentException(
+               at + ": no task exists with id \"" + targetId + "\" to wait for");
+         }
+
+         if(waitsOn(targetId, selfTaskId, new HashSet<>())) {
+            throw new IllegalArgumentException(
+               at + ": \"" + targetId + "\" already waits on this task, directly or through " +
+               "other tasks, so the two would wait for each other forever");
+         }
+      }
+   }
+
+   /** Whether the task {@code fromId} has a completion condition chain reaching {@code goalId}. */
+   private boolean waitsOn(String fromId, String goalId, Set<String> visited) {
+      if(!visited.add(fromId)) {
+         return false;
+      }
+
+      inetsoft.sree.schedule.ScheduleTask from = scheduleManager.getScheduleTask(fromId);
+
+      if(from == null) {
+         return false;
+      }
+
+      Enumeration<String> dependencies = from.getDependency();
+
+      while(dependencies != null && dependencies.hasMoreElements()) {
+         String next = dependencies.nextElement();
+
+         if(goalId.equals(next) || waitsOn(next, goalId, visited)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -384,12 +589,18 @@ public class ScheduleChangePlanService {
    private void requireNoPermissionResets(String label, List<ScheduleCondition> conditions,
                                           Principal user)
    {
+      requireNoPermissionResets(label, conditions, user, ".spec");
+   }
+
+   private void requireNoPermissionResets(String label, List<ScheduleCondition> conditions,
+                                          Principal user, String container)
+   {
       List<String> resets = scheduleGateway.previewConditionResets(conditions, user);
 
       for(int i = 0; i < resets.size(); i++) {
          if(resets.get(i) != null) {
             throw new IllegalArgumentException(
-               label + ".spec.conditions[" + i + "]." + resets.get(i) +
+               label + container + ".conditions[" + i + "]." + resets.get(i) +
                " -- remove it from the plan so the signed plan matches what is stored");
          }
       }
@@ -400,10 +611,38 @@ public class ScheduleChangePlanService {
       }
 
       for(int i = 0; i < actions.size(); i++) {
-         if(!(actions.get(i) instanceof ViewsheetAction)) {
+         ScheduleAction action = actions.get(i);
+         String at = label + ".actions[" + i + "]";
+
+         if(action instanceof BatchAction batch) {
+            if(batch.getTaskName() == null || batch.getTaskName().isBlank()) {
+               throw new IllegalArgumentException(at + ".taskName: required");
+            }
+
+            if(batch.getOwner() == null || batch.getOwner().isBlank()) {
+               throw new IllegalArgumentException(
+                  at + ".owner: required, the owner of the task to run");
+            }
+
+            if(batch.getQueryEntry() == null || batch.getQueryEntry().isBlank()) {
+               throw new IllegalArgumentException(at + ".queryEntry: required");
+            }
+
+            if(batch.getEmbeddedParameters() == null) {
+               throw new IllegalArgumentException(
+                  at + ".embeddedParameters: required, use an empty list for none");
+            }
+         }
+         else if(action instanceof IndividualAssetBackupAction backup) {
+            if(backup.getAssetIdentifiers() == null || backup.getAssetIdentifiers().isEmpty()) {
+               throw new IllegalArgumentException(
+                  at + ".assetIdentifiers: at least one asset is required");
+            }
+         }
+         else if(!(action instanceof ViewsheetAction)) {
             throw new IllegalArgumentException(
-               label + ".spec.actions[" + i + "]: only viewsheet actions are supported in this " +
-               "area (got " + actions.get(i).getClass().getSimpleName() + ")");
+               at + ": only viewsheet, batch and backup actions are supported in this area (got " +
+               (action == null ? "null" : action.getClass().getSimpleName()) + ")");
          }
       }
    }
@@ -420,13 +659,17 @@ public class ScheduleChangePlanService {
       }
 
       for(int i = 0; i < actions.size(); i++) {
+         if(!(actions.get(i) instanceof ViewsheetAction)) {
+            continue;
+         }
+
          String viewsheet = ((ViewsheetAction) actions.get(i)).getViewsheet();
 
          if(viewsheet != null && !viewsheet.isBlank() &&
             !scheduleGateway.viewsheetExists(viewsheet))
          {
             throw new IllegalArgumentException(
-               label + ".spec.actions[" + i + "].viewsheet: \"" + viewsheet + "\" does not " +
+               label + ".actions[" + i + "].viewsheet: \"" + viewsheet + "\" does not " +
                "identify an existing viewsheet (no asset at that path in that organization)");
          }
       }
@@ -520,11 +763,26 @@ public class ScheduleChangePlanService {
          .append(";executeAsID=").append(spec.getExecuteAsID());
 
       for(ScheduleCondition c : spec.getConditions()) {
-         TimeCondition tc = (TimeCondition) c;
-         appendCondition(sb, tc);
+         if(c instanceof CompletionCondition completion) {
+            sb.append(";condition[type=COMPLETION,taskName=").append(completion.getTaskName())
+               .append(",owner=").append(completion.getOwner()).append(']');
+         }
+         else {
+            appendCondition(sb, (TimeCondition) c);
+         }
       }
 
       for(ScheduleAction a : spec.getActions()) {
+         if(a instanceof BatchAction batch) {
+            appendBatchAction(sb, batch);
+            continue;
+         }
+
+         if(a instanceof IndividualAssetBackupAction backup) {
+            appendBackupAction(sb, backup);
+            continue;
+         }
+
          ViewsheetAction va = (ViewsheetAction) a;
          sb.append(";action[viewsheet=").append(va.getViewsheet())
             .append(",bookmarkNames=").append(va.getBookmarkNames())
@@ -538,6 +796,55 @@ public class ScheduleChangePlanService {
       }
 
       return sb.toString();
+   }
+
+   /** Batch parameter values are shown as short digests only, like a viewsheet action's. */
+   private static void appendBatchAction(StringBuilder sb, BatchAction batch) {
+      sb.append(";action[batch,taskName=").append(batch.getTaskName())
+         .append(",owner=").append(batch.getOwner())
+         .append(",queryEntry=").append(batch.getQueryEntry())
+         .append(",queryParameters=").append(digestOf(batch.getQueryParameters()))
+         .append(",embeddedParameters=").append(digestOf(batch.getEmbeddedParameters()))
+         .append(']');
+   }
+
+   /** The server path's password is never rendered, only whether one is set. */
+   private static void appendBackupAction(StringBuilder sb, IndividualAssetBackupAction backup) {
+      sb.append(";action[backup,assets=").append(backup.getAssetIdentifiers())
+         .append(",encoding=").append(backup.isEncoding());
+      ServerPathInfo info = backup.getPathInfo();
+
+      if(info != null && info.getPath() != null) {
+         String path = info.getPath();
+         boolean sftp = path.toLowerCase().startsWith("sftp://");
+         FTPUtil.PathPassword split = FTPUtil.splitPassword(path, sftp);
+
+         if(split != null) {
+            path = split.path();
+         }
+
+         sb.append(",path=").append(path);
+
+         if(info.isUseCredential()) {
+            sb.append(",useCredential=true,secretId=").append(info.getSecretId());
+         }
+         else if(info.getUserName() != null) {
+            sb.append(",username=").append(info.getUserName());
+         }
+
+         boolean fieldPassword = info.getPassword() != null && !info.getPassword().isEmpty() &&
+            !Util.PLACEHOLDER_PASSWORD.equals(info.getPassword());
+
+         if(split != null || !info.isUseCredential() && fieldPassword) {
+            sb.append(",password=set");
+         }
+      }
+
+      sb.append(']');
+   }
+
+   private static String digestOf(Object value) {
+      return value == null ? "null" : "sha256:" + shortDigest(String.valueOf(value));
    }
 
    /**

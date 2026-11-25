@@ -343,6 +343,181 @@ class AdminScheduleGatewayTest {
       verify(scheduleManager).setScheduleTask(anyString(), any(), eq(user));
    }
 
+   // -------------------------------------------------------------------------
+   // Bug #82274: folder of a new task, update of an existing task
+   // -------------------------------------------------------------------------
+
+   @Test
+   void resolveCreateFolder_rootMeansNoFolderEntry() throws Exception {
+      assertNull(gateway.resolveCreateFolder(null, user));
+      assertNull(gateway.resolveCreateFolder("/", user));
+      assertNull(gateway.resolveCreateFolder("  ", user));
+   }
+
+   @Test
+   void resolveCreateFolder_refusesWithoutWriteOnTheFolder() throws Exception {
+      when(securityEngine.checkPermission(user, ResourceType.SCHEDULE_TASK_FOLDER, "Finance",
+                                          ResourceAction.WRITE)).thenReturn(false);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> gateway.resolveCreateFolder("/Finance", user));
+      assertTrue(ex.getMessage().startsWith("path:"));
+      assertTrue(ex.getMessage().contains("WRITE"));
+   }
+
+   @Test
+   void resolveCreateFolder_returnsTheRootNormalizedFolderEntry() throws Exception {
+      when(securityEngine.checkPermission(user, ResourceType.SCHEDULE_TASK_FOLDER,
+                                          "Finance/Reports", ResourceAction.WRITE)).thenReturn(true);
+
+      inetsoft.uql.asset.AssetEntry entry = gateway.resolveCreateFolder("/Finance/Reports", user);
+
+      assertEquals(inetsoft.uql.asset.AssetEntry.Type.SCHEDULE_TASK_FOLDER, entry.getType());
+      assertEquals("Finance/Reports", entry.getPath());
+   }
+
+   @Test
+   void addScheduleTask_withAFolderSavesInThatFolder() throws Exception {
+      ScheduleTaskMetaData taskMetaData = new ScheduleTaskMetaData("task1", callerOwner.convertToKey());
+      inetsoft.uql.asset.AssetEntry folder = new inetsoft.uql.asset.AssetEntry(
+         inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE,
+         inetsoft.uql.asset.AssetEntry.Type.SCHEDULE_TASK_FOLDER, "Finance", null);
+
+      gateway.addScheduleTask(
+         taskMetaData, true, false, -1, -1, null, null, null,
+         Collections.emptyList(), Collections.emptyList(), null, "", folder, user);
+
+      verify(scheduleManager).setScheduleTask(anyString(), any(), eq(folder), eq(user));
+   }
+
+   private inetsoft.sree.schedule.ScheduleTask storedTask() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = new inetsoft.sree.schedule.ScheduleTask();
+      stored.setName("nightly");
+      stored.setOwner(callerOwner);
+      stored.setEnabled(true);
+      stored.setDescription("original");
+      inetsoft.sree.schedule.TimeCondition time = new inetsoft.sree.schedule.TimeCondition();
+      time.setType(inetsoft.sree.schedule.TimeCondition.EVERY_DAY);
+      time.setInterval(1);
+      time.setHour(4);
+      stored.addCondition(time);
+      when(repository.getScheduleTask(stored.getTaskId())).thenReturn(stored);
+      when(securityEngine.checkPermission(user, ResourceType.SCHEDULE_TASK, stored.getTaskId(),
+                                          ResourceAction.WRITE)).thenReturn(true);
+      return stored;
+   }
+
+   private MockedStatic<OrganizationManager> siteAdminCaller() {
+      OrganizationManager manager = mock(OrganizationManager.class, withSettings().lenient());
+      when(manager.isSiteAdmin(user)).thenReturn(true);
+      MockedStatic<OrganizationManager> statics =
+         mockStatic(OrganizationManager.class, withSettings().lenient());
+      statics.when(OrganizationManager::getInstance).thenReturn(manager);
+      return statics;
+   }
+
+   @Test
+   void buildUpdatedTask_changesOnlyThePatchedFieldsAndNeverTheStoredTask() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = storedTask();
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setEnabled(false);
+
+      try(MockedStatic<OrganizationManager> ignored = siteAdminCaller()) {
+         inetsoft.sree.schedule.ScheduleTask candidate =
+            gateway.buildUpdatedTask(stored.getTaskId(), patch, null, user);
+
+         assertFalse(candidate.isEnabled());
+         assertEquals("original", candidate.getDescription());
+         assertEquals(1, candidate.getConditionCount());
+         assertEquals(4, ((inetsoft.sree.schedule.TimeCondition) candidate.getCondition(0)).getHour());
+         assertNotSame(stored, candidate);
+         assertTrue(stored.isEnabled());
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_replacesTheConditionListWithACompletionCondition() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = storedTask();
+      inetsoft.web.api.schedule.CompletionCondition completion =
+         new inetsoft.web.api.schedule.CompletionCondition();
+      completion.setOwner("caller");
+      completion.setTaskName("first");
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setConditions(List.of(completion));
+
+      try(MockedStatic<OrganizationManager> ignored = siteAdminCaller()) {
+         inetsoft.sree.schedule.ScheduleTask candidate =
+            gateway.buildUpdatedTask(stored.getTaskId(), patch, null, user);
+
+         assertEquals(1, candidate.getConditionCount());
+         assertTrue(candidate.getCondition(0) instanceof inetsoft.sree.schedule.CompletionCondition);
+         assertEquals(1, stored.getConditionCount());
+         assertTrue(stored.getCondition(0) instanceof inetsoft.sree.schedule.TimeCondition);
+         // restricted time fields are restored against the stored task, not an empty one
+         verify(scheduleTaskService).sanitizeConditions(candidate, stored, user);
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_refusesACallerWhoCannotEditTheTask() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = storedTask();
+      when(securityEngine.checkPermission(user, ResourceType.SCHEDULE_TASK, stored.getTaskId(),
+                                          ResourceAction.WRITE)).thenReturn(false);
+      when(scheduleTaskService.canDeleteTask(stored, user)).thenReturn(false);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setEnabled(false);
+
+      try(MockedStatic<OrganizationManager> ignored = siteAdminCaller()) {
+         assertThrows(UnauthorizedAccessException.class,
+            () -> gateway.buildUpdatedTask(stored.getTaskId(), patch, null, user));
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_refusesAnUnknownTask() throws Exception {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setEnabled(false);
+
+      assertThrows(MissingResourceException.class,
+         () -> gateway.buildUpdatedTask("caller~;~host-org:none", patch, null, user));
+   }
+
+   @Test
+   void buildUpdatedTask_refusesATaskOfAnotherOrganizationForANonSiteAdmin() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = new inetsoft.sree.schedule.ScheduleTask();
+      stored.setName("theirs");
+      stored.setOwner(new IdentityID("someone", "other-org"));
+      when(repository.getScheduleTask(stored.getTaskId())).thenReturn(stored);
+      OrganizationManager manager = mock(OrganizationManager.class, withSettings().lenient());
+      when(manager.isSiteAdmin(user)).thenReturn(false);
+      when(manager.getCurrentOrgID(user)).thenReturn("host-org");
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setEnabled(false);
+
+      try(MockedStatic<OrganizationManager> statics =
+             mockStatic(OrganizationManager.class, withSettings().lenient()))
+      {
+         statics.when(OrganizationManager::getInstance).thenReturn(manager);
+         assertThrows(UnauthorizedAccessException.class,
+            () -> gateway.buildUpdatedTask(stored.getTaskId(), patch, null, user));
+      }
+   }
+
+   @Test
+   void storeUpdatedTask_savesInTheFolderTheTaskIsIn() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = storedTask();
+      stored.setPath("Finance/Reports");
+      inetsoft.sree.schedule.ScheduleTask candidate = new inetsoft.sree.schedule.ScheduleTask();
+
+      gateway.storeUpdatedTask(stored.getTaskId(), candidate, user);
+
+      org.mockito.ArgumentCaptor<inetsoft.uql.asset.AssetEntry> folder =
+         org.mockito.ArgumentCaptor.forClass(inetsoft.uql.asset.AssetEntry.class);
+      verify(scheduleManager).setScheduleTask(eq(stored.getTaskId()), eq(candidate), folder.capture(),
+                                              eq(user));
+      assertEquals("Finance/Reports", folder.getValue().getPath());
+   }
+
    @Test
    void addScheduleTask_rejectsOwnerImpersonationWithoutAdminGrant() throws Exception {
       when(repository.checkPermission(user, ResourceType.SECURITY_USER, otherOwner, ResourceAction.ADMIN))
