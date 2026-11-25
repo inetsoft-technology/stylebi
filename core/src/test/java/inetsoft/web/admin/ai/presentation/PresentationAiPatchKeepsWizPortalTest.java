@@ -24,6 +24,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.web.admin.presentation.AISettingsService;
 import inetsoft.web.admin.presentation.model.PresentationAISettingsModel;
 import inetsoft.web.portal.WizPortalEntry;
+import inetsoft.web.wiz.controller.WizPortalController;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -68,7 +69,7 @@ class PresentationAiPatchKeepsWizPortalTest {
    void aPatchThatOmitsTheWizFieldsKeepsTheirValues() throws Exception {
       AISettingsService service = new AISettingsService();
       store.put(WizPortalEntry.WIZ_PORTAL_VISIBLE, "true");
-      store.put(WizPortalEntry.WIZ_PORTAL_URL, "https://wiz.example.com/");
+      store.put(WizPortalController.WIZ_SERVICE_URL, "https://wiz.example.com/");
       store.put("ai.assistant.visible", "false");
 
       JsonNode current = PresentationJson.toNode(service.getModel());
@@ -80,7 +81,7 @@ class PresentationAiPatchKeepsWizPortalTest {
 
       assertEquals("true", store.get("ai.assistant.visible"));
       assertEquals("true", store.get(WizPortalEntry.WIZ_PORTAL_VISIBLE));
-      assertEquals("https://wiz.example.com/", store.get(WizPortalEntry.WIZ_PORTAL_URL));
+      assertEquals("https://wiz.example.com/", store.get(WizPortalController.WIZ_SERVICE_URL));
    }
 
    @Test
@@ -94,7 +95,7 @@ class PresentationAiPatchKeepsWizPortalTest {
          PresentationJson.toModel(merged, PresentationSubModel.AI.modelClass()));
 
       assertEquals("false", store.get(WizPortalEntry.WIZ_PORTAL_VISIBLE));
-      assertFalse(store.containsKey(WizPortalEntry.WIZ_PORTAL_URL));
+      assertFalse(store.containsKey(WizPortalController.WIZ_SERVICE_URL));
    }
 
    @Test
@@ -103,11 +104,11 @@ class PresentationAiPatchKeepsWizPortalTest {
 
       JsonNode current = PresentationJson.toNode(service.getModel());
       JsonNode spec = new ObjectMapper().readTree(
-         "{\"wizPortalVisible\": true, \"wizPortalUrl\": \"/wiz/\"}");
+         "{\"wizPortalVisible\": true, \"wizServiceUrl\": \"https://gateway.example.com/\"}");
       service.setModel((PresentationAISettingsModel) PresentationJson.toModel(
          PresentationJson.merge(current, spec), PresentationSubModel.AI.modelClass()));
 
       assertEquals("true", store.get(WizPortalEntry.WIZ_PORTAL_VISIBLE));
-      assertEquals("/wiz/", store.get(WizPortalEntry.WIZ_PORTAL_URL));
+      assertEquals("https://gateway.example.com/", store.get(WizPortalController.WIZ_SERVICE_URL));
    }
 }

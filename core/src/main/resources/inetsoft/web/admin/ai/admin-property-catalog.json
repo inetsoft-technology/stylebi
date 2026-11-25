@@ -570,15 +570,7 @@
     "name": "wiz.portal.visible",
     "aliases": [],
     "type": "boolean",
-    "description": "wiz.portal.visible is the Show Wiz Link in Navigation Bars checkbox in the AI Integration section of Enterprise Manager's Settings > Presentation page. The link also needs wiz.portal.url and the portal.tab.chat Wiz permission.",
-    "risk": "high",
-    "snapshotScope": "storage"
-  },
-  {
-    "name": "wiz.portal.url",
-    "aliases": [],
-    "type": "string",
-    "description": "wiz.portal.url is the Wiz Portal URL field in the AI Integration section of Enterprise Manager's Settings > Presentation page: an http(s) URL or a root-relative path (starting with a single slash) that the Wiz link opens in a new tab. The Presentation page rejects other values on save; a value written through the generic property path is not checked when it is written, and the portal ignores an unsafe value when it reads it, so the link then does not appear.",
+    "description": "wiz.portal.visible is the Show Wiz Link in Navigation Bars checkbox in the AI Integration section of Enterprise Manager's Settings > Presentation page. The link also needs a valid wiz.service.url and the portal.tab.chat Wiz permission.",
     "risk": "high",
     "snapshotScope": "storage"
   },
@@ -3918,7 +3910,7 @@
     "name": "wiz.service.url",
     "aliases": [],
     "type": "string",
-    "description": "wiz.service.url is the address of the wiz service.",
+    "description": "wiz.service.url is the Wiz Service URL field in the AI Integration section of Enterprise Manager's Settings > Presentation page: the full http(s) address of the Wiz gateway, with the Wiz portal served at its root. The portal's Wiz link opens this address in a new tab, and StyleBI SSO accepts Wiz sign-in callbacks only under it. The Presentation page rejects anything other than an http(s) URL with a host on save; a value written through the generic property path is not checked when it is written, and the portal ignores an unsafe value when it reads it, so the link then does not appear.",
     "risk": "high",
     "snapshotScope": "storage"
   },

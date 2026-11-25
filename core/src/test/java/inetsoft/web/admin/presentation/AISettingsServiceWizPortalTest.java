@@ -22,6 +22,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.util.MessageException;
 import inetsoft.web.admin.presentation.model.PresentationAISettingsModel;
 import inetsoft.web.portal.WizPortalEntry;
+import inetsoft.web.wiz.controller.WizPortalController;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -64,7 +65,7 @@ class AISettingsServiceWizPortalTest {
 
    private static PresentationAISettingsModel model(boolean visible, String url) {
       return PresentationAISettingsModel.builder()
-         .aiAssistantVisible(false).wizPortalVisible(visible).wizPortalUrl(url).build();
+         .aiAssistantVisible(false).wizPortalVisible(visible).wizServiceUrl(url).build();
    }
 
    @Test
@@ -72,17 +73,21 @@ class AISettingsServiceWizPortalTest {
       service.setModel(model(true, "  https://wiz.example.com/  "));
 
       assertEquals("true", store.get(WizPortalEntry.WIZ_PORTAL_VISIBLE));
-      assertEquals("https://wiz.example.com/", store.get(WizPortalEntry.WIZ_PORTAL_URL));
+      assertEquals("https://wiz.example.com/", store.get(WizPortalController.WIZ_SERVICE_URL));
 
       PresentationAISettingsModel read = service.getModel();
       assertTrue(read.wizPortalVisible());
-      assertEquals("https://wiz.example.com/", read.wizPortalUrl());
+      assertEquals("https://wiz.example.com/", read.wizServiceUrl());
    }
 
    @Test
-   void aRootRelativeUrlIsAccepted() throws Exception {
-      service.setModel(model(true, "/wiz/"));
-      assertEquals("/wiz/", store.get(WizPortalEntry.WIZ_PORTAL_URL));
+   void aRootRelativeUrlIsRejectedAndNothingIsWritten() {
+      for(String relative : new String[] { "/", "/wiz/" }) {
+         assertThrows(MessageException.class, () -> service.setModel(model(true, relative)),
+                      relative);
+      }
+
+      assertTrue(store.isEmpty(), "a rejected save must not change any property: " + store);
    }
 
    @Test
@@ -102,7 +107,20 @@ class AISettingsServiceWizPortalTest {
       service.setModel(model(false, "  "));
 
       assertEquals("false", store.get(WizPortalEntry.WIZ_PORTAL_VISIBLE));
-      assertFalse(store.containsKey(WizPortalEntry.WIZ_PORTAL_URL));
+      assertFalse(store.containsKey(WizPortalController.WIZ_SERVICE_URL));
+   }
+
+   @Test
+   void theModelReadsOnlyTheWizServiceUrl() throws Exception {
+      store.put("wiz.portal.url", "https://retired.example.com/");
+      assertNull(service.getModel().wizServiceUrl());
+
+      store.put(WizPortalController.WIZ_SERVICE_URL, "https://gateway.example.com/");
+      assertEquals("https://gateway.example.com/", service.getModel().wizServiceUrl());
+
+      service.setModel(model(true, "https://other.example.com/"));
+      assertEquals("https://retired.example.com/", store.get("wiz.portal.url"),
+                   "the retired property is neither read nor written");
    }
 
    @Test
@@ -111,7 +129,7 @@ class AISettingsServiceWizPortalTest {
       service.resetSettings();
 
       assertFalse(store.containsKey(WizPortalEntry.WIZ_PORTAL_VISIBLE));
-      assertFalse(store.containsKey(WizPortalEntry.WIZ_PORTAL_URL));
+      assertFalse(store.containsKey(WizPortalController.WIZ_SERVICE_URL));
    }
 
    @Test
@@ -120,5 +138,6 @@ class AISettingsServiceWizPortalTest {
       assertNull(WizPortalEntry.normalizeUrl(null));
       assertNull(WizPortalEntry.normalizeUrl(""));
       assertNull(WizPortalEntry.normalizeUrl("javascript:alert(1)"));
+      assertNull(WizPortalEntry.normalizeUrl("/wiz/"));
    }
 }
