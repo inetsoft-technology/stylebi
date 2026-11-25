@@ -137,9 +137,9 @@ span.wrapper {
 // (_composer-overlay.scss), as the dashboard editor's do. !important beats .bg-primary's. A themed
 // page leaves the pair undeclared and keeps today's solid primary handle with no border (the stroke
 // has no fallback, so an undeclared token makes the border compute to none), and the earlier move
-// handle. The size is the canvas handles' 8px
-// ($handle-size in _moving-resize.scss): the AI assistant bundle injects an unscoped
-// .resize-handle.top/.left rule that shrinks these to 6px whenever the assistant is enabled.
+// handle. The size is the canvas handles' 8px ($handle-size in _moving-resize.scss): the AI
+// assistant bundle injects an unscoped .resize-handle.top/.left rule that shrinks these to 6px
+// whenever the assistant is enabled.
 .resize-handle.bg-primary {
   width: 8px;
   height: 8px;
