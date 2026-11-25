@@ -1614,6 +1614,21 @@ public class RuntimeViewsheet extends RuntimeSheet {
    }
 
    /**
+    * Bug #82336, re-assert the bookmark locks this sheet still holds on the node that loaded
+    * it, so a lock written by a node that has since died keeps protecting the bookmark that is
+    * being viewed. A lock the sheet released is not taken again.
+    */
+   @Override
+   void restored() {
+      try {
+         BookmarkLockManager.getManager().relockAll(getUserName(), getID());
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to re-assert bookmark locks of runtime viewsheet {}", getID(), ex);
+      }
+   }
+
+   /**
     * clear the bookmark locks of this sheet.
     */
    private void clearLock() {

@@ -189,6 +189,11 @@ public class RuntimeSheetCache
 
             evictFromIgnite(evictedId);
 
+            // Bug #82336, a cluster call, so it runs outside the write lock
+            if(sheet != null) {
+               sheet.restored();
+            }
+
             // Restore last-accessed time from the distributed map outside the write lock.
             // accessTimeMap.get() is a distributed call and must not run under the lock.
             if(sheet != null) {
