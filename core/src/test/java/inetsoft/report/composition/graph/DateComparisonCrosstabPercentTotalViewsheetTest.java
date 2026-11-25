@@ -20,6 +20,7 @@ package inetsoft.report.composition.graph;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.graph.calc.RunningTotalCalc;
 import inetsoft.test.*;
 import inetsoft.test.dc.DcInMemoryViewsheetFixture;
 import inetsoft.uql.XConstants;
@@ -35,9 +36,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.sql.Date;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -74,7 +78,7 @@ class DateComparisonCrosstabPercentTotalViewsheetTest {
 
       for(int year = 0; year < 2; year++) {
          for(int month = 0; month < 3; month++) {
-            rows.add(new Object[] { java.sql.Date.valueOf(LocalDate.of(2024 + year, month + 1, 1)),
+            rows.add(new Object[] { Date.valueOf(LocalDate.of(2024 + year, month + 1, 1)),
                                     wind[year][month] });
          }
       }
@@ -121,6 +125,141 @@ class DateComparisonCrosstabPercentTotalViewsheetTest {
       assertEquals("", rowText(lens, "2024", "Total", null));
       assertEquals("3%", rowText(lens, "2025", "Total", null));
       assertEquals("6%", rowText(lens, "2025", "Jan", null));
+   }
+
+   /**
+    * The date comparison replaces the aggregate's own calculator (CrosstabDcProcessor): a
+    * running total set on the measure does not change what the comparison shows.
+    */
+   @ParameterizedTest(name = "option {0}")
+   @ValueSource(
+      ints = { DateComparisonInfo.CHANGE, DateComparisonInfo.PERCENT_VALUE })
+   void aRunningTotalOnTheMeasureDoesNotChangeTheDateComparisonCells(int option) throws Exception {
+      CrosstabVSAssembly plain = rowDcCrosstab(dc(option));
+      VSTableLens without = run("DcPlain" + option, plain, true);
+
+      CrosstabVSAssembly withCalc = rowDcCrosstab(dc(option));
+      VSAggregateRef agg = (VSAggregateRef) withCalc.getVSCrosstabInfo().getDesignAggregates()[0];
+      RunningTotalCalc running =
+         new RunningTotalCalc();
+      running.setAggregate("Sum");
+      agg.setCalculator(running);
+      VSTableLens with = run("DcRunning" + option, withCalc, true);
+
+      assertEquals(dump(without), dump(with));
+   }
+
+   /**
+    * A named group on a dimension next to the compared date: the group's cell is the sum of the
+    * cells of its members in the same period and month, for the value and for the change from
+    * the previous year.
+    */
+   @ParameterizedTest(name = "option {0}")
+   @ValueSource(
+      ints = { DateComparisonInfo.VALUE, DateComparisonInfo.CHANGE })
+   void aNamedGroupCellIsTheSumOfItsMemberCellsUnderDateComparison(int option) throws Exception {
+      List<Object[]> rows = new ArrayList<>();
+      String[] cats = { "a", "b", "c" };
+
+      for(int year = 0; year < 2; year++) {
+         for(int month = 0; month < 3; month++) {
+            for(int c = 0; c < cats.length; c++) {
+               rows.add(new Object[] { Date.valueOf(LocalDate.of(2024 + year, month + 1, 1)),
+                                       100 + 37 * year + 11 * month * (c + 1) + 5 * c, cats[c] });
+            }
+         }
+      }
+
+      DcInMemoryViewsheetFixture.RuntimeSheet sheet = fixture.openRuntime(
+         new String[] { "D", "wind", "Cat" },
+         new String[] { XSchema.DATE, XSchema.INTEGER, XSchema.STRING }, rows);
+      box = sheet.box();
+      vs = sheet.vs();
+      source = sheet.source();
+
+      VSTableLens plain = run("DcCatPlain" + option, withCategory(dc(option), false), true);
+      VSTableLens grouped = run("DcCatGroup" + option, withCategory(dc(option), true), true);
+      int checked = 0;
+
+      for(String year : new String[] { "2024", "2025" }) {
+         for(String month : new String[] { "Jan", "Feb", "Mar" }) {
+            String a = categoryText(plain, year, month, "a");
+            String b = categoryText(plain, year, month, "b");
+            String group = categoryText(grouped, year, month, "AB");
+
+            if(a.isEmpty() && b.isEmpty()) {
+               assertEquals("", group, year + " " + month);
+            }
+            else {
+               double sum = (a.isEmpty() ? 0 : Double.parseDouble(a))
+                  + (b.isEmpty() ? 0 : Double.parseDouble(b));
+               assertEquals(sum, Double.parseDouble(group), 1e-9, year + " " + month);
+               checked++;
+            }
+
+            assertEquals(categoryText(plain, year, month, "c"),
+                         categoryText(grouped, year, month, "c"), year + " " + month + " c");
+         }
+      }
+
+      assertTrue(checked > 0);
+   }
+
+   private CrosstabVSAssembly withCategory(DateComparisonInfo dc, boolean group) {
+      CrosstabVSAssembly crosstab = rowDcCrosstab(dc);
+      ColumnRef col = new ColumnRef(new AttributeRef(null, "Cat"));
+      col.setDataType(XSchema.STRING);
+      VSDimensionRef cat = new VSDimensionRef();
+      cat.setDataRef(col);
+      cat.setGroupColumnValue("Cat");
+      cat.setDataType(XSchema.STRING);
+
+      if(group) {
+         SNamedGroupInfo info = new SNamedGroupInfo();
+         info.setGroupValue("AB", new ArrayList<>(List.of("a", "b")));
+         cat.setNamedGroupInfo(info);
+         cat.setGroupType(String.valueOf(NamedRangeRef.DATA_GROUP));
+      }
+
+      DataRef[] headers = crosstab.getVSCrosstabInfo().getDesignRowHeaders();
+      crosstab.getVSCrosstabInfo().setDesignRowHeaders(new DataRef[] { headers[0], cat });
+      return crosstab;
+   }
+
+   /** The value text of the row of year, month and category (empty when the cell is blank). */
+   private static String categoryText(VSTableLens lens, String year, String month, String cat) {
+      int last = lens.getColCount() - 1;
+
+      for(int r = 0; r < lens.getRowCount(); r++) {
+         if(year.equals(lens.getText(r, 0)) && month.equals(lens.getText(r, 1)) &&
+            cat.equals(lens.getText(r, 2)))
+         {
+            String text = lens.getText(r, last);
+            return text == null ? "" : text;
+         }
+      }
+
+      fail("No row " + year + "/" + month + "/" + cat + " in\n" + dump(lens));
+      return null;
+   }
+
+   /**
+    * Pinned current behavior (no independent source): a date comparison Change with the
+    * aggregate's percent option set shows the plain change, the option has no effect. The
+    * binding editor does not offer the combination (VSCrosstabBindingFactory).
+    */
+   @Test
+   void pinnedCurrentBehaviorDateComparisonChangeIgnoresThePercentOption() throws Exception {
+      CrosstabVSAssembly crosstab = rowDcCrosstab(dc(DateComparisonInfo.CHANGE));
+      VSAggregateRef agg = (VSAggregateRef) crosstab.getVSCrosstabInfo().getDesignAggregates()[0];
+      agg.setPercentageOption(XConstants.PERCENTAGE_OF_GRANDTOTAL);
+      VSTableLens lens = run("DcChangePctOption", crosstab, true);
+
+      assertEquals("", rowText(lens, "2024", "Jan", null));
+      assertEquals("6", rowText(lens, "2025", "Jan", null));
+      assertEquals("12", rowText(lens, "2025", "Feb", null));
+      assertEquals("0", rowText(lens, "2025", "Mar", null));
+      assertEquals("18", rowText(lens, "2025", "Total", null));
    }
 
    private CrosstabVSAssembly rowDcCrosstab(DateComparisonInfo dc) {
