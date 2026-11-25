@@ -42,6 +42,31 @@ public class ClickhouseHelper extends SQLHelper {
       return false;
    }
 
+   /**
+    * ClickHouse decodes backslash escapes inside a '...' string literal, so a backslash in an
+    * inlined value must be doubled (Bug #82304).
+    */
+   @Override
+   public boolean isBackslashEscapeChar() {
+      return true;
+   }
+
+   /**
+    * ClickHouse LIKE uses a built-in backslash escape for %, _ and itself (Bug #82304).
+    */
+   @Override
+   public Character getLikeEscapeChar() {
+      return '\\';
+   }
+
+   /**
+    * ClickHouse has no LIKE ... ESCAPE clause; the backslash escape is built in (Bug #82304).
+    */
+   @Override
+   public String getLikeEscapeClause(char esc) {
+      return "";
+   }
+
    @Override
    protected String transformDate(String str) {
       str = str.trim();

@@ -5820,15 +5820,29 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
-    * Get the character this dialect accepts in a {@code LIKE ... ESCAPE 'c'} clause, used to
-    * match a contains / starting with value literally instead of as a pattern. Returns
-    * {@code null} (the default) for a dialect not known to support the clause, in which
-    * case the value is spliced unescaped.
+    * Get the character that escapes {@code %}, {@code _} and itself in a LIKE pattern of this
+    * dialect, used to match a contains / starting with value literally instead of as a
+    * pattern. The pattern is followed by {@link #getLikeEscapeClause(char)}. Returns
+    * {@code null} (the default) for a dialect whose values are not escaped, in which case the
+    * value is spliced unescaped.
     *
-    * @return the escape character, or {@code null} if the ESCAPE clause is not used.
+    * @return the escape character, or {@code null} if values are not escaped.
     */
    public Character getLikeEscapeChar() {
       return null;
+   }
+
+   /**
+    * Get the clause that follows a LIKE pattern escaped with {@link #getLikeEscapeChar()}.
+    * The default is an ANSI {@code ESCAPE 'c'} clause; a dialect whose LIKE has a built-in
+    * escape character and no ESCAPE clause returns an empty string.
+    *
+    * @param esc the escape character.
+    *
+    * @return the clause, with a leading space, or an empty string.
+    */
+   public String getLikeEscapeClause(char esc) {
+      return " ESCAPE '" + esc + "'";
    }
 
    /**
@@ -5842,7 +5856,7 @@ public class SQLHelper implements KeywordProvider {
    /**
     * Escape a value so that a LIKE pattern built from it matches the value literally.
     * Only meaningful when {@link #getLikeEscapeChar()} is not {@code null}; the pattern must
-    * then be followed by the matching ESCAPE clause.
+    * then be followed by {@link #getLikeEscapeClause(char)}.
     */
    public String escapeLikeValue(String value) {
       Character esc = getLikeEscapeChar();
