@@ -28,6 +28,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.LocalTime;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -146,6 +147,48 @@ public class JsonTableTest {
       assertEquals("test", tbl.getObject(2, 0));
       assertEquals(String.class, tbl.getColType(0));
       assertEquals(XSchema.STRING, jsonTable.getColumnType("col"));
+   }
+
+   @Test
+   public void dateLikeTextKeepsSourceTextInStringColumn() {
+      for(String[] col : DateLikeCases.STRING_COLUMNS) {
+         final JsonTable jsonTable = new JsonTable(DateLikeCases.toJson(col), 0);
+         XNodeTable tbl = new XNodeTable(jsonTable);
+         tbl.moreRows(999);
+
+         assertEquals(String.class, tbl.getColType(0), Arrays.toString(col));
+
+         for(int i = 0; i < col.length; i++) {
+            assertEquals(col[i], tbl.getObject(i + 1, 0), Arrays.toString(col) + " row " + i);
+         }
+      }
+   }
+
+   @Test
+   public void dateLikeTextBeforeNumberKeepsSourceText() {
+      final JsonTable jsonTable = new JsonTable("[{\"col\": \"4/9/2030\"}, {\"col\": 5}]", 0);
+      XNodeTable tbl = new XNodeTable(jsonTable);
+      tbl.moreRows(999);
+
+      assertEquals(String.class, tbl.getColType(0));
+      assertEquals("4/9/2030", tbl.getObject(1, 0));
+   }
+
+   @Test
+   public void allDateLikeColumnStaysTyped() {
+      DateLikeCases.assertTypedColumns((col) -> new JsonTable(DateLikeCases.toJson(col), 0));
+   }
+
+   @Test
+   public void explicitStringTypeKeepsSourceText() {
+      final JsonTable jsonTable = new JsonTable();
+      jsonTable.setColumnType("col", XSchema.STRING);
+      jsonTable.load("[{\"col\": \"4/9/2030\"}, {\"col\": \"5/1/2030\"}]");
+      XNodeTable tbl = new XNodeTable(jsonTable);
+      tbl.moreRows(999);
+
+      assertEquals("4/9/2030", tbl.getObject(1, 0));
+      assertEquals("5/1/2030", tbl.getObject(2, 0));
    }
 
    @Test

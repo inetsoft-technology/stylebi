@@ -240,7 +240,8 @@ public final class MVManager implements MessageListener {
             if(provider != null && !provider.checkPermission(user, ResourceType.MATERIALIZATION,
                                                              "*", ResourceAction.ACCESS))
             {
-               return null;
+               // the permission only gates the rebuild; an existing (stale) mv is still used
+               return columnMissing ? null : rmv;
             }
 
             // prevent create too many thread for one key

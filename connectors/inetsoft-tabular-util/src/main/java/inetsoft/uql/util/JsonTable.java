@@ -332,7 +332,7 @@ public class JsonTable extends BaseJsonTable {
     * Convert from JSON class to Java class.
     */
    static Class<?> getTypeClass(Object val) {
-      Class<?> cls = val.getClass();
+      Class<?> cls = getValueClass(val);
 
       if(JsonNumber.class.isAssignableFrom(cls)) {
          return Double.class;
@@ -480,7 +480,8 @@ public class JsonTable extends BaseJsonTable {
    @Override
    public synchronized Object getObject(int col) {
       Object[] row = data.get(curr);
-      return row != null && col < row.length ? coerceToColumnType(row[col], types.get(col)) : null;
+      return row != null && col < row.length ?
+         coerceToColumnType(getCellValue(row[col], types.get(col)), types.get(col)) : null;
    }
 
    @Override

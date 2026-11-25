@@ -178,6 +178,11 @@ public class XTableArray implements ScriptArrayScope {
       return null;
    }
 
+   @Override
+   public boolean isIndexValid(long index) {
+      return index >= 0 && index < getArraySize();
+   }
+
    /**
     * Get the number of indexed elements.
     */

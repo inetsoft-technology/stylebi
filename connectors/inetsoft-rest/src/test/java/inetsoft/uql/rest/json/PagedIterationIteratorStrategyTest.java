@@ -19,6 +19,8 @@ package inetsoft.uql.rest.json;
 
 import inetsoft.test.*;
 import inetsoft.uql.rest.pagination.PagedIterationIteratorStrategy;
+import inetsoft.uql.rest.HttpResponse;
+import inetsoft.uql.rest.IHttpHandler;
 import inetsoft.uql.rest.RestDataIteratorStrategy;
 import inetsoft.uql.rest.RestErrorHandler;
 import inetsoft.uql.rest.RestRequest;
@@ -29,7 +31,10 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -164,5 +169,78 @@ public class PagedIterationIteratorStrategyTest {
       }
 
       assertEquals(3, count);
+   }
+
+   // Bug #81936, an empty cursor on the last page ends paging instead of requesting "?cursor="
+   @Test
+   public void emptyCursorEndsPaging() throws Exception {
+      final RestJsonQuery query = createCursorQuery();
+      final List<RequestResponse> requestResponses = new ArrayList<>();
+
+      requestResponses.add(new RequestResponse(RestRequest.builder().query(query)
+         .build(), new TestHttpResponse("{\"items\": [1], \"cursor\": \"c1\"}")));
+      requestResponses.add(new RequestResponse(RestRequest.builder().query(query)
+         .queryParameters(Collections.singletonMap("cursor", "c1"))
+         .build(), new TestHttpResponse("{\"items\": [2], \"cursor\": \"c2\"}")));
+      requestResponses.add(new RequestResponse(RestRequest.builder().query(query)
+         .queryParameters(Collections.singletonMap("cursor", "c2"))
+         .build(), new TestHttpResponse("{\"items\": [3], \"cursor\": \"\"}")));
+
+      assertEquals(3, countRequests(query, requestResponses));
+   }
+
+   // Bug #81936, a single page with an empty cursor is fetched once without error
+   @Test
+   public void emptyCursorOnSinglePage() throws Exception {
+      final RestJsonQuery query = createCursorQuery();
+      final List<RequestResponse> requestResponses = new ArrayList<>();
+
+      requestResponses.add(new RequestResponse(RestRequest.builder().query(query)
+         .build(), new TestHttpResponse("{\"items\": [1], \"cursor\": \"\"}")));
+
+      assertEquals(1, countRequests(query, requestResponses));
+   }
+
+   // same pagination spec as SquareQuery.updatePagination()
+   private static RestJsonQuery createCursorQuery() {
+      final RestJsonQuery query = new RestJsonQuery();
+      final RestJsonDataSource datasource = new RestJsonDataSource();
+      datasource.setURL("http://host");
+      query.setDataSource(datasource);
+      final PaginationSpec spec = query.getPaginationSpec();
+      spec.setType(PaginationType.ITERATION);
+      spec.setHasNextParam(new PaginationParameter("$.cursor", PaginationParamType.JSON_PATH));
+      spec.setPageOffsetParamToRead(new PaginationParameter("$.cursor", PaginationParamType.JSON_PATH));
+      spec.setPageOffsetParamToWrite(new PaginationParameter("cursor", PaginationParamType.QUERY));
+      return query;
+   }
+
+   private static int countRequests(RestJsonQuery query, List<RequestResponse> requestResponses)
+      throws Exception
+   {
+      final TestHttpHandler delegate = new TestHttpHandler(requestResponses);
+      final AtomicInteger requests = new AtomicInteger();
+      final IHttpHandler httpHandler = new IHttpHandler() {
+         @Override
+         public HttpResponse executeRequest(RestRequest request) throws IOException, URISyntaxException {
+            requests.incrementAndGet();
+            return delegate.executeRequest(request);
+         }
+
+         @Override
+         public void close() {
+            // no-op
+         }
+      };
+
+      final JsonTransformer transformer = new JsonTransformer();
+      final RestDataIteratorStrategy<Object> strategy = new PagedIterationIteratorStrategy<>(
+         query, transformer, httpHandler, new RestErrorHandler(), new HttpResponseParameterParser(transformer));
+
+      while(strategy.hasNext()) {
+         assertNotNull(strategy.next());
+      }
+
+      return requests.get();
    }
 }

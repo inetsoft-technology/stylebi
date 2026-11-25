@@ -263,9 +263,16 @@ public class LineVO extends ElementVO {
          }
          else if(first) {
             if(dotend && i == 0) {
-               double angle = GTool.getAngle(pts[i], pts[i + 1]);
-               x = x + size / 2 * FastMath.cos(angle);
-               y = y + size / 2 * FastMath.sin(angle);
+               // with ignoreNull the next point may be a skipped null (NaN), aim at the
+               // next valid point instead (Bug #82053)
+               int next = getValidNeighbor(pts, i, 1);
+
+               if(next >= 0) {
+                  double angle = GTool.getAngle(pts[i], pts[next]);
+                  x = x + size / 2 * FastMath.cos(angle);
+                  y = y + size / 2 * FastMath.sin(angle);
+               }
+
                g2.fill(getPointShape(pts[i], size));
             }
             else if(i == pts.length - 1) {
@@ -284,9 +291,16 @@ public class LineVO extends ElementVO {
             }
 
             if(dotend && isLastValid(i, pts)) {
-               double angle = GTool.getAngle(pts[i], pts[i - 1]);
-               x = x + size / 2 * FastMath.cos(angle);
-               y = y + size / 2 * FastMath.sin(angle);
+               // the previous point may be a skipped null (NaN), aim at the previous valid
+               // point instead (Bug #82053)
+               int prev = getValidNeighbor(pts, i, -1);
+
+               if(prev >= 0) {
+                  double angle = GTool.getAngle(pts[i], pts[prev]);
+                  x = x + size / 2 * FastMath.cos(angle);
+                  y = y + size / 2 * FastMath.sin(angle);
+               }
+
                lineTo(lineInfo.getType(), path, lastPt, x, y, horizontal);
                g2.fill(getPointShape(pts[i], Math.max(3, size)));
             }
@@ -295,7 +309,10 @@ public class LineVO extends ElementVO {
             }
          }
 
-         lastPt = new Point2D.Double(x, y);
+         // a skipped null must not become the start of the next step/jump corner (Bug #82052)
+         if(!isNaN(pts[i])) {
+            lastPt = new Point2D.Double(x, y);
+         }
       }
 
       if(lineInfo.isClosed() && !first) {
@@ -431,6 +448,21 @@ public class LineVO extends ElementVO {
     */
    public static boolean isNaN(Point2D pt) {
       return Double.isNaN(pt.getX()) || Double.isNaN(pt.getY());
+   }
+
+   /**
+    * Find the nearest point that is not NaN, starting next to index and moving in the
+    * direction of step (1 or -1).
+    * @return the index of the point, or -1 if there is none.
+    */
+   private static int getValidNeighbor(Point2D[] pts, int index, int step) {
+      for(int i = index + step; i >= 0 && i < pts.length; i += step) {
+         if(!isNaN(pts[i])) {
+            return i;
+         }
+      }
+
+      return -1;
    }
 
    /**
@@ -821,6 +853,7 @@ public class LineVO extends ElementVO {
                v = pt.getY() - radius;
                size = radius;
             }
+            break;
          case GraphConstants.LEFT:
             if(v > pt.getX() - radius) {
                v = pt.getX() - radius;

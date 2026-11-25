@@ -952,7 +952,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
    }
 
-   private static final class OpenViewsheetTask implements AffinityCallable<String> {
+   private static final class OpenViewsheetTask implements AffinityCallable<OpenSheetResult> {
       public OpenViewsheetTask(AssetEntry entry, Principal user, String id) {
          this.entry = entry;
          this.user = user;
@@ -960,12 +960,15 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       }
 
       @Override
-      public String call() throws Exception {
+      public OpenSheetResult call() throws Exception {
          ViewsheetEngine engine = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
          proxyContext.preprocess();
 
          try {
-            return doOpenViewsheet(engine, entry, user, id);
+            // postprocess() clears the user messages (e.g. the asset locked warning) of this
+            // thread, and an affinity call returns only the value of the task, so return the
+            // messages with the id for the request node to show
+            return OpenSheetResult.collect(doOpenViewsheet(engine, entry, user, id));
          }
          finally {
             proxyContext.postprocess();
@@ -980,7 +983,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
          }
          else {
             OpenViewsheetTask task = new OpenViewsheetTask(entry, user, id);
-            return engine.affinityCall(id, task);
+            return engine.affinityCall(id, task).applyMessages();
          }
       }
 

@@ -53,12 +53,19 @@
       "lookups": [
         {
           "endpoints": [
-            "Workspace Project Users",
+            "Workspace Project Users"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Project IDs"
+        },
+        {
+          "endpoints": [
             "Workspace Project Tasks"
           ],
           "jsonPath": "$.[*]",
           "key": "id",
-          "parameterName": "Workspace ID"
+          "parameterName": "Project ID"
         }
       ],
       "description": "The projects in one workspace, with name, client, active state, billable flag, the hourly rate, colour, and estimated hours. Requires a workspace id. The rate is what turns tracked time into money. Filter with active, which defaults to returning only live projects and so omits completed work from historical totals.",
@@ -170,7 +177,7 @@
     {
       "name": "Workspace Project Users",
       "paged": false,
-      "suffix": "/api/v9/workspaces/{Workspace ID}/project_users",
+      "suffix": "/api/v9/workspaces/{Workspace ID}/project_users?project_ids={Project IDs?}",
       "description": "Who is assigned to which project, with each assignment's own hourly rate. Requires a workspace id. THE PER-PERSON RATE OVERRIDES THE PROJECT RATE, so billing a project at its headline rate overstates or understates it wherever these exist.",
       "responseSchema": [
         {
@@ -192,7 +199,7 @@
     {
       "name": "Workspace Project Tasks",
       "paged": false,
-      "suffix": "/api/v9/workspaces/{Workspace ID}/projects/{Project ID}/tasks/",
+      "suffix": "/api/v9/workspaces/{Workspace ID}/projects/{Project ID}/tasks",
       "description": "The tasks within one project, with name, estimated seconds and active state. Requires the workspace and project ids.",
       "responseSchema": [
         {

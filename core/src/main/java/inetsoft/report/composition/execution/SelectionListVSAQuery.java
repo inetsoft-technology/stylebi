@@ -331,12 +331,10 @@ public class SelectionListVSAQuery extends AbstractSelectionVSAQuery {
    }
 
    /**
-    * Refresh the view selection value.
+    * Sort the selection values and apply the cell format to each of them.
     */
    @Override
-   protected void refreshViewSelectionValue0() throws Exception {
-      super.refreshViewSelectionValue0();
-
+   protected void refreshViewSortAndFormat() throws Exception {
       SelectionListVSAssembly assembly = (SelectionListVSAssembly) getAssembly();
 
       if(assembly == null) {

@@ -103,6 +103,16 @@ public class SubmitVSAssemblyInfo extends ClickableOutputVSAssemblyInfo {
    }
 
    /**
+    * Reset runtime values.
+    */
+   @Override
+   public void resetRuntimeValues() {
+      super.resetRuntimeValues();
+
+      autoRefresh.setRValue(null);
+   }
+
+   /**
     * Clone this object.
     * @param shallow <tt>true</tt> to perform shallow clone,
     * <tt>false</tt> to perform deep clone.

@@ -39,6 +39,13 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import ch.qos.logback.classic.Level;
@@ -93,6 +100,25 @@ public class ScheduleStatusDaoTest {
 
       assertStatus(saved, Scheduler.Status.FINISHED, 100L, 200L, "ok", 100L);
       assertStatus(dao.getStatus("nightly-task"), Scheduler.Status.FINISHED, 100L, 200L, "ok", 100L);
+   }
+
+   // a started record is what Scheduler.runTask reads to decide that a task is still running, so
+   // its start time and the open end must come back exactly as written, run now or scheduled
+   @org.junit.jupiter.params.ParameterizedTest(name = "started status written with runNow={0} " +
+      "reads back with its start time, no end time and no error")
+   @org.junit.jupiter.params.provider.ValueSource(booleans = { false, true })
+   void setStatus_startedRecordReadsBackWithStartTimeAndOpenEnd(boolean runNow) {
+      InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
+      ScheduleStatusDao dao = newDao(storage);
+      long start = 1700000000123L;
+
+      dao.setStatus("running-task", Scheduler.Status.STARTED, start, 0L, null, runNow);
+
+      ScheduleStatusDao.Status status = dao.getStatus("running-task");
+      assertEquals(Scheduler.Status.STARTED, status.getStatus());
+      assertEquals(start, status.getStartTime());
+      assertEquals(0L, status.getEndTime());
+      assertNull(status.getError());
    }
 
    // [Op: remove] clearStatus removes the stored entry for the task
@@ -322,8 +348,47 @@ public class ScheduleStatusDaoTest {
       assertTrue(Thread.interrupted()); // returns true and clears flag; currently FAILS
    }
 
+   @Test
+   void setStatus_eightThreadsOnEightTasks_everyTaskReadsBackItsOwnStatusAndTimes()
+      throws Exception
+   {
+      InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
+      ScheduleStatusDao dao = newDao(storage);
+      int threads = 8;
+      CyclicBarrier barrier = new CyclicBarrier(threads);
+      ExecutorService pool =
+         Executors.newFixedThreadPool(threads);
+
+      try {
+         List<Future<?>> futures = new ArrayList<>();
+
+         for(int i = 0; i < threads; i++) {
+            int n = i;
+            futures.add(pool.submit(() -> {
+               barrier.await(10, TimeUnit.SECONDS);
+               dao.setStatus("parallel-task-" + n, Scheduler.Status.FINISHED, 1000L + n,
+                             2000L + n, null, false);
+               return null;
+            }));
+         }
+
+         for(Future<?> future : futures) {
+            future.get(10, TimeUnit.SECONDS);
+         }
+      }
+      finally {
+         pool.shutdownNow();
+         assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+      }
+
+      for(int i = 0; i < threads; i++) {
+         assertStatus(dao.getStatus("parallel-task-" + i), Scheduler.Status.FINISHED, 1000L + i,
+                      2000L + i, null, 1000L + i);
+      }
+   }
+
    private static ScheduleStatusDao newDao(InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage) {
-      return new ScheduleStatusDao(storage);
+      return new ScheduleStatusDao(storage, new InMemoryKeyValueStorage<>());
    }
 
    private static void assertStatus(ScheduleStatusDao.Status actual, Scheduler.Status status,

@@ -73,6 +73,8 @@
 
 import { Component, Directive, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
 import { provideHttpClient } from "@angular/common/http";
+import { UntypedFormGroup } from "@angular/forms";
+import { By } from "@angular/platform-browser";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -121,7 +123,11 @@ class LogicalModelEntityEditorStub { @Input() entity: any; }
 class LogicalModelColumnEditorStub { @Input() attribute: any; }
 
 @Component({ selector: "logical-model-expression-editor", template: "" })
-class LogicalModelExpressionEditorStub { @Input() attribute: any; }
+class LogicalModelExpressionEditorStub {
+   @Input() attribute: any;
+   @Input() form: any;
+   @Input() existNames: string[];
+}
 
 // ---------------------------------------------------------------------------
 // Mock services
@@ -182,6 +188,7 @@ interface RenderOpts {
    logicalModel?: LogicalModelDefinition;
    editing?: boolean;
    databaseName?: string;
+   form?: UntypedFormGroup;
 }
 
 async function renderComp(opts: RenderOpts = {}) {
@@ -213,6 +220,7 @@ async function renderComp(opts: RenderOpts = {}) {
          originalName: "LM1",
          parent: null,
          notifications: NOTIFICATIONS_MOCK,
+         ...(opts.form ? { form: opts.form } : {}),
       },
    });
    return { comp: fixture.componentInstance as LogicalModelPropertyPane, fixture };
@@ -659,6 +667,19 @@ describe("LogicalModelPropertyPane — addAttributes()", () => {
       expect(added.name).toBe("colA1"); // suffix added to avoid collision
    });
 
+   // Bug #82096: an attribute name cannot contain a period, the column mapping keeps the real name
+   it("should replace a period in a name taken from a column and keep the column name", async () => {
+      const entity = makeEntity("E1", [makeAttribute("a_b")]);
+      const { comp } = await renderComp({ logicalModel: makeModel([entity]) });
+      const dotted = { name: "a.b", table: "TABLE1" } as AttributeModel;
+
+      (comp as any).addAttributes(entity, [dotted]);
+
+      const added = comp.logicalModel.entities[0].attributes[1];
+      expect(added.name).toBe("a_b1"); // sanitized, then de-duplicated
+      expect(added.column).toBe("a.b");
+   });
+
    it("should return false when the entity is not found in the model", async () => {
       const entity = makeEntity("E1");
       const unknownEntity = makeEntity("Unknown");
@@ -932,5 +953,30 @@ describe("LogicalModelPropertyPane — subscription leak after destroy", () => {
       await waitFor(() => {}, { timeout: 100 }).catch(() => {});
 
       expect(deleteItem0Spy).not.toHaveBeenCalled();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Bug #82123 — the expression editor must get the logical model's form and the
+// sibling names, like the column editor, so an invalid or duplicate expression
+// name disables the toolbar Save button.
+// ---------------------------------------------------------------------------
+
+describe("LogicalModelPropertyPane — expression editor wiring (Bug #82123)", () => {
+   it("should pass the shared form and the sibling names to the expression editor", async () => {
+      const form = new UntypedFormGroup({});
+      const expr = makeAttribute("expr1", { type: "expression", table: null, column: null });
+      const entities = [makeEntity("E", [makeAttribute("col1"), expr])];
+      const { comp, fixture } = await renderComp({ logicalModel: makeModel(entities), form });
+
+      comp.editingEle = { entity: 0, attribute: 1 };
+      fixture.detectChanges();
+
+      const editor = fixture.debugElement
+         .query(By.directive(LogicalModelExpressionEditorStub))
+         .componentInstance as LogicalModelExpressionEditorStub;
+      expect(editor.attribute).toBe(expr);
+      expect(editor.form).toBe(form);
+      expect(editor.existNames).toEqual(["col1"]);
    });
 });

@@ -27,6 +27,12 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.schedule.model.EditTaskFolderDialogModel;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
@@ -43,6 +49,11 @@ import static org.mockito.Mockito.*;
  * endpoints the UI calls first are only hints, the write itself refuses the duplicate. The
  * caller has rights on the root and on A (and its subfolders) only, none on B.
  */
+// Bug #81905, the folder service takes the cluster folder lock, which needs the Spring context
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class ScheduleTaskFolderServiceDuplicateTest {
    private final Map<String, XMLSerializable> store = new HashMap<>();

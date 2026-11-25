@@ -134,10 +134,8 @@ class ScheduleTaskCloudJobClusterConfigTest {
 
       JobExecutionException e = assertThrows(
          JobExecutionException.class, () -> new ScheduleTaskCloudJob().execute(context));
-      // the timeout is thrown inside execute()'s try block and wrapped by its catch-all
-      Throwable cause = e.getCause();
-      assertNotNull(cause, e.getMessage());
-      assertTrue(String.valueOf(cause.getMessage()).contains("timed out"), cause.toString());
+      // the timeout message must reach the job listener unwrapped (Bug #81693)
+      assertTrue(String.valueOf(e.getMessage()).contains("timed out"), e.toString());
    }
 
    private static final String TASK = "org~;admin:T";

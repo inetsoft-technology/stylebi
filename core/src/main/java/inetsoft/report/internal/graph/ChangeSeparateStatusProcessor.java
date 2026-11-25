@@ -116,13 +116,13 @@ public class ChangeSeparateStatusProcessor extends ChangeChartProcessor {
                   }
 
                   if(shape != null) {
-                     LegendDescriptor legendDesc = legends.getColorLegendDescriptor();
+                     LegendDescriptor legendDesc = legends.getShapeLegendDescriptor();
                      legendDesc = legendDesc == null ? null : (LegendDescriptor) legendDesc.clone();
                      shape.setLegendDescriptor(legendDesc);
                   }
 
                   if(size != null) {
-                     LegendDescriptor legendDesc = legends.getColorLegendDescriptor();
+                     LegendDescriptor legendDesc = legends.getSizeLegendDescriptor();
                      legendDesc = legendDesc == null ? null : (LegendDescriptor) legendDesc.clone();
                      size.setLegendDescriptor(legendDesc);
                   }

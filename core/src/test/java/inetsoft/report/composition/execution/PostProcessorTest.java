@@ -27,7 +27,6 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -154,7 +153,7 @@ public class PostProcessorTest {
 
    // divide by zero and a null operand follow JavaScript: x / 0 is Infinity (returned as
    // null, ScriptValueConverter turns Infinity into null) and null * 2 is 0.
-   // Current behavior, not in #80953 (that covers aggregate calc fields)
+   // Intended: row-level calc fields follow JavaScript coercion (decision in #81197)
    @Test
    void formula_divideByZeroAndNullOperand_followJavaScript() {
       Object[][] data = rows(new Object[] { 10.0, 0, 1, "NY", "Albany", null },
@@ -177,7 +176,7 @@ public class PostProcessorTest {
       assertEquals(Arrays.asList("NY_Albany", "CA_Fresno"), values(t));
    }
 
-   // a null in concatenation is the text "null" (JavaScript). Current behavior, not confirmed
+   // a null in concatenation is the text "null" (JavaScript). Intended, decision in #81197
    @Test
    void formula_concatenateWithNull_givesTheTextNull() {
       TableLens t = calc(rows(new Object[] { 1.0, 1, 1, null, "Albany", null }),
@@ -189,7 +188,8 @@ public class PostProcessorTest {
    // the query cannot be merged into the database, AssetQuery.addExpression runs the same
    // text as script (ExpressionRef.getScriptExpression), and the script has no concat, so
    // reading the formula table fails (end to end, AssetQuery then shows the design-time
-   // sample table, see AssetQueryExpressionColumnTest). Current behavior
+   // sample table, see AssetQueryExpressionColumnTest). Known and kept: the script fallback
+   // does not support SQL-only functions and no script concat is added (decision in #81223)
    @Test
    void formula_sqlFunctionRunAsScript_failsTheTable() {
       ExpressionFailedException ex = assertThrows(ExpressionFailedException.class, () ->
@@ -376,7 +376,6 @@ public class PostProcessorTest {
       }
    }
 
-   @Disabled("Bug #81204: CALC.quarter(null) returns 1 instead of -1")
    @Test
    @DisplayName("The quarter of a null date is -1, like year, month, day and hour")
    void nullDate_quarterIsMinusOne() {
@@ -384,16 +383,14 @@ public class PostProcessorTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): year, month, day and hour " +
-      "of a null date are -1")
-   void pin_nullDate_partsAreMinusOne() {
+   @DisplayName("Year, month, day and hour of a null date are -1 (convention kept in #81204)")
+   void nullDate_partsAreMinusOne() {
       for(String part : new String[] { "year", "month", "day", "hour" }) {
          assertEquals(-1, first(oneDate(null), "CALC." + part + "(field['orderdate'])",
                                 XSchema.INTEGER), part);
       }
    }
 
-   @Disabled("Bug #81200: Declared Integer clamps a larger result")
    @Test
    @DisplayName("A declared Integer never turns a value beyond int into a clamped number")
    void integerBeyondInt_isNotClamped() {
@@ -416,13 +413,13 @@ public class PostProcessorTest {
       assertEquals(true, first(data, "'1'", XSchema.BOOLEAN));
       assertEquals(false, first(data, "0", XSchema.BOOLEAN));
       assertEquals(false, first(data, "'false'", XSchema.BOOLEAN));
-      assertEquals(false, first(data, "'no'", XSchema.BOOLEAN));
+      assertEquals("no", first(data, "'no'", XSchema.BOOLEAN));
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): 'yes' declared Boolean is false")
-   void pin_yesIsFalse() {
-      assertEquals(false, first(onePrice(1.0), "'yes'", XSchema.BOOLEAN));
+   @DisplayName("Unparseable text declared Boolean is kept, 'yes' is not inverted (Bug #81669)")
+   void yesDeclaredBooleanIsKept() {
+      assertEquals("yes", first(onePrice(1.0), "'yes'", XSchema.BOOLEAN));
    }
 
    @Test
@@ -552,9 +549,8 @@ public class PostProcessorTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): a declared Integer truncates " +
-      "toward zero")
-   void pin_integerTruncatesTowardZero() {
+   @DisplayName("A declared Integer truncates toward zero (kept in #81200)")
+   void integerTruncatesTowardZero() {
       assertEquals(Arrays.asList(2, 3, -3, 2),
                    values(calc(rows(new Object[] { 2.5, 1, 1, "NY", "Albany", null },
                                     new Object[] { 3.5, 1, 1, "NY", "Albany", null },
@@ -616,12 +612,15 @@ public class PostProcessorTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): 'abc' declared Boolean is " +
-      "false and '12.5' declared Integer is 12")
-   void pin_booleanAndIntegerFromText() {
-      Object[][] data = onePrice(1.0);
-      assertEquals(false, first(data, "'abc'", XSchema.BOOLEAN));
-      assertEquals(12, first(data, "'12.5'", XSchema.INTEGER));
+   @DisplayName("Unparseable text declared Boolean is kept (Bug #81669)")
+   void booleanFromText_keptWhenUnparseable() {
+      assertEquals("abc", first(onePrice(1.0), "'abc'", XSchema.BOOLEAN));
+   }
+
+   @Test
+   @DisplayName("A fractional text declared Integer is cut, '12.5' is 12 (Bug #81200)")
+   void integerFromFractionalText() {
+      assertEquals(12, first(onePrice(1.0), "'12.5'", XSchema.INTEGER));
    }
 
    @Test
@@ -634,9 +633,9 @@ public class PostProcessorTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): a date declared String is " +
-      "the Timestamp text")
-   void pin_dateDeclaredString() {
+   @DisplayName("A date declared String is the Timestamp text (the generic converter's " +
+      "toString)")
+   void dateDeclaredString() {
       assertEquals("2001-08-15 00:00:00.0",
                    first(oneDate(ts("2001-08-15")), "field['orderdate']", XSchema.STRING));
    }
@@ -669,9 +668,8 @@ public class PostProcessorTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): null * 1 is the number 0 " +
-      "converted to every declared type")
-   void pin_nullTimesOne() {
+   @DisplayName("Null * 1 is the number 0 converted to every declared type (#81197)")
+   void nullTimesOne() {
       Object[][] data = oneDate(null);
       assertEquals(0, first(data, "null * 1", XSchema.INTEGER));
       assertEquals(0.0, first(data, "null * 1", XSchema.DOUBLE));

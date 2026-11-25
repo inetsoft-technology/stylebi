@@ -49,53 +49,44 @@ public class VSChartPlotResizeService extends VSChartControllerService<VSChartPl
                             String linkUri, Principal principal, CommandDispatcher dispatcher) throws Exception
    {
       processEvent(runtimeId, event, principal, linkUri, dispatcher, chartState -> {
-         final boolean heightResized = event.isHeightResized();
-         final double sizeRatio = event.getSizeRatio();
-         final VSChartInfo chartInfo = chartState.getChartInfo();
-         final boolean reset = event.isReset();
-
-         if(reset) {
-            chartInfo.setUnitWidthRatio(1);
-            chartInfo.setUnitHeightRatio(1);
-            // The percents have to go too, and back to 0 rather than 1: VGraphPair re-derives
-            // unitWidthRatio/unitHeightRatio from them whenever they are >= 1, without consulting
-            // the resized flags, so a reset that left them behind reported default/not-resized
-            // while the old ratio was rebuilt on every subsequent layout. (1 is not the neutral
-            // value here - it would re-derive the ratio as the plot's own baseline. 0 is the
-            // field's declared default and the only value that turns the re-derivation off.) It
-            // was invisible only because the enlargement itself, minPlot *= ratio, is gated on
-            // the flag this branch does clear.
-            chartInfo.setUnitWidthRatioPercent(0);
-            chartInfo.setUnitHeightRatioPercent(0);
-            chartInfo.setWidthResized(false);
-            chartInfo.setHeightResized(false);
-         }
-         else {
-            // for wordcloud/circular-network, the ratio is equally applied to both width/height.
-            boolean square = GraphTypeUtil.isWordCloud(chartInfo) ||
-               chartInfo.getChartType() == GraphTypes.CHART_CIRCULAR;
-
-            if(!heightResized || square) {
-               chartInfo.setUnitWidthRatio(sizeRatio);
-               chartInfo.setUnitWidthRatioPercent(sizeRatio / chartInfo.getInitialWidthRatio());
-               chartInfo.setWidthResized(true);
-            }
-
-            if(heightResized || square) {
-               chartInfo.setUnitHeightRatio(sizeRatio);
-               // Height branch sets the HEIGHT percent. It set the width percent, overwriting the
-               // value the width branch had just computed on a square resize, and leaving the
-               // height percent unset — which matters because VGraphPair recomputes
-               // unitHeightRatio only when getUnitHeightRatioPercent() >= 1, so a height resize
-               // was dropped on the next recompute.
-               chartInfo.setUnitHeightRatioPercent(sizeRatio / chartInfo.getInitialHeightRatio());
-               chartInfo.setHeightResized(true);
-            }
-         }
-
+         resizePlot(chartState.getChartInfo(), event.isReset(), event.getSizeRatio(),
+                    event.isHeightResized());
          return VSAssembly.VIEW_CHANGED;
       });
 
       return null;
+   }
+
+   /**
+    * Apply an author's plot resize, or Reset Size, to the chart info.
+    */
+   static void resizePlot(VSChartInfo chartInfo, boolean reset, double sizeRatio,
+                          boolean heightResized)
+   {
+      if(reset) {
+         chartInfo.setUnitWidthRatio(1);
+         chartInfo.setUnitHeightRatio(1);
+         chartInfo.setWidthResized(false);
+         chartInfo.setHeightResized(false);
+         chartInfo.setUnitWidthRatioPercent(0);
+         chartInfo.setUnitHeightRatioPercent(0);
+      }
+      else {
+         // for wordcloud/circular-network, the ratio is equally applied to both width/height.
+         boolean square = GraphTypeUtil.isWordCloud(chartInfo) ||
+            chartInfo.getChartType() == GraphTypes.CHART_CIRCULAR;
+
+         if(!heightResized || square) {
+            chartInfo.setUnitWidthRatio(sizeRatio);
+            chartInfo.setUnitWidthRatioPercent(sizeRatio / chartInfo.getInitialWidthRatio());
+            chartInfo.setWidthResized(true);
+         }
+
+         if(heightResized || square) {
+            chartInfo.setUnitHeightRatio(sizeRatio);
+            chartInfo.setUnitHeightRatioPercent(sizeRatio / chartInfo.getInitialHeightRatio());
+            chartInfo.setHeightResized(true);
+         }
+      }
    }
 }

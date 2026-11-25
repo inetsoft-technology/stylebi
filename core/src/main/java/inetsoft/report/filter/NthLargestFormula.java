@@ -291,7 +291,7 @@ public class NthLargestFormula implements Formula, java.io.Serializable {
    private boolean parseNum = "true".equals(SreeEnv.getProperty("formula.parse.number", "true"));
    private Vector vs = new Vector();
    private Comparer comp = null;
-   private int n;
+   private int n = 1;
    private boolean def;
 
    private static final Logger LOG = LoggerFactory.getLogger(NthLargestFormula.class);

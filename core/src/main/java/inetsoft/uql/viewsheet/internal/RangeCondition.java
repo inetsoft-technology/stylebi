@@ -143,23 +143,23 @@ public class RangeCondition {
       return conditionList;
    }
 
-   Object[] getMins() {
+   public Object[] getMins() {
       return mins;
    }
 
-   Object[] getMaxes() {
+   public Object[] getMaxes() {
       return maxes;
    }
 
-   DataRef[] getRefs() {
+   public DataRef[] getRefs() {
       return refs;
    }
 
-   boolean isUpperInclusive() {
+   public boolean isUpperInclusive() {
       return upperInclusive;
    }
 
-   boolean isLowerInclusive() {
+   public boolean isLowerInclusive() {
       return lowerInclusive;
    }
 

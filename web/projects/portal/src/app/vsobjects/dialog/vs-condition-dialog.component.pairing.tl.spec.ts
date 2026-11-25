@@ -99,7 +99,7 @@ describe("VSConditionDialog - pairing scope (bug #80459)", () => {
 
 @Component({ selector: "condition-pane", template: "",
              inputs: ["provider", "fields", "table", "conditionList", "isHighlight", "vsId",
-                      "runtimeId", "socketConnection", "vsConditionScope"] })
+                      "runtimeId", "socketConnection", "vsConditionScope", "unboundFields"] })
 class StubConditionPane {
    static instances: StubConditionPane[] = [];
    runtimeId: string;

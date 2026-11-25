@@ -95,7 +95,8 @@ public class RestAuthenticatorFactory {
          new TwoStepAuthConfig(
             ds.getAuthMethod(), ds.getContentType(), ds.getBody(), ds.getAuthURL(),
             ds.getTokenPattern(), Arrays.asList(ds.getAuthenticationHttpParameters()),
-            Arrays.asList(ds.getQueryHttpParameters())), client);
+            Arrays.asList(ds.getQueryHttpParameters()), ds.createTwoStepTokenExtractor()),
+         client);
    }
 
    private static ClientCredentialsAuthenticator createClientCredentialsAuth(

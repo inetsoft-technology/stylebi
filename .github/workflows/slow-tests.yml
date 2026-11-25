@@ -51,6 +51,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # slow-tagged tests in modules whose default run excludes slow (inetsoft-rest, server);
+      # -Dsurefire.groups only applies to core, these modules filter with excludedGroups
+      - name: Slow tests in server and inetsoft-rest
+        if: ${{ !cancelled() }}
+        run: >-
+          ./mvnw --batch-mode test -pl server,connectors/inetsoft-rest
+          -Dsurefire.excludedGroups=integration,endpoints
+          -Dgroups=slow
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # the PR and Jenkins builds run the lockcycle suite pooled, as production runs worksheet
       # scripts by default; script.ws.contextPool=false is still supported, so it is checked
       # here. Runs even when the slow tests failed

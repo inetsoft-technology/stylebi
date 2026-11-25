@@ -30,6 +30,7 @@ import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
+import inetsoft.uql.jdbc.ConnectionPoolFactory;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.util.*;
@@ -1242,14 +1243,10 @@ public class DataSourceRegistry implements MessageListener {
             "Permission denied to overwrite datasource folder"));
       }
 
-      try {
-         AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
-                                           AssetEntry.Type.DATA_SOURCE_FOLDER, name, null);
-         setObject(entry, folder);
-      }
-      catch(Exception e) {
-         LOG.error("Failed to set datasource folder: " + folder.getFullName(), e);
-      }
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                        AssetEntry.Type.DATA_SOURCE_FOLDER, name, null);
+      // Bug #82094, a failed save is thrown to the caller
+      setObjectOrThrow(entry, folder, true);
    }
 
    /**
@@ -1269,6 +1266,13 @@ public class DataSourceRegistry implements MessageListener {
       // Bug #77820, one that can't be told apart from a data source above is left: nothing that
       // may be that data source's is lost, and a delete of both sides at its path removes it
       AssetEntry[] children = getDataSourceEntries(dxname, dxname + "/", null, true, false);
+
+      // Bug #82097, read before the data source is removed
+      // (an unreadable data source is treated as pooled, closing the pools of a node is cheap)
+      XDataSource removed = getDataSource(dxname);
+      boolean pooled = removed == null || removed instanceof JDBCDataSource ||
+         removed instanceof AdditionalConnectionDataSource;
+      boolean removedObject = false;
 
       try {
          // read before the data source and its additional connections are removed. The test
@@ -1290,7 +1294,9 @@ public class DataSourceRegistry implements MessageListener {
             resources.add(dxname);
          }
 
+         boolean existed = containObject(entry);
          removeObject(entry);
+         removedObject = existed;
          removeObjects(children);
          removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
             AssetEntry.Type.DATA_MODEL, dxname, null));
@@ -1301,6 +1307,15 @@ public class DataSourceRegistry implements MessageListener {
       catch(Exception e) {
          LOG.error(
             "Failed to remove data source: " + dxname, e);
+      }
+      finally {
+         // Bug #82097, the connection pools of the removed data source are otherwise kept open
+         // on every node until restart. Done even if a later step of the removal failed, the
+         // data source is already gone then.
+         if(pooled && removedObject) {
+            closeConnectionPoolsOfRemovedSource();
+            fireConnectionChangeEvent();
+         }
       }
    }
 
@@ -3102,6 +3117,19 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
+    * Closes the connection pools of this node at once, without waiting for the cluster message
+    * (which is debounced and handled after the handlers are reset) to come back.
+    */
+   protected void closeConnectionPoolsOfRemovedSource() {
+      try {
+         ConnectionPoolFactory.getInstance().closeAllConnectionsPools();
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to close the connection pools of a removed data source", e);
+      }
+   }
+
+   /**
     * Fire a connection event.
     */
    protected void fireConnectionChangeEvent() {
@@ -3166,37 +3194,8 @@ public class DataSourceRegistry implements MessageListener {
     */
    public void setObjectOrThrow(AssetEntry entry, XMLSerializable obj, boolean fireEvent) {
       try {
-         // Bug #81435, the root is read, changed and written back under the cluster lock
-         Lock lock = lockRoot();
-
-         try {
-            AssetFolder root = getRoot(entry.getOrgID());
-
-            if(root != null && root.containsEntry(entry)) {
-               entry = root.getEntry(entry);
-               root.removeEntry(entry);
-            }
-
-            AssetUtil.updateMetaData(
-               entry, ThreadContext.getContextPrincipal(), System.currentTimeMillis());
-
-            if(root != null) {
-               root.addEntry(entry);
-               setRoot(root);
-            }
-
-            indexedStorage.putXMLSerializable(entry.toIdentifier(), obj);
-         }
-         catch(Exception e) {
-            // the cached root is shared and was changed before it was written, a later
-            // successful save would store the entry of an object that was never written; it is
-            // dropped while the lock is held so no other writer can store it first
-            evictCachedRoot(entry.getOrgID());
-            throw e;
-         }
-         finally {
-            unlockRoot(lock);
-         }
+         // Bug #82094, the object is written first and the index is the commit point
+         entry = writeObject(entry, obj);
       }
       catch(Exception e) {
          throw new DataSourceStorageException(
@@ -3226,6 +3225,77 @@ public class DataSourceRegistry implements MessageListener {
       }
       catch(Exception e) {
          LOG.error("Failed to notify after setting object: " + entry.getPath(), e);
+      }
+   }
+
+   /**
+    * Saves an object and then the index entry that lists it. If either write fails, the cached
+    * index is left as it was, a new object is removed again, and the failure is thrown.
+    *
+    * @return the entry that the index lists.
+    */
+   private AssetEntry writeObject(AssetEntry entry, XMLSerializable obj) {
+      String path = entry.getPath();
+
+      try {
+         // Bug #81435, the root is read, changed and written back under the cluster lock
+         Lock lock = lockRoot();
+
+         try {
+            AssetFolder root = getRoot(entry.getOrgID());
+            AssetEntry previous = root == null ? null : root.getEntry(entry);
+
+            if(previous != null) {
+               // change a copy, the cached index keeps the old entry until the index is saved
+               entry = (AssetEntry) previous.clone();
+            }
+
+            AssetUtil.updateMetaData(
+               entry, ThreadContext.getContextPrincipal(), System.currentTimeMillis());
+
+            // Bug #82094, write the object first, the index is the commit point (as #77704)
+            indexedStorage.putXMLSerializable(entry.toIdentifier(), obj);
+
+            if(root != null) {
+               root.removeEntry(entry);
+               root.addEntry(entry);
+
+               try {
+                  setRoot(root);
+               }
+               catch(Exception e) {
+                  root.removeEntry(entry);
+
+                  if(previous != null) {
+                     root.addEntry(previous);
+                  }
+                  else {
+                     // an unlisted object would block its name, see isDataSourcePathInUse
+                     removeStoredObject(entry);
+                  }
+
+                  throw e;
+               }
+            }
+
+            return entry;
+         }
+         catch(Exception e) {
+            // the cached root is shared and was changed before it was written, a later
+            // successful save would store the entry of an object that was never written; it is
+            // dropped while the lock is held so no other writer can store it first
+            evictCachedRoot(entry.getOrgID());
+            throw e;
+         }
+         finally {
+            unlockRoot(lock);
+         }
+      }
+      catch(RuntimeException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to set object: " + path, e);
       }
    }
 

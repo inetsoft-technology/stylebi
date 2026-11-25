@@ -916,7 +916,7 @@ public class ScheduleManager implements MessageListener {
       // Bug #77549, #77863, every refusal of the save is made before the stored task is
       // removed, so it isn't lost
       checkReplaceScheduleTask(oldTaskId, taskId, task, principal);
-      removeScheduleTask(oldTaskId, principal);
+      removeScheduleTaskForReplace(oldTaskId, principal);
       setScheduleTask(taskId, task, parent, isInternalTask(taskId), principal, ownerChecked,
                       stored);
    }
@@ -1892,9 +1892,9 @@ public class ScheduleManager implements MessageListener {
       }
       else {
          Vector<ScheduleTask> allTasks = getScheduleTasks(principal);
-         boolean dependency = hasDependency(allTasks, taskName);
+         String dependant = findDependant(allTasks, taskName);
 
-         if(!dependency) {
+         if(dependant == null) {
             removeScheduleTask(taskName, principal);
          }
          else {
@@ -1904,7 +1904,7 @@ public class ScheduleManager implements MessageListener {
             }
             else {
                throw new Exception(Catalog.getCatalog().getString(
-                  "em.schedule.task.removeDependency", taskName));
+                  "em.schedule.task.removeDependencyOn", taskName, dependant));
             }
          }
       }
@@ -1915,6 +1915,24 @@ public class ScheduleManager implements MessageListener {
     */
    public synchronized void removeScheduleTask(String taskName,
                                                Principal principal)
+      throws Exception
+   {
+      doRemoveScheduleTask(taskName, principal, false);
+   }
+
+   /**
+    * Removes a schedule task that the caller saves again right away to change it (Bug #81647), as
+    * {@link #replaceScheduleTask} and the import of a task that exists do. A run in progress is
+    * then not the run of a deleted task, so it still writes its status and triggers its
+    * dependants when it completes.
+    */
+   public synchronized void removeScheduleTaskForReplace(String taskName, Principal principal)
+      throws Exception
+   {
+      doRemoveScheduleTask(taskName, principal, true);
+   }
+
+   private void doRemoveScheduleTask(String taskName, Principal principal, boolean replacing)
       throws Exception
    {
       String orgID = getTaskOrgID(taskName);
@@ -2001,7 +2019,13 @@ public class ScheduleManager implements MessageListener {
             getOrgTaskMap(orgID).remove(getTaskIdentifier(taskName, orgID));
          }
 
-         scheduleClient.taskRemoved(taskId);
+         if(replacing) {
+            scheduleClient.taskRemoved(taskId, true);
+         }
+         else {
+            scheduleClient.taskRemoved(taskId);
+         }
+
          ScheduleTaskMessage message = new ScheduleTaskMessage();
          message.setTaskName(taskId);
          // Bug #74338: include the task in the REMOVED message so that
@@ -2234,8 +2258,15 @@ public class ScheduleManager implements MessageListener {
     * Check task dependency for rename &amp; delete action.
     */
    public boolean hasDependency(Vector<ScheduleTask> allTasks, String taskId) {
-      boolean dependency = false;
+      return findDependant(allTasks, taskId) != null;
+   }
 
+   /**
+    * Finds a task that depends on the given task (Bug #81816).
+    *
+    * @return the id of a dependant task, or null if none depends on it.
+    */
+   public String findDependant(Vector<ScheduleTask> allTasks, String taskId) {
       for(Iterator<ScheduleTask> i = allTasks.iterator(); i.hasNext();) {
          ScheduleTask task = i.next();
          String id = task.getTaskId();
@@ -2249,21 +2280,24 @@ public class ScheduleManager implements MessageListener {
       for(ScheduleTask task : allTasks) {
          String id = task.getTaskId();
          task = getScheduleTask(id);
+
+         // the snapshot may be stale: another request can remove the task
+         // between the snapshot and this read, and a removed task cannot
+         // depend on anything
+         if(task == null) {
+            continue;
+         }
+
          Enumeration<String> en = task.getDependency();
 
          while(en.hasMoreElements()) {
             if(taskId.equals(en.nextElement())) {
-               dependency = true;
-               break;
+               return id;
             }
-         }
-
-         if(dependency) {
-            break;
          }
       }
 
-      return dependency;
+      return null;
    }
 
    public List<AssetObject> getDependentTasks(String target, String orgId) {
@@ -2336,6 +2370,7 @@ public class ScheduleManager implements MessageListener {
       }
 
       Set<ScheduleTask> changedTasks = new HashSet<>();
+      List<String> removedTaskIds = new ArrayList<>();
 
       Iterator<ScheduleTask> i = getOrgTaskMap(orgID).values().iterator();
 
@@ -2348,6 +2383,7 @@ public class ScheduleManager implements MessageListener {
 
          if(type == Identity.USER && identityID.equals(task.getOwner())) {
             i.remove();
+            removedTaskIds.add(task.getTaskId());
             continue;
          }
 
@@ -2372,6 +2408,17 @@ public class ScheduleManager implements MessageListener {
       catch(Exception ex) {
          LOG.error("Failed to save schedule task file after " +
                "identity was removed: " + identityID, ex);
+      }
+
+      // Bug #81833, removing the task from the map does not unschedule it: tell the scheduler,
+      // as removeScheduleTask does, or the trigger of a deleted owner's task keeps firing
+      for(String taskId : removedTaskIds) {
+         try {
+            scheduleClient.taskRemoved(taskId);
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to unschedule task {} of removed owner {}", taskId, identityID, ex);
+         }
       }
 
       for(ScheduleExt ext : extensions) {

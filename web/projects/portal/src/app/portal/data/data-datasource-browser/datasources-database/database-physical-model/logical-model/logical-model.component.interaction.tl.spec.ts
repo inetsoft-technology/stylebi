@@ -198,6 +198,24 @@ describe("LogicalModelComponent — save() editing=true", () => {
          )
       );
    });
+
+   // Bug #82096: a rejection with a message (e.g. a period in a new attribute name) is shown
+   it("should show the server message when the PUT fails with a messageException", async () => {
+      const message = "Attribute name \"a.b\" cannot contain a period (.).";
+      server.use(
+         http.put("*/api/data/logicalmodel/models", () =>
+            MswHttpResponse.json({ error: "messageException", message }, { status: 500 })
+         )
+      );
+      const { comp } = await renderComp({ route: makeCreateRoute() });
+      comp.editing = true;
+
+      comp.save();
+
+      await waitFor(() =>
+         expect((comp.notifications as any).danger).toHaveBeenCalledWith(message)
+      );
+   });
 });
 
 // ---------------------------------------------------------------------------

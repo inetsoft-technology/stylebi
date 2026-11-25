@@ -23,8 +23,6 @@ import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.util.credential.CredentialType;
 
-import java.util.concurrent.TimeUnit;
-
 @View(vertical = true, value = {
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
    @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
@@ -147,8 +145,8 @@ public class KeapDataSource extends OAuthEndpointJsonDataSource<KeapDataSource> 
    @Override
    public void updateTokens(Tokens tokens) {
       setAccessToken(tokens.accessToken());
-      setRefreshToken(tokens.refreshToken());
+      applyRefreshToken(tokens.refreshToken());
       // expiresIn not returned by oauth server, all tokens expire in 24 hours
-      setTokenExpiration(tokens.issued() + TimeUnit.MILLISECONDS.convert(24L, TimeUnit.HOURS));
+      setTokenExpiration(expirationFromIssued(tokens));
    }
 }

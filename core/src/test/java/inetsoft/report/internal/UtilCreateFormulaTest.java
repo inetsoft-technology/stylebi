@@ -148,16 +148,14 @@ class UtilCreateFormulaTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): an unknown formula name gives " +
-      "a SumFormula")
-   void pin_unknownNameGivesSum() {
+   @DisplayName("An unknown formula name gives a SumFormula")
+   void unknownNameGivesSum() {
       assertInstanceOf(SumFormula.class, Util.createFormula(null, "Bogus"));
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): a column name without a table " +
-      "gives a SumFormula")
-   void pin_columnNameWithoutTableGivesSum() {
+   @DisplayName("A formula with a column name but no table gives a SumFormula")
+   void columnNameWithoutTableGivesSum() {
       assertInstanceOf(SumFormula.class, Util.createFormula(null, "Correlation(price)"));
    }
 
@@ -218,6 +216,16 @@ class UtilCreateFormulaTest {
                    Util.createFormula(null, "NthMostFrequent(-1)").getClass());
       assertEquals(NthLargestFormula.class,
                    Util.createFormula(null, "NthLargest(-1)").getClass());
+
+      // the result must rank like n = 1, not like an empty n = 0
+      for(String name : new String[] { "NthLargest(-7)", "NthSmallest(-7)" }) {
+         Formula f = Util.createFormula(null, name);
+         f.addValue(1.0);
+         f.addValue(5.0);
+         f.addValue(3.0);
+         assertEquals(name.startsWith("NthLargest") ? 5.0 : 1.0,
+                      ((Number) f.getResult()).doubleValue(), name);
+      }
    }
 
    /**

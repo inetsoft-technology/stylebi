@@ -46,7 +46,7 @@
     {
       "name": "Notes",
       "paged": true,
-      "suffix": "/v3/notes.json?deal_id={Deal ID?}&person_id={Person ID?}&company_id={Company ID?}&search_id={Search ID?}&conditions[activity_modified][from_date={Activity Modified From?:YYYY-MM-DD}&conditions[activity_modified][to_date]={Activity Modified To?:YYYY-MM-DD}",
+      "suffix": "/v3/notes.json?deal_id={Deal ID?}&person_id={Person ID?}&company_id={Company ID?}&search_id={Search ID?}&conditions[activity_modified][from_date]={Activity Modified From?:YYYY-MM-DD}&conditions[activity_modified][to_date]={Activity Modified To?:YYYY-MM-DD}",
       "lookups": [
         {
           "endpoint": "Comments",
@@ -740,7 +740,7 @@
     {
       "name": "Companies",
       "paged": true,
-      "suffix": "/v3/companies.json?search_id={Search ID?}&conditions[company_id]={Company ID?}&conditions[Company Name]={Company Name?}",
+      "suffix": "/v3/companies.json?search_id={Search ID?}&conditions[company_id]={Company ID?}&conditions[company_name]={Company Name?}",
       "lookups": [
         {
           "endpoints": [

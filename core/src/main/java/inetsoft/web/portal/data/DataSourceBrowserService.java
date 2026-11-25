@@ -152,7 +152,15 @@ public class DataSourceBrowserService {
       for(String name : getDataSources(path, true)) {
          if(securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE, name, ResourceAction.READ)) {
-            dataSources.add(getDataSourceInfo(registry.getDataSource(name), principal, locale));
+            XDataSource dataSource = registry.getDataSource(name);
+
+            // Bug #82094, an entry that can't be loaded is left out, as in the listing
+            if(dataSource == null) {
+               LOG.warn("Data source {} is listed but can't be loaded, skipped", name);
+               continue;
+            }
+
+            dataSources.add(getDataSourceInfo(dataSource, principal, locale));
          }
       }
 
@@ -162,8 +170,15 @@ public class DataSourceBrowserService {
       for(String folder: folders) {
          if(securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE_FOLDER, folder, ResourceAction.READ)) {
-            dataSources.add(getDSFolderInfo(
-               registry.getDataSourceFolder(folder), null, principal));
+            DataSourceFolder dsFolder = registry.getDataSourceFolder(folder);
+
+            // Bug #82094, a folder listed in the index whose object is missing is left out
+            if(dsFolder == null) {
+               LOG.warn("Data source folder {} is listed but can't be loaded, skipped", folder);
+               continue;
+            }
+
+            dataSources.add(getDSFolderInfo(dsFolder, null, principal));
          }
       }
 

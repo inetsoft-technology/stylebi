@@ -283,7 +283,12 @@ public abstract class AbstractVSExporter implements VSExporter {
             }
          }
 
-         box.executeScriptForExport(assembly);
+         // a failing script is skipped, logged and marked on the document, naming the assembly,
+         // see ViewsheetSandbox.skipScriptErrorsForExport() (Bug #81796) and
+         // executeScriptForExport() (#76765)
+         try(ViewsheetSandbox.ExportScriptSkip skip = ViewsheetSandbox.skipScriptErrorsForExport()) {
+            box.executeScriptForExport(assembly);
+         }
 
          if(assembly instanceof CalcTableVSAssembly) {
             continue;
@@ -412,8 +417,9 @@ public abstract class AbstractVSExporter implements VSExporter {
 
       boolean onLoadFailed = box.getExportScriptError() != null;
       List<String> failedAssemblies = box.getExportFailedAssemblies();
+      boolean scriptSkipped = box.getExportSkippedScript() != null;
 
-      if(!onLoadFailed && failedAssemblies.isEmpty()) {
+      if(!onLoadFailed && failedAssemblies.isEmpty() && !scriptSkipped) {
          return;
       }
 
@@ -431,6 +437,11 @@ public abstract class AbstractVSExporter implements VSExporter {
       for(String name : failedAssemblies) {
          addWarningMessage(warningText,
                            Catalog.getCatalog().getString("vs.export.assemblyScriptFailed", name));
+      }
+
+      if(scriptSkipped) {
+         addWarningMessage(warningText,
+                           Catalog.getCatalog().getString("vs.export.componentScriptFailed"));
       }
    }
 
@@ -1432,6 +1443,19 @@ public abstract class AbstractVSExporter implements VSExporter {
     */
    public void export(ViewsheetSandbox box, String sheet, int index,
                       XPortalHelper helper, boolean cloneVs)
+      throws Exception
+   {
+      // a failing component script is skipped, not fatal, anywhere in the export (Bug #81796)
+      try(ViewsheetSandbox.ExportScriptSkip skip = ViewsheetSandbox.skipScriptErrorsForExport()) {
+         export0(box, sheet, index, helper, cloneVs);
+      }
+      finally {
+         box.clearExportSkippedScript();
+      }
+   }
+
+   private void export0(ViewsheetSandbox box, String sheet, int index,
+                        XPortalHelper helper, boolean cloneVs)
       throws Exception
    {
       this.index = index;

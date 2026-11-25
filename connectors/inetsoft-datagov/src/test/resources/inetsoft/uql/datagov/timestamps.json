@@ -1,0 +1,4 @@
+{"meta":{"view":{"columns":[
+{"name":"FloatingTs","dataTypeName":"floating_timestamp"},
+{"name":"FixedTs","dataTypeName":"fixed_timestamp"}]}},
+"data":[["2024-01-15T13:45:30.000","2024-01-15T13:45:30.000Z"],[null,null]]}

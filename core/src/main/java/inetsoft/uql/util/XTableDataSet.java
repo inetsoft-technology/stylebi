@@ -241,6 +241,7 @@ public class XTableDataSet extends AbstractDataSet implements AttributeDataSet {
       XTableDataSet obj = (XTableDataSet) super.clone();
 
       obj.comparer = this.comparer.clone();
+      obj.links = this.links == null ? null : this.links.copy();
 
       return obj;
    }

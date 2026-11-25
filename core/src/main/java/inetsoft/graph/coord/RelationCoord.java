@@ -109,7 +109,11 @@ public class RelationCoord extends Coordinate {
             }
 
             if(diffH >= 0) {
-               trans2.translate(0, -(scaledY - y + (facet ? ploty : 0)) + diffH / 2);
+               // selfBounds is measured after the plot translate (except for facet cells), so
+               // remove the plot y before scaling, otherwise a scaled-down chart is pushed down
+               // by y * (1 - ratio) and out of the plot (e.g. legend at bottom)
+               double offsetY = facet ? -(scaledY - y + ploty) : -(selfBounds.getY() - y) * ratio;
+               trans2.translate(0, offsetY + diffH / 2);
             }
          }
 

@@ -2088,6 +2088,9 @@ public class IdentityService {
 
       String oldPrefix = PropertiesEngine.getOrgPropertyPrefix(oId);
       String newPrefix = PropertiesEngine.getOrgPropertyPrefix(id);
+      // another node may have just saved a property that this node has not reloaded yet
+      // (Bug #81618)
+      PropertiesEngine.getInstance().syncOrgScopedProperties(oId);
       Properties properties = SreeEnv.getProperties();
 
       // a change of only the org ID's case keeps the scoped property names, so there is

@@ -232,7 +232,11 @@ class FractionalIntegralConditionTest {
       XBinaryCondition node = createCondNode(
          baseHandler(), condition(XSchema.INTEGER, XCondition.EQUAL_TO, 4.5), vars);
 
-      assertEquals("4.5", node.getExpression2().getValue());
+      // no INTEGER value equals 4.5: the column is compared with itself ("col <> col" matches
+      // no row and its negation every non-null row) instead of binding a value a driver may
+      // narrow (bug #82099), which keeps the fractional value from matching 4
+      assertEquals("<>", node.getOp());
+      assertEquals(node.getExpression1().getValue(), node.getExpression2().getValue());
       assertFalse(bound(node, vars));
    }
 

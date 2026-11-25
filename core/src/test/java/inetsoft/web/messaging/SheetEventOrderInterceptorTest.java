@@ -391,6 +391,102 @@ class SheetEventOrderInterceptorTest {
       awaitNoPendingSheet();
    }
 
+   // Bug #81374: a held auto-save touch-asset must not keep the close behind a running query that
+   // never ends. The touch-asset is dropped, it must not run (and auto save) after the close.
+   @Test
+   void closeIsNotHeldBehindHeldTouchAsset() throws Exception {
+      CountDownLatch release = new CountDownLatch(1);
+      List<String> handled = new CopyOnWriteArrayList<>();
+      ExecutorSubscribableChannel channel = channel(m -> {
+         handled.add(id(m));
+
+         if("busy".equals(id(m))) {
+            await(release);
+         }
+      });
+
+      channel.send(event("s1", "ws1", "/events/composer/worksheet/table/count", 0, "busy"));
+      // busy runs on a pool thread and the close is not held behind it, so wait for busy to run
+      // before sending the close, otherwise the two handlers can run in either order
+      awaitHandled(handled, "busy");
+      channel.send(event("s1", "ws1", "/events/composer/touch-asset", 1, "touch",
+                         "{\"design\":true,\"changed\":true,\"update\":false}"));
+      assertEquals(2, interceptor.getQueuedEventCount(), "the touch-asset was not held");
+      channel.send(event("s1", "ws1", "/events/ws/close", 2, "close"));
+
+      awaitHandled(handled, "close", WHILE_BUSY);
+      assertEquals(1, interceptor.getQueuedEventCount(), "the held touch-asset was not dropped");
+
+      release.countDown();
+      awaitNoPendingSheet();
+      Thread.sleep(100);
+      assertEquals(List.of("busy", "close"), handled);
+   }
+
+   // Bug #81374: while a table loads the Composer queues a table data count and a reload of the
+   // table behind the running one, besides the touch-assets. They are of no use once the sheet is
+   // closed, so they must not keep the close behind the query that never ends.
+   @Test
+   void closeIsNotHeldBehindHeldTableReloads() throws Exception {
+      CountDownLatch release = new CountDownLatch(1);
+      List<String> handled = new CopyOnWriteArrayList<>();
+      ExecutorSubscribableChannel channel = channel(m -> {
+         handled.add(id(m));
+
+         if("busy".equals(id(m))) {
+            await(release);
+         }
+      });
+
+      channel.send(event("s1", "ws1", "/events/composer/worksheet/table-data-count", 0, "busy"));
+      // busy runs on a pool thread and the close is not held behind it, so wait for busy to run
+      // before sending the close, otherwise the two handlers can run in either order
+      awaitHandled(handled, "busy");
+      channel.send(event("s1", "ws1", "/events/ws/table/reload-table-data/C", 1, "reload"));
+      channel.send(event("s1", "ws1", "/events/composer/touch-asset", 2, "touch",
+                         "{\"design\":true,\"changed\":true,\"update\":false}"));
+      channel.send(event("s1", "ws1", "/events/composer/worksheet/table-mode/full", 3, "mode"));
+      assertEquals(4, interceptor.getQueuedEventCount(), "the events were not held");
+      channel.send(event("s1", "ws1", "/events/ws/close", 4, "close"));
+
+      awaitHandled(handled, "close", WHILE_BUSY);
+      assertEquals(1, interceptor.getQueuedEventCount(), "the held events were not dropped");
+
+      release.countDown();
+      awaitNoPendingSheet();
+      Thread.sleep(100);
+      assertEquals(List.of("busy", "close"), handled);
+   }
+
+   // A held event that is not a reload (e.g. a save) still keeps the close behind it, even when
+   // table reloads are held as well.
+   @Test
+   void closeStaysBehindHeldSaveAmongTableReloads() throws Exception {
+      CountDownLatch release = new CountDownLatch(1);
+      List<String> handled = new CopyOnWriteArrayList<>();
+      ExecutorSubscribableChannel channel = channel(m -> {
+         handled.add(id(m));
+
+         if("busy".equals(id(m))) {
+            await(release);
+         }
+      });
+
+      channel.send(event("s1", "ws1", "/events/composer/worksheet/table-data-count", 0, "busy"));
+      channel.send(event("s1", "ws1", "/events/ws/table/reload-table-data/C", 1, "reload"));
+      channel.send(event("s1", "ws1", "/events/composer/worksheet/save", 2, "save"));
+      channel.send(event("s1", "ws1", "/events/ws/close", 3, "close"));
+
+      awaitHandled(handled, "busy");
+      Thread.sleep(100);
+      assertEquals(List.of("busy"), handled);
+
+      release.countDown();
+      awaitHandled(handled, "close");
+      assertEquals(List.of("busy", "reload", "save", "close"), handled);
+      awaitNoPendingSheet();
+   }
+
    // The client reconnects after its STOMP session drops and keeps using its sheets, so the held
    // events of the session (e.g. an edit and a save) still run, in order.
    @Test

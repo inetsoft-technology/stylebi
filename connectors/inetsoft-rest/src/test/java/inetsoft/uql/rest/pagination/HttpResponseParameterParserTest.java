@@ -30,7 +30,7 @@ import java.net.URL;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, CredentialTestConfig.class }, initializers = ConfigurationContextInitializer.class)
@@ -71,6 +71,52 @@ public class HttpResponseParameterParserTest {
 
       final boolean actual = parser.parseBoolean(param, obj, null);
       assertEquals(expected, actual);
+   }
+
+   @Test
+   void jsonBooleanParamEmptyStringIsFalse() {
+      assertFalse(parseJsonBoolean(""));
+   }
+
+   @Test
+   void jsonBooleanParamAbsentIsFalse() {
+      final PaginationParameter param = new PaginationParameter("$.value");
+      param.setType(PaginationParamType.JSON_PATH);
+
+      assertFalse(parser.parseBoolean(param, new LinkedHashMap<String, Object>(), null));
+   }
+
+   @Test
+   void jsonBooleanParamFalseStringIsFalse() {
+      assertFalse(parseJsonBoolean("false"));
+      assertFalse(parseJsonBoolean("FALSE"));
+   }
+
+   @Test
+   void jsonBooleanParamTokenStringIsTrue() {
+      assertTrue(parseJsonBoolean("abc"));
+      assertTrue(parseJsonBoolean("true"));
+   }
+
+   @Test
+   void jsonBooleanParamBooleanFalseIsFalse() {
+      assertFalse(parseJsonBoolean(false));
+   }
+
+   @Test
+   void jsonBooleanParamNumberIsTrue() {
+      // numeric offsets are valid has-next values, including 0
+      assertTrue(parseJsonBoolean(0));
+      assertTrue(parseJsonBoolean(2));
+   }
+
+   private boolean parseJsonBoolean(Object value) {
+      final LinkedHashMap<String, Object> obj = new LinkedHashMap<>();
+      obj.put("value", value);
+      final PaginationParameter param = new PaginationParameter("$.value");
+      param.setType(PaginationParamType.JSON_PATH);
+
+      return parser.parseBoolean(param, obj, null);
    }
 
    @Test

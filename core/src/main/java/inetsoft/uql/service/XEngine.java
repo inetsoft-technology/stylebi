@@ -365,7 +365,19 @@ public class XEngine implements XRepository, XQueryRepository {
             // can't be read, or stored with a full path name (Bug #77725), which would be written
             // at "parent/full path". It is left as it is.
             if(jds != null && jds.getFullName() != null && jds.getFullName().indexOf('/') < 0) {
-               base.addDatasource(jds);
+               try {
+                  base.addDatasource(jds);
+               }
+               catch(RuntimeException e) {
+                  // the move already saved it at its new path, a failed rewrite of it must not
+                  // report the completed move as failed (#77704 reports exactly the moved sources)
+                  if(!nameChanged) {
+                     throw e;
+                  }
+
+                  LOG.warn("Failed to update the additional connection {} of the moved data " +
+                           "source {}", name, dx.getFullName(), e);
+               }
             }
          }
       }
@@ -814,12 +826,25 @@ public class XEngine implements XRepository, XQueryRepository {
             // Bug #77725, before cutDataSourceFolder, which moves the data sources first
             getDSRegistry().checkDataSourceFolderPathClash(oname);
             moveDataSourceFolder(folder, oname);
+
+            // the move already saved the folder at its new path, a failed rewrite of it must not
+            // report the completed move as failed (#77704 reports exactly the moved sources)
+            try {
+               getDSRegistry().setDataSourceFolder(folder);
+            }
+            catch(SecurityException e) {
+               throw e;
+            }
+            catch(RuntimeException e) {
+               LOG.warn("Failed to update the moved data source folder {}",
+                        folder.getFullName(), e);
+            }
          }
          else {
             getDSRegistry().renameDataSourceFolder(oname, folder.getFullName());
+            // Bug #82094, a failed save is reported to the caller
+            getDSRegistry().setDataSourceFolder(folder);
          }
-
-         getDSRegistry().setDataSourceFolder(folder);
       }
    }
 
@@ -2496,11 +2521,19 @@ public class XEngine implements XRepository, XQueryRepository {
    }
 
    private void resetAllHandlers() {
+      try {
+         // closed first: resetting a handler waits for its metadata lock, and the pools must not
+         // stay open (Bug #82097) if that is held or the reset fails
+         connectionPoolFactory.closeAllConnectionsPools();
+      }
+      catch(Exception e) {
+         LOG.error("Failed to close the connection pools", e);
+      }
+
       sessionrun.values().stream()
          .filter(JDBCHandler.class::isInstance)
          .map(JDBCHandler.class::cast)
          .forEach(JDBCHandler::resetConnection);
-      connectionPoolFactory.closeAllConnectionsPools();
    }
 
    public class MetaDataLoader implements Runnable {

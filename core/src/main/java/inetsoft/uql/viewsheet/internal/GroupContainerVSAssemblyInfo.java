@@ -242,6 +242,15 @@ public class GroupContainerVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
+    * Reset runtime values.
+    */
+   @Override
+   public void resetRuntimeValues() {
+      super.resetRuntimeValues();
+      imageAlphaValue.setRValue(null);
+   }
+
+   /**
     * Return scale9.
     */
    public Insets getScale9() {
@@ -334,7 +343,19 @@ public class GroupContainerVSAssemblyInfo extends ContainerVSAssemblyInfo {
     * Set the run time image alpha.
     */
    public void setImageAlpha(String imageAlpha) {
-      imageAlphaValue.setRValue(ImageAlphaUtil.normalizeAlpha(imageAlpha));
+      double validValue;
+
+      try {
+         validValue = Double.parseDouble(imageAlpha);
+      }
+      catch(NullPointerException | NumberFormatException e) {
+         // shown to the script author; quoted so a blank value is visible (Bug #81923)
+         throw new IllegalArgumentException("Numeric value expected: " +
+            (imageAlpha == null ? "null" : "'" + imageAlpha + "'"));
+      }
+
+      validValue = validValue < 0 ? 0 : validValue > 100 ? 100 : validValue;
+      imageAlphaValue.setRValue((int) validValue + "");
    }
 
    /**

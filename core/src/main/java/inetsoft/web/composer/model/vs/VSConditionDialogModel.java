@@ -63,6 +63,20 @@ public class VSConditionDialogModel implements Serializable {
       this.revision = revision;
    }
 
+   /**
+    * Get the views of the condition fields that are no longer bound in the owning assembly.
+    * Display only: never persisted and ignored when the model is converted back to a highlight.
+    *
+    * @return the field views, or null if the check does not apply.
+    */
+   public String[] getUnboundFields() {
+      return unboundFields;
+   }
+
+   public void setUnboundFields(String[] unboundFields) {
+      this.unboundFields = unboundFields;
+   }
+
    @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "jsonType")
    @JsonSubTypes({ @JsonSubTypes.Type(value = ConditionModel.class, name = "condition"),
                    @JsonSubTypes.Type(value = JunctionOperatorModel.class, name = "junction") })
@@ -70,4 +84,5 @@ public class VSConditionDialogModel implements Serializable {
    private String tableName;
    private DataRefModel[] fields;
    private Integer revision;
+   private String[] unboundFields;
 }

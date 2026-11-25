@@ -1464,6 +1464,23 @@ public class CalcDateTimeTest {
       assertEquals(weekday, onFreshThread(Locale.US, () -> CalcDateTime.weekdayname(date)));
    }
 
+   /** A single Date, not in an array, is a list of one. (#81695) */
+   @Test
+   public void testSingleDateAsList() {
+      Date start = toDate("2024-03-05T00:00");
+      Date holiday = toDate("2024-03-06T00:00");
+      Date end = toDate("2024-03-08T00:00");
+
+      assertEquals(CalcDateTime.workday(start, 1, new Object[] { holiday }),
+                   CalcDateTime.workday(start, 1, holiday));
+      assertEquals(CalcDateTime.networkdays(start, end, new Object[] { holiday }),
+                   CalcDateTime.networkdays(start, end, holiday));
+      assertEquals(start, CalcDateTime.maxDate(start));
+      assertEquals(start, CalcDateTime.minDate(start));
+      assertEquals(CalcFinancial.xnpv(0.1, new Object[] { 100.0 }, new Object[] { start }),
+                   CalcFinancial.xnpv(0.1, 100.0, start));
+   }
+
    /**
     * Round every day from 2015-01-01 through 2030 to its week bucket via
     * CalcDateTime.date(..., WEEK_DATE_GROUP, 1), under the given JVM default locale. Must be

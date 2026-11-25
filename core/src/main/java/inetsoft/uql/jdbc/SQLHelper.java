@@ -2210,7 +2210,10 @@ public class SQLHelper implements KeywordProvider {
 
       String sqlstr = getTableWithLimit(str, inpmaxrows);
 
-      if(sqlstr == null && uniformSql.hasVPMCondition()) {
+      // a helper that supports max rows but has no table-limit syntax (mongo, hive, denodo)
+      // reads the table without the wrapper, as a derived table with no text is "( )" (Bug
+      // #81649). the row limit is still applied by Statement.setMaxRows. same for vpm.
+      if(sqlstr == null) {
          return tbl;
       }
 

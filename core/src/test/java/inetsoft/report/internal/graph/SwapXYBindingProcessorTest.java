@@ -17,193 +17,285 @@
  */
 package inetsoft.report.internal.graph;
 
-import inetsoft.uql.viewsheet.graph.GraphTypes;
-import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
-import inetsoft.uql.viewsheet.graph.VSChartInfo;
-import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
-import inetsoft.uql.viewsheet.graph.VSMapInfo;
-import inetsoft.web.wiz.pairing.WizAgentTestSupport;
+import inetsoft.test.*;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.viewsheet.graph.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.awt.Color;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * L3-Group2, findings G2-1/G2-2: {@code SwapXYBindingService.swapXYBinding} — a shared,
- * {@code @ClusterProxy} service both the native Composer's swap button and the wiz agent's
- * {@code swap_chart_axes} call — had no {@code GraphTypes}-based gate at all before this fix,
- * so a chart type {@link SwapXYBindingProcessor#swapChartXYFields()} cannot invert (e.g.
- * {@code mekko}) silently dropped a bound measure moving from {@code y} to {@code x} instead of
- * swapping it. Live-confirmed 2026-09-01: {@code swap_chart_axes} on a mekko chart returned
- * {@code ok:true} and deleted the {@code y} shelf's measure outright.
+ * Swapping the X and Y bindings ({@link SwapXYBindingProcessor}) exchanges the X and Y field
+ * lists, the X / Y axis titles, the band colors and sizes, and renumbers the field references
+ * in the tooltip. The expected values come from the comments in the processor ("swap band
+ * color and size", "update reference to parameter value when x/y are swapped") and from the
+ * meaning of a swap: whatever was on X is on Y afterwards and the other way round.
  */
-@WizAgentTestSupport
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
+@Tag("core")
 class SwapXYBindingProcessorTest {
-   @Test
-   void refusesASwapThatWouldDropAYMeasureOnAMekkoChart() {
-      VSChartInfo info = new VSChartInfo();
-      info.setChartType(GraphTypes.CHART_MEKKO);
-      info.addXField(new VSChartDimensionRef());
-      info.addYField(new VSChartAggregateRef());
+   private VSChartInfo info;
+   private ChartDescriptor desc;
 
-      SwapXYBindingProcessor processor = new SwapXYBindingProcessor(info, null);
-
-      assertThrows(IllegalArgumentException.class, processor::requireInvertible);
-   }
-
-   @Test
-   void allowsASwapOnAChartTypeThatSupportsInversion() {
-      VSChartInfo info = new VSChartInfo();
+   @BeforeEach
+   void setUp() {
+      info = new DefaultVSChartInfo();
       info.setChartType(GraphTypes.CHART_BAR);
-      info.addXField(new VSChartDimensionRef());
-      info.addYField(new VSChartAggregateRef());
+      desc = new ChartDescriptor();
+   }
 
-      SwapXYBindingProcessor processor = new SwapXYBindingProcessor(info, null);
+   private static VSChartDimensionRef dim(String column) {
+      return new VSChartDimensionRef(new ColumnRef(new AttributeRef(null, column)));
+   }
 
-      assertDoesNotThrow(processor::requireInvertible);
+   private static VSChartAggregateRef measure(String column) {
+      VSChartAggregateRef ref = new VSChartAggregateRef();
+      ref.setDataRef(new ColumnRef(new AttributeRef(null, column)));
+      return ref;
+   }
+
+   private void swap() {
+      new SwapXYBindingProcessor(info, desc).process();
+   }
+
+   private static List<String> names(ChartRef[] refs) {
+      List<String> list = new ArrayList<>();
+
+      for(ChartRef ref : refs) {
+         list.add(ref.getName());
+      }
+
+      return list;
    }
 
    @Test
-   void allowsASwapWhenYHoldsOnlyDimensions() {
-      // A dimension moving from y to x is never dropped -- swapChartXYFields' skip-and-continue
-      // only applies to the measure branch -- so mekko is fine here despite not inverting.
-      VSChartInfo info = new VSChartInfo();
-      info.setChartType(GraphTypes.CHART_MEKKO);
-      info.addXField(new VSChartAggregateRef());
-      info.addYField(new VSChartDimensionRef());
+   void swapExchangesTheXAndYFields() {
+      info.addXField(dim("Region"));
+      info.addYField(measure("Sales"));
 
-      SwapXYBindingProcessor processor = new SwapXYBindingProcessor(info, null);
+      swap();
 
-      assertDoesNotThrow(processor::requireInvertible);
+      assertEquals(Arrays.asList("Sales"), names(info.getXFields()));
+      assertEquals(Arrays.asList("Region"), names(info.getYFields()));
    }
 
-   /**
-    * The per-measure branch of {@code requireInvertible} ({@code multi ? agg.getChartType() :
-    * cinfo.getChartType()}): once the chart is multi-style, each measure's OWN chart type governs
-    * invertibility, not the chart-level type. Here the chart-level type is bar (invertible) but
-    * the bound measure's own type is mekko (not) -- the check must still refuse, proving it reads
-    * the per-measure type once multi-style is on.
-    */
    @Test
-   void refusesASwapOnAMultiStyleChartWhenTheMeasuresOwnTypeCannotInvert() {
-      VSChartInfo info = new VSChartInfo();
-      info.setChartType(GraphTypes.CHART_BAR);
+   void swapTwiceRestoresTheBindings() {
+      info.addXField(dim("Region"));
+      info.addXField(dim("State"));
+      info.addYField(measure("Sales"));
+      info.addYField(measure("Profit"));
+      List<String> x = names(info.getXFields());
+      List<String> y = names(info.getYFields());
+
+      swap();
+      swap();
+
+      assertEquals(x, names(info.getXFields()));
+      assertEquals(y, names(info.getYFields()));
+   }
+
+   @Test
+   void swapKeepsTheFieldCounts() {
+      info.addXField(dim("Region"));
+      info.addXField(dim("State"));
+      info.addXField(dim("City"));
+      info.addYField(measure("Sales"));
+
+      swap();
+
+      assertEquals(1, info.getXFieldCount());
+      assertEquals(3, info.getYFieldCount());
+   }
+
+   @Test
+   void swapExchangesTheAxisTitles() {
+      TitlesDescriptor titles = desc.getTitlesDescriptor();
+      titles.getXTitleDescriptor().setTitleValue("X title");
+      titles.getYTitleDescriptor().setTitleValue("Y title");
+      titles.getX2TitleDescriptor().setTitleValue("X2 title");
+      titles.getY2TitleDescriptor().setTitleValue("Y2 title");
+
+      swap();
+
+      assertEquals("Y title", titles.getXTitleDescriptor().getTitleValue());
+      assertEquals("X title", titles.getYTitleDescriptor().getTitleValue());
+      assertEquals("Y2 title", titles.getX2TitleDescriptor().getTitleValue());
+      assertEquals("X2 title", titles.getY2TitleDescriptor().getTitleValue());
+   }
+
+   @Test
+   void swapExchangesTheBandColorsAndSizes() {
+      PlotDescriptor plot = desc.getPlotDescriptor();
+      plot.setXBandColor(Color.RED);
+      plot.setXBandSize(3);
+      plot.setYBandColor(Color.BLUE);
+      plot.setYBandSize(9);
+
+      swap();
+
+      assertEquals(Color.BLUE, plot.getXBandColor());
+      assertEquals(9, plot.getXBandSize());
+      assertEquals(Color.RED, plot.getYBandColor());
+      assertEquals(3, plot.getYBandSize());
+   }
+
+   private String swappedTip(String tip, int xcount, int ycount) {
+      for(int i = 0; i < xcount; i++) {
+         info.addXField(dim("X" + i));
+      }
+
+      for(int i = 0; i < ycount; i++) {
+         info.addYField(measure("Y" + i));
+      }
+
+      info.setToolTipValue(tip);
+      swap();
+      return info.getToolTipValue();
+   }
+
+   /** A tooltip placeholder {n} names the n-th field in X then Y order; the order flips. */
+   @Test
+   void tooltipReferencesFollowTheirFieldsToTheOtherAxis() {
+      assertEquals("{1} and {0}", swappedTip("{0} and {1}", 1, 1));
+   }
+
+   @Test
+   void tooltipReferencesAreRenumberedWhenTheAxesHaveDifferentCounts() {
+      // 2 X fields (0, 1) and 1 Y field (2): afterwards Y is 0 and X are 1, 2
+      assertEquals("{1}-{2}-{0}", swappedTip("{0}-{1}-{2}", 2, 1));
+   }
+
+   @Test
+   void tooltipReferencesWithAFormatKeepTheFormat() {
+      assertEquals("{1,#,##0.00} / {0}", swappedTip("{0,#,##0.00} / {1}", 1, 1));
+   }
+
+   @Test
+   void dynamicTooltipIsLeftAlone() {
+      assertEquals("=field['Sales']", swappedTip("=field['Sales']", 1, 1));
+   }
+
+   /** A measure whose chart type cannot be inverted is not moved to the X axis. */
+   @Test
+   void measureOfATypeThatCannotBeInvertedIsDroppedFromTheNewXAxis() {
       info.setMultiStyles(true);
-      info.addXField(new VSChartDimensionRef());
-      VSChartAggregateRef measure = new VSChartAggregateRef();
-      measure.setChartType(GraphTypes.CHART_MEKKO);
-      info.addYField(measure);
+      info.addXField(dim("Region"));
+      VSChartAggregateRef sales = measure("Sales");
+      sales.setChartType(GraphTypes.CHART_BAR);
+      VSChartAggregateRef radar = measure("Score");
+      radar.setChartType(GraphTypes.CHART_RADAR);
+      info.addYField(sales);
+      info.addYField(radar);
 
-      SwapXYBindingProcessor processor = new SwapXYBindingProcessor(info, null);
+      swap();
 
-      assertThrows(IllegalArgumentException.class, processor::requireInvertible);
+      assertEquals(Arrays.asList("Sales"), names(info.getXFields()));
+      assertEquals(Arrays.asList("Region"), names(info.getYFields()));
    }
 
-   /**
-    * The mirror case: chart-level type is mekko (not invertible) but the bound measure's own
-    * type, once multi-style is on, is bar (invertible) -- the check must allow it, proving it is
-    * not simply falling back to the chart-level type.
-    */
+   /** The dropped measure may come first; the others must still land on the X axis. */
    @Test
-   void allowsASwapOnAMultiStyleChartWhenTheMeasuresOwnTypeCanInvert() {
-      VSChartInfo info = new VSChartInfo();
-      info.setChartType(GraphTypes.CHART_MEKKO);
+   void droppedMeasureBeforeAKeptMeasureDoesNotBreakTheSwap() {
       info.setMultiStyles(true);
-      info.addXField(new VSChartDimensionRef());
-      VSChartAggregateRef measure = new VSChartAggregateRef();
-      measure.setChartType(GraphTypes.CHART_BAR);
-      info.addYField(measure);
+      info.addXField(dim("Region"));
+      VSChartAggregateRef radar = measure("Score");
+      radar.setChartType(GraphTypes.CHART_RADAR);
+      VSChartAggregateRef sales = measure("Sales");
+      sales.setChartType(GraphTypes.CHART_BAR);
+      info.addYField(radar);
+      info.addYField(sales);
 
-      SwapXYBindingProcessor processor = new SwapXYBindingProcessor(info, null);
+      swap();
 
-      assertDoesNotThrow(processor::requireInvertible);
+      assertEquals(Arrays.asList("Sales"), names(info.getXFields()));
+      assertEquals(Arrays.asList("Region"), names(info.getYFields()));
+   }
+
+   // ---- neighbouring scenarios ----
+
+   /** A reference in the format form {n,fmt} on the Y side is renumbered too. */
+   @Test
+   void tooltipReferencesOnTheYSideWithAFormatAreRenumbered() {
+      assertEquals("{0,#.0}", swappedTip("{1,#.0}", 1, 1));
+   }
+
+   /** Two-digit field numbers: {1} must not be taken for a part of {11}. */
+   @Test
+   void tooltipReferencesWithTwoDigitNumbersAreRenumbered() {
+      // 1 X field (0) and 11 Y fields (1 to 11): X field 0 -> 11, Y field k -> k - 1
+      assertEquals("{11} {0} {10}", swappedTip("{0} {1} {11}", 1, 11));
+   }
+
+   /** A script or variable tooltip is evaluated later; its text must not be rewritten. */
+   @Test
+   void scriptTooltipWithBracesIsLeftAlone() {
+      assertEquals("={0}+{1}", swappedTip("={0}+{1}", 1, 1));
+   }
+
+   /** The field lists are ordered dimensions first (VComparator), whatever the input order. */
+   @Test
+   void swappedFieldsAreOrderedDimensionsFirst() {
+      info.addXField(measure("Sales"));
+      info.addXField(dim("Region"));
+      info.addYField(measure("Profit"));
+      info.addYField(dim("State"));
+
+      swap();
+
+      assertEquals(Arrays.asList("State", "Profit"), names(info.getXFields()));
+      assertEquals(Arrays.asList("Region", "Sales"), names(info.getYFields()));
    }
 
    @Test
-   void skipsTheCheckEntirelyForAMapChart() {
-      // swapMapXYFields partitions x/y by measure/dimension unconditionally and never drops a
-      // field -- the finding is specific to swapChartXYFields, so a MapInfo is exempt.
-      VSMapInfo info = new VSMapInfo();
-      info.addYField(new VSChartAggregateRef());
+   void fieldsOfTheSameKindKeepTheirOrder() {
+      info.addYField(dim("A"));
+      info.addYField(dim("B"));
+      info.addYField(dim("C"));
 
-      SwapXYBindingProcessor processor = new SwapXYBindingProcessor(info, null);
+      swap();
 
-      assertDoesNotThrow(processor::requireInvertible);
+      assertEquals(Arrays.asList("A", "B", "C"), names(info.getXFields()));
    }
 
-   /**
-    * L3-Group2 G2-2 (the geo/all-measure half of the same finding, re-examined): recorded as
-    * "blocked, unverified" because the connected live environment had no geo-typed column to
-    * construct a real {@code VSMapInfo} chart against. The claim itself: "a map needs a dimension
-    * somewhere on x/y to draw from, and swapping two all-measure shelves cannot introduce one" --
-    * i.e. a map with zero dimensions on x/y (all-measure) stays zero-dimension after a swap. That
-    * claim is true but not a *new* problem the swap causes: dimension *count* is conserved by
-    * {@code swapMapXYFields()} (proven below and in the mixed-binding test above) -- it only moves
-    * dimensions between x and y, never creates or destroys one. A zero-dimension map is invalid
-    * before the swap and stays invalid after it, exactly as bad either way; the swap itself is a
-    * safe no-op in this case (no exception, no further corruption), not a data-loss vector like
-    * G2-1's mekko case. Whether a human or the agent can even construct a zero-dimension map chart
-    * in the first place is a binding-construction question, not a swap-axes one, and is out of
-    * this finding's scope.
-    */
+   /** A map swaps only its dimensions; the measures stay where they are. */
    @Test
-   void swapMapXYFieldsIsASafeNoOpWhenBothShelvesAreAllMeasure() {
-      VSMapInfo info = new VSMapInfo();
-      VSChartAggregateRef xMeasure = new VSChartAggregateRef();
-      xMeasure.setColumnValue("population");
-      VSChartAggregateRef yMeasure = new VSChartAggregateRef();
-      yMeasure.setColumnValue("sales");
-      info.addXField(xMeasure);
-      info.addYField(yMeasure);
+   void mapSwapsOnlyTheDimensions() {
+      VSMapInfo map = new VSMapInfo();
+      map.addXField(dim("City"));
+      map.addXField(measure("Sales"));
+      map.addYField(dim("State"));
+      map.addYField(measure("Profit"));
 
-      SwapXYBindingProcessor processor = new SwapXYBindingProcessor(info, null);
+      new SwapXYBindingProcessor(map, desc).process();
 
-      assertDoesNotThrow(processor::process);
-      assertEquals(1, info.getXFields().length);
-      assertEquals(1, info.getYFields().length);
-      assertTrue(java.util.Arrays.asList(info.getXFields()).contains(xMeasure));
-      assertTrue(java.util.Arrays.asList(info.getYFields()).contains(yMeasure));
+      assertEquals(Arrays.asList("State", "Sales"), names(map.getXFields()));
+      assertEquals(Arrays.asList("City", "Profit"), names(map.getYFields()));
    }
 
-   /**
-    * The other half of G2-2's re-examination: proves the general claim (dimension swap, measure
-    * passthrough, nothing dropped) with fields on both shelves, matching the original finding's
-    * "x/y fields with measures" scenario -- REFUTED, not a gap: no live-session or plugin-side
-    * change needed.
-    */
    @Test
-   void swapMapXYFieldsPreservesEveryFieldForAMixedDimensionAndMeasureBinding() {
-      VSMapInfo info = new VSMapInfo();
-      VSChartDimensionRef xDim = new VSChartDimensionRef();
-      xDim.setGroupColumnValue("state");
-      VSChartAggregateRef xMeasure = new VSChartAggregateRef();
-      xMeasure.setColumnValue("population");
-      VSChartDimensionRef yDim = new VSChartDimensionRef();
-      yDim.setGroupColumnValue("county");
-      VSChartAggregateRef yMeasure = new VSChartAggregateRef();
-      yMeasure.setColumnValue("sales");
+   void mapSwapDoesNotTouchTheAxisTitles() {
+      desc.getTitlesDescriptor().getXTitleDescriptor().setTitleValue("X title");
+      VSMapInfo map = new VSMapInfo();
+      map.addXField(dim("City"));
+      map.addYField(dim("State"));
 
-      info.addXField(xDim);
-      info.addXField(xMeasure);
-      info.addYField(yDim);
-      info.addYField(yMeasure);
+      new SwapXYBindingProcessor(map, desc).process();
 
-      SwapXYBindingProcessor processor = new SwapXYBindingProcessor(info, null);
-      processor.process();
-
-      // Every original field is still present somewhere -- none discarded.
-      java.util.List<inetsoft.uql.viewsheet.graph.ChartRef> after = new java.util.ArrayList<>();
-      after.addAll(java.util.Arrays.asList(info.getXFields()));
-      after.addAll(java.util.Arrays.asList(info.getYFields()));
-      assertEquals(4, after.size(), "no field should be dropped by a map axis swap");
-      assertTrue(after.contains(xDim));
-      assertTrue(after.contains(xMeasure));
-      assertTrue(after.contains(yDim));
-      assertTrue(after.contains(yMeasure));
-
-      // Dimensions swap shelves; measures stay put -- the map-specific swap semantic.
-      assertTrue(java.util.Arrays.asList(info.getXFields()).contains(yDim));
-      assertTrue(java.util.Arrays.asList(info.getYFields()).contains(xDim));
-      assertTrue(java.util.Arrays.asList(info.getXFields()).contains(xMeasure));
-      assertTrue(java.util.Arrays.asList(info.getYFields()).contains(yMeasure));
+      assertEquals("X title", desc.getTitlesDescriptor().getXTitleDescriptor().getTitleValue());
    }
 }

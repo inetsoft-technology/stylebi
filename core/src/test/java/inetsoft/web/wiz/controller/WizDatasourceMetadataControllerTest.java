@@ -58,7 +58,9 @@ class WizDatasourceMetadataControllerTest {
          new WizMetadataRefreshRequest("db/orders"), f.principal));
 
       verify(f.repository, never()).refreshMetaData(anyString());
-      verify(f.dataSourceService, never()).removeDefaultMetaDataProviderCache(any());
+      verify(f.dataSourceService, never())
+         .removeDefaultMetaDataProviderCache(any(inetsoft.uql.XDataSource.class));
+      verify(f.dataSourceService, never()).removeDefaultMetaDataProviderCache(any(String.class));
    }
 
    @Test

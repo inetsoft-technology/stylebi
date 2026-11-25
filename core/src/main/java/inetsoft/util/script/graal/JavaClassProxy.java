@@ -208,7 +208,8 @@ public final class JavaClassProxy implements ProxyObject, ProxyExecutable, Proxy
     *
     * @return the parsed number, or <tt>null</tt> if the string is not numeric.
     */
-   private static Number toNumber(String str) {
+   // package-private: ScriptHostAccess reuses this grammar for host-call arguments. (#81889)
+   static Number toNumber(String str) {
       String s = str.trim();
 
       // the literal grammar is matched before parsing because the Java parsers

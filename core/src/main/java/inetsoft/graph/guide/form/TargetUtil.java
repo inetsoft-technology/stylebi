@@ -55,7 +55,8 @@ class TargetUtil {
          if(args[i] <= 0.0 || args[i] > 100.0) {
             LOG.warn(Catalog.getCatalog().getString("designer.chartProp.percentileRange",
                                                        args[i]));
-            args[i] = Math.max(0, Math.min(100, args[i]));
+            // Percentile.evaluate requires a quantile in (0, 100], so 0 itself is invalid
+            args[i] = Math.max(Double.MIN_VALUE, Math.min(100, args[i]));
          }
 
          percentiles[i] = p.evaluate(args[i]);

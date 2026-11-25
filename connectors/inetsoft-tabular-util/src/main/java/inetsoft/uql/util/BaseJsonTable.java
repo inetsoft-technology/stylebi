@@ -279,6 +279,9 @@ abstract public class BaseJsonTable extends XTableNode {
          return null;
       }
 
+      // true if the date/time type is guessed from the text and not set by the user; the original
+      // text is then kept with the value since the column may still end up a string column
+      boolean inferred = colTypes.get(header) == null;
       String type = getJavaType(header, str);
       String formatType = getColumnFormat(header);
       String formatExtent = getColumnFormatExtent(header);
@@ -300,7 +303,8 @@ abstract public class BaseJsonTable extends XTableNode {
             if(XSchema.DATE.equals(type)) {
                try {
                   if(!isoDateFailed.contains(header)) {
-                     return java.sql.Date.valueOf(parseDate(str));
+                     java.sql.Date date = java.sql.Date.valueOf(parseDate(str));
+                     return inferred ? new RawDate(date.getTime(), str) : date;
                   }
                }
                catch(DateTimeParseException ex) {
@@ -310,22 +314,26 @@ abstract public class BaseJsonTable extends XTableNode {
 
                // a date column keeps the calendar date as written, so the offset of a
                // date-time text is dropped rather than converted to the server zone
-               return new java.sql.Date(parseFlexible(stripOffset(str)).toMillis());
+               long millis = parseFlexible(stripOffset(str)).toMillis();
+               return inferred ? new RawDate(millis, str) : new java.sql.Date(millis);
             }
             else if(XSchema.TIME_INSTANT.equals(type)) {
                try {
                   if(!isoDateFailed.contains(header)) {
-                     return java.sql.Timestamp.valueOf(parseDateTime(str));
+                     java.sql.Timestamp ts = java.sql.Timestamp.valueOf(parseDateTime(str));
+                     return inferred ? new RawTimestamp(ts, str) : ts;
                   }
                }
                catch(DateTimeParseException ex) {
                   isoDateFailed.add(header);
                }
 
-               return parseFlexible(str).toTimestamp();
+               java.sql.Timestamp ts = parseFlexible(str).toTimestamp();
+               return inferred ? new RawTimestamp(ts, str) : ts;
             }
             else if(XSchema.TIME.equals(type)) {
-               return java.sql.Time.valueOf(parseTime(str));
+               java.sql.Time time = java.sql.Time.valueOf(parseTime(str));
+               return inferred ? new RawTime(time.getTime(), str) : time;
             }
             else if(XSchema.BOOLEAN.equals(type)) {
                return Boolean.parseBoolean(str);
@@ -342,6 +350,30 @@ abstract public class BaseJsonTable extends XTableNode {
       }
 
       return str;
+   }
+
+   /**
+    * Gets the value of a cell as the table exposes it. A date/time inferred from text is a
+    * date/time only if its column is not a string column; otherwise the cell shows the original
+    * text, not the text of the converted date.
+    *
+    * @param val         the stored cell value.
+    * @param columnClass the final class of the cell's column.
+    */
+   static Object getCellValue(Object val, Class<?> columnClass) {
+      if(val instanceof RawTemporal) {
+         RawTemporal raw = (RawTemporal) val;
+         return columnClass == String.class ? raw.getRawText() : raw.toPlain();
+      }
+
+      return val;
+   }
+
+   /**
+    * Gets the class of a stored cell value for column type inference.
+    */
+   static Class<?> getValueClass(Object val) {
+      return val instanceof RawTemporal ? ((RawTemporal) val).getBaseClass() : val.getClass();
    }
 
    // get parsed column name
@@ -515,6 +547,92 @@ abstract public class BaseJsonTable extends XTableNode {
 
    public void setJsonMetadata(Object jsonMetadata) {
       this.jsonMetadata = jsonMetadata;
+   }
+
+   /**
+    * A date/time value inferred from text that remembers the text it was parsed from.
+    */
+   interface RawTemporal {
+      String getRawText();
+
+      Class<?> getBaseClass();
+
+      Object toPlain();
+   }
+
+   private static final class RawDate extends java.sql.Date implements RawTemporal {
+      RawDate(long millis, String raw) {
+         super(millis);
+         this.raw = raw;
+      }
+
+      @Override
+      public String getRawText() {
+         return raw;
+      }
+
+      @Override
+      public Class<?> getBaseClass() {
+         return java.sql.Date.class;
+      }
+
+      @Override
+      public Object toPlain() {
+         return new java.sql.Date(getTime());
+      }
+
+      private final String raw;
+   }
+
+   private static final class RawTimestamp extends java.sql.Timestamp implements RawTemporal {
+      RawTimestamp(java.sql.Timestamp ts, String raw) {
+         super(ts.getTime());
+         setNanos(ts.getNanos());
+         this.raw = raw;
+      }
+
+      @Override
+      public String getRawText() {
+         return raw;
+      }
+
+      @Override
+      public Class<?> getBaseClass() {
+         return java.sql.Timestamp.class;
+      }
+
+      @Override
+      public Object toPlain() {
+         java.sql.Timestamp ts = new java.sql.Timestamp(getTime());
+         ts.setNanos(getNanos());
+         return ts;
+      }
+
+      private final String raw;
+   }
+
+   private static final class RawTime extends java.sql.Time implements RawTemporal {
+      RawTime(long millis, String raw) {
+         super(millis);
+         this.raw = raw;
+      }
+
+      @Override
+      public String getRawText() {
+         return raw;
+      }
+
+      @Override
+      public Class<?> getBaseClass() {
+         return java.sql.Time.class;
+      }
+
+      @Override
+      public Object toPlain() {
+         return new java.sql.Time(getTime());
+      }
+
+      private final String raw;
    }
 
    /**

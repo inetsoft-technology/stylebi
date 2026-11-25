@@ -462,6 +462,7 @@ public abstract class AbstractDataSetFilter extends AbstractDataSet
 
       if(!shallow) {
          obj.data = (DataSet) this.data.clone();
+         obj.links = links == null ? null : links.copy();
       }
 
       obj.attr = obj.data instanceof AttributeDataSet ? (AttributeDataSet) obj.data : null;

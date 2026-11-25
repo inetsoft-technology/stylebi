@@ -52,6 +52,7 @@ import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.*;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.condition.ConditionUtil;
+import inetsoft.web.composer.model.condition.ConditionModel;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
@@ -292,6 +293,7 @@ public class HighlightDialogService {
       }
       else {
          HighlightGroup highlightGroup = null;
+         boolean unboundCheck = false;
 
          if(assemblyInfo instanceof ChartVSAssemblyInfo) {
             model.setChartAssembly(true);
@@ -327,6 +329,8 @@ public class HighlightDialogService {
             }
             else {
                highlightGroup = highlightRef.getHighlightGroup();
+               unboundCheck = isUnboundCheckApplicable(
+                  chartInfo, highlightRef, isAxis, isText, boxplot, wordCloud);
             }
 
             boolean refOnAxis = Arrays.stream(chartInfo.getRTAxisFields())
@@ -418,6 +422,7 @@ public class HighlightDialogService {
 
          if(highlightGroup != null && !highlightGroup.isEmpty()) {
             String[] names = highlightGroup.getNames();
+            final boolean checkUnbound = unboundCheck;
 
             for(String name : names) {
                Highlight highlight = highlightGroup.getHighlight(name);
@@ -426,6 +431,12 @@ public class HighlightDialogService {
                   .getVsConditionDialogModel();
                vsConditionDialogModel.setFields(fields);
                vsConditionDialogModel.setTableName(tableName);
+
+               if(checkUnbound) {
+                  vsConditionDialogModel.setUnboundFields(
+                     findUnboundFields(vsConditionDialogModel.getConditionList(), fields));
+               }
+
                highlightModelList.add(highlightModel);
             }
          }
@@ -736,6 +747,81 @@ public class HighlightDialogService {
       VSTableLens lens = box.get().getVSTableLens(objectId, false);
       TableDataPath dataPath = lens == null ? null : lens.getTableDataPath(row, col);
       return highlightService.getDateComparisonFields(rvs, assembly, dataPath);
+   }
+
+   /**
+    * Check if the field list of the highlight dialog is the authoritative list of the bound
+    * fields, so that a condition on a field outside of it can be reported as unbound. This is
+    * only true for the highlight of a measure in the plot area of a bar/line/area chart whose
+    * highlights are stored on the measure itself. Everything else uses a narrower or reshaped
+    * field list (axis, text, boxplot, discrete measure, shared group of a merged chart, map,
+    * treemap, relation, sunburst, icicle, gantt, radar, word cloud, multi-style/aesthetic
+    * charts), where a valid condition may be absent from the list. (81634)
+    */
+   static boolean isUnboundCheckApplicable(ChartInfo chartInfo, HighlightRef highlightRef,
+                                           boolean isAxis, boolean isText, boolean boxplot,
+                                           boolean wordCloud)
+   {
+      if(isAxis || isText || boxplot || wordCloud || chartInfo == null ||
+         !(highlightRef instanceof VSChartAggregateRef) ||
+         ((VSChartAggregateRef) highlightRef).isDiscrete() ||
+         chartInfo instanceof MergedVSChartInfo || chartInfo.isMultiStyles() ||
+         chartInfo.isMultiAesthetic())
+      {
+         return false;
+      }
+
+      int type = chartInfo.getRTChartType();
+
+      return GraphTypes.isBar(type) || GraphTypes.isLine(type) || GraphTypes.isArea(type);
+   }
+
+   /**
+    * Find the condition fields that are not in the field list. The match is the same as the one
+    * used by the condition field combo box on the client: same view, or same attribute, entity
+    * and type.
+    *
+    * @return the views of the unbound fields, or null if the list can't be used for the check.
+    */
+   static String[] findUnboundFields(Object[] conditionList, DataRefModel[] fields) {
+      if(conditionList == null || fields == null || fields.length == 0) {
+         return null;
+      }
+
+      Set<String> unbound = new LinkedHashSet<>();
+
+      for(Object item : conditionList) {
+         if(!(item instanceof ConditionModel) || ((ConditionModel) item).getField() == null) {
+            continue;
+         }
+
+         DataRefModel field = ((ConditionModel) item).getField();
+
+         if(field.getView() != null && !isInFields(field, fields)) {
+            unbound.add(field.getView());
+         }
+      }
+
+      return unbound.toArray(new String[0]);
+   }
+
+   private static boolean isInFields(DataRefModel field, DataRefModel[] fields) {
+      for(DataRefModel ref : fields) {
+         if(Tool.equals(ref.getView(), field.getView())) {
+            return true;
+         }
+      }
+
+      for(DataRefModel ref : fields) {
+         if(Tool.equals(ref.getAttribute(), field.getAttribute()) &&
+            Tool.equals(ref.getEntity(), field.getEntity()) &&
+            ref.getClass() == field.getClass())
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private boolean listContainsCol(List<DataRefModel> list, DataRef ref) {

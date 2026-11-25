@@ -463,7 +463,8 @@ public class ExpandedJsonTable extends BaseJsonTable {
    @Override
    public synchronized Object getObject(int col) {
       Map<String, Object> row = rows.get(curr);
-      return row == null ? null : coerceToColumnType(row.get(headers.get(col)), types[col]);
+      return row == null ? null :
+         coerceToColumnType(getCellValue(row.get(headers.get(col)), types[col]), types[col]);
    }
 
    @Override

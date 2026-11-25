@@ -19,8 +19,12 @@ package inetsoft.util.script.graal;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import inetsoft.graph.AxisSpec;
 import inetsoft.graph.EGraph;
+import inetsoft.graph.LegendSpec;
+import inetsoft.graph.TextSpec;
 import inetsoft.graph.element.GraphElement;
+import inetsoft.graph.scale.*;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
@@ -92,7 +96,11 @@ public final class HostBeanProxy implements ProxyObject {
     * unwrapped again when passed to a parameter declared as exactly one of these
     * types ({@link ScriptHostAccess#hostAccess()}). One list, so the two cannot drift.
     */
-   static final List<Class<?>> WRAPPED_TYPES = List.of(EGraph.class, GraphElement.class);
+   static final List<Class<?>> WRAPPED_TYPES = List.of(
+      EGraph.class, GraphElement.class, AxisSpec.class, LegendSpec.class, TextSpec.class,
+      // a Scale subclass is unwrapped only for a parameter declared as exactly one of
+      // these (see the class javadoc), so list the declared types in the graph API
+      Scale.class, LinearScale.class, CategoricalScale.class, TimeScale.class);
 
    private static final Cache<Object, HostBeanProxy> WRAPPERS =
       Caffeine.newBuilder().weakKeys().weakValues().build();
@@ -119,7 +127,8 @@ public final class HostBeanProxy implements ProxyObject {
    /**
     * Whether a host value is a graph object whose bean properties scripts expect
     * to read/write directly. Kept narrow on purpose: only the objects chart
-    * scripts build and mutate ({@link EGraph}, {@link GraphElement}).
+    * scripts build and mutate ({@link EGraph}, {@link GraphElement}, the axis, legend
+    * and text specs and the scales). (#81619)
     */
    public static boolean shouldWrap(Object value) {
       for(Class<?> type : WRAPPED_TYPES) {

@@ -447,6 +447,13 @@ public final class XSwapper {
       // Bug #78044, before any swap file with this seed can be registered
       registerSeed();
 
+      // Feature #79134, the lease of the seed is written before a swap file with the seed can be,
+      // and before the sweeps of other JVMs can judge them
+      if(cdir != null) {
+         leaseDir = file;
+         acquireLease(file);
+      }
+
       if(file.isDirectory()) {
          // the cache directory could be very large so do it in background
          // to avoid holding up the server startup
@@ -496,7 +503,15 @@ public final class XSwapper {
     * was never swept again until a manual EM Clean Up or another restart. Re-running this exact
     * check on a short interval closes that gap without weakening the grace period itself: a
     * file still being written by a merely-misclassified, still-alive JVM (e.g. a cluster split,
-    * see {@code claude/cluster.md}) keeps exactly the same protection it has today.
+    * see {@code claude/cluster.md}) is kept as long as the lease of its seed is live (Feature
+    * #79134, see {@link SwapSeedLeases}): the topology alone can't tell such a JVM from one that
+    * is gone. The lease is read only for a seed whose owners are not in the topology or that is
+    * not registered, never for a healthy one, and a lease that is missing or stale leaves the
+    * decision to the topology, as before. The sweep of
+    * a JVM that crashed and left its lease reads that lease as live the first time, so it takes
+    * the timeout of the lease, counted from the first sweep that read it, before the files are
+    * deleted; the one-shot startup sweep of a restarted JVM or scheduler therefore doesn't
+    * reclaim the files of its crashed predecessor, the recurring sweep does.
     *
     * @param dir the swap cache directory.
     */
@@ -517,7 +532,7 @@ public final class XSwapper {
       }
 
       try {
-         RegisteredSwapFiles registered = new RegisteredSwapFiles(cluster);
+         RegisteredSwapFiles registered = new RegisteredSwapFiles(cluster, dir);
          // Bug #78082, e.g. of the JVM this one replaced in a rolling restart, so that
          // the copies this JVM makes of the same snapshots are deleted when closed
          // Bug #78095, before the snapshot counts are read below, so that the copies of
@@ -981,6 +996,9 @@ public final class XSwapper {
    @PreDestroy
    public void stop() {
       stopped = true;
+      // Feature #79134, a stopped swapper writes no files, so the other JVMs need not wait for
+      // its lease to go stale
+      SwapSeedLeases.release(seed);
 
       if(threads != null) {
          for(XSwapperThread thread : threads) {
@@ -1002,6 +1020,27 @@ public final class XSwapper {
     */
    public void start() {
       stopped = false;
+
+      if(leaseDir != null) {
+         acquireLease(leaseDir);
+      }
+   }
+
+   /**
+    * Feature #79134, writes the lease of this swapper's seed in the cache directory, see
+    * {@link SwapSeedLeases}. It never throws.
+    */
+   private void acquireLease(File dir) {
+      String nodeId = null;
+
+      try {
+         nodeId = Cluster.getInstance().getLocalNodeId();
+      }
+      catch(Exception e) {
+         LOG.debug("Unable to get the local node id for the swap seed lease", e);
+      }
+
+      SwapSeedLeases.acquire(dir, seed, nodeId);
    }
 
    /**
@@ -1633,6 +1672,8 @@ public final class XSwapper {
    private int circle = 0;
    private int tcount = 0;
    private final long seed = Math.abs(System.currentTimeMillis());
+   // Feature #79134, the cache directory of the lease of the seed, null if it was not resolved
+   private volatile File leaseDir;
    private final MonitorMulticaster monitor = new MonitorMulticaster();
    private final AtomicLong waitingThreadCount = new AtomicLong(0L);
    private final AtomicLong criticalWaitCount = new AtomicLong(0L);
@@ -1760,13 +1801,41 @@ public final class XSwapper {
     * seed that is not registered (e.g. of a JVM of an older version) is assumed to be alive for
     * entries in the map. A file that is not in the map is protected when its seed is registered
     * and at least one of its owner nodes is in the cluster (Bug #78322).
-    * An instance is meant for a single sweep.
+    * Feature #79134, a seed whose lease in the swept cache directory is live is not dead and its
+    * files are in use, whatever the topology and the maps say (see {@link SwapSeedLeases}), and
+    * the leases of the dead seeds are deleted with their entries. An instance is meant for a
+    * single sweep of one directory.
     */
    public static final class RegisteredSwapFiles {
+      /**
+       * Creates an instance that reads the leases in the cache directory of the file system
+       * service, if it can be resolved, or none if it can't.
+       */
       public RegisteredSwapFiles(Cluster cluster) {
+         this(cluster, getCacheDirectory());
+      }
+
+      /**
+       * Creates an instance for a sweep of a cache directory.
+       * @param cluster  the cluster.
+       * @param cacheDir the directory that is swept, where the leases of the seeds are. If it is
+       *                 <tt>null</tt>, the seeds are judged by the topology alone.
+       */
+      public RegisteredSwapFiles(Cluster cluster, File cacheDir) {
          this.cluster = cluster;
+         this.cacheDir = cacheDir;
          this.map = cluster.getMap(SWAP_FILE_MAP);
          this.seeds = cluster.getMap(SWAP_SEED_MAP);
+      }
+
+      private static File getCacheDirectory() {
+         try {
+            return FileSystemService.getInstance().getCacheFolder();
+         }
+         catch(Exception e) {
+            LOG.debug("Unable to resolve the cache directory for the swap seed leases", e);
+            return null;
+         }
       }
 
       /**
@@ -1776,7 +1845,9 @@ public final class XSwapper {
        * that are not (yet) registered, e.g. of a swappable that does not register its files or
        * is still inside the batch window of Bug #77627. A seed that is not registered is not
        * treated as live here, so that the files of a JVM that is gone and whose seed was already
-       * removed are still deleted.
+       * removed are still deleted. Feature #79134, a file named with a seed whose lease in the
+       * cache directory is live is in use too, even if no node of the seed is in the cluster and
+       * whether or not the seed or the file is in the maps, see {@link SwapSeedLeases}.
        * @param file the file.
        * @return <tt>true</tt> if the file is in use.
        */
@@ -1793,13 +1864,22 @@ public final class XSwapper {
       private boolean isLive(Long seed) {
          return live.computeIfAbsent(seed, s -> {
             String owners = seeds.get(s);
-            return owners != null && !owners.isEmpty() && !dead.computeIfAbsent(s, this::isDead);
+            return owners != null && !owners.isEmpty() && !dead.computeIfAbsent(s, this::isDead) ||
+               hasLease(s);
          });
+      }
+
+      // one read of the lease per seed
+      private boolean hasLease(Long seed) {
+         return cacheDir != null &&
+            leases.computeIfAbsent(seed, s -> SwapSeedLeases.isAlive(cacheDir, s));
       }
 
       /**
        * Removes the swap file map entries and the seeds of the JVMs that are gone, so that the
        * maps don't grow with every restart. The caller must hold {@link #SWAP_FILE_MAP_LOCK}.
+       * The leases of those JVMs are deleted too, and the leases that have not been written for
+       * a day.
        */
       public void removeStaleEntries() {
          try {
@@ -1822,8 +1902,11 @@ public final class XSwapper {
                if(dead.computeIfAbsent(seed, this::isDead)) {
                   // not if a node was added to the seed since
                   seeds.remove(seed, deadOwners.get(seed));
+                  SwapSeedLeases.removeDead(cacheDir, seed);
                }
             }
+
+            SwapSeedLeases.removeOrphans(cacheDir);
          }
          catch(Exception e) {
             LOG.debug("Failed to remove stale swap file map entries", e);
@@ -1835,6 +1918,9 @@ public final class XSwapper {
          return seed != null && dead.computeIfAbsent(seed, this::isDead);
       }
 
+      /**
+       * A seed is dead if none of its owners is in the topology and its lease is not live.
+       */
       private boolean isDead(Long seed) {
          try {
             String owners = seeds.get(seed);
@@ -1856,6 +1942,12 @@ public final class XSwapper {
                return false;
             }
 
+            // Feature #79134, the topology alone can't tell a JVM that is gone from a live one
+            // in another island, only after the topology says it is gone is the lease read
+            if(hasLease(seed)) {
+               return false;
+            }
+
             deadOwners.put(seed, owners);
             return true;
          }
@@ -1866,10 +1958,12 @@ public final class XSwapper {
       }
 
       private final Cluster cluster;
+      private final File cacheDir;
       private final DistributedMap<String, Integer> map;
       private final Map<Long, String> seeds;
       private final Map<Long, Boolean> dead = new HashMap<>();
       private final Map<Long, Boolean> live = new HashMap<>();
+      private final Map<Long, Boolean> leases = new HashMap<>();
       private final Map<Long, String> deadOwners = new HashMap<>();
       private Set<String> nodes;
    }

@@ -358,8 +358,7 @@ class WeightedAverageFormulaTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): locale-formatted or hex text " +
-      "is skipped silently")
+   @DisplayName("Locale-formatted or hex text is skipped silently")
    void separatorHexAndArabicDigitText_isSkipped() {
       for(String text : new String[] { "1,000", "1,5", "0x10", "٣" }) {
          WeightedAverageFormula weighted = new WeightedAverageFormula(1);

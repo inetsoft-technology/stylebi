@@ -1937,7 +1937,8 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
     *         in the specified format.
     */
    public String getFilePath(int format) {
-      return filePaths.get(format).getPath();
+      ServerPathInfo info = filePaths.get(format);
+      return info == null ? null : info.getPath();
    }
 
    /**

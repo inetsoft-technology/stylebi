@@ -21,6 +21,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.Scheduler;
 import inetsoft.sree.schedule.*;
+import inetsoft.sree.schedule.jobstore.ClusterJobStore;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
@@ -36,6 +37,7 @@ import java.io.*;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.locks.Lock;
 
 /**
  * Quartz job listener that updates the status table and handles triggering
@@ -167,8 +169,15 @@ public class JobCompletionListener extends JobListenerSupport {
 
          if(finishActionRecord != null) {
             String seeScheduleLog = Catalog.getCatalog().getString("em.task.runStatus");
-            String actionError = status ==Scheduler.Status.FAILED ?
-               jobException.getMessage() + "." + seeScheduleLog : null;
+            String actionError = null;
+
+            if(status == Scheduler.Status.FAILED) {
+               actionError = jobException.getMessage() + "." + seeScheduleLog;
+            }
+            else if(status == Scheduler.Status.INTERRUPTED) {
+               actionError = Catalog.getCatalog().getString("em.task.stopped");
+            }
+
             finishActionRecord.setActionStatus(status == Scheduler.Status.FINISHED ?
                                                   ActionRecord.ACTION_STATUS_SUCCESS :
                                                   ActionRecord.ACTION_STATUS_FAILURE);
@@ -179,6 +188,15 @@ public class JobCompletionListener extends JobListenerSupport {
 
          if(status == Scheduler.Status.FAILED) {
             LOG.debug("Failed to run task " + taskName + ": " + error, jobException);
+         }
+
+         // Bug #81647, the task was removed while this run was in progress. The status, the
+         // dependants and the deleteIfNoMoreRun cleanup are by task name, so they would act on a
+         // task of the same name created since (or leave a status for a task that is gone).
+         // Editing a task during a run does not mark the run, so it completes as usual.
+         if(isRunOrphaned(context)) {
+            LOG.debug("Task {} was removed during its run, not updating its status", taskName);
+            return;
          }
 
          ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
@@ -199,8 +217,6 @@ public class JobCompletionListener extends JobListenerSupport {
          catch(Exception e) {
             LOG.warn("Failed to notify cluster of task completion", e);
          }
-
-         Map<String, Long> statusCache = new HashMap<>();
 
          for(JobKey jobKey : context.getScheduler()
              .getJobKeys(GroupMatcher.jobGroupEquals(Scheduler.GROUP_NAME)))
@@ -243,57 +259,7 @@ public class JobCompletionListener extends JobListenerSupport {
             }
 
             if(isDependant) {
-               // Bug #77582, compare the parents against the dependent's last start. The status
-               // of the just-finished task is its current run (the STARTED record is written in
-               // jobToBeExecuted), so it can't tell whether the other parents finished since.
-               ScheduleStatusDao.Status dependantStatus = dao.getStatus(task.getTaskId());
-               boolean triggerDependant = task.getConditionStream()
-                  .filter(cond -> cond instanceof CompletionCondition)
-                  .map(cond -> ((CompletionCondition) cond).getTaskName())
-                  .noneMatch(parentTaskName -> {
-                     Long parentEndTime = null;
-
-                     if(statusCache.containsKey(parentTaskName)) {
-                        parentEndTime = statusCache.get(parentTaskName);
-                     }
-                     else {
-                        ScheduleStatusDao.Status parentStatus = dao.getStatus(parentTaskName);
-
-                        if(parentStatus != null &&
-                           parentStatus.getStatus() == Scheduler.Status.FINISHED)
-                        {
-                           parentEndTime = parentStatus.getEndTime();
-                        }
-
-                        statusCache.put(parentTaskName, parentEndTime);
-                     }
-
-                     if(parentEndTime == null) {
-                        // failed or not finished
-                        return true;
-                     }
-
-                     // the task that just finished has obviously finished since the dependent's
-                     // last run, don't compare the times (which may come from different nodes)
-                     if(parentTaskName.equals(taskName)) {
-                        return false;
-                     }
-
-                     // hasn't run since the previous execution of the dependent
-                     return dependantStatus != null &&
-                        dependantStatus.getStartTime() > parentEndTime;
-                  });
-
-               if(triggerDependant) {
-                  try {
-                     context.getScheduler().triggerJob(
-                        new JobKey(task.getTaskId(), Scheduler.GROUP_NAME));
-                  }
-                  catch(SchedulerException e) {
-                     LOG.error("Failed to trigger dependent job '" +
-                        task.getTaskId() + "'", e);
-                  }
-               }
+               triggerDependantOnce(context, dao, task, taskName);
             }
          }
       }
@@ -307,7 +273,7 @@ public class JobCompletionListener extends JobListenerSupport {
 
          if(condition.getType() == TimeCondition.AT) {
             try {
-               context.getScheduler().unscheduleJob(context.getTrigger().getKey());
+               unscheduleFiredTrigger(context);
             }
             catch(SchedulerException e) {
                LOG.warn("Failed to remove run once trigger", e);
@@ -316,7 +282,7 @@ public class JobCompletionListener extends JobListenerSupport {
       }
       else if(context.getTrigger() instanceof SimpleTrigger) {
          try {
-            context.getScheduler().unscheduleJob(context.getTrigger().getKey());
+            unscheduleFiredTrigger(context);
          }
          catch(SchedulerException ex) {
             LOG.warn("Failed to remove run now trigger", ex);
@@ -326,17 +292,169 @@ public class JobCompletionListener extends JobListenerSupport {
       ScheduleTask task = (ScheduleTask) context.getJobDetail().getJobDataMap()
          .get(ScheduleTask.class.getName());
 
-      if(task != null && status == Scheduler.Status.FINISHED && task.isDeleteIfNoMoreRun() &&
-         !task.hasNextRuntime(System.currentTimeMillis()))
+      boolean mvStopped = task != null && status == Scheduler.Status.INTERRUPTED &&
+         isBackgroundMVTask(task);
+
+      // Bug #81816, a stage 2 background MV task runs only after stage 1 FINISHED, so when stage 1
+      // is stopped or fails it can never run and would be left behind for good
+      if(task != null && (mvStopped || status == Scheduler.Status.FAILED) &&
+         isBackgroundMVTask(task))
+      {
+         removeUnrunnableDependants(context, taskName, principal);
+      }
+
+      if(task != null && (status == Scheduler.Status.FINISHED || mvStopped) &&
+         task.isDeleteIfNoMoreRun() && !task.hasNextRuntime(System.currentTimeMillis()))
       {
          removeTask(taskName, principal);
+         deleteJob(context, key);
+      }
+   }
 
-         try {
-            context.getScheduler().deleteJob(key);
+   private static boolean isBackgroundMVTask(ScheduleTask task) {
+      return task.getType() == ScheduleTask.Type.MV_TASK && task.isDeleteIfNoMoreRun() &&
+         !task.isEditable();
+   }
+
+   private void deleteJob(JobExecutionContext context, JobKey key) {
+      try {
+         context.getScheduler().deleteJob(key);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove schedule job", e);
+      }
+   }
+
+   /**
+    * Removes the background MV tasks whose only trigger is the completion of the given task,
+    * which did not finish.
+    */
+   private void removeUnrunnableDependants(JobExecutionContext context, String taskName,
+                                           Principal principal)
+   {
+      try {
+         for(JobKey jobKey : context.getScheduler()
+             .getJobKeys(GroupMatcher.jobGroupEquals(Scheduler.GROUP_NAME)))
+         {
+            JobDetail jobDetail = context.getScheduler().getJobDetail(jobKey);
+            ScheduleTask dependant = jobDetail == null ? null :
+               (ScheduleTask) jobDetail.getJobDataMap().get(ScheduleTask.class.getName());
+
+            if(dependant != null && isBackgroundMVTask(dependant) &&
+               dependant.getConditionStream().allMatch(cond -> cond instanceof CompletionCondition) &&
+               dependant.getConditionStream().anyMatch(cond ->
+                  taskName.equals(((CompletionCondition) cond).getTaskName())))
+            {
+               removeTask(jobKey.getName(), principal);
+               deleteJob(context, jobKey);
+            }
          }
-         catch(Exception e) {
-            LOG.warn("Failed to remove schedule job", e);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove the dependants of task " + taskName, e);
+      }
+   }
+
+   /**
+    * Triggers a dependant task if every parent has finished since its last run. The check and the
+    * trigger are one step under a per-dependant cluster lock, and the parent end times that the
+    * trigger consumed are recorded, because a trigger that is only queued has no status yet
+    * (Bug #81706). Without it, parents that finish together each see the others finished and
+    * each trigger the dependant.
+    */
+   private void triggerDependantOnce(JobExecutionContext context, ScheduleStatusDao dao,
+                                     ScheduleTask task, String taskName)
+   {
+      String dependantId = task.getTaskId();
+      Lock lock = Cluster.getInstance().getLock(DEPENDANT_LOCK_PREFIX + dependantId);
+      lock.lock();
+
+      try {
+         // Bug #77582, compare the parents against the dependent's last start. The status
+         // of the just-finished task is its current run (the STARTED record is written in
+         // jobToBeExecuted), so it can't tell whether the other parents finished since.
+         ScheduleStatusDao.Status dependantStatus = dao.getStatus(dependantId);
+         Map<String, Long> parentEnds = new HashMap<>();
+         boolean triggerDependant = task.getConditionStream()
+            .filter(cond -> cond instanceof CompletionCondition)
+            .map(cond -> ((CompletionCondition) cond).getTaskName())
+            .noneMatch(parentTaskName -> {
+               ScheduleStatusDao.Status parentStatus = dao.getStatus(parentTaskName);
+               Long parentEndTime = null;
+
+               if(parentStatus != null && parentStatus.getStatus() == Scheduler.Status.FINISHED) {
+                  parentEndTime = parentStatus.getEndTime();
+               }
+
+               if(parentEndTime == null) {
+                  // failed or not finished
+                  return true;
+               }
+
+               parentEnds.put(parentTaskName, parentEndTime);
+
+               // the task that just finished has obviously finished since the dependent's
+               // last run, don't compare the times (which may come from different nodes)
+               if(parentTaskName.equals(taskName)) {
+                  return false;
+               }
+
+               // hasn't run since the previous execution of the dependent
+               return dependantStatus != null &&
+                  dependantStatus.getStartTime() > parentEndTime;
+            });
+
+         // already triggered for exactly these parent runs, by another parent's pass whose
+         // trigger has not started the dependant yet
+         if(triggerDependant && parentEnds.equals(dao.getDependantClaim(dependantId))) {
+            LOG.debug("Dependant {} was already triggered for these parent runs", dependantId);
+            triggerDependant = false;
          }
+
+         if(triggerDependant) {
+            try {
+               context.getScheduler().triggerJob(new JobKey(dependantId, Scheduler.GROUP_NAME));
+               dao.setDependantClaim(dependantId, parentEnds);
+            }
+            catch(SchedulerException e) {
+               LOG.error("Failed to trigger dependent job '" + dependantId + "'", e);
+            }
+         }
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   /**
+    * Removes the trigger that fired, but not a trigger stored under the same key since it fired
+    * (Bug #81647). Deleting or editing a task during its run stores new triggers under the same
+    * keys, which the completion of the old run must not remove.
+    */
+   private void unscheduleFiredTrigger(JobExecutionContext context) throws SchedulerException {
+      TriggerKey triggerKey = context.getTrigger().getKey();
+      ClusterJobStore store = ClusterJobStore.forScheduler(context.getScheduler());
+
+      if(store == null) {
+         context.getScheduler().unscheduleJob(triggerKey);
+         return;
+      }
+
+      store.removeTriggerFiredBy(triggerKey, context.getFireInstanceId());
+   }
+
+   /**
+    * Checks if the task was removed while the run of this execution was in progress.
+    */
+   private boolean isRunOrphaned(JobExecutionContext context) {
+      try {
+         ClusterJobStore store = ClusterJobStore.forScheduler(context.getScheduler());
+         return store != null &&
+            store.isRunOrphaned(context.getJobDetail().getKey(), context.getFireInstanceId());
+      }
+      catch(SchedulerException | RuntimeException ex) {
+         LOG.warn("Failed to check if the task was removed during its run", ex);
+         return false;
       }
    }
 
@@ -418,6 +536,8 @@ public class JobCompletionListener extends JobListenerSupport {
       private final Principal principal;
    }
 
+   private static final String DEPENDANT_LOCK_PREFIX =
+      JobCompletionListener.class.getName() + ".dependant.";
    private final String name;
    private static final Logger LOG = LoggerFactory.getLogger(JobCompletionListener.class);
 }

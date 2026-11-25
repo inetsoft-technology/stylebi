@@ -268,6 +268,39 @@ public class VGraphPair {
    }
 
    /**
+    * Fold an author's stored resize percent into the unit ratios.
+    */
+   static void applyResizePercent(VSChartInfo info, EGraph egraph, double initialWidthRatio,
+                                  double initialHeightRatio)
+   {
+      // a relation chart's percent is of the initial ratio 1 it reports, so its size holds
+      if(egraph != null && egraph.getElementCount() > 0 &&
+         egraph.getElement(0) instanceof RelationElement)
+      {
+         initialWidthRatio = 1;
+         initialHeightRatio = 1;
+
+         // the slider starts from the stored ratio, so an axis not resized keeps none
+         if(!info.isWidthResized()) {
+            info.setUnitWidthRatio(1);
+         }
+
+         if(!info.isHeightResized()) {
+            info.setUnitHeightRatio(1);
+         }
+      }
+
+      // a percent left behind by Reset Size applies to no axis
+      if(info.isWidthResized() && info.getUnitWidthRatioPercent() >= 1) {
+         info.setUnitWidthRatio(initialWidthRatio * info.getUnitWidthRatioPercent());
+      }
+
+      if(info.isHeightResized() && info.getUnitHeightRatioPercent() >= 1) {
+         info.setUnitHeightRatio(initialHeightRatio * info.getUnitHeightRatioPercent());
+      }
+   }
+
+   /**
     * Intialize visual graphs.
     */
    private void initGraph0(ViewsheetSandbox box, String cname, Dimension maxsize,
@@ -763,13 +796,7 @@ public class VGraphPair {
          initialHeightRatio = 1;
       }
 
-      if(info.getUnitWidthRatioPercent() >= 1) {
-         info.setUnitWidthRatio(initialWidthRatio * info.getUnitWidthRatioPercent());
-      }
-
-      if(info.getUnitHeightRatioPercent() >= 1) {
-         info.setUnitHeightRatio(initialHeightRatio * info.getUnitHeightRatioPercent());
-      }
+      applyResizePercent(info, vgraph.getEGraph(), initialWidthRatio, initialHeightRatio);
 
       double widthRatio = info.getUnitWidthRatio();
       double heightRatio = info.getUnitHeightRatio();
