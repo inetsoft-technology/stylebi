@@ -1,0 +1,51 @@
+/*!
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+// Composer overlay two-tone (Feature #80673 phase 2, PR8).
+// Selection indicators drawn over dashboard content (handles, the selection and layout outlines, the
+// authoring marquee) use one content-independent pair: a dark stroke and a light halo at least 9:1
+// apart, so one of them reaches 3:1 against any solid background (WCAG 1.4.11, technique C40). The
+// values are the same in both shells, and live here, outside the inet-runtime-tokens mixin, so the
+// dark shell's content restore and PR7's light pins never reach them. Themed pages (EE custom
+// theme JARs) leave them undeclared, and every consumer falls back to its earlier value.
+:root:where(:not(.custom-theme)) {
+  --inet-composer-overlay-stroke: #123C44;
+  --inet-composer-overlay-halo: #FFFFFF;
+  // the layout pane draws its indicator as a band (border): solid halo here, while a themed page
+  // falls back to the old dotted or dashed border in the assembly outline colour
+  --inet-composer-overlay-band: solid;
+}
+
+// The move handles' glyph (an icon font) draws in var(--inet-icon-color), set on the icon class in
+// global.css, so a colour on the handle never reaches it. On the white halo fill it takes the stroke,
+// in the dashboard editor, the layout pane and the wizard grid (the wizard pane is outside the dark
+// shell's content restore, where the icon colour is the shell's light one). Gated here, so a themed
+// page keeps its icon colour.
+:root:where(:not(.custom-theme)) :is(.composer-object__move-handle, .layout-object__move-handle, .vs-wizard-object__move-handle) {
+  --inet-icon-color: var(--inet-composer-overlay-stroke);
+}
+
+// The marquee on the composer's three authoring panes (the dashboard, layout and wizard panes pass
+// selectionBoxClass="selection-box composer-selection-box"; the chart brush and cell marquees keep
+// .selection-box alone): a 1px stroke ring with a 1px halo inside it, and one absolute fill, the
+// stroke colour (#123C44) at 6%, the same in every pane. !important beats .selection-box's light
+// rule (_themeable.scss, 0,1,0), its dark rule and the dark shell's content restore (_shell-dark.scss,
+// both inside :where(), 0,1,0), independent of source order.
+:root:where(:not(.custom-theme)) .composer-selection-box {
+  box-shadow: inset 0 0 0 1px var(--inet-composer-overlay-stroke), inset 0 0 0 2px var(--inet-composer-overlay-halo) !important;
+  background-color: rgba(18, 60, 68, 0.06) !important;
+}
