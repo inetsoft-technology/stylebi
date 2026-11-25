@@ -1085,7 +1085,7 @@
       "paged": "true",
       "pageType": "OFFSET",
       "name": "Change Cls",
-      "suffix": "/sn_chg_rest/change/{Change ID}/ci?association_type={Association Type?:affected|impacted|offering}&sysparm_query={Query}",
+      "suffix": "/sn_chg_rest/change/{Change ID}/ci?association_type={Association Type:affected|impacted|offering}&sysparm_query={Query?}",
       "description": "The configuration items one change affects, by association type. Requires a change id. THE LINK BETWEEN A CHANGE AND WHAT IT TOUCHED -- which is how a change is connected to the incidents that followed it.",
       "responseSchema": {
         "result": [
