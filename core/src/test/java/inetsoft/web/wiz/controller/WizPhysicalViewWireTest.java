@@ -26,6 +26,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins the physical view wire records: the field names are the contract with the plugin's
@@ -45,9 +47,21 @@ class WizPhysicalViewWireTest {
       assertEquals(List.of("database", "name", "parent", "definition", "dryRun",
                            "baseRevision"),
                    names(WriteRequest.class));
-      assertEquals(List.of("code", "message", "table1", "table2"), names(Warning.class));
+      assertEquals(List.of("code", "message", "table1", "table2", "joins"),
+                   names(Warning.class));
       assertEquals(List.of("ok", "name", "folder", "definition", "warnings", "dependents",
                            "revision"),
                    names(WriteResponse.class));
+   }
+
+   @Test
+   void theJoinsOfAWarningAreOmittedFromTheJsonWhenNull() throws Exception {
+      var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+      String plain = mapper.writeValueAsString(new Warning("UNJOINED_TABLES", "m", "A", "B"));
+      String cycle = mapper.writeValueAsString(
+         new Warning("CYCLE", "m", "", "", List.of("A.X -> B.Y")));
+
+      assertFalse(plain.contains("joins"), plain);
+      assertTrue(cycle.contains("\"joins\":[\"A.X -> B.Y\"]"), cycle);
    }
 }

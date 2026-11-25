@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.controller;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.List;
 import java.util.Map;
 
@@ -61,7 +63,17 @@ public final class WizPhysicalViewWire {
       }
    }
 
-   public record Warning(String code, String message, String table1, String table2) {
+   /**
+    * A warning of a write. {@code joins} is only set for {@code CYCLE}: the joins of the cycle as
+    * {@code FROM_TABLE.col -> TO_TABLE.col}, the ones the Portal marks red; null (and omitted from
+    * the JSON) for every other code.
+    */
+   public record Warning(String code, String message, String table1, String table2,
+                         @JsonInclude(JsonInclude.Include.NON_NULL) List<String> joins)
+   {
+      public Warning(String code, String message, String table1, String table2) {
+         this(code, message, table1, table2, null);
+      }
    }
 
    public record WriteResponse(boolean ok, String name, String folder,
