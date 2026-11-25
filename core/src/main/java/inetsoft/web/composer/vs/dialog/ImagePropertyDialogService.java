@@ -84,7 +84,7 @@ public class ImagePropertyDialogService {
       OutputGeneralPaneModel outputGeneralPaneModel = new OutputGeneralPaneModel();
 
       TipPaneModel tipPaneModel = new TipPaneModel();
-      tipPaneModel.setTipOption(imageAssemblyInfo.isTooltipVisible());
+      tipPaneModel.setTipOption(imageAssemblyInfo.getTooltipVisibleValue());
 
       SizePositionPaneModel sizePositionPaneModel = new SizePositionPaneModel();
       sizePositionPaneModel.setLocked(imageAssemblyInfo.getLocked());
@@ -192,7 +192,7 @@ public class ImagePropertyDialogService {
       tipCustomizeDialogModel.setDataRefList(dataRefList);
       tipCustomizeDialogModel.setAvailableTipValues(VSUtil.getAvailableTipValues(dataRefList));
 
-      String customTip = imageAssemblyInfo.getCustomTooltipString();
+      String customTip = imageAssemblyInfo.getCustomTooltipStringValue();
 
       if(customTip != null && !customTip.isEmpty()) {
          tipCustomizeDialogModel.setCustomRB(TipCustomizeDialogModel.TipFormat.CUSTOM);
@@ -297,15 +297,15 @@ public class ImagePropertyDialogService {
          imageAssemblyInfo.setImageValue(null);
       }
 
-      imageAssemblyInfo.setTooltipVisible(tipPaneModel.isTipOption());
+      imageAssemblyInfo.setTooltipVisibleValue(tipPaneModel.isTipOption());
 
       if(tipCustomizeDialogModel.getCustomRB() == TipCustomizeDialogModel.TipFormat.CUSTOM) {
          String customTip = tipCustomizeDialogModel.getCustomTip();
          customTip = (customTip == null || customTip.isEmpty()) ? null : customTip;
-         imageAssemblyInfo.setCustomTooltipString(customTip);
+         imageAssemblyInfo.setCustomTooltipStringValue(customTip);
       }
       else {
-         imageAssemblyInfo.setCustomTooltipString(null);
+         imageAssemblyInfo.setCustomTooltipStringValue(null);
       }
 
       dialogService.setAssemblySize(imageAssemblyInfo, sizePositionPaneModel);

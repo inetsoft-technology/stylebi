@@ -132,7 +132,15 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
 
       fixColorFrame(oldType, newType);
       GraphUtil.fixVisualFrames(info);
-      info.setTooltipVisible(oinfo.isTooltipVisible());
+
+      if(info instanceof AbstractChartInfo && oinfo instanceof AbstractChartInfo) {
+         ((AbstractChartInfo) info).setTooltipVisibleValue(
+            ((AbstractChartInfo) oinfo).getTooltipVisibleValue());
+      }
+      else {
+         info.setTooltipVisible(oinfo.isTooltipVisible());
+      }
+
 
       if(!GraphTypes.supportsMultiStyles(newType)) {
          info.setSeparatedGraph(true);

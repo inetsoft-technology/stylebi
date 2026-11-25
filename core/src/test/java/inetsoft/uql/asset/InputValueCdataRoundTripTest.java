@@ -189,10 +189,10 @@ class InputValueCdataRoundTripTest {
          VSChartInfo cinfo = ((ChartVSAssemblyInfo) chart.getVSAssemblyInfo()).getVSChartInfo();
          // the key of a column label format is a column name
          cinfo.getAxisDescriptor().setColumnLabelTextFormat("f" + p, new CompositeTextFormat());
-         cinfo.setToolTip("c" + p);
+         cinfo.setToolTipValue("c" + p);
          vs.addAssembly(chart);
          GaugeVSAssembly gauge = new GaugeVSAssembly(vs, "Gauge1");
-         ((GaugeVSAssemblyInfo) gauge.getVSAssemblyInfo()).setCustomTooltipString("g" + p);
+         ((GaugeVSAssemblyInfo) gauge.getVSAssemblyInfo()).setCustomTooltipStringValue("g" + p);
          vs.addAssembly(gauge);
 
          Viewsheet back = (Viewsheet) roundTrip(viewsheetEntry("vs77891fmt" + n++), vs);
@@ -215,7 +215,7 @@ class InputValueCdataRoundTripTest {
          Viewsheet vs = new Viewsheet();
          TextVSAssembly text = new TextVSAssembly(vs, "Text1");
          TextVSAssemblyInfo tinfo = (TextVSAssemblyInfo) text.getVSAssemblyInfo();
-         tinfo.setCustomTooltipString("tip" + p);
+         tinfo.setCustomTooltipStringValue("tip" + p);
          // the runtime value is written as <displayValue> and not read back
          tinfo.setValue("data" + p);
          vs.addAssembly(text);
