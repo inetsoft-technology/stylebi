@@ -1883,6 +1883,20 @@ public class WorksheetEditService {
       // -----------------------------------------------------------------------
 
       /**
+       * Two-table {@code addJoin} whose keys are all equi conditions; see
+       * {@link #addJoin(String, String, String, String, String, String, List, List, List)}.
+       */
+      public void addJoin(String name, String leftTable, String leftKey,
+                          String rightTable, String rightKey,
+                          String joinType,
+                          List<String> leftKeys, List<String> rightKeys)
+         throws PairingException, SecurityException
+      {
+         addJoin(name, leftTable, leftKey, rightTable, rightKey, joinType, leftKeys, rightKeys,
+                 null);
+      }
+
+      /**
        * Creates a new {@link RelationalJoinTableAssembly} joining {@code leftTable} and
        * {@code rightTable} on the given key columns and adds it to the worksheet.
        *
@@ -1902,12 +1916,19 @@ public class WorksheetEditService {
        *                   {@code "MERGE"} delegates to {@link #addMergeJoin}.
        * @param leftKeys   optional multi-key list of left column names (overrides {@code leftKey})
        * @param rightKeys  optional multi-key list of right column names (overrides {@code rightKey})
+       * @param operators  optional comparison operator of each key condition, one entry per key
+       *                   (see {@link #parseJoinOperator}); {@code null}, an empty list, or a
+       *                   {@code null}/{@code "="} entry keeps that key an equi condition, which
+       *                   carries {@code joinType}. Non-equi keys are incompatible with
+       *                   {@code "CROSS"}/{@code "MERGE"} and with an outer {@code joinType} on a
+       *                   call whose keys are ALL non-equi.
        * @throws PairingException if either source assembly is not found
        */
       public void addJoin(String name, String leftTable, String leftKey,
                           String rightTable, String rightKey,
                           String joinType,
-                          List<String> leftKeys, List<String> rightKeys)
+                          List<String> leftKeys, List<String> rightKeys,
+                          List<String> operators)
          throws PairingException, SecurityException
       {
          if(name == null || name.isBlank()) {
@@ -1915,11 +1936,13 @@ public class WorksheetEditService {
          }
 
          if("CROSS".equalsIgnoreCase(joinType)) {
+            keyOperations(TableAssemblyOperator.CROSS_JOIN, operators, 1);
             addCrossJoin(name, leftTable, rightTable);
             return;
          }
 
          if("MERGE".equalsIgnoreCase(joinType)) {
+            keyOperations(TableAssemblyOperator.MERGE_JOIN, operators, 1);
             addMergeJoin(name, new String[]{ leftTable, rightTable });
             return;
          }
@@ -1928,6 +1951,10 @@ public class WorksheetEditService {
          TableAssembly right = requireTable(rightTable);
 
          int operation = parseJoinType(joinType);
+         int keyCount = leftKeys != null && rightKeys != null && !leftKeys.isEmpty() ?
+            leftKeys.size() : 1;
+         // one operation per key: the join type for an equi key, the operator for any other
+         int[] keyOps = keyOperations(operation, operators, keyCount);
 
          boolean leftIsJoin = left instanceof RelationalJoinTableAssembly;
          boolean rightIsJoin = right instanceof RelationalJoinTableAssembly;
@@ -1986,7 +2013,7 @@ public class WorksheetEditService {
                   op.setRightTable(anchorRight.getName());
                   op.setLeftAttribute(new AttributeRef(null, leftKeys.get(i)));
                   op.setRightAttribute(new AttributeRef(null, rightKeys.get(i)));
-                  op.setOperation(operation);
+                  op.setOperation(keyOps[i]);
                   // Validate only THIS new edge against its own anchor pair -- noperator was
                   // seeded above with the join's pre-existing operators, which may span other,
                   // unrelated member-table pairs; a whole-noperator check would be wrong for them.
@@ -2005,7 +2032,7 @@ public class WorksheetEditService {
                op.setRightTable(anchorRight.getName());
                op.setLeftAttribute(new AttributeRef(null, leftKey));
                op.setRightAttribute(new AttributeRef(null, rightKey));
-               op.setOperation(operation);
+               op.setOperation(keyOps[0]);
                requireCompatibleJoinKeyTypes(op, anchorLeft, anchorRight);
                noperator.addOperator(op);
             }
@@ -2058,7 +2085,7 @@ public class WorksheetEditService {
                op.setRightTable(rightTable);
                op.setLeftAttribute(new AttributeRef(null, leftKeys.get(i)));
                op.setRightAttribute(new AttributeRef(null, rightKeys.get(i)));
-               op.setOperation(operation);
+               op.setOperation(keyOps[i]);
                top.addOperator(op);
             }
          }
@@ -2069,7 +2096,7 @@ public class WorksheetEditService {
             op.setRightTable(rightTable);
             op.setLeftAttribute(new AttributeRef(null, leftKey));
             op.setRightAttribute(new AttributeRef(null, rightKey));
-            op.setOperation(operation);
+            op.setOperation(keyOps[0]);
             top.addOperator(op);
          }
 
@@ -2154,6 +2181,8 @@ public class WorksheetEditService {
 
             int operation = parseJoinType(path.joinType());
             crossJoin = crossJoin || operation == TableAssemblyOperator.CROSS_JOIN;
+            int condition = keyOperations(
+               operation, path.operator() == null ? null : List.of(path.operator()), 1)[0];
 
             TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
             op.setLeftTable(path.leftTable());
@@ -2168,7 +2197,7 @@ public class WorksheetEditService {
                requireCompatibleJoinKeyTypes(op, left, right);
             }
 
-            op.setOperation(operation);
+            op.setOperation(condition);
             noperator.addOperator(op);
          }
 
@@ -3737,8 +3766,9 @@ public class WorksheetEditService {
        * are preserved. A pair holding only non-equi operators is refused. New keys replace the
        * WHOLE key list of the pair: {@code leftKey}/{@code rightKey} with a selector leave one
        * key; {@code leftKeys}/{@code rightKeys} set the list (both given, same length; a
-       * half-supplied key is refused). A key change also DROPS the pair's non-equi operators.
-       * With a selector and no {@code joinType} the edge keeps its stored type; without a
+       * half-supplied key is refused). A key change keeps the pair's non-equi operators that the
+       * new keys do not restate unless the overload with {@code operators} is used, which sets the
+       * pair's whole condition list. With a selector and no {@code joinType} the edge keeps its stored type; without a
        * selector (one-edge join) a missing {@code joinType} means INNER. Other pairs are never
        * rewritten. {@code joinType} MERGE is refused.</p>
        *
@@ -3767,6 +3797,30 @@ public class WorksheetEditService {
       public void editJoin(String name, String leftKey, String rightKey, String joinType,
                            List<String> leftKeys, List<String> rightKeys,
                            String edgeLeft, String edgeRight)
+         throws PairingException, SecurityException
+      {
+         editJoin(name, leftKey, rightKey, joinType, leftKeys, rightKeys, edgeLeft, edgeRight,
+                  null);
+      }
+
+      /**
+       * {@link #editJoin(String, String, String, String, List, List, String, String)} with a
+       * comparison operator per new key.
+       *
+       * <p>{@code operators} (one entry per new key, {@code null}/{@code "="} for an equi key,
+       * see {@link #parseJoinOperator}) is the COMPLETE condition list of the pair: it replaces
+       * the pair's stored conditions, non-equi ones included, so a caller reshapes the edge by
+       * restating what it keeps (the operator names a read returns round-trip). Without
+       * {@code operators} every new key is an equi key, and the pair's stored non-equi
+       * conditions that the new keys do not restate are KEPT, as the Composer does when its
+       * equi key or type changes; a kept condition on the same column pair as a new key is
+       * refused. The operators are relative to {@code edgeLeft}/{@code edgeRight}, so a
+       * reversed selector mirrors them (&gt; becomes &lt;) like the join type. {@code operators}
+       * needs new keys.</p>
+       */
+      public void editJoin(String name, String leftKey, String rightKey, String joinType,
+                           List<String> leftKeys, List<String> rightKeys,
+                           String edgeLeft, String edgeRight, List<String> operators)
          throws PairingException, SecurityException
       {
          Assembly a = ws.getAssembly(name);
@@ -3805,6 +3859,14 @@ public class WorksheetEditService {
                "Pass both leftKey and rightKey to set a key, or neither to keep the keys.");
          }
 
+         boolean explicitOperators = operators != null && !operators.isEmpty();
+
+         if(explicitOperators && !leftList && leftKey == null) {
+            throw new PairingException(
+               "operators are the comparison of each new key: pass leftKey/rightKey or " +
+               "leftKeys/rightKeys with them.");
+         }
+
          boolean selector = edgeLeft != null || edgeRight != null;
          JoinEdge edge;
 
@@ -3841,7 +3903,7 @@ public class WorksheetEditService {
                }
             }
 
-            operation = edge.reversed() ? mirrorJoinOperation(keep) : keep;
+            operation = edge.reversed() ? InnerJoinService.mirrorOperation(keep) : keep;
          }
 
          boolean cross = operation == TableAssemblyOperator.CROSS_JOIN;
@@ -3873,7 +3935,7 @@ public class WorksheetEditService {
 
          // The pair is stored as (edge.left, edge.right); the caller's join type and key sides are
          // relative to (edgeLeft, edgeRight), so a reversed match flips them.
-         int storedOp = edge.reversed() ? mirrorJoinOperation(operation) : operation;
+         int storedOp = edge.reversed() ? InnerJoinService.mirrorOperation(operation) : operation;
 
          if(cross && storedCross) {
             if(selector) {
@@ -3905,6 +3967,9 @@ public class WorksheetEditService {
             List<String> callerLeft = listKeys ? leftKeys : List.of(leftKey);
             List<String> callerRight = listKeys ? rightKeys : List.of(rightKey);
             int count = Math.min(callerLeft.size(), callerRight.size());
+            // operations are relative to the caller's (edgeLeft, edgeRight); a reversed selector
+            // mirrors each into the stored orientation, as it does the join type
+            int[] keyOps = keyOperations(operation, operators, count);
             TableAssembly leftAssembly = requireTable(edge.left());
             TableAssembly rightAssembly = requireTable(edge.right());
             TableAssemblyOperator newTop = new TableAssemblyOperator();
@@ -3928,8 +3993,13 @@ public class WorksheetEditService {
                newOp.setRightTable(edge.right());
                newOp.setLeftAttribute(new AttributeRef(null, storedLeftKey));
                newOp.setRightAttribute(new AttributeRef(null, storedRightKey));
-               newOp.setOperation(storedOp);
+               newOp.setOperation(edge.reversed() ? InnerJoinService.mirrorOperation(keyOps[i]) :
+                                     keyOps[i]);
                newTop.addOperator(newOp);
+            }
+
+            if(!explicitOperators) {
+               keepStoredNonEquiOperators(stored, newTop, label);
             }
 
             requireCompatibleJoinKeyTypes(newTop, leftAssembly, rightAssembly);
@@ -3967,7 +4037,8 @@ public class WorksheetEditService {
          if(equiCount == 0) {
             throw new PairingException(
                "Edge " + label + " holds only non-equi operators (" + String.join(", ", nonEqui) +
-               "), which have no join type to change. Pass new leftKey/rightKey to replace them.");
+               "), which have no join type to change. Pass leftKeys/rightKeys with operators to " +
+               "replace them.");
          }
 
          if(toChange.isEmpty()) {
@@ -4279,16 +4350,45 @@ public class WorksheetEditService {
             case TableAssemblyOperator.FULL_JOIN -> "FULL";
             case TableAssemblyOperator.CROSS_JOIN -> "CROSS";
             case TableAssemblyOperator.MERGE_JOIN -> "MERGE";
-            default -> "NON-EQUI";
+            default -> {
+               TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+               op.setOperation(operation);
+               yield op.getName2();
+            }
          };
       }
 
-      private static int mirrorJoinOperation(int operation) {
-         return switch(operation) {
-            case TableAssemblyOperator.LEFT_JOIN -> TableAssemblyOperator.RIGHT_JOIN;
-            case TableAssemblyOperator.RIGHT_JOIN -> TableAssemblyOperator.LEFT_JOIN;
-            default -> operation;
-         };
+      /**
+       * Copies the non-equi conditions of {@code stored} that {@code newTop} does not already
+       * restate (same column pair) into {@code newTop}, so an edit of the equi keys does not
+       * silently drop a condition the caller never mentioned.
+       */
+      private static void keepStoredNonEquiOperators(TableAssemblyOperator stored,
+                                                     TableAssemblyOperator newTop, String label)
+         throws PairingException
+      {
+         for(TableAssemblyOperator.Operator op : stored.getOperators()) {
+            if(op.isEqualJoin() || op.isCrossJoin() || op.isMergeJoin()) {
+               continue;
+            }
+
+            String leftColumn = op.getLeftAttribute() == null ? null :
+               op.getLeftAttribute().getAttribute();
+            String rightColumn = op.getRightAttribute() == null ? null :
+               op.getRightAttribute().getAttribute();
+
+            for(TableAssemblyOperator.Operator key : newTop.getOperators()) {
+               if(joinKeyMatches(key, leftColumn, rightColumn)) {
+                  throw new PairingException(
+                     "Edge " + label + " already holds " + op.getName2() + " on " + leftColumn +
+                     " / " + rightColumn + ", and a pair of columns takes one condition. Pass " +
+                     "operators to restate the edge's whole condition list, or use other " +
+                     "columns for the new key.");
+               }
+            }
+
+            newTop.addOperator((TableAssemblyOperator.Operator) op.clone());
+         }
       }
 
       private static boolean isCrossPair(TableAssemblyOperator top) {
@@ -6246,6 +6346,87 @@ public class WorksheetEditService {
             case "MINUS"     -> TableAssemblyOperator.MINUS;
             default          -> TableAssemblyOperator.UNION;
          };
+      }
+
+      /**
+       * Maps a key condition's comparison operator to its operation: {@code =} (also {@code ==}
+       * and the {@code INNER_JOIN}/{@code LEFT_JOIN}/{@code RIGHT_JOIN}/{@code FULL_JOIN} names a
+       * read reports for an equi key) is {@link TableAssemblyOperator#INNER_JOIN}, meaning "equi,
+       * the join type decides"; {@code >}, {@code <}, {@code >=}, {@code <=} and {@code <>}
+       * (or {@code !=}) are the matching non-equi operations, as are the {@code *_JOIN} names a
+       * read reports for them. Unlike {@link #parseJoinType} an unknown operator is refused,
+       * never defaulted: a comparison silently turned into equality returns the wrong rows.
+       */
+      static int parseJoinOperator(String operator) throws PairingException {
+         String key = operator == null ? "" : operator.trim().toUpperCase();
+
+         return switch(key) {
+            case "=", "==", "INNER_JOIN", "LEFT_JOIN", "RIGHT_JOIN", "FULL_JOIN" ->
+               TableAssemblyOperator.INNER_JOIN;
+            case ">", "GREATER_JOIN" -> TableAssemblyOperator.GREATER_JOIN;
+            case "<", "LESS_JOIN" -> TableAssemblyOperator.LESS_JOIN;
+            case ">=", "GREATER_EQUAL_JOIN" -> TableAssemblyOperator.GREATER_EQUAL_JOIN;
+            case "<=", "LESS_EQUAL_JOIN" -> TableAssemblyOperator.LESS_EQUAL_JOIN;
+            case "<>", "!=", "NOT_EQUAL_JOIN" -> TableAssemblyOperator.NOT_EQUAL_JOIN;
+            default -> throw new PairingException(
+               "operator must be one of =, >, <, >=, <=, <> (got \"" + operator + "\").");
+         };
+      }
+
+      /**
+       * The operation of each of {@code keyCount} key conditions: {@code operation} (the join
+       * type's) for an equi key, the parsed operator for any other. {@code operators} is
+       * {@code null}/empty (every key is equi) or has exactly one entry per key. A non-equi key
+       * cannot ride on a CROSS/MERGE join, and an outer join type needs at least one equi key to
+       * carry it, so both are refused here rather than stored as a join the caller did not ask
+       * for.
+       */
+      static int[] keyOperations(int operation, List<String> operators, int keyCount)
+         throws PairingException
+      {
+         boolean given = operators != null && !operators.isEmpty();
+
+         if(given && operators.size() != keyCount) {
+            throw new PairingException(
+               "operators must have one entry per key (" + keyCount + " key" +
+               (keyCount == 1 ? "" : "s") + "), got " + operators.size() + ".");
+         }
+
+         int[] ops = new int[keyCount];
+         int nonEqui = 0;
+
+         for(int i = 0; i < keyCount; i++) {
+            int parsed = given && operators.get(i) != null && !operators.get(i).isBlank() ?
+               parseJoinOperator(operators.get(i)) : TableAssemblyOperator.INNER_JOIN;
+            ops[i] = parsed == TableAssemblyOperator.INNER_JOIN ? operation : parsed;
+
+            if(parsed != TableAssemblyOperator.INNER_JOIN) {
+               nonEqui++;
+            }
+         }
+
+         if(nonEqui > 0) {
+            if(operation == TableAssemblyOperator.CROSS_JOIN ||
+               operation == TableAssemblyOperator.MERGE_JOIN)
+            {
+               throw new PairingException(
+                  "A CROSS or MERGE join has no key conditions, so it takes no operator other " +
+                  "than =; use an INNER join for a comparison such as > or <>.");
+            }
+
+            boolean outer = operation == TableAssemblyOperator.LEFT_JOIN ||
+               operation == TableAssemblyOperator.RIGHT_JOIN ||
+               operation == TableAssemblyOperator.FULL_JOIN;
+
+            if(outer && nonEqui == keyCount) {
+               throw new PairingException(
+                  "An outer join type (" + operationName(operation) + ") applies to '=' " +
+                  "keys, and none of these keys is '='. Add an '=' key, or use joinType INNER " +
+                  "for a comparison-only join.");
+            }
+         }
+
+         return ops;
       }
 
       static int parseJoinType(String joinType) {
