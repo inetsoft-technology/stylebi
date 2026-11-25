@@ -18,9 +18,11 @@
 
 package inetsoft.report.composition.execution;
 
+import inetsoft.report.TableFilter;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.graph.calc.PercentCalc;
 import inetsoft.report.filter.*;
+import inetsoft.report.lens.*;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.test.dc.DcInMemoryViewsheetFixture;
@@ -492,6 +494,58 @@ public class CrosstabVSAQueryViewsheetTest {
       for(int i = 0; i < rows.size(); i++) {
          assertNumber(((Number) rows.get(i)[3]).doubleValue(),
                       lens.getObject(lens.getHeaderRowCount() + i, 0), "row " + i);
+      }
+   }
+
+   // ---- Bug #82318: lens built for a crosstab without row and column headers ----
+
+   @Test
+   void crosstabWithoutHeadersAndWithASummaryIsBuiltOnASummaryFilter() throws Exception {
+      var sheet = open(salesRows());
+      add(sheet, "NoHeaderSum", new VSDimensionRef[0], new VSDimensionRef[0],
+          agg("Qty", AggregateFormula.SUM), agg("Price", AggregateFormula.MAX));
+      List<TableLens> chain = filterChain(data(sheet, "NoHeaderSum"));
+
+      assertTrue(chain.stream().anyMatch(SummaryFilter.class::isInstance), chain::toString);
+      assertNoRotatedOrEmptyLens(chain);
+   }
+
+   @Test
+   void crosstabWithoutHeadersAndWithFormulaNoneIsBuiltOnASubTableLens() throws Exception {
+      var sheet = open(salesRows());
+      add(sheet, "NoHeaderNone", new VSDimensionRef[0], new VSDimensionRef[0],
+          agg("Qty", AggregateFormula.NONE));
+      List<TableLens> chain = filterChain(data(sheet, "NoHeaderNone"));
+
+      assertTrue(chain.stream().anyMatch(SubTableLens.class::isInstance), chain::toString);
+      assertFalse(chain.stream().anyMatch(SummaryFilter.class::isInstance), chain::toString);
+      assertNoRotatedOrEmptyLens(chain);
+   }
+
+   @Test
+   void crosstabWithoutHeadersAndWithoutAggregatesHasNoData() throws Exception {
+      var sheet = open(salesRows());
+      add(sheet, "NoHeaderNoAggregate", new VSDimensionRef[0], new VSDimensionRef[0]);
+
+      assertNull(sheet.box().getData("NoHeaderNoAggregate"));
+   }
+
+   private static List<TableLens> filterChain(TableLens lens) {
+      List<TableLens> chain = new ArrayList<>();
+
+      while(lens != null && !chain.contains(lens)) {
+         chain.add(lens);
+         lens = lens instanceof TableFilter ? ((TableFilter) lens).getTable() : null;
+      }
+
+      return chain;
+   }
+
+   private static void assertNoRotatedOrEmptyLens(List<TableLens> chain) {
+      for(TableLens lens : chain) {
+         assertFalse(lens instanceof RotatedTableLens, chain::toString);
+         assertFalse(lens instanceof DefaultTableLens && lens.getColCount() == 0,
+                     chain::toString);
       }
    }
 
