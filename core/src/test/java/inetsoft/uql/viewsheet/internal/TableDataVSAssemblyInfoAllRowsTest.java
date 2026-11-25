@@ -23,6 +23,7 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.internal.BoundTableAssemblyInfo;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
@@ -52,6 +53,23 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class TableDataVSAssemblyInfoAllRowsTest {
+   /** What decides that the assembly's data must be fetched again: on and off both do. */
+   @Test
+   void togglingTheOptionIsADataChangeInBothDirections() {
+      CrosstabVSAssemblyInfo live = new CrosstabVSAssemblyInfo();
+      CrosstabVSAssemblyInfo on = new CrosstabVSAssemblyInfo();
+      on.setAllRows(List.of("Product"));
+
+      assertNotEquals(0, live.copyInfo(on) & VSAssembly.INPUT_DATA_CHANGED);
+      assertEquals(List.of("Product"), live.getAllRows());
+      // the same setting again changes nothing
+      assertEquals(0, live.copyInfo(on) & VSAssembly.INPUT_DATA_CHANGED);
+
+      CrosstabVSAssemblyInfo off = new CrosstabVSAssemblyInfo();
+      assertNotEquals(0, live.copyInfo(off) & VSAssembly.INPUT_DATA_CHANGED);
+      assertTrue(live.getAllRows().isEmpty());
+   }
+
    @Test
    void setReportsWhetherTheListChanged() {
       CrosstabVSAssemblyInfo info = new CrosstabVSAssemblyInfo();

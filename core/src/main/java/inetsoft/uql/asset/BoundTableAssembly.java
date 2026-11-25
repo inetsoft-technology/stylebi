@@ -522,6 +522,22 @@ public class BoundTableAssembly extends AbstractTableAssembly {
          ConditionUtil.printConditionsKey(cassembly, writer);
       }
 
+      // the tables whose rows are all kept change which rows the query returns; written only
+      // when set, so the key of every other table is what it always was
+      List<String> allRows = getAllRows();
+
+      if(!allRows.isEmpty()) {
+         writer.print(",allRows[");
+
+         for(String entity : allRows) {
+            writer.print(entity.length());
+            writer.print(":");
+            writer.print(entity);
+         }
+
+         writer.print("]");
+      }
+
       writer.print("]");
       return true;
    }
@@ -546,6 +562,10 @@ public class BoundTableAssembly extends AbstractTableAssembly {
       SourceInfo sinfo = getSourceInfo();
 
       if(!Tool.equals(sinfo, btable.getSourceInfo())) {
+         return false;
+      }
+
+      if(!getAllRows().equals(btable.getAllRows())) {
          return false;
       }
 

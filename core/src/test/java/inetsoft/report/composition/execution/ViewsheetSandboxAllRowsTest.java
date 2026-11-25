@@ -31,6 +31,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -156,6 +158,71 @@ class ViewsheetSandboxAllRowsTest {
       TableAssembly pcopy = physical.boundCopyOfCrosstab();
       assertNull(BoundTableAssembly.findLogicalModelTable(pcopy));
       assertSame(physical.worksheetMirror, ((MirrorTableAssembly) pcopy).getTableAssembly());
+   }
+
+   private static String key(TableAssembly table) throws Exception {
+      StringWriter out = new StringWriter();
+      PrintWriter writer = new PrintWriter(out);
+      assertTrue(table.printKey(writer));
+      writer.flush();
+      return out.toString();
+   }
+
+   private static String dataKey(TableAssembly table) throws Exception {
+      return DataKey.create(table, null, null, AssetQuerySandbox.RUNTIME_MODE, true, 0, 0, false,
+                            -1L).getValue();
+   }
+
+   /**
+    * The data cache is keyed by the table's printed key. Two queries that differ only in "Include
+    * all rows" return different rows, so they must not share cached data (live: with the option set
+    * after the plain data was cached, the plain data came back with no query at all).
+    */
+   @Test
+   void tablesThatDifferOnlyInAllRowsDoNotShareCachedData() throws Exception {
+      Sheet plain = new Sheet(SourceInfo.MODEL, true);
+      Sheet all = new Sheet(SourceInfo.MODEL, true);
+      all.allRows("Product");
+
+      TableAssembly plainTable = plain.boundCopyOfCrosstab();
+      TableAssembly allTable = all.boundCopyOfCrosstab();
+
+      assertNotEquals(key(plainTable), key(allTable));
+      assertNotEquals(dataKey(plainTable), dataKey(allTable));
+   }
+
+   @Test
+   void theOptionOnTheBoundTableAloneChangesItsKeyAndItsContentEquality() throws Exception {
+      BoundTableAssembly a = new BoundTableAssembly(new Worksheet(), "T");
+      a.setSourceInfo(new SourceInfo(SourceInfo.MODEL, "ds", "M"));
+      BoundTableAssembly b = (BoundTableAssembly) a.copyAssembly("T");
+      assertEquals(key(a), key(b));
+      assertTrue(a.equalsContent(b));
+
+      b.setAllRows(List.of("Product"));
+
+      assertNotEquals(key(a), key(b));
+      assertFalse(a.equalsContent(b));
+      assertFalse(b.equalsContent(a));
+
+      BoundTableAssembly c = (BoundTableAssembly) a.copyAssembly("T");
+      c.setAllRows(List.of("Order"));
+      assertNotEquals(key(b), key(c), "which table keeps its rows matters");
+   }
+
+   /** Off again is the plain query's key, so the plain cached data is the right data. */
+   @Test
+   void turningTheOptionOffGoesBackToThePlainKey() throws Exception {
+      Sheet sheet = new Sheet(SourceInfo.MODEL, true);
+      String plainKey = dataKey(sheet.boundCopyOfCrosstab());
+
+      sheet.allRows("Product");
+      String onKey = dataKey(sheet.boundCopyOfCrosstab());
+      sheet.allRows();
+      String offKey = dataKey(sheet.boundCopyOfCrosstab());
+
+      assertNotEquals(plainKey, onKey);
+      assertEquals(plainKey, offKey);
    }
 
    /** Records whether the worksheet lock was held each time the shared table was copied. */
