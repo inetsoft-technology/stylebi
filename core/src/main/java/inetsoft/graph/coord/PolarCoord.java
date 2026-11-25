@@ -119,6 +119,15 @@ public class PolarCoord extends Coordinate {
          // ignore ticks for full circle
          if(xscale != null) {
             xscale.setScaleOption(Scale.ZERO);
+
+            // the angular axis is the rect coord's top x axis (the bottom one is at radius 0
+            // and is dropped in createAxis()), so the default single style would leave the
+            // polar chart without it. A style set after this call is left as it is.
+            AxisSpec xspec = xscale.getAxisSpec();
+
+            if(xspec.getAxisStyle() == AxisSpec.AXIS_SINGLE) {
+               xspec.setAxisStyle(AxisSpec.AXIS_DOUBLE);
+            }
          }
 
          if(yscale != null) {
