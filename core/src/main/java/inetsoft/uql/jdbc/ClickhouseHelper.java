@@ -86,4 +86,12 @@ public class ClickhouseHelper extends SQLHelper {
    protected boolean supportsMapKeySubqueryAliasing() {
       return true;
    }
+
+   /**
+    * ClickHouse rejects a bare UNION unless union_default_mode is set (Bug #82306).
+    */
+   @Override
+   public String getUnionQualifier(boolean distinct) {
+      return distinct ? "DISTINCT " : "ALL ";
+   }
 }
