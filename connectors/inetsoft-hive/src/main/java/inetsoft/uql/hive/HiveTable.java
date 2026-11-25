@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 
 /**
@@ -39,26 +40,21 @@ public class HiveTable extends XTableNode {
     * @throws SQLException
     */
    public HiveTable (ResultSet result) throws Exception{
-      columnCount = result.getMetaData().getColumnCount();
+      ResultSetMetaData meta = result.getMetaData();
+      columnCount = meta.getColumnCount();
       types = new Class[columnCount];
       columnNames = new String[columnCount];
 
-      while (result.next()) {
-         for(int i = 0; i < columnCount; i++) {
-            //ResultSet columns start with index 1
-            int resultSetIndex = i + 1;
+      // Bug #82332: read the columns from the metadata before the row loop, so a result
+      // with no rows still has its column names and types
+      for(int i = 0; i < columnCount; i++) {
+         //ResultSet columns start with index 1
+         int resultSetIndex = i + 1;
+         types[i] = sqlhandler.convertToJava(meta.getColumnType(resultSetIndex));
+         columnNames[i] = meta.getColumnName(resultSetIndex);
+      }
 
-            if(types[i] == null) {
-               types[i] = sqlhandler.convertToJava(
-                  result.getMetaData().getColumnType(resultSetIndex));
-            }
-
-            if(columnNames[i] == null) {
-               columnNames[i] =
-                  result.getMetaData().getColumnName(resultSetIndex);
-            }
-         }
-
+      while(result.next()) {
          ResultSetRow row = new ResultSetRow();
          table.add(row);
          row.buildRow(result);
