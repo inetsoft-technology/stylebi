@@ -23,6 +23,8 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.painter.AutoMaximumPresenter;
 import inetsoft.report.painter.BarPresenter;
+import inetsoft.report.painter.BulletGraphPresenter;
+import inetsoft.report.painter.ColumnStats;
 import inetsoft.report.painter.PresenterPainter;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
@@ -460,6 +462,11 @@ public class AttributeTableLens extends AbstractTableLens
     * changed, since a script presenter is shared by all cells of a column.
     */
    private Presenter withAutoMaximum(int r, int c, Presenter p) {
+      // a bullet graph scales to the column's smallest, largest and average value
+      if(p instanceof BulletGraphPresenter bullet) {
+         return bullet.isAutoScale() ? bullet.withStatsResolver(() -> getAutoStats(r, c)) : p;
+      }
+
       if(!(p instanceof AutoMaximumPresenter ap) || !ap.isAutoMaximum()) {
          return p;
       }
@@ -484,6 +491,26 @@ public class AttributeTableLens extends AbstractTableLens
       double[] max = maxes.get(path != null ? path : Integer.valueOf(c));
 
       return max == null ? Double.NaN : max[absolute ? 1 : 0];
+   }
+
+   /**
+    * Get the smallest, largest and average number of the cells that share the cell's data path,
+    * from the same scan as the data maximum.
+    * @return the numbers, or null if there are none.
+    */
+   protected ColumnStats getAutoStats(int r, int c) {
+      TableDataDescriptor desc = getDescriptor();
+      boolean column = desc == null || desc.getType() == TableDataDescriptor.NORMAL_TABLE;
+      Object scope = column ? Integer.valueOf(c) : AUTO_MAX_ALL_CELLS;
+      Map<Object, double[]> maxes = getAutoMaximumScan(scope, column ? c : -1, desc);
+      TableDataPath path = desc == null ? null : desc.getCellDataPath(r, c);
+      double[] max = maxes.get(path != null ? path : Integer.valueOf(c));
+
+      if(max == null || max[SCAN_COUNT] <= 0) {
+         return null;
+      }
+
+      return new ColumnStats(max[SCAN_MIN], max[SCAN_MAX], max[SCAN_SUM] / max[SCAN_COUNT]);
    }
 
    /**
@@ -565,8 +592,21 @@ public class AttributeTableLens extends AbstractTableLens
 
             TableDataPath path = desc == null ? null : desc.getCellDataPath(r, c);
             double[] max = maxes.computeIfAbsent(path != null ? path : Integer.valueOf(c),
-                                                 k -> new double[] { Double.NaN, Double.NaN });
+                                                 k -> new double[] { Double.NaN, Double.NaN,
+                                                                     Double.NaN, Double.NaN,
+                                                                     0, 0 });
             double abs = Math.abs(val);
+
+            if(Double.isNaN(max[SCAN_MIN]) || val < max[SCAN_MIN]) {
+               max[SCAN_MIN] = val;
+            }
+
+            if(Double.isNaN(max[SCAN_MAX]) || val > max[SCAN_MAX]) {
+               max[SCAN_MAX] = val;
+            }
+
+            max[SCAN_SUM] += val;
+            max[SCAN_COUNT]++;
 
             if(val > 0 && !(max[0] >= val)) {
                max[0] = val;
@@ -580,6 +620,13 @@ public class AttributeTableLens extends AbstractTableLens
 
       return maxes;
    }
+
+   // the slots of a scan result: the largest positive value and the largest absolute value, then
+   // the smallest and largest value, and the sum and count of the numbers
+   private static final int SCAN_MIN = 2;
+   private static final int SCAN_MAX = 3;
+   private static final int SCAN_SUM = 4;
+   private static final int SCAN_COUNT = 5;
 
    private boolean isBaseCancelled() {
       TableLens lens = table;
