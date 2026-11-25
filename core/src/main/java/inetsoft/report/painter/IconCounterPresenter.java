@@ -164,6 +164,8 @@ public class IconCounterPresenter implements Presenter {
          return;
       }
 
+      n = snap(n);
+
       if(n <= 0 || Double.isNaN(n)) {
          drawStar(g, drawer, x + 2, y, sw, h, true);
       }
@@ -289,9 +291,18 @@ public class IconCounterPresenter implements Presenter {
       return new Dimension(0, 0);
    }
 
-   // the stars a value takes: zero, a negative value and NaN still take the one muted star
+   // the stars a value takes: zero, a negative value and NaN still take the one muted star, and an
+   // endless or huge value takes no more than MAX_STARS, so the width does not overflow
    private static int starCount(double n) {
-      return n > 0 ? (int) Math.ceil(n) : 1;
+      n = snap(n);
+      return n > 0 ? (int) Math.min(Math.ceil(n), MAX_STARS) : 1;
+   }
+
+   // a value within floating point noise of a whole number, such as 1.0000000000000002 from a sum
+   // of decimal ratings, is that whole number, so it draws no sliver of a star or plus
+   private static double snap(double n) {
+      double whole = Math.rint(n);
+      return Math.abs(n - whole) <= SNAP_EPSILON * Math.max(1, Math.abs(n)) ? whole : n;
    }
 
    /**
@@ -370,11 +381,13 @@ public class IconCounterPresenter implements Presenter {
    }
 
    /**
-    * Check if this presenter should always fill the entire area of a cell.
+    * Check if this presenter should always fill the entire area of a cell. The stars do not, so a
+    * table aligns them in the cell. A copy that draws a negative value's text does, so a table
+    * does not cut the text to the width of one star.
     */
    @Override
    public boolean isFill() {
-      return false;
+      return valueText != null;
    }
 
    /**
@@ -493,6 +506,10 @@ public class IconCounterPresenter implements Presenter {
    private static final int PLUS_SIZE = 8;
    // the smallest part of a star a fraction draws, so a small fraction is not a sliver
    private static final double MIN_PART = 0.4;
+   // the most stars the preferred size counts, so an endless or huge value has a positive width
+   private static final int MAX_STARS = 1000;
+   // how near, relative to the value, a value is taken to be the whole number it is near
+   private static final double SNAP_EPSILON = 1e-9;
    // the opacity of the muted image star drawn for zero, negative and NaN
    private static final float MUTED_ALPHA = 0.3f;
    // the opacity of the muted modern star's outline
