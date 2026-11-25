@@ -132,7 +132,16 @@ span.wrapper {
   opacity: 0.2 !important;
 }
 
+// The layout pane's resize and move handles take the composer's two-tone overlay pair
+// (_composer-overlay.scss), as the dashboard editor's do. !important beats .bg-primary's. A themed
+// page leaves the pair undeclared and keeps today's solid primary handle, whose fill also shows
+// under the transparent border, and the earlier move handle.
+.resize-handle.bg-primary {
+  background-color: var(--inet-composer-overlay-halo, var(--inet-primary-color)) !important;
+  border: 1px solid var(--inet-composer-overlay-stroke, transparent);
+}
+
 .layout-object__move-handle {
-  border: 1px solid var(--inet-default-border-color);
-  background: var(--inet-shell-surface-default);
+  border: 1px solid var(--inet-composer-overlay-stroke, var(--inet-default-border-color));
+  background: var(--inet-composer-overlay-halo, var(--inet-shell-surface-default));
 }

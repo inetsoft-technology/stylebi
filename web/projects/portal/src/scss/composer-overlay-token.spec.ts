@@ -156,6 +156,18 @@ describe("composer overlay consumers", () => {
          "      border: 1px solid #e5e5e5 !important;\n    }\n\n    &.def-bd {\n      border: 1px solid #f5f5f5;\n    }\n  }");
    });
 
+   it("layoutHandlesAreTwoTone", () => {
+      // the layout pane's own resize and move handles (layout-object.component.html:51-63); themed pages
+      // keep today's solid primary handle and the earlier move handle
+      const handle = rule(layout(), /^\.resize-handle\.bg-primary\s*\{/m);
+      expect(handle).toMatch(
+         /background-color:\s*var\(--inet-composer-overlay-halo,\s*var\(--inet-primary-color\)\)\s*!important/);
+      expect(handle).toMatch(/border:\s*1px solid var\(--inet-composer-overlay-stroke,\s*transparent\)/);
+      const move = rule(layout(), /^\.layout-object__move-handle\s*\{/m);
+      expect(move).toMatch(/border:\s*1px solid var\(--inet-composer-overlay-stroke,\s*var\(--inet-default-border-color\)\)/);
+      expect(move).toMatch(/background:\s*var\(--inet-composer-overlay-halo,\s*var\(--inet-shell-surface-default\)\)/);
+   });
+
    const PANES = [
       "composer/gui/vs/editor/viewsheet-pane.component.html",
       "composer/gui/vs/layouts/layout-pane.component.html",
