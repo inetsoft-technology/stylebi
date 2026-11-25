@@ -21,15 +21,16 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.web.api.schedule.CreateScheduleTaskRequest;
 
 /**
- * One requested schedule-task change: create a new task from {@code spec}, or delete the task
- * named by {@code taskId}. Exactly one of {@code spec} (create) or {@code taskId} alone (delete)
- * applies to a given entry -- {@link ScheduleChangePlanService#resolve} enforces which, per verb,
+ * One requested schedule-task change: create a new task from {@code spec}, update the task named
+ * by {@code taskId} with {@code patch}, or delete it. {@code spec} (create), {@code taskId} with
+ * {@code patch} (update) or {@code taskId} alone (delete) applies to a given entry -- {@link ScheduleChangePlanService#resolve} enforces which, per verb,
  * rather than silently ignoring whichever field does not apply (see its javadoc).
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ScheduleChangeRequest {
    public static final String VERB_CREATE = "create";
    public static final String VERB_DELETE = "delete";
+   public static final String VERB_UPDATE = "update";
 
    public String getVerb() { return verb; }
    public void setVerb(String v) { this.verb = v; }
@@ -45,7 +46,20 @@ public class ScheduleChangeRequest {
    public CreateScheduleTaskRequest getSpec() { return spec; }
    public void setSpec(CreateScheduleTaskRequest v) { this.spec = v; }
 
+   /** The fields to change, for an {@code update}. Ignored for the other verbs. */
+   public ScheduleTaskPatch getPatch() { return patch; }
+   public void setPatch(ScheduleTaskPatch v) { this.patch = v; }
+
+   /**
+    * The folder a {@code create} puts the new task in, root-normalized like the schedule folder
+    * area's paths. {@code null} or {@code "/"} is the root folder.
+    */
+   public String getPath() { return path; }
+   public void setPath(String v) { this.path = v; }
+
    private String verb;
    private String taskId;
    private CreateScheduleTaskRequest spec;
+   private ScheduleTaskPatch patch;
+   private String path;
 }

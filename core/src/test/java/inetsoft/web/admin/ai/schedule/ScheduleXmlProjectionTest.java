@@ -173,6 +173,27 @@ class ScheduleXmlProjectionTest {
       assertTrue(ScheduleXmlProjection.project(task).contains("path=\"/exports/report.pdf\""));
    }
 
+   // Bug #82274: the viewer link of the saving request is stored on a viewsheet action but is not
+   // part of what a plan approves, so the two projections of one task agree without it.
+   @Test void withoutLinkUrisIgnoresTheLinkOfTheSavingRequestOnly() {
+      ScheduleTask linked = task("t", "admin");
+      linked.addAction(viewsheetActionWithSavePath("/exports/a.pdf"), "http://host:8080/sree/");
+      ScheduleTask unlinked = task("t", "admin");
+      unlinked.addAction(viewsheetActionWithSavePath("/exports/a.pdf"), null);
+      ScheduleTask other = task("t", "admin");
+      other.addAction(viewsheetActionWithSavePath("/exports/b.pdf"), "http://host:8080/sree/");
+
+      String linkedProjection = ScheduleXmlProjection.project(linked);
+
+      assertTrue(linkedProjection.contains("<LinkURI"));
+      assertNotEquals(linkedProjection, ScheduleXmlProjection.project(unlinked));
+      assertEquals(ScheduleXmlProjection.withoutLinkUris(linkedProjection),
+                   ScheduleXmlProjection.withoutLinkUris(ScheduleXmlProjection.project(unlinked)));
+      assertNotEquals(ScheduleXmlProjection.withoutLinkUris(linkedProjection),
+                      ScheduleXmlProjection.withoutLinkUris(ScheduleXmlProjection.project(other)));
+      assertNull(ScheduleXmlProjection.withoutLinkUris(null));
+   }
+
    @Test void projectionDiffersWhenOnlyTheSaveToServerPathDiffers() {
       ScheduleTask a = task("t", "admin");
       a.addAction(viewsheetActionWithSavePath("/exports/a.pdf"));
