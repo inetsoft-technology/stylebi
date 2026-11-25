@@ -20,6 +20,7 @@ package inetsoft.graph.coord;
 import inetsoft.graph.*;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.DataSetIndex;
+import inetsoft.graph.element.RelationElement;
 import inetsoft.graph.guide.axis.Axis;
 import inetsoft.graph.scale.Scale;
 
@@ -156,6 +157,17 @@ public class RelationCoord extends Coordinate {
       return allBounds;
    }
 
+   // an unfaceted circle the author has not enlarged, which fit() shrinks into the plot
+   private boolean isShrunkCircle() {
+      VGraph vgraph = getVGraph();
+      EGraph egraph = vgraph != null ? vgraph.getEGraph() : null;
+
+      return getParentCoordinate() == null && egraph != null && egraph.getElementCount() > 0 &&
+         egraph.getElement(0) instanceof RelationElement elem &&
+         elem.getAlgorithm() == RelationElement.Algorithm.CIRCLE &&
+         elem.getWidthRatio() <= 1 && elem.getHeightRatio() <= 1;
+   }
+
    @Override
    public int getDimCount() {
       return 0;
@@ -187,6 +199,11 @@ public class RelationCoord extends Coordinate {
     */
    @Override
    public double getUnitMinWidth() {
+      // the circle fits the plot instead of scrolling
+      if(isShrunkCircle()) {
+         return 1;
+      }
+
       Rectangle2D box = getVisualObjectBounds();
       // preferred size should be unscaled size
       double scaleX = Math.abs(getVGraph().getScreenTransform().getScaleX());
@@ -198,6 +215,11 @@ public class RelationCoord extends Coordinate {
     */
    @Override
    public double getUnitMinHeight() {
+      // the circle fits the plot instead of scrolling
+      if(isShrunkCircle()) {
+         return 1;
+      }
+
       Rectangle2D box = getVisualObjectBounds();
       // preferred size should be unscaled size
       double scaleY = Math.abs(getVGraph().getScreenTransform().getScaleY());
