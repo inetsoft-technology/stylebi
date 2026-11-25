@@ -54,7 +54,7 @@ final class MemberQueryVariables {
          return;
       }
 
-      this.snapshot = vars.clone();
+      this.snapshot = topLevel(vars);
 
       for(int i = 0; i < count; i++) {
          copies[i] = vars.clone();
@@ -78,7 +78,10 @@ final class MemberQueryVariables {
          return;
       }
 
-      VariableTable copy = copies[index];
+      // compare the top-level entries only: a member's put/remove writes there, while its
+      // base chain can grow during the run (XHandler.prepareVariableTable appends the query's
+      // variable definitions), and those must not become entries of the parent's table
+      VariableTable copy = topLevel(copies[index]);
       Set<String> names = new HashSet<>();
 
       for(Enumeration<String> keys = copy.keys(); keys.hasMoreElements(); ) {
@@ -117,6 +120,15 @@ final class MemberQueryVariables {
     */
    static boolean isHint(String name) {
       return name != null && name.startsWith("__HINT_");
+   }
+
+   /**
+    * Get a copy of the table's own entries, without its base tables.
+    */
+   private static VariableTable topLevel(VariableTable vars) {
+      VariableTable own = vars.clone();
+      own.setBaseTable(null);
+      return own;
    }
 
    private final VariableTable vars;

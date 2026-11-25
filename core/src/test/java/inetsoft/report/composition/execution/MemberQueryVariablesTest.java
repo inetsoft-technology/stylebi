@@ -92,6 +92,50 @@ class MemberQueryVariablesTest {
    }
 
    @Test
+   void writeBackIgnoresTablesAddedToTheMembersBaseChain() throws Exception {
+      VariableTable base = new VariableTable();
+      base.put("region", "west");
+      VariableTable vars = new VariableTable();
+      vars.setBaseTable(base);
+      MemberQueryVariables members = new MemberQueryVariables(vars, 1, true);
+
+      // like XHandler.prepareVariableTable during the member's JDBC run: a table with the
+      // query's unset variables is appended to the end of the member's base chain
+      VariableTable queryVariables = new VariableTable();
+      queryVariables.put("q", "x");
+      members.get(0).addBaseTable(queryVariables);
+
+      members.writeBack(0);
+
+      VariableTable topLevel = vars.clone();
+      topLevel.setBaseTable(null);
+      assertFalse(topLevel.contains("q"), "the member's base chain must not reach the caller");
+      assertFalse(topLevel.contains("region"));
+      assertFalse(vars.contains("q"));
+      assertEquals("west", vars.get("region"));
+   }
+
+   @Test
+   void writeBackRemovesTopLevelEntryThatShadowsTheBase() throws Exception {
+      VariableTable base = new VariableTable();
+      base.put("region", "west");
+      VariableTable vars = new VariableTable();
+      vars.setBaseTable(base);
+      vars.put("region", "east");
+      MemberQueryVariables members = new MemberQueryVariables(vars, 1, true);
+
+      members.get(0).remove("region");
+      assertEquals("west", members.get(0).get("region"));
+
+      members.writeBack(0);
+
+      assertEquals("west", vars.get("region"), "the parent sees what the member saw");
+      VariableTable topLevel = vars.clone();
+      topLevel.setBaseTable(null);
+      assertFalse(topLevel.contains("region"), "removed, not shadowed by the base value");
+   }
+
+   @Test
    void serialMembersShareTheParentTable() throws Exception {
       VariableTable vars = new VariableTable();
       MemberQueryVariables members = new MemberQueryVariables(vars, 2, false);
