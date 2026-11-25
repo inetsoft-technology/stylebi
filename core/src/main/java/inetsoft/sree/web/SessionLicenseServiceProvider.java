@@ -113,7 +113,7 @@ public class SessionLicenseServiceProvider {
                   if(SUtil.isCluster()) {
                      m = new ConcurrentSessionClusterService(
                         allowedVCInstances, false,
-                        ViewerSessionService.class.getName() + ".licenseMap");
+                        ViewerSessionService.class.getName() + ".licenseMap", false);
                   }
                   else {
                      m = new SessionLicenseService.ConcurrentSessionService(
