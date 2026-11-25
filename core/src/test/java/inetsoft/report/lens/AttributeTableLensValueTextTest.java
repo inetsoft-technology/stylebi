@@ -18,6 +18,7 @@
 package inetsoft.report.lens;
 
 import inetsoft.report.painter.BarPresenter;
+import inetsoft.report.painter.IconCounterPresenter;
 import inetsoft.report.painter.PresenterPainter;
 import inetsoft.test.*;
 import org.junit.jupiter.api.Tag;
@@ -94,6 +95,22 @@ class AttributeTableLensValueTextTest {
       lens.getObject(1, SALES);
 
       assertNull(shared.valueText());
+   }
+
+   @Test
+   void aNegativeStarsCellGetsItsTextAndOtherCellsKeepThePresenter() {
+      // Bug #82288: a Stars presenter has no star for a negative value either
+      AttributeTableLens lens = lens();
+      IconCounterPresenter shared = new IconCounterPresenter();
+      lens.setPresenter(SALES, shared);
+      lens.setFormat(SALES, new DecimalFormat("#,##0.0"));
+
+      PresenterPainter negative = (PresenterPainter) lens.getObject(1, SALES);
+      PresenterPainter positive = (PresenterPainter) lens.getObject(2, SALES);
+
+      assertEquals("-1,013.7", ((IconCounterPresenter) negative.getPresenter()).valueText());
+      assertSame(shared, positive.getPresenter());
+      assertNull(shared.valueText(), "the column's presenter is never changed");
    }
 
    private static String textOf(AttributeTableLens lens, int row) {
