@@ -52,22 +52,25 @@ span.wrapper {
 // The composer's two-tone overlay pair (_composer-overlay.scss), in the same 2px band the old dotted
 // border used: .object-container clips anything outside .object (overflow: hidden), so the light
 // halo is the border and the dark stroke is a dotted outline drawn over it (offset -2px); the gaps
-// show the halo. A themed page gets a transparent border under the assembly-outline-coloured
-// dotted outline, which looks as the old dotted border did.
+// show the halo. A themed page leaves the pair and the band style undeclared, so it computes the
+// old look exactly: a 2px dotted (dashed) border in the assembly outline colour and a transparent
+// outline.
 .active .object {
-  border: 2px solid var(--inet-composer-overlay-halo, transparent);
-  outline: 2px dotted var(--inet-composer-overlay-stroke, var(--inet-viz-assembly-outline));
+  border: 2px var(--inet-composer-overlay-band, dotted) var(--inet-composer-overlay-halo, var(--inet-viz-assembly-outline));
+  outline: 2px dotted var(--inet-composer-overlay-stroke, transparent);
   outline-offset: -2px;
 }
 
 // .viz-modern/.viz-dark live on an intermediate .object-container ancestor of .object
 // (or, for a Tab/Line/Calendar child, on .object itself), never on the same element as
 // .active - hence the four-selector spread instead of a single compound class, mirroring
-// editable-object-container.component.scss's modern/dark gate for the same outline.
+// editable-object-container.component.scss's modern/dark gate for the same outline. The
+// band keeps its solid halo; a themed page gets the old dashed border.
 .active .viz-modern.object,
 .active .viz-modern .object,
 .active .viz-dark.object,
 .active .viz-dark .object {
+  border-style: var(--inet-composer-overlay-band, dashed);
   outline-style: dashed;
 }
 
@@ -133,8 +136,12 @@ span.wrapper {
 // The layout pane's resize and move handles take the composer's two-tone overlay pair
 // (_composer-overlay.scss), as the dashboard editor's do. !important beats .bg-primary's. A themed
 // page leaves the pair undeclared and keeps today's solid primary handle, whose fill also shows
-// under the transparent border, and the earlier move handle.
+// under the transparent border, and the earlier move handle. The size is the canvas handles' 8px
+// ($handle-size in _moving-resize.scss): the AI assistant bundle injects an unscoped
+// .resize-handle.top/.left rule that shrinks these to 6px whenever the assistant is enabled.
 .resize-handle.bg-primary {
+  width: 8px;
+  height: 8px;
   background-color: var(--inet-composer-overlay-halo, var(--inet-primary-color)) !important;
   border: 1px solid var(--inet-composer-overlay-stroke, transparent);
 }
@@ -142,4 +149,5 @@ span.wrapper {
 .layout-object__move-handle {
   border: 1px solid var(--inet-composer-overlay-stroke, var(--inet-default-border-color));
   background: var(--inet-composer-overlay-halo, var(--inet-shell-surface-default));
+  color: var(--inet-composer-overlay-stroke, inherit);
 }

@@ -170,8 +170,9 @@
 
 // A selection-container child draws its outline inside its box (.container-child > .object above)
 // in a scroller that clips to the child, where the outward halo would sit in another band, so it
-// keeps a one-tone outline. .container-child and .active are on the same element: this rule must be
-// as specific as .active .object and come after it.
+// keeps a one-tone outline. .container-child and .active are on the same element, so this rule
+// must outrank .active .object: it is more specific (0,3,0 against 0,2,0, before encapsulation)
+// and also comes after it.
 .active.container-child > .object {
   box-shadow: none;
 }
@@ -220,8 +221,10 @@
   opacity: 0.2 !important;
 }
 
-// the move handle takes the same two-tone pair as the resize handles
+// the move handle takes the same two-tone pair as the resize handles: halo fill, stroke ring, and
+// the stroke for its glyph (the move icon has no colour of its own)
 .composer-object__move-handle {
   border: 1px solid var(--inet-composer-overlay-stroke, var(--inet-default-border-color));
   background: var(--inet-composer-overlay-halo, var(--inet-shell-surface-default));
+  color: var(--inet-composer-overlay-stroke, inherit);
 }

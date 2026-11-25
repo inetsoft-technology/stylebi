@@ -69,7 +69,11 @@
   border: 1px solid var(--inet-composer-overlay-stroke, transparent);
 }
 
+// The move handle: halo fill, stroke ring and a stroke glyph. The wizard pane is outside the dark
+// shell's content restore, so without its own colour the move icon would inherit the shell's light
+// text and vanish on the white fill. A themed page inherits as before.
 .vs-wizard-object__move-handle {
   border: 1px solid var(--inet-composer-overlay-stroke, var(--inet-default-border-color));
   background: var(--inet-composer-overlay-halo, var(--inet-shell-surface-default));
+  color: var(--inet-composer-overlay-stroke, inherit);
 }

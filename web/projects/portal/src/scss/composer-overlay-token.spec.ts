@@ -75,6 +75,25 @@ describe("composer overlay tokens", () => {
       expect(read(__dirname, "_shell-dark.scss")).not.toContain("composer-overlay");
    });
 
+   it("eachTokenDeclaredExactlyOnceAndNeverPerShell", () => {
+      const all = scssFiles(src).map(f => readFileSync(f, "utf-8")).join("\n");
+
+      for(const name of ["stroke", "halo", "band"]) {
+         expect(all.match(new RegExp(`--inet-composer-overlay-${name}\\s*:`, "g")) || []).toHaveLength(1);
+      }
+
+      // no per-shell value: no .shell-dark selector (comments may name _shell-dark.scss)
+      expect(overlay()).not.toMatch(/\.shell-dark\b/);
+   });
+
+   it("noPaneScopedSelectionBoxSelector", () => {
+      // a descendant selector such as .vs-pane .selection-box would also restyle the chart brush and
+      // the table cell marquees drawn inside the pane (C1); the composer marquee has its own class
+      const offenders = scssFiles(src).filter(f =>
+         /(\.vs-pane|\.layout-pane|vs-wizard-pane|\.scroll-container)[^{};,]*\.selection-box/.test(readFileSync(f, "utf-8")));
+      expect(offenders.map(f => relative(src, f))).toEqual([]);
+   });
+
    it("blockThrowsOnAMissingAnchor", () => {
       expect(() => block("a { b }", /@mixin\s+no-such-mixin\b/)).toThrow(/anchor not found/);
    });
@@ -103,6 +122,17 @@ describe("composer overlay consumers", () => {
       const move = rule(container(), /^\.composer-object__move-handle\s*\{/m);
       expect(move).toMatch(/background:\s*var\(--inet-composer-overlay-halo,\s*var\(--inet-shell-surface-default\)\)/);
       expect(move).toMatch(/border:\s*1px solid var\(--inet-composer-overlay-stroke,\s*var\(--inet-default-border-color\)\)/);
+   });
+
+   // owner review 1, must-fix 1: the move icon has no colour of its own; on the white halo fill it must
+   // take the stroke (the wizard pane is outside the content restore, so it inherited the dark shell's
+   // light text); themed pages inherit as before
+   it("moveHandlesHaveAStrokeGlyph", () => {
+      const glyph = /color:\s*var\(--inet-composer-overlay-stroke,\s*inherit\)/;
+      expect(rule(container(), /^\.composer-object__move-handle\s*\{/m)).toMatch(glyph);
+      expect(rule(layout(), /^\.layout-object__move-handle\s*\{/m)).toMatch(glyph);
+      expect(rule(read(app, "vs-wizard/gui/objects/vs-wizard-object.component.scss"), /^\.vs-wizard-object__move-handle\s*\{/m))
+         .toMatch(glyph);
    });
 
    it("titleAndListCellHandlesAreTwoToneInTheComposerOnly", () => {
@@ -135,12 +165,19 @@ describe("composer overlay consumers", () => {
          .toBe("outline-style: dashed;");
       // layout pane: .object-container clips anything outside .object (overflow: hidden), so both tones
       // share the 2px band: a halo border with the dotted stroke outline drawn over it (offset -2px)
+      // owner review 1, must-fix 2: on a themed page this computes exactly today's look, a 2px dotted
+      // (dashed) border in the assembly outline colour and no visible outline: the band style comes from
+      // a gated token, and the stroke outline falls back to transparent
       const lay = rule(layout(), /^\.active \.object\s*\{/m);
-      expect(lay).toMatch(/border:\s*2px solid var\(--inet-composer-overlay-halo,\s*transparent\)/);
-      expect(lay).toMatch(/outline:\s*2px dotted var\(--inet-composer-overlay-stroke,\s*var\(--inet-viz-assembly-outline\)\)/);
+      expect(lay).toMatch(
+         /border:\s*2px var\(--inet-composer-overlay-band,\s*dotted\) var\(--inet-composer-overlay-halo,\s*var\(--inet-viz-assembly-outline\)\)/);
+      expect(lay).toMatch(/outline:\s*2px dotted var\(--inet-composer-overlay-stroke,\s*transparent\)/);
       expect(lay).toMatch(/outline-offset:\s*-2px/);
       expect(lay).not.toMatch(/box-shadow/);
-      expect(layout()).toMatch(/\.active \.viz-dark \.object\s*\{\s*outline-style:\s*dashed;\s*\}/);
+      expect(layout()).toMatch(
+         /\.active \.viz-dark \.object\s*\{\s*border-style:\s*var\(--inet-composer-overlay-band,\s*dashed\);\s*outline-style:\s*dashed;\s*\}/);
+      expect(read(__dirname, "_composer-overlay.scss")).toMatch(
+         /:root:where\(:not\(\.custom-theme\)\)\s*\{[^}]*--inet-composer-overlay-band:\s*solid;/);
       // a selection-container child's outline sits inside its box (offset -2px) in a scroller that clips:
       // no outward halo there
       // .container-child and .active sit on the same element, so the rule must be as specific as
@@ -182,6 +219,9 @@ describe("composer overlay consumers", () => {
       expect(handle).toMatch(
          /background-color:\s*var\(--inet-composer-overlay-halo,\s*var\(--inet-primary-color\)\)\s*!important/);
       expect(handle).toMatch(/border:\s*1px solid var\(--inet-composer-overlay-stroke,\s*transparent\)/);
+      // the canvas size: the AI assistant bundle injects an unscoped .resize-handle.top/left 6px rule
+      expect(handle).toMatch(/width:\s*8px/);
+      expect(handle).toMatch(/height:\s*8px/);
       const move = rule(layout(), /^\.layout-object__move-handle\s*\{/m);
       expect(move).toMatch(/border:\s*1px solid var\(--inet-composer-overlay-stroke,\s*var\(--inet-default-border-color\)\)/);
       expect(move).toMatch(/background:\s*var\(--inet-composer-overlay-halo,\s*var\(--inet-shell-surface-default\)\)/);
@@ -201,8 +241,12 @@ describe("composer overlay consumers", () => {
          /^:root:where\(:not\(\.custom-theme\)\)\s+\.composer-selection-box\s*\{/m);
       expect(marquee).toMatch(
          /box-shadow:\s*inset 0 0 0 1px var\(--inet-composer-overlay-stroke\),\s*inset 0 0 0 2px var\(--inet-composer-overlay-halo\)\s*!important/);
-      expect(marquee).toMatch(
-         /background-color:\s*color-mix\(in srgb, var\(--inet-composer-overlay-stroke\) 8%, transparent\)\s*!important/);
+      // owner review 1: one absolute fill in every pane, the stroke colour at 6%
+      expect(marquee).toMatch(/background-color:\s*rgba\(18, 60, 68, 0\.06\)\s*!important/);
+      expect(read(__dirname, "_composer-overlay.scss")).toMatch(/--inet-composer-overlay-stroke:\s*#123C44;/i);
+      // only one marquee may draw: the dashboard pane's own directive ignores drags that start in the
+      // layout pane (which draws its own), else two translucent boxes stack
+      expect(read(app, PANES[0])).toMatch(/selectionBoxBannedSelector="[^"]*\blayout-pane\b[^"]*"/);
       PANES.forEach(p => expect(read(app, p)).toContain('selectionBoxClass="selection-box composer-selection-box"'));
       // no other template passes the class: the chart brush and cell marquees keep theirs (C1)
       const html = (dir: string): string[] => readdirSync(dir).flatMap(n => {
