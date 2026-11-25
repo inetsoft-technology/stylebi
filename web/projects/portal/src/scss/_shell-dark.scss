@@ -205,6 +205,8 @@ $dark-ws-row-hover-bg: #302D27;
   // focus indicators need 3:1 against the dark surfaces they sit on: the solid link orange, 7.62:1 on
   // the canvas, and the one orange the hover borders use (D3)
   --inet-focus-ring-color: #{$dark-link};
+  // thin, as in the light shell
+  --inet-focus-ring-width: 1px;
 
   // Dark-only roles. Components write var(--inet-dark-<role>, <light literal>), so the light
   // shell keeps its literal and only a dark shell supplies a value. See $dark-only-tokens.

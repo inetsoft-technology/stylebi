@@ -1048,9 +1048,11 @@ a:not([href]) {
   }
 }
 
+// Buttons keep their own 2px keyboard ring: the shared ring width is thin (fields and the rest of the
+// shell), but a button's ring is the one that was designed and checked, so its width is fixed here.
 .btn-secondary, .btn-default, .btn-primary {
   &:focus-visible {
-    box-shadow: var(--inet-focus-ring);
+    box-shadow: 0 0 0 2px var(--inet-focus-ring-color);
     outline: var(--inet-focus-ring-outline);
   }
 }
@@ -1061,7 +1063,24 @@ a:not([href]) {
 .btn.btn-primary#{$outside-content}, .btn.btn-danger#{$outside-content} {
   &:focus-visible {
     box-shadow: 0 0 0 2px var(--inet-focus-ring-gap-color),
-                0 0 0 calc(2px + var(--inet-focus-ring-width)) var(--inet-focus-ring-color);
+                0 0 0 4px var(--inet-focus-ring-color);
+  }
+}
+
+// The modern primary button's keyboard focus is a fill, not a ring: its fill becomes the focus ring's
+// own solid orange and its label takes the shell's default surface colour (not the gap token, which a
+// beige container re-declares as beige: 3.9:1 on the fill), so there is no ring to draw and no gap to
+// leave. The fill is 4.51:1 on white, 3.92:1 on beige and 3.21:1 on a selected row in the light shell
+// and 7.62:1 on the dark surface; the label is 4.51:1 on it in the light shell and 7.62:1 in the dark.
+// Only for pages without a custom theme, whose ring colour is the faint one. The hover rule outranks
+// a plain focus rule, so the focused hover state is named too.
+:where(:root:not(.custom-theme)) .viz-shell .btn.btn-primary#{$outside-content} {
+  &:focus-visible,
+  &:focus-visible:hover:not(:disabled) {
+    color: var(--inet-shell-surface-default);
+    background-color: var(--inet-focus-ring-color);
+    border-color: var(--inet-focus-ring-color);
+    box-shadow: none;
   }
 }
 

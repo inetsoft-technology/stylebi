@@ -109,6 +109,7 @@ const chainOf = (tokens: Map<string, string>, bases: string[]): Set<string> => {
 // the base tokens PR7 gives a shell-only value, and every runtime token that derives from them
 const PR7_BASE_TOKENS = [
    "--inet-focus-ring-color",
+   "--inet-focus-ring-width",
    "--inet-shell-selected-bg-color",
    "--inet-text-muted-color",
    "--inet-shell-surface-hover",
@@ -437,7 +438,7 @@ describe("solid, keyboard-only focus ring", () => {
       return m[0];
    };
    const FILLED_RING = "0 0 0 2px var(--inet-focus-ring-gap-color), " +
-      "0 0 0 calc(2px + var(--inet-focus-ring-width)) var(--inet-focus-ring-color)";
+      "0 0 0 4px var(--inet-focus-ring-color)";
 
    it("is a solid orange in the light shell, and the content value stays at .28", () => {
       expect(stateTokens().get("--inet-focus-ring-color")).toBe("#B4610F");
@@ -474,6 +475,21 @@ describe("solid, keyboard-only focus ring", () => {
       expect(css).toMatch(
          /\.btn\.btn-primary#\{\$outside-content\}, \.btn\.btn-danger#\{\$outside-content\} \{\s*&:focus-visible\s*\{\s*box-shadow:\s*0 0 0 2px/);
       expect(css.replace(/\s+/g, " ")).toContain(FILLED_RING);
+   });
+
+   it("fills a modern primary button with the ring colour on keyboard focus, outside content and themed pages", () => {
+      const css = read("scss/_bootstrap-override.scss").replace(/\s+/g, " ");
+      const rule = css.match(
+         /:where\(:root:not\(\.custom-theme\)\) \.viz-shell \.btn\.btn-primary#\{\$outside-content\} \{([^}]*\{[^}]*\}|[^}]*)\}/);
+
+      expect(rule).not.toBeNull();
+      expect(rule[0]).toContain("&:focus-visible, &:focus-visible:hover:not(:disabled)");
+      expect(rule[0]).toContain("background-color: var(--inet-focus-ring-color)");
+      expect(rule[0]).toContain("border-color: var(--inet-focus-ring-color)");
+      // the label is the default surface, never the gap token, which a beige container re-declares as beige
+      expect(rule[0]).toContain("color: var(--inet-shell-surface-default)");
+      expect(rule[0]).not.toContain("color: var(--inet-focus-ring-gap-color)");
+      expect(rule[0]).toContain("box-shadow: none");
    });
 
    it("defaults the gap colour to the shell surface for every page", () => {
@@ -752,7 +768,7 @@ describe("static pages (Task 6)", () => {
    it("layout.css carries no translucent ring and the tile ring reads the token", () => {
       expect(layout()).not.toMatch(/--inet-focus-ring-color:\s*rgba/);
       expect(layout()).toMatch(
-         /\.module-link:focus-visible \.module-tile\s*\{\s*box-shadow: 0 0 0 2px var\(--inet-focus-ring-color\)/);
+         /\.module-link:focus-visible \.module-tile\s*\{\s*box-shadow: 0 0 0 var\(--inet-focus-ring-width, 1px\) var\(--inet-focus-ring-color\)/);
    });
 
    it("login.css applies the new values only under :root:not(.custom-theme)", () => {
@@ -1005,7 +1021,7 @@ describe("login page filled-button ring gap", () => {
       const defaultFocus = rulesOf(login()).find(r => r.selectors.includes(".btn-default:focus-visible"));
 
       expect(gapRules.map(r => r.selectors[0])).toEqual(["#loginButton.btn-primary:focus-visible"]);
-      expect(valueOf(defaultFocus.body, "box-shadow")).toBe("0 0 0 2px var(--ln-focus)");
+      expect(valueOf(defaultFocus.body, "box-shadow")).toBe("0 0 0 var(--ln-focus-width) var(--ln-focus)");
    });
 
    it("gives the gap the dialog's surface in the active-session dialog", () => {
