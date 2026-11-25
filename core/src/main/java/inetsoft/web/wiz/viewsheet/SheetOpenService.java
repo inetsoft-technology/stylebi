@@ -31,6 +31,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
 import inetsoft.web.composer.command.OpenComposerAssetCommand;
@@ -394,6 +395,7 @@ public class SheetOpenService {
          }
          else if(isViewsheet) {
             runtimeId = viewsheetService.openViewsheet(entry, browserUser, false);
+            warnings = viewsheetLockWarnings(runtimeId, browserUser);
          }
          else {
             // Loading a worksheet records what it could not do (an outer mirror that cannot be
@@ -499,6 +501,42 @@ public class SheetOpenService {
       }
 
       return best;
+   }
+
+   /**
+    * Reports a lock another user holds on a freshly opened viewsheet, as the Composer's own open
+    * does. The lock is only reported, the open still succeeds (the edit is refused later, at
+    * save). The same user holding the asset in another place is not reported here: that case is
+    * guarded when saving (Redmine #81758).
+    */
+   private List<String> viewsheetLockWarnings(String runtimeId, Principal browserUser) {
+      if(runtimeId == null) {
+         return List.of();
+      }
+
+      RuntimeViewsheet opened;
+
+      try {
+         opened = viewsheetService.getViewsheet(runtimeId, browserUser);
+      }
+      catch(Exception e) {
+         LOG.warn("Unable to read the lock state of the opened viewsheet {}", runtimeId, e);
+         return List.of("Could not check whether this dashboard is locked by another user: " +
+                        e.getMessage());
+      }
+
+      String lockOwner = opened == null ? null : opened.getLockOwner();
+
+      if(lockOwner == null || browserUser == null || browserUser.getName() == null ||
+         IdentityID.getIdentityIDFromKey(lockOwner)
+            .equals(IdentityID.getIdentityIDFromKey(browserUser.getName())))
+      {
+         return List.of();
+      }
+
+      // The same catalog entry the Composer's own lock message uses.
+      return List.of(Catalog.getCatalog().getString(
+         "common.AssetLockBy", IdentityID.getIdentityIDFromKey(lockOwner).getName()));
    }
 
    /**
