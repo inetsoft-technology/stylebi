@@ -126,6 +126,80 @@ class AttributeTableLensOutlierTest {
    }
 
    @Test
+   void aColumnWithNoOutliersKeepsTheBulletGraphsAverageTarget() {
+      BulletGraphPresenter bullet = new BulletGraphPresenter();
+      bullet.setAutoScale(true);
+      bullet.setIgnoreOutliers(true);
+      bullet.setBarColor(new Color(255, 0, 0));
+      bullet.useModernTarget(new Color(0, 255, 0));
+      // 10 to 60: the average is 35 and so is the median; use a skewed column without outliers
+      AttributeTableLens lens = lens(bullet, new double[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 20 });
+
+      Presenter0 p = new Presenter0((PresenterPainter) lens.getObject(3, SALES));
+
+      // 0 to 20, the average is 6.5 (not the median, 5.5): the target is 6.5 / 20 of the cell
+      assertEquals(32, p.targetX(), 1);
+   }
+
+   @Test
+   void aBarIsNotCappedAgainstTheConfiguredMaximumWhenThereIsNoDataToScaleTo() {
+      // no positive number to scale to, so the resolved maximum is NaN and 100 stays the maximum
+      BarPresenter bar = bar(true, true);
+      BarPresenter copy = (BarPresenter) bar.withMaximumResolver(() -> Double.NaN);
+
+      BufferedImage image = new BufferedImage(100, 20, BufferedImage.TYPE_INT_RGB);
+      Graphics2D g = image.createGraphics();
+      g.setColor(Color.WHITE);
+      g.fillRect(0, 0, 100, 20);
+      g.setColor(Color.BLACK);
+      copy.paint(g, 250.0, 0, 0, 100, 20);
+      g.dispose();
+
+      // a plain full bar, no gap
+      for(int x = 0; x < 100; x++) {
+         assertNotEquals(0xFFFFFF, image.getRGB(x, 10) & 0xFFFFFF, "x " + x);
+      }
+   }
+
+   @Test
+   void aCrosstabScalesEachDataPathWithoutItsOutliers() {
+      Object[][] rows = new Object[22][3];
+      rows[0] = new Object[] { "Region", "Year", "Sales" };
+      int r = 1;
+
+      for(int i = 1; i <= 10; i++) {
+         rows[r++] = new Object[] { "R" + i, 2020, i * 10.0 };
+         rows[r++] = new Object[] { "R" + i, 2021, i == 10 ? HUGE : i * 10.0 + 5 };
+      }
+
+      DefaultTableLens data = new DefaultTableLens(rows);
+      inetsoft.report.filter.CrossTabFilter crosstab = new inetsoft.report.filter.CrossTabFilter(
+         data, new int[] { 0 }, new int[] { 1 }, new int[] { 2 },
+         new inetsoft.report.filter.Formula[] { new inetsoft.report.filter.SumFormula() });
+      crosstab.setSuppressRowGrandTotal(false);
+      crosstab.setSuppressColumnGrandTotal(false);
+      AttributeTableLens lens = new AttributeTableLens(crosstab);
+      inetsoft.report.TableDataDescriptor desc = lens.getDescriptor();
+      int checked = 0;
+
+      for(int row = 0; lens.moreRows(row); row++) {
+         for(int c = 0; c < lens.getColCount(); c++) {
+            if(crosstab.getObject(row, c) instanceof Number &&
+               desc.getCellDataPath(row, c).getType() == inetsoft.report.TableDataPath.SUMMARY)
+            {
+               // the body cells are 10 .. 95, 100 and one huge value: 100 is the largest that is
+               // not an outlier
+               assertEquals(HUGE, lens.getAutoMaximum(row, c, false, false));
+               assertEquals(100.0, lens.getAutoMaximum(row, c, false, true), "cell " + row + "," + c);
+               checked++;
+            }
+         }
+      }
+
+      assertTrue(checked > 0, "the body cells were checked");
+   }
+
+   @Test
    void theLensGivesTheRealMaximumWhenAsked() {
       AttributeTableLens lens = lens(bar(true, true));
 

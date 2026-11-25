@@ -181,10 +181,11 @@ public class Bar2Presenter implements AutoMaximumPresenter {
    }
 
    /**
-    * Get the maximum used for drawing: the data maximum when auto maximum is on and one is
-    * available, otherwise the configured maximum.
+    * The data maximum the table lens resolved while auto maximum is on, or NaN when there is none
+    * (auto maximum is off, no resolver was given, or the column has no positive number), in which
+    * case the configured maximum is used.
     */
-   private double getDrawingMaximum() {
+   private double resolvedMaximum() {
       if(autoMaximum && maxResolver != null) {
          double dataMax = maxResolver.getAsDouble();
 
@@ -193,7 +194,16 @@ public class Bar2Presenter implements AutoMaximumPresenter {
          }
       }
 
-      return max;
+      return Double.NaN;
+   }
+
+   /**
+    * Get the maximum used for drawing: the data maximum when auto maximum is on and one is
+    * available, otherwise the configured maximum.
+    */
+   private double getDrawingMaximum() {
+      double dataMax = resolvedMaximum();
+      return Double.isNaN(dataMax) ? max : dataMax;
    }
 
    /**
@@ -214,15 +224,15 @@ public class Bar2Presenter implements AutoMaximumPresenter {
          g.clipRect(x, y, w, h);
 
          x += w / 2;
-         double max = getDrawingMaximum();
+         double resolved = resolvedMaximum();
+         double max = Double.isNaN(resolved) ? this.max : resolved;
          double n = ((Number) v).doubleValue();
 
          // @by galr added the ceil so small values in the presenter will
          // not disappear (0.5 could be rounded to 0 and thus an empty bar).
          // a value beyond the maximum that left outliers out is one: a full half bar, broken near
          // its end
-         boolean capped = ignoreOutliers && autoMaximum && maxResolver != null &&
-            Math.abs(n) > max;
+         boolean capped = ignoreOutliers && !Double.isNaN(resolved) && Math.abs(n) > resolved;
 
          if(n < 0) {
             int width = capped ? w / 2 : (int) Math.ceil(-n * w / (2 * max));

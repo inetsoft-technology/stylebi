@@ -327,9 +327,11 @@ public class BulletGraphPresenter implements Presenter {
          return this;
       }
 
-      // outliers left out: the scale runs over the values that are not outliers
+      // outliers left out: the scale runs over the values that are not outliers. A column with none
+      // is drawn as if the option were off, with the average as its target.
       boolean cut = ignoreOutliers && !Double.isNaN(stats.cappedMin()) &&
-         !Double.isNaN(stats.cappedMax());
+         !Double.isNaN(stats.cappedMax()) &&
+         (stats.cappedMin() > stats.min() || stats.cappedMax() < stats.max());
       double lo = Math.min(0, cut ? stats.cappedMin() : stats.min());
       double hi = Math.max(0, cut ? stats.cappedMax() : stats.max());
 

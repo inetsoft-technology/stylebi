@@ -188,10 +188,11 @@ public class BarPresenter implements AutoMaximumPresenter {
    }
 
    /**
-    * Get the maximum used for drawing: the data maximum when auto maximum is on and one is
-    * available, otherwise the configured maximum.
+    * The data maximum the table lens resolved while auto maximum is on, or NaN when there is none
+    * (auto maximum is off, no resolver was given, or the column has no positive number), in which
+    * case the configured maximum is used.
     */
-   private double getDrawingMaximum() {
+   private double resolvedMaximum() {
       if(autoMaximum && maxResolver != null) {
          double dataMax = maxResolver.getAsDouble();
 
@@ -200,7 +201,16 @@ public class BarPresenter implements AutoMaximumPresenter {
          }
       }
 
-      return max;
+      return Double.NaN;
+   }
+
+   /**
+    * Get the maximum used for drawing: the data maximum when auto maximum is on and one is
+    * available, otherwise the configured maximum.
+    */
+   private double getDrawingMaximum() {
+      double dataMax = resolvedMaximum();
+      return Double.isNaN(dataMax) ? max : dataMax;
    }
 
    /**
@@ -244,10 +254,12 @@ public class BarPresenter implements AutoMaximumPresenter {
             barHeight = thickness;
          }
 
-         double drawMax = getDrawingMaximum();
+         double resolved = resolvedMaximum();
+         double drawMax = Double.isNaN(resolved) ? max : resolved;
 
-         // a value beyond the maximum that left outliers out is one: a full bar, broken near its end
-         if(ignoreOutliers && autoMaximum && maxResolver != null && n > drawMax) {
+         // a value beyond the maximum that left outliers out is one: a full bar, broken near its end.
+         // Not against the configured maximum, which a column with no data to scale to falls back to
+         if(ignoreOutliers && !Double.isNaN(resolved) && n > resolved) {
             CappedBar.fill(g, x, barTop, w, barHeight, true);
             g.setColor(oc);
             g.setClip(clip);
