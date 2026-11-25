@@ -436,6 +436,25 @@ public class AxisSpec implements Cloneable, Serializable {
    }
 
    /**
+    * Check whether this primary axis, when it draws the grid in place of a secondary axis,
+    * leaves out the grid lines at the scale's ends next to the plot edges.
+    * @hidden
+    */
+   public boolean isEdgeGridTrimmed() {
+      return edgeGridTrimmed;
+   }
+
+   /**
+    * Set whether this primary axis, when it draws the grid in place of a secondary axis,
+    * leaves out the grid lines at the scale's ends next to the plot edges, as a secondary
+    * axis grid does.
+    * @hidden
+    */
+   public void setEdgeGridTrimmed(boolean edgeGridTrimmed) {
+      this.edgeGridTrimmed = edgeGridTrimmed;
+   }
+
+   /**
     * Set the grid line color.
     */
    @TernMethod(url = "#cshid=AxisSpecSetGridColor")
@@ -707,6 +726,7 @@ public class AxisSpec implements Cloneable, Serializable {
          Objects.equals(textSpec, axisSpec.textSpec) &&
          Objects.equals(gridColor, axisSpec.gridColor) &&
          zeroLineCrossing == axisSpec.zeroLineCrossing &&
+         edgeGridTrimmed == axisSpec.edgeGridTrimmed &&
          Objects.equals(zeroLineColor, axisSpec.zeroLineColor);
    }
 
@@ -717,7 +737,7 @@ public class AxisSpec implements Cloneable, Serializable {
                           allTick, truncate, inPlot, lastOrAll, gridColor, gridStyle, gridAsShape,
                           gridOnTop, gridBetween, labelBetween, facetGrid, labelOnSecondaryAxis, asize,
                           minPadding, maxPadding, maxLabelSpacing, labelLimit, compactDates,
-                          displayTexts, zeroLineColor, zeroLineCrossing);
+                          displayTexts, zeroLineColor, zeroLineCrossing, edgeGridTrimmed);
    }
 
    /**
@@ -782,6 +802,7 @@ public class AxisSpec implements Cloneable, Serializable {
    private Color gridColor = GDefaults.DEFAULT_GRIDLINE_COLOR;
    private Color zeroLineColor = null;
    private boolean zeroLineCrossing = false;
+   private boolean edgeGridTrimmed = false;
    private int gridStyle = GraphConstants.NONE;
    private boolean gridAsShape = true;
    private boolean gridOnTop = false;
