@@ -104,7 +104,34 @@ class ViewsheetConsoleServiceTest {
    void limitAndSinceSeqSelectTheLatestAndTheNew() throws Exception {
       assertEquals(1, messages(service.read("tok", agent, null, 1, null)).size());
       assertEquals("a warning", messages(service.read("tok", agent, null, 1, null)).get(0).get("message"));
-      assertEquals(1, messages(service.read("tok", agent, null, null, 2L)).size());
+      long second = ((Number) messages(service.read("tok", agent, null, null, null)).get(1).get("seq"))
+         .longValue();
+      assertEquals(1, messages(service.read("tok", agent, null, null, second)).size());
+   }
+
+   /** A blank level parameter is no parameter: the saved filter applies, not "show nothing". */
+   @Test
+   void aBlankLevelParameterFallsBackToTheSavedFilter() throws Exception {
+      assertEquals(3, messages(service.read("tok", agent, List.of(""), null, null)).size());
+      assertEquals(3, messages(service.read("tok", agent, List.of(" , "), null, null)).size());
+   }
+
+   /** A sheet saved by the dialog in another locale holds words this cannot match. */
+   @Test
+   void localizedStoredLevelsAreSurfacedAndNotReadAsShowNothing() throws Exception {
+      when(levelService.getConsoleMessageLevels(anyString(), any()))
+         .thenReturn(new String[] { "Fehler", "Warnung" });
+
+      Map<String, Object> result = service.read("tok", agent, null, null, null);
+
+      assertEquals(List.of("Error", "Warning", "Info"), result.get("levels"));
+      assertEquals(List.of("Fehler", "Warnung"), result.get("unrecognizedLevels"));
+      assertEquals(3, messages(result).size());
+   }
+
+   @Test
+   void unrecognizedLevelsAreAbsentWhenEveryStoredWordIsKnown() throws Exception {
+      assertFalse(service.read("tok", agent, null, null, null).containsKey("unrecognizedLevels"));
    }
 
    @Test

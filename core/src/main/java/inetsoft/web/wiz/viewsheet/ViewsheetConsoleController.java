@@ -23,7 +23,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.security.Principal;
 import java.util.LinkedHashMap;
@@ -73,11 +74,19 @@ public class ViewsheetConsoleController {
       return service.setLevels(sessionToken, user, body == null ? null : body.get("levels"));
    }
 
-   private void requireEnabled() {
+   private void requireEnabled() throws PairingException {
       if(!feature.isEnabled()) {
-         throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                                           "Sheet agent pairing is disabled");
+         throw new PairingException(PairingException.Kind.FEATURE_DISABLED,
+                                    "Sheet agent pairing is disabled");
       }
+   }
+
+   /** A value Spring cannot bind (limit=abc, a body that is not JSON) gets the same error shape. */
+   @ExceptionHandler({ MethodArgumentTypeMismatchException.class,
+                       HttpMessageNotReadableException.class })
+   public ResponseEntity<Map<String, String>> handleBadInput(Exception e) {
+      return handlePairingException(
+         new PairingException("The request could not be read: " + e.getMessage()));
    }
 
    @ExceptionHandler(PairingException.class)

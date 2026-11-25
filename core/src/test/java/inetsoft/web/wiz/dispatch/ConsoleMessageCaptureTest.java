@@ -19,6 +19,8 @@ package inetsoft.web.wiz.dispatch;
 
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.uql.asset.ConfirmException;
+import inetsoft.util.MessageException;
+import inetsoft.util.log.LogLevel;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
@@ -263,7 +265,7 @@ class ConsoleMessageCaptureTest {
       assertEquals(5, all.dropped());
       assertEquals(ConsoleMessageBuffer.CAPACITY, all.total());
       assertEquals("m6", all.entries().get(0).message());
-      assertEquals(6, all.entries().get(0).seq());
+      assertEquals(all.entries().get(1).seq() - 1, all.entries().get(0).seq());
    }
 
    @Test
@@ -281,7 +283,8 @@ class ConsoleMessageCaptureTest {
       assertEquals(3, info.info());
       assertEquals(1, info.error());
 
-      assertEquals(2, buffer.read(null, 50, 3).entries().size());
+      long third = buffer.read(null, 50, 0).entries().get(2).seq();
+      assertEquals(2, buffer.read(null, 50, third).entries().size());
       assertEquals(0, buffer.read(Set.of(), 50, 0).entries().size());
    }
 
@@ -291,9 +294,88 @@ class ConsoleMessageCaptureTest {
       buffer.add("INFO", "a", null);
       buffer.add("INFO", "b", null);
 
+      long last = buffer.read(null, 50, 0).entries().get(1).seq();
+
       assertEquals(2, buffer.clear());
       assertEquals(0, buffer.read(null, 50, 0).total());
-      assertEquals(3, buffer.add("INFO", "c", null));
+      assertTrue(buffer.add("INFO", "c", null) > last);
+   }
+
+   /** Sequence numbers never repeat across buffers, so a recreated buffer cannot confuse a poller. */
+   @Test
+   void sequenceNumbersAreNotReusedByANewBuffer() {
+      long first = new ConsoleMessageBuffer().add("INFO", "a", null);
+      long second = new ConsoleMessageBuffer().add("INFO", "b", null);
+
+      assertTrue(second > first);
+   }
+
+   /** Finding 1: FormatPainterService and the sandbox swap the list in the middle of the work. */
+   @Test
+   void aFailureRaisedAfterTheListWasReplacedIsStillRecorded() throws Exception {
+      ConsoleMessageCapture.scope(runtimeId, () -> {
+         WorksheetService.ASSET_EXCEPTIONS.set(new ArrayList<>());
+         WorksheetService.ASSET_EXCEPTIONS.get().add(new ScriptException(FAILURE));
+         return null;
+      });
+
+      assertEquals(1, read().entries().size());
+      assertNull(WorksheetService.ASSET_EXCEPTIONS.get(), "the caller's null is restored");
+   }
+
+   /** VSObjectPropertyService removes the list after reading it. */
+   @Test
+   void aFailureRecordedBeforeTheListWasRemovedIsKept() throws Exception {
+      ConsoleMessageCapture.scope(runtimeId, () -> {
+         WorksheetService.ASSET_EXCEPTIONS.get().add(new ScriptException(FAILURE));
+         WorksheetService.ASSET_EXCEPTIONS.remove();
+         return null;
+      });
+
+      assertEquals(1, read().entries().size());
+   }
+
+   /** Finding 4: the Composer Console shows a MessageException at its own level. */
+   @Test
+   void aMessageExceptionIsRecordedAtItsOwnLevelAndAConfirmExceptionIsNot() throws Exception {
+      ConsoleMessageCapture.scope(runtimeId, () -> {
+         List<Exception> list = WorksheetService.ASSET_EXCEPTIONS.get();
+         list.add(new MessageException("ignoring the filter", LogLevel.WARN, false,
+                                       ConfirmException.WARNING));
+         list.add(new MessageException("a hard one", LogLevel.ERROR, false, ConfirmException.ERROR));
+         list.add(new MessageException("fyi", LogLevel.INFO, false, ConfirmException.INFO));
+         list.add(new ConfirmException("locked", ConfirmException.INFO));
+         return null;
+      });
+
+      ConsoleMessageBuffer.Snapshot snapshot = read();
+      assertEquals(3, snapshot.entries().size(), snapshot.entries().toString());
+      assertEquals(1, snapshot.warning());
+      assertEquals(1, snapshot.error());
+      assertEquals(1, snapshot.info());
+   }
+
+   /**
+    * Finding 2: VSObjectPropertyService turns every non-script entry it finds in the list into an
+    * ERROR command, which fails the write after it was applied. The list used to be null there, so
+    * what a reader iterates must not contain a query failure; a script failure stays visible (the
+    * hook downgrades it to the warning the write relays), and the Console still gets the script
+    * failure.
+    */
+   @Test
+   void readersOfTheListDoNotSeeAnEntryThatWouldFailTheirWrite() throws Exception {
+      ConsoleMessageCapture.scope(runtimeId, () -> {
+         List<Exception> list = WorksheetService.ASSET_EXCEPTIONS.get();
+         list.add(new RuntimeException("query failed"));
+         list.add(new ScriptException("Script execution error: not the assembly kind"));
+         list.add(new ScriptException(FAILURE));
+
+         assertEquals(1, list.size(), list.toString());
+         assertTrue(list.get(0).getMessage().startsWith(BaseTableService.SCRIPT_FAILURE_PREFIX));
+         return null;
+      });
+
+      assertEquals(2, read().entries().size(), "both script failures reach the Console");
    }
 
    private static MessageCommand message(MessageCommand.Type type, String text) {

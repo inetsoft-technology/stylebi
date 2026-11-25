@@ -76,9 +76,13 @@ public class ViewsheetConsoleService {
       }
 
       // parsed before the session is touched so a bad word fails the same way for any session
-      List<String> requested = levels == null || levels.isEmpty() ? null : parseLevels(levels);
+      // a blank level parameter is no parameter, not "show nothing"
+      List<String> parsed = levels == null ? List.of() : parseLevels(levels);
+      List<String> requested = parsed.isEmpty() ? null : parsed;
       String runtimeId = sessions.runtimeId(sessionToken, agent);
-      List<String> saved = savedLevels(runtimeId, agent);
+      String[] stored = levelService.getConsoleMessageLevels(Tool.byteEncode(runtimeId), agent);
+      List<String> saved = savedLevels(stored);
+      List<String> unrecognized = unrecognizedLevels(stored);
       Set<String> types = new LinkedHashSet<>();
 
       for(String level : requested != null ? requested : saved) {
@@ -107,6 +111,11 @@ public class ViewsheetConsoleService {
 
       Map<String, Object> result = new LinkedHashMap<>();
       result.put("levels", saved);
+
+      if(!unrecognized.isEmpty()) {
+         result.put("unrecognizedLevels", unrecognized);
+      }
+
       result.put("counts", counts);
       result.put("messages", messages);
       result.put("returned", messages.size());
@@ -156,11 +165,11 @@ public class ViewsheetConsoleService {
 
    /**
     * The saved levels in canonical form. A sheet saved with no level reads back as a single empty
-    * string, which is the same "show nothing" state.
+    * string, which is the same "show nothing" state. A sheet whose dialog was saved in another
+    * locale holds localized labels this cannot match; such a sheet is read as showing everything
+    * (the words are reported as {@code unrecognizedLevels}) rather than as showing nothing.
     */
-   private List<String> savedLevels(String runtimeId, Principal agent) {
-      String[] saved = levelService.getConsoleMessageLevels(Tool.byteEncode(runtimeId), agent);
-
+   private static List<String> savedLevels(String[] saved) {
       if(saved == null) {
          return LEVELS;
       }
@@ -173,7 +182,24 @@ public class ViewsheetConsoleService {
          }
       }
 
-      return canonical(found);
+      List<String> result = canonical(found);
+      return result.isEmpty() && !unrecognizedLevels(saved).isEmpty() ? LEVELS : result;
+   }
+
+   private static List<String> unrecognizedLevels(String[] saved) {
+      List<String> result = new ArrayList<>();
+
+      if(saved != null) {
+         for(String level : saved) {
+            if(level != null && !level.isBlank() && LEVELS.stream()
+               .noneMatch(known -> known.equalsIgnoreCase(level.trim())))
+            {
+               result.add(level.trim());
+            }
+         }
+      }
+
+      return result;
    }
 
    /** Canonical Error, Warning, Info order; each word matched case-insensitively. */

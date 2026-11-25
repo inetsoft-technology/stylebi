@@ -18,6 +18,10 @@
 package inetsoft.web.wiz.dispatch;
 
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.uql.asset.ConfirmException;
+import inetsoft.util.MessageException;
+import inetsoft.util.script.ScriptException;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 
@@ -70,13 +74,6 @@ public final class ConsoleMessageCapture {
       }
    }
 
-   /** Drops the buffer of a runtime that was closed. */
-   public static void discard(String runtimeId) {
-      synchronized(BUFFERS) {
-         BUFFERS.remove(runtimeId);
-      }
-   }
-
    /**
     * Runs {@code work} with the console scope described on the class. A scope already open on
     * this thread for the same runtime is reused, so nested calls share one set of seen messages.
@@ -90,7 +87,7 @@ public final class ConsoleMessageCapture {
 
       Scope scope = new Scope(runtimeId, buffer(runtimeId));
       List<Exception> previous = WorksheetService.ASSET_EXCEPTIONS.get();
-      List<Exception> mine = new ArrayList<>();
+      ScopedList mine = new ScopedList();
       CURRENT.set(scope);
       WorksheetService.ASSET_EXCEPTIONS.set(mine);
 
@@ -98,12 +95,18 @@ public final class ConsoleMessageCapture {
          return work.call();
       }
       finally {
+         // some services replace the list mid-operation (FormatPainterService, the sandbox's
+         // MV-on-demand branch) or remove it (VSObjectPropertyService); a failure raised after
+         // that lands in the replacement, so the live list is read again here, as
+         // EventAspect.handleAssetExceptions and AssetScriptFailureWarnings.collect do
+         List<Exception> live = WorksheetService.ASSET_EXCEPTIONS.get();
+
          if(previous == null) {
             WorksheetService.ASSET_EXCEPTIONS.remove();
          }
          else {
             WorksheetService.ASSET_EXCEPTIONS.set(previous);
-            previous.addAll(mine);
+            previous.addAll(mine.all());
          }
 
          if(outer == null) {
@@ -113,20 +116,29 @@ public final class ConsoleMessageCapture {
             CURRENT.set(outer);
          }
 
-         recordScriptFailures(scope, mine);
+         recordExceptions(scope, mine.all());
+
+         if(live != null && live != mine) {
+            recordExceptions(scope, live);
+         }
       }
    }
 
-   /** Records the script failures among {@code exceptions} in the open scope, if any. */
+   /** Records the exceptions among {@code exceptions} that the Console shows, in the open scope. */
    static void recordScriptFailures(Collection<? extends Exception> exceptions) {
       Scope scope = CURRENT.get();
 
       if(scope != null && exceptions != null) {
-         recordScriptFailures(scope, exceptions);
+         recordExceptions(scope, exceptions);
       }
    }
 
-   private static void recordScriptFailures(Scope scope, Collection<? extends Exception> list) {
+   /**
+    * A script failure is an INFO row, a {@code MessageException} one at its own warning level, as
+    * {@code EventAspect.handleAssetExceptions} sends them. Anything else in the list (a
+    * {@code ConfirmException} such as the lock-owner warning, a query failure) is not a row.
+    */
+   private static void recordExceptions(Scope scope, Collection<? extends Exception> list) {
       List<Exception> copy;
 
       synchronized(list) {
@@ -136,10 +148,20 @@ public final class ConsoleMessageCapture {
       for(Exception ex : copy) {
          String message = AssetScriptFailureWarnings.scriptFailureMessage(ex);
 
-         // a ConfirmException or lock-owner warning also travels in this list; only a script
-         // failure is a Console row
          if(message != null) {
             scope.record(ConsoleMessageBuffer.INFO, message, null);
+         }
+         else if(ex instanceof MessageException e && e.getMessage() != null) {
+            String type = switch(e.getWarningLevel()) {
+               case ConfirmException.ERROR -> ConsoleMessageBuffer.ERROR;
+               case ConfirmException.WARNING -> ConsoleMessageBuffer.WARNING;
+               case ConfirmException.INFO -> ConsoleMessageBuffer.INFO;
+               default -> null;
+            };
+
+            if(type != null) {
+               scope.record(type, e.getMessage(), null);
+            }
          }
       }
    }
@@ -186,6 +208,49 @@ public final class ConsoleMessageCapture {
       int body = message.lastIndexOf(SCRIPT_FAILED_MARKER);
       return type + '\n' + head + '\n' +
          (body < 0 ? "" : message.substring(body + SCRIPT_FAILED_MARKER.length()).trim());
+   }
+
+   /**
+    * The list a scope installs. Services read {@code ASSET_EXCEPTIONS} and act on what is in it:
+    * {@code VSObjectPropertyService.editObjectProperty} turns every entry that is not a
+    * {@code MessageException} or {@code ConfirmException} into an ERROR command, and the capturing
+    * dispatcher then fails the write after it was applied. That list used to be null unless a
+    * script failure had created it, so a scope must not make such a write fail. Only what a
+    * reader already handled as a script failure ({@code BaseTableService.SCRIPT_FAILURE_PREFIX},
+    * which {@code CapturingCommandDispatcher} reports as a warning) stays visible to readers;
+    * every entry is kept in {@link #all()} for the Console.
+    */
+   private static final class ScopedList extends ArrayList<Exception> {
+      @Override
+      public boolean add(Exception ex) {
+         held.add(ex);
+         return !visible(ex) || super.add(ex);
+      }
+
+      @Override
+      public boolean addAll(Collection<? extends Exception> exceptions) {
+         boolean changed = false;
+
+         for(Exception ex : exceptions) {
+            changed |= add(ex);
+         }
+
+         return changed;
+      }
+
+      List<Exception> all() {
+         synchronized(held) {
+            return new ArrayList<>(held);
+         }
+      }
+
+      private static boolean visible(Exception ex) {
+         return ex instanceof MessageException || ex instanceof ConfirmException ||
+            ex instanceof ScriptException && ex.getMessage() != null &&
+            ex.getMessage().startsWith(BaseTableService.SCRIPT_FAILURE_PREFIX);
+      }
+
+      private final List<Exception> held = java.util.Collections.synchronizedList(new ArrayList<>());
    }
 
    private static final class Scope {

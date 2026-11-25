@@ -22,6 +22,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Bug #82316: the Composer's Console is a list the browser keeps, so a plugin-only session had
@@ -66,7 +67,8 @@ public final class ConsoleMessageBuffer {
          dropped++;
       }
 
-      entries.addLast(new Entry(++seq, type, message, assembly, Instant.now()));
+      long seq = SEQ.incrementAndGet();
+      entries.addLast(new Entry(seq, type, message, assembly, Instant.now()));
       return seq;
    }
 
@@ -98,7 +100,7 @@ public final class ConsoleMessageBuffer {
       return new Snapshot(List.copyOf(kept), matching, error, warning, info, dropped);
    }
 
-   /** Removes every entry and returns how many there were. The sequence keeps counting. */
+   /** Removes every entry and returns how many there were. Sequence numbers keep increasing. */
    public synchronized int clear() {
       int count = entries.size();
       entries.clear();
@@ -106,7 +108,11 @@ public final class ConsoleMessageBuffer {
       return count;
    }
 
+   /**
+    * One counter for every buffer, so a buffer recreated after its runtime fell out of the
+    * runtime LRU (see {@link ConsoleMessageCapture}) never reuses a number a poller already saw.
+    */
+   private static final AtomicLong SEQ = new AtomicLong();
    private final ArrayDeque<Entry> entries = new ArrayDeque<>();
-   private long seq;
    private long dropped;
 }
