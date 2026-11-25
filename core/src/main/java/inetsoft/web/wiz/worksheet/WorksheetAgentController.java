@@ -4599,7 +4599,7 @@ public class WorksheetAgentController {
             else {
                editor.addJoin(req.name(), req.leftTable(), req.leftKey(),
                               req.rightTable(), req.rightKey(), req.joinType(),
-                              req.leftKeys(), req.rightKeys());
+                              req.leftKeys(), req.rightKeys(), req.joinOperators());
             }
          }
          case "remove_join" ->
@@ -4623,7 +4623,8 @@ public class WorksheetAgentController {
          // edit_join/remove_join_edge reuse leftTable/rightTable as the optional edge selector.
          case "edit_join" ->
             editor.editJoin(req.name(), req.leftKey(), req.rightKey(), req.joinType(),
-                            req.leftKeys(), req.rightKeys(), req.leftTable(), req.rightTable());
+                            req.leftKeys(), req.rightKeys(), req.leftTable(), req.rightTable(),
+                            req.joinOperators());
          case "remove_join_edge" ->
             editor.removeJoinEdge(req.name(), req.leftTable(), req.rightTable(),
                                   req.leftKey(), req.rightKey());
