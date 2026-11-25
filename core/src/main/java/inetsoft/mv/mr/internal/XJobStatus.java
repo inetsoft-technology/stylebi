@@ -358,6 +358,13 @@ public final class XJobStatus {
          return reducer.getResult();
       }
       catch(RuntimeException ex) {
+         // a failed job's own reason names the failing block and its cause. the map
+         // statuses are no substitute: the first failure marks every other pending one
+         // as expired, and the map has no order, so any of those could be picked.
+         if(state == FAILED && this.reason != null && !this.reason.isEmpty()) {
+            throw new RuntimeException("Failed to execute job: " + this.reason);
+         }
+
          String reason = mmap.keySet().stream()
             .map(s -> s.getReason())
             .filter(r -> r != null && !r.isEmpty())
