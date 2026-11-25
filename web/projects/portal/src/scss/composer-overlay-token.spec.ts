@@ -1,3 +1,21 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 import { readdirSync, readFileSync, statSync } from "fs";
 import { dirname, join, relative } from "path";
 import { fileURLToPath } from "url";
@@ -93,7 +111,7 @@ describe("composer overlay tokens", () => {
       // ".vs-pane .selection-box" or ".layout-pane > div .selection-box" but NOT nested SCSS (a
       // .selection-box rule inside a .vs-pane block), :is(.vs-pane, ...) .selection-box, or
       // #{$dashboard-content} interpolation; the dark shell's existing .selection-box rules
-      // (_shell-dark.scss:563, :738) pass only because of that. Review covers those forms.
+      // (_shell-dark.scss:565, :740) pass only because of that. Review covers those forms.
       const offenders = scssFiles(src).filter(f =>
          /(\.vs-pane|\.layout-pane|vs-wizard-pane|\.scroll-container)[^{};,]*\.selection-box/.test(readFileSync(f, "utf-8")));
       expect(offenders.map(f => relative(src, f))).toEqual([]);
@@ -163,7 +181,7 @@ describe("composer overlay consumers", () => {
    });
 
    const layout = () => read(app, "composer/gui/vs/layouts/layout-object.component.scss");
-   const HALO_RING = /box-shadow:\s*0 0 0 2px var\(--inet-composer-overlay-halo,\s*transparent\)/;
+   const HALO_RING = /box-shadow:\s*0 0 0 2px var\(--inet-composer-overlay-halo\);/;
 
    it("outlinesAreTwoToneAndKeepTheirStyle", () => {
       // canvas: a 2px stroke outline with a 2px halo under it, so dash and dot gaps show the halo
@@ -258,9 +276,8 @@ describe("composer overlay consumers", () => {
    ];
 
    it("composerMarqueeIsTwoToneOnTheAuthoringPanesOnly", () => {
-      // behind the theme gate; !important beats .selection-box's light rule (_themeable.scss), the dark
-      // rule and the dark shell's content restore (:root.shell-dark :is(.vs-pane, ...) .selection-box,
-      // specificity 0,5,0) without a specificity race
+      // behind the theme gate; !important beats .selection-box's light rule (_themeable.scss) and the
+      // dark shell's dark and content-restore rules (inside :where(), 0,1,0) whatever the source order
       const marquee = rule(read(__dirname, "_composer-overlay.scss"),
          /^:root:where\(:not\(\.custom-theme\)\)\s+\.composer-selection-box\s*\{/m);
       expect(marquee).toMatch(

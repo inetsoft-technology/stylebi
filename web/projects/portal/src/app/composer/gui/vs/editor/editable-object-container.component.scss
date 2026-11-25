@@ -153,10 +153,11 @@
 // dashed outline show the halo instead of the content, and the outline reads on any dashboard
 // background. A search result or drop zone draws its own solid 2px outline over the same band,
 // which covers the halo. A themed page leaves the pair undeclared: the assembly outline colour and
-// no halo, as before.
+// no halo, as before (the halo has no fallback, so an undeclared token makes box-shadow compute to
+// none, its pre-PR8 value).
 .active .object  {
   outline: 2px dotted var(--inet-composer-overlay-stroke, var(--inet-viz-assembly-outline));
-  box-shadow: 0 0 0 2px var(--inet-composer-overlay-halo, transparent);
+  box-shadow: 0 0 0 2px var(--inet-composer-overlay-halo);
 }
 
 // Modern/dark objects switch to the dashed treatment; legacy objects keep the
