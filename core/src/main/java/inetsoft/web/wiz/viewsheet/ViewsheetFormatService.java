@@ -4744,7 +4744,10 @@ public class ViewsheetFormatService {
       return all;
    }
 
-   /** A chart text region's format: the keys that region's reader fills, empty ones left out. */
+   /**
+    * A chart text region's format: the keys that region's reader fills, empty ones left out. The
+    * value format keys are the same ones {@code set_format} takes, so a read feeds back unchanged.
+    */
    private static Map<String, Object> toChartTextWireFormat(VSObjectFormatInfoModel model) {
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("color", model.getColor());
@@ -4752,6 +4755,15 @@ public class ViewsheetFormatService {
       out.put("backgroundAlpha", model.getBackgroundAlpha());
       out.put("font", model.getFont());
       out.put("align", model.getAlign());
+      out.put("format", model.getFormat());
+      out.put("formatSpec", model.getFormatSpec());
+      out.put("dateSpec", model.getDateSpec());
+
+      // the model defaults padding to true and only the padding-off variant needs to travel
+      if(!model.isDurationPadZeros()) {
+         out.put("durationPadZeros", false);
+      }
+
       out.values().removeIf(value -> value == null || "".equals(value));
       return out;
    }

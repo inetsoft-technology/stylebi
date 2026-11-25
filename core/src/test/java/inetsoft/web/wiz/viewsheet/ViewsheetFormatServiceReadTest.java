@@ -323,8 +323,13 @@ class ViewsheetFormatServiceReadTest {
    }
 
    private static FormatPainterService regionPainter() throws Exception {
+      return regionPainter(new VSObjectFormatInfoModel());
+   }
+
+   private static FormatPainterService regionPainter(VSObjectFormatInfoModel model)
+      throws Exception
+   {
       FormatPainterService painter = mock(FormatPainterService.class);
-      VSObjectFormatInfoModel model = new VSObjectFormatInfoModel();
       model.setColor("#0000ff");
       model.setBackgroundColor("");
       model.setFont(new FontInfo(new Font("Arial", Font.PLAIN, 9)));
@@ -358,6 +363,79 @@ class ViewsheetFormatServiceReadTest {
       read(service, "Chart1", "text", "Region");
       verify(painter).getChartRegionFormatModel(
          "rt1", principal(), "Chart1", ChartFormatConstants.TEXT, 0, "Region", false);
+   }
+
+   /**
+    * Bug #82286: the value format of a chart text region travels on the wire in the keys
+    * set_format takes, so a read feeds back unchanged.
+    */
+   @Test
+   void chartTextReadCarriesTheStoredValueFormat() throws Exception {
+      FormatPainterService painter = regionPainter(valueFormat("DecimalFormat", "'#'0.00", null));
+      Map<String, Object> format = chartFormat(read(service(painter, chartRvs("Sum(Total)")),
+                                                    "Chart1", "plotLabel", null));
+
+      assertEquals("DecimalFormat", format.get("format"));
+      assertEquals("'#'0.00", format.get("formatSpec"));
+      assertFalse(format.containsKey("dateSpec"));
+      assertFalse(format.containsKey("durationPadZeros"));
+   }
+
+   @Test
+   void chartTextReadCarriesTheDatePatternAndNamedStyle() throws Exception {
+      FormatPainterService painter = regionPainter(valueFormat("DateFormat", "MM/yy", "Custom"));
+      Map<String, Object> format = chartFormat(read(service(painter, chartRvs("Sum(Total)")),
+                                                    "Chart1", "text", "Region"));
+      assertEquals("DateFormat", format.get("format"));
+      assertEquals("Custom", format.get("dateSpec"));
+      assertEquals("MM/yy", format.get("formatSpec"));
+
+      painter = regionPainter(valueFormat("DateFormat", null, "SHORT"));
+      format = chartFormat(read(service(painter, chartRvs("Sum(Total)")), "Chart1", "text",
+                                "Region"));
+      assertEquals("DateFormat", format.get("format"));
+      assertEquals("SHORT", format.get("dateSpec"));
+      assertFalse(format.containsKey("formatSpec"));
+   }
+
+   @Test
+   void chartTextReadCarriesDurationPaddingOnlyWhenOff() throws Exception {
+      VSObjectFormatInfoModel model = valueFormat("DurationFormatPadNon", null, null);
+      FormatPainterService painter = regionPainter(model);
+      Map<String, Object> format = chartFormat(read(service(painter, chartRvs("Sum(Total)")),
+                                                    "Chart1", "plotLabel", null));
+
+      assertEquals("DurationFormat", format.get("format"));
+      assertEquals(false, format.get("durationPadZeros"));
+   }
+
+   @Test
+   void chartTextReadOmitsTheValueFormatWhenNoneIsStored() throws Exception {
+      Map<String, Object> format = chartFormat(read(service(regionPainter(),
+                                                            chartRvs("Sum(Total)")),
+                                                    "Chart1", "plotLabel", null));
+
+      assertFalse(format.containsKey("format"));
+      assertFalse(format.containsKey("formatSpec"));
+      assertFalse(format.containsKey("dateSpec"));
+      assertFalse(format.containsKey("durationPadZeros"));
+   }
+
+   private static VSObjectFormatInfoModel valueFormat(String format, String spec,
+                                                      String dateSpec)
+   {
+      VSObjectFormatInfoModel model = new VSObjectFormatInfoModel();
+      model.setColor("#0000ff");
+      model.setBackgroundAlpha(100);
+      model.setFormat(format);
+      model.setFormatSpec(spec);
+      model.setDateSpec(dateSpec);
+      return model;
+   }
+
+   @SuppressWarnings("unchecked")
+   private static Map<String, Object> chartFormat(Map<String, Object> read) {
+      return (Map<String, Object>) read.get("format");
    }
 
    @Test

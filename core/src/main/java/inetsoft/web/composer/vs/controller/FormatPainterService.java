@@ -1889,7 +1889,28 @@ public class FormatPainterService {
       model.setBackgroundColorType("Static");
       model.setBackgroundAlpha(format.getAlpha());
       model.setAlign(new AlignmentInfo(format.getAlignment()));
+      applyUserDefinedValueFormat(model, format);
       return model;
+   }
+
+   /**
+    * Copies the value format the user stored on a chart text region into {@code model}, so a
+    * read returns what a write put there. Only the user-defined layer is read: the effective
+    * format also carries the default {@code fixAxisDefaultFormat} derives from the data, and
+    * reporting that would make a region nobody formatted read as if it had been.
+    */
+   static void applyUserDefinedValueFormat(VSObjectFormatInfoModel model,
+                                           CompositeTextFormat format)
+   {
+      XFormatInfo user = format.getUserDefinedFormat().getFormat();
+
+      if(user == null || user.isEmpty()) {
+         return;
+      }
+
+      model.setFormat(user.getFormat());
+      model.setFormatSpec(user.getFormatSpec());
+      model.fixDateSpec(user.getFormat(), user.getFormatSpec());
    }
 
    private CompositeTextFormat getAxisLabelTextFormat(String name, String region, int index,
