@@ -38,12 +38,7 @@ class OneDriveAuthenticator extends BaseAuthenticationProvider {
          if(dataSource.getRefreshToken() != null &&
             Instant.now().isAfter(Instant.ofEpochMilli(dataSource.getTokenExpiration())))
          {
-            try {
-               dataSource.refreshTokens();
-            }
-            catch(Exception e) {
-               throw new RuntimeException("Failed to refresh the access token", e);
-            }
+            dataSource.refreshTokens();
          }
 
 
