@@ -379,6 +379,10 @@ public class ViewsheetChangesetApplyService {
 
       boolean force = Boolean.TRUE.equals(original.getForce());
       AssetEntry entry = AssetEntry.createAssetEntry(assetId);
+      // Bug #82281: the server's delete refuses a dashboard a scheduled task uses (before it
+      // removes anything). Re-check here, BEFORE mutationEntered is set, so a task added since
+      // resolve is a clean refusal (rolled-back) and not "state unknown" (rollback-failed).
+      ViewsheetChangePlanService.requireNoScheduledTaskUse("apply." + assetId, entry);
       // Section 0.2 step 2a: re-run the dependency preflight against live state AT APPLY TIME too
       // -- a concurrent change since preview could have added a new dependency. Uses
       // findDependenciesForAdvisory (bug #76728), not ViewsheetChangePlanService.findDependencies,

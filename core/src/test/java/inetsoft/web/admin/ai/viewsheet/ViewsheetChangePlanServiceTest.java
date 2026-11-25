@@ -27,7 +27,9 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.sync.DependencyTool;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
+import inetsoft.web.RecycleUtils;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -68,6 +70,7 @@ class ViewsheetChangePlanServiceTest {
    private MockedStatic<inetsoft.sree.security.SecurityEngine> securityEngineStatic;
    private inetsoft.sree.security.SecurityProvider ownerProvider;
    private MockedStatic<DependencyTool> dependencyToolStatic;
+   private MockedStatic<RecycleUtils> recycleUtilsStatic;
    private MockedStatic<Tool> tool;
    private MockedStatic<inetsoft.sree.internal.SUtil> sutilStatic;
 
@@ -101,6 +104,10 @@ class ViewsheetChangePlanServiceTest {
       dependencyToolStatic.when(() -> DependencyTool.getDependencies(anyString()))
          .thenReturn(List.of());
 
+      // Bug #82281: resolving a viewsheet delete asks the server's own scheduled-task guard, which
+      // reaches ScheduleManager; default is "no task uses it" (a void static: no-op)
+      recycleUtilsStatic = mockStatic(RecycleUtils.class, withSettings().lenient());
+
       tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
       tool.when(() -> Tool.encryptPassword(anyString()))
@@ -111,6 +118,7 @@ class ViewsheetChangePlanServiceTest {
       orgManagerStatic.close();
       securityEngineStatic.close();
       dependencyToolStatic.close();
+      recycleUtilsStatic.close();
       tool.close();
 
       if(sutilStatic != null) {
@@ -385,6 +393,62 @@ class ViewsheetChangePlanServiceTest {
 
       assertTrue(ex.getMessage().contains("viewsheet \"" + VS_ASSET_ID + "\""), ex.getMessage());
       assertFalse(ex.getMessage().contains("worksheet \"" + VS_ASSET_ID + "\""), ex.getMessage());
+   }
+
+   /** Bug #82281: a dashboard a scheduled task uses cannot be deleted at all (the server's own
+    * delete refuses it before removing anything) and force does not bypass it, so the PREVIEW
+    * refuses, naming the task and the way out, instead of planning a delete that apply then
+    * reports as rollback-failed. */
+   @Test void resolveDeleteRefusesWhenAScheduledTaskUsesTheDashboardEvenWithForce()
+      throws Exception
+   {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+      recycleUtilsStatic.when(() -> RecycleUtils.checkScheduledTasks(any(AssetEntry.class)))
+         .thenThrow(new MessageException("Dashboard \"Census\" is used in the following " +
+            "scheduled task(s): [QA-V02-task]. You must remove it from the scheduled task(s) " +
+            "first."));
+      ViewsheetChangeRequest change = deleteViewsheetChange(VS_ASSET_ID);
+      change.setForce(true);
+
+      // assertThrows with the exact type fails if the MessageException escapes unconverted
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+
+      assertTrue(ex.getMessage().contains("QA-V02-task"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("force: true does not bypass"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("scheduled task"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("assetId"), ex.getMessage());
+   }
+
+   /** Bug #82281: the guard is asked before the force gate, so without force the message never
+    * tells the caller to add force: true, which cannot help. */
+   @Test void resolveDeleteScheduledTaskRefusalDoesNotPointAtTheForceFlag() throws Exception {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+      recycleUtilsStatic.when(() -> RecycleUtils.checkScheduledTasks(any(AssetEntry.class)))
+         .thenThrow(new MessageException("used in the following scheduled task(s): [QA-V02-task]"));
+      var dep = dependency("Examples/Census Query");
+      dependencyToolStatic.when(() -> DependencyTool.getDependencies(anyString()))
+         .thenReturn(List.of(dep));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(deleteViewsheetChange(VS_ASSET_ID))), user));
+
+      assertTrue(ex.getMessage().contains("QA-V02-task"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("refusing to delete without force"), ex.getMessage());
+   }
+
+   /** Bug #82281: the predicate is the server's own, asked about the same asset entry; with no task
+    * using the dashboard a forced or unforced delete still previews. */
+   @Test void resolveDeleteAsksTheServerGuardAboutTheDashboardAndPassesWhenNoTaskUsesIt()
+      throws Exception
+   {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+
+      assertDoesNotThrow(
+         () -> service.resolve(request("task", List.of(deleteViewsheetChange(VS_ASSET_ID))), user));
+
+      recycleUtilsStatic.verify(() -> RecycleUtils.checkScheduledTasks(
+         argThat((AssetEntry e) -> e != null && VS_ASSET_ID.equals(e.toIdentifier()))));
    }
 
    /** Bug #79895: the dependents refusal of a worksheet delete named the asset as a viewsheet. */
