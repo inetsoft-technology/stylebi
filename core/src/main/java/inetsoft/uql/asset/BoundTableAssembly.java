@@ -74,6 +74,31 @@ public class BoundTableAssembly extends AbstractTableAssembly {
    }
 
    /**
+    * Find the logical model table a table reads from, looking through the mirrors that wrap it
+    * (a viewsheet table mirrors the worksheet table, which mirrors its outer copy, which wraps the
+    * bound table, ...). A table that is, or wraps, anything other than mirrors of one bound table
+    * (a join, a concatenation, an aggregate over several tables, ...) has no single logical model
+    * table, so it is not found.
+    *
+    * @param table the table to look under, may be null.
+    *
+    * @return the bound table of the logical model, or <tt>null</tt> when the table does not read
+    *         from exactly one.
+    */
+   public static BoundTableAssembly findLogicalModelTable(TableAssembly table) {
+      // a mirror chain is short; the bound keeps a corrupt cycle from looping forever
+      for(int i = 0; i < 16 && table != null; i++) {
+         if(table instanceof BoundTableAssembly bound) {
+            return bound.getSourceInfo().getType() == SourceInfo.MODEL ? bound : null;
+         }
+
+         table = table instanceof MirrorTableAssembly mirror ? mirror.getTableAssembly() : null;
+      }
+
+      return null;
+   }
+
+   /**
     * Get the logical model entities whose rows are all included ("Include all rows").
     * @return the entity names, never null.
     */

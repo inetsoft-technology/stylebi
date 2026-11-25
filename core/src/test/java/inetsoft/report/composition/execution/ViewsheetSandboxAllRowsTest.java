@@ -1,0 +1,166 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.report.composition.execution;
+
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * "Include all rows" (Bug #82313) must reach the bound table of the logical model however many
+ * mirrors the viewsheet and the worksheet wrapped it in, without touching the tables the other
+ * assemblies of the viewsheet share.
+ */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
+class ViewsheetSandboxAllRowsTest {
+   /** The shape a wiz viewsheet over a logical model has: VS mirror -> M -> M_O -> bound. */
+   private static final class Sheet {
+      final Worksheet ws = new Worksheet();
+      final BoundTableAssembly bound;
+      final MirrorTableAssembly outer;
+      final MirrorTableAssembly worksheetMirror;
+      final TableAssembly viewsheetTable;
+      final CrosstabVSAssembly crosstab;
+
+      Sheet(int sourceType, boolean extraMirror) {
+         bound = new BoundTableAssembly(ws, "M_O");
+         bound.setSourceInfo(new SourceInfo(sourceType, "ds", "M"));
+         ws.addAssembly(bound);
+
+         MirrorTableAssembly inner = null;
+         TableAssembly under = bound;
+
+         if(extraMirror) {
+            inner = new MirrorTableAssembly(ws, "M_base", bound);
+            ws.addAssembly(inner);
+            under = inner;
+         }
+
+         outer = new MirrorTableAssembly(ws, "M_O2", under);
+         ws.addAssembly(outer);
+         worksheetMirror = new MirrorTableAssembly(ws, "M", outer);
+         ws.addAssembly(worksheetMirror);
+         viewsheetTable = ws.getVSTableAssembly("M");
+
+         Viewsheet vs = new Viewsheet();
+         crosstab = new CrosstabVSAssembly(vs, "Crosstab1");
+         vs.addAssembly(crosstab);
+      }
+
+      void allRows(String... entities) {
+         ((CrosstabVSAssemblyInfo) crosstab.getInfo()).setAllRows(List.of(entities));
+      }
+
+      TableAssembly boundCopyOfCrosstab() {
+         TableAssembly ntable = ViewsheetSandbox.copyBoundTable(viewsheetTable, "__vs_MCrosstab1");
+         ws.addAssembly(ntable);
+         ViewsheetSandbox.applyAllRows(ntable, crosstab, ws);
+         return ntable;
+      }
+   }
+
+   @Test
+   void theOptionReachesTheBoundTableUnderEveryMirror() {
+      Sheet sheet = new Sheet(SourceInfo.MODEL, true);
+      sheet.allRows("Product");
+
+      TableAssembly ntable = sheet.boundCopyOfCrosstab();
+      BoundTableAssembly reached = BoundTableAssembly.findLogicalModelTable(ntable);
+
+      assertNotNull(reached);
+      assertEquals(List.of("Product"), reached.getAllRows());
+      assertNotSame(sheet.bound, reached, "the bound table the query runs on is a private copy");
+   }
+
+   @Test
+   void theTablesTheOtherAssembliesShareAreUntouched() {
+      Sheet sheet = new Sheet(SourceInfo.MODEL, true);
+      sheet.allRows("Product");
+
+      sheet.boundCopyOfCrosstab();
+
+      assertTrue(sheet.bound.getAllRows().isEmpty());
+      assertSame(sheet.bound,
+                 ((MirrorTableAssembly) sheet.ws.getAssembly("M_base")).getTableAssembly());
+      assertSame(sheet.outer, sheet.worksheetMirror.getTableAssembly());
+      assertTrue(BoundTableAssembly.findLogicalModelTable(sheet.viewsheetTable)
+                    .getAllRows().isEmpty());
+   }
+
+   @Test
+   void aSingleMirrorOverTheBoundTableWorksToo() {
+      Sheet sheet = new Sheet(SourceInfo.MODEL, false);
+      sheet.allRows("Order", "Product");
+
+      TableAssembly ntable = sheet.boundCopyOfCrosstab();
+
+      assertEquals(List.of("Order", "Product"),
+                   BoundTableAssembly.findLogicalModelTable(ntable).getAllRows());
+   }
+
+   @Test
+   void theCopiesAreInTheWorksheetSoTheQueryFindsThemByName() {
+      Sheet sheet = new Sheet(SourceInfo.MODEL, true);
+      sheet.allRows("Product");
+
+      TableAssembly ntable = sheet.boundCopyOfCrosstab();
+      TableAssembly child = ((MirrorTableAssembly) ntable).getTableAssembly();
+
+      assertSame(child, sheet.ws.getAssembly(child.getName()));
+   }
+
+   @Test
+   void nothingChangesWithoutTheOptionOrWithoutALogicalModel() {
+      Sheet plain = new Sheet(SourceInfo.MODEL, true);
+      TableAssembly ntable = plain.boundCopyOfCrosstab();
+      assertTrue(BoundTableAssembly.findLogicalModelTable(ntable).getAllRows().isEmpty());
+      assertSame(plain.worksheetMirror, ((MirrorTableAssembly) ntable).getTableAssembly());
+
+      Sheet physical = new Sheet(SourceInfo.PHYSICAL_TABLE, true);
+      physical.allRows("Product");
+      TableAssembly pcopy = physical.boundCopyOfCrosstab();
+      assertNull(BoundTableAssembly.findLogicalModelTable(pcopy));
+      assertSame(physical.worksheetMirror, ((MirrorTableAssembly) pcopy).getTableAssembly());
+   }
+
+   @Test
+   void findLogicalModelTableIsNullForATableThatIsNotOverOne() {
+      assertNull(BoundTableAssembly.findLogicalModelTable(null));
+      assertNull(BoundTableAssembly.findLogicalModelTable(
+         new BoundTableAssembly(new Worksheet(), "plain")));
+   }
+}

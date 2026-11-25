@@ -1289,7 +1289,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @param vobj   the viewsheet assembly the query is for.
     * @param ws     the worksheet of the table.
     */
-   private static void applyAllRows(TableAssembly ntable, VSAssembly vobj, Worksheet ws) {
+   static void applyAllRows(TableAssembly ntable, VSAssembly vobj, Worksheet ws) {
       if(!(vobj != null && vobj.getVSAssemblyInfo() instanceof TableDataVSAssemblyInfo tinfo) ||
          !(ntable instanceof MirrorTableAssembly mirror))
       {
@@ -1298,17 +1298,42 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       List<String> allRows = tinfo.getAllRows();
 
-      if(allRows.isEmpty() || !(mirror.getTableAssembly() instanceof BoundTableAssembly bound) ||
-         bound.getSourceInfo().getType() != SourceInfo.MODEL)
-      {
+      if(allRows.isEmpty() || BoundTableAssembly.findLogicalModelTable(mirror) == null) {
          return;
       }
 
-      BoundTableAssembly copy = (BoundTableAssembly) bound.copyAssembly(ntable.getName() + "A");
-      copy.setAllRows(allRows);
+      // the bound table sits under however many mirrors the viewsheet and the worksheet wrapped
+      // it in, each of which is shared with the other assemblies, so the whole chain under this
+      // assembly's own copy is copied down to the bound table
+      TableAssembly inner = copyWithAllRows(mirror.getTableAssembly(), allRows, ws,
+                                            ntable.getName() + "A");
+      mirror.setTableAssemblies(new TableAssembly[] { inner });
+   }
+
+   /**
+    * Copy a table and every mirror between it and its logical model bound table, the bound copy
+    * carrying the option.
+    *
+    * @return the copy of {@code table}, in {@code ws}.
+    */
+   private static TableAssembly copyWithAllRows(TableAssembly table, List<String> allRows,
+                                                Worksheet ws, String name)
+   {
+      TableAssembly copy = (TableAssembly) table.copyAssembly(name);
+
+      if(copy instanceof BoundTableAssembly bound) {
+         bound.setAllRows(allRows);
+      }
+      else {
+         MirrorTableAssembly mirror = (MirrorTableAssembly) copy;
+         mirror.setTableAssemblies(new TableAssembly[] {
+            copyWithAllRows(((MirrorTableAssembly) table).getTableAssembly(), allRows, ws,
+                            name + "A") });
+      }
+
       copy.setProperty(Viewsheet.VS_BOUND_TABLE, "true");
       ws.addAssembly(copy);
-      mirror.setTableAssemblies(new TableAssembly[] { copy });
+      return copy;
    }
 
    /**

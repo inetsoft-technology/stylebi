@@ -23,6 +23,7 @@ import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.BoundTableAssembly;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XLogicalModel;
@@ -134,6 +135,16 @@ final class TableAllRows {
             continue;
          }
 
+         // turning the option off needs nothing checked: it must work on whatever the table has
+         // become, and the entity it names is only removed from the list
+         if(!field.allRows()) {
+            if(stateEntity != null) {
+               wanted.put(stateEntity, false);
+            }
+
+            continue;
+         }
+
          if(rvs == null || source == null) {
             throw new IllegalArgumentException(
                "Field '" + field.column() + "' carries 'allRows' (Include all rows), which needs " +
@@ -184,7 +195,7 @@ final class TableAllRows {
    {
       BoundTableAssembly bound = boundTable(rvs, source);
 
-      if(bound == null || bound.getSourceInfo().getType() != SourceInfo.MODEL) {
+      if(bound == null) {
          throw new IllegalArgumentException(
             "Field '" + field.column() + "' carries 'allRows' (Include all rows), which applies " +
             "only to a table or crosstab bound to a logical model; this one is bound to '" +
@@ -231,12 +242,21 @@ final class TableAllRows {
          return null;
       }
 
-      Assembly assembly = ws.getAssembly(VSUtil.getTableName(source.getSource()));
+      // the source names the table the viewsheet binds to, which is a mirror of a mirror of ...
+      // the bound table of the logical model, whichever spelling of the name finds it
+      for(String name : new String[] { VSUtil.getTableName(source.getSource()),
+                                       source.getSource(),
+                                       TableAssembly.TABLE_VS + source.getSource() })
+      {
+         Assembly assembly = ws.getAssembly(name);
+         BoundTableAssembly bound = assembly instanceof TableAssembly table
+            ? BoundTableAssembly.findLogicalModelTable(table) : null;
 
-      if(assembly == null) {
-         assembly = ws.getAssembly(source.getSource());
+         if(bound != null) {
+            return bound;
+         }
       }
 
-      return assembly instanceof BoundTableAssembly bound ? bound : null;
+      return null;
    }
 }

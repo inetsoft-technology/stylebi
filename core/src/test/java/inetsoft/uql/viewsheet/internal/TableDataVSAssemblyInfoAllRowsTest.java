@@ -21,6 +21,9 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.internal.BoundTableAssemblyInfo;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -86,6 +89,36 @@ class TableDataVSAssemblyInfoAllRowsTest {
       loaded.parseXML(doc.getDocumentElement());
 
       assertEquals(List.of("Product", "Order Item"), loaded.getAllRows());
+   }
+
+   /** A saved viewsheet loaded in a fresh process builds its assemblies from this XML only. */
+   @Test
+   void survivesSavingAndReloadingTheWholeViewsheet() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, "Crosstab1");
+      vs.addAssembly(crosstab);
+      ((CrosstabVSAssemblyInfo) crosstab.getInfo()).setAllRows(List.of("Product"));
+      TableVSAssembly table = new TableVSAssembly(vs, "Table1");
+      vs.addAssembly(table);
+      ((TableVSAssemblyInfo) table.getInfo()).setAllRows(List.of("Order", "Product"));
+      vs.addAssembly(new CrosstabVSAssembly(vs, "Plain"));
+
+      StringWriter out = new StringWriter();
+      PrintWriter writer = new PrintWriter(out);
+      vs.writeXML(writer);
+      writer.flush();
+      Document doc = Tool.parseXML(
+         new ByteArrayInputStream(out.toString().getBytes(StandardCharsets.UTF_8)));
+      Viewsheet loaded = new Viewsheet();
+      loaded.parseXML(doc.getDocumentElement());
+
+      assertEquals(List.of("Product"),
+                   ((CrosstabVSAssemblyInfo) loaded.getAssembly("Crosstab1").getInfo())
+                      .getAllRows());
+      assertEquals(List.of("Order", "Product"),
+                   ((TableVSAssemblyInfo) loaded.getAssembly("Table1").getInfo()).getAllRows());
+      assertTrue(((CrosstabVSAssemblyInfo) loaded.getAssembly("Plain").getInfo())
+                    .getAllRows().isEmpty());
    }
 
    @Test
