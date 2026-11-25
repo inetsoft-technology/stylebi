@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,6 +41,13 @@ public abstract class PresenterPropertyDialogModel {
    }
 
    public abstract String presenter();
+
+   /**
+    * What the presenter does with a value it cannot draw, shown at the top of the dialog, or null
+    * when it has nothing to say.
+    */
+   @Nullable
+   public abstract String description();
 
    public static Builder builder() {
       return new Builder();

@@ -32,6 +32,8 @@ import inetsoft.report.painter.BarPresenter;
 import inetsoft.report.painter.BulletGraphPresenter;
 import inetsoft.report.painter.ButtonPresenter;
 import inetsoft.report.painter.ImagePresenter;
+import inetsoft.util.Catalog;
+import inetsoft.web.composer.vs.PresenterValueHint;
 import inetsoft.report.painter.ShadowPresenter;
 import inetsoft.report.painter.TrafficLightPresenter;
 import inetsoft.report.painter.PresenterPainter;
@@ -174,9 +176,12 @@ public class PresenterPropertyDialogService {
          }
       }
 
+      String hint = PresenterValueHint.of(pr);
+
       return PresenterPropertyDialogModel.builder()
          .descriptors(descriptors)
          .presenter(presenter)
+         .description(hint == null ? null : Catalog.getCatalog().getString(hint))
          .build();
    }
 
