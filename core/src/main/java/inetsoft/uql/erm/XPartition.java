@@ -965,6 +965,50 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
    }
 
    /**
+    * Gets the aliases that replaced a table when auto aliases were applied. The original
+    * table, and any plain alias table reached by an auto alias' outgoing links, is removed from
+    * the applied partition, so it can no longer be bound by name.
+    *
+    * @param applied the result of {@link #applyAutoAliases()} on this partition.
+    * @param table   the name of the table in this (original) partition.
+    *
+    * @return the sorted names of the aliases that replace the table, or an empty list if the
+    *         table is not in this partition or is still in the applied partition.
+    */
+   public List<String> getAutoAliasReplacements(XPartition applied, String table) {
+      if(table == null || getPartitionTable(table) == null ||
+         applied.getPartitionTable(table) != null)
+      {
+         return Collections.emptyList();
+      }
+
+      Set<String> result = new TreeSet<>();
+      Enumeration<PartitionTable> tables = applied.getTables();
+
+      while(tables.hasMoreElements()) {
+         PartitionTable alias = tables.nextElement();
+
+         if(table.equals(alias.getSourceTable())) {
+            result.add(alias.getName());
+         }
+      }
+
+      AutoAlias auto = getAutoAlias(table);
+
+      if(auto != null) {
+         for(int i = 0; i < auto.getIncomingJoinCount(); i++) {
+            String alias = auto.getIncomingJoin(i).getAlias();
+
+            if(alias != null) {
+               result.add(alias);
+            }
+         }
+      }
+
+      return new ArrayList<>(result);
+   }
+
+   /**
     * Get the auto alias table which contains this table name.
     * @param alias the alias name.
     */
