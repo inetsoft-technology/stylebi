@@ -365,8 +365,9 @@ keyboard-focus fill. The tint rule is gated with
 specificity is unchanged: the light shell and dashboard content (which restores the light shell's
 look) compute exactly as before. Disabled buttons keep the dark disabled values (2026-11-18).
 
-**Basis.** Of 18 sources checked, 5 support a solid fill for the primary action in dark and none
-support a tint or an outline for it:
+**Basis.** Of 18 sources checked, 5 entries from 4 systems support a solid fill for the primary
+action (Material 3, Apple HIG twice, AWS Cloudscape, and IBM Carbon weakly: a solid `$button-primary`
+container with `$text-on-color` text). None supports a tint or an outline for it:
 - Material 3: filled buttons "should be used for important, final actions"; tonal is "an alternative
   middle ground between filled and outlined buttons"; outlined buttons "aren't the primary action".
 - Apple HIG: "a primary button uses an app's accent color"; its tinted style ranks below filled.
@@ -407,6 +408,7 @@ button in light too; that is raised with #8470's author, not changed here.
   Apple HIG, Buttons: https://developer.apple.com/design/human-interface-guidelines/buttons ;
   Cloudscape dark tokens:
   https://github.com/cloudscape-design/components/blob/main/style-dictionary/visual-refresh/colors.ts
+  IBM Carbon, Button style: https://carbondesignsystem.com/components/button/style/
 
 - Bootstrap 5.2 buttons (danger hover shade, 50% focus shadow):
   https://getbootstrap.com/docs/5.2/components/buttons/

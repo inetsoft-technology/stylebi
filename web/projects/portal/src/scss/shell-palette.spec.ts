@@ -1034,37 +1034,64 @@ describe("login page filled-button ring gap", () => {
 
 describe("modern primary button in the dark shell (PR7a)", () => {
    const GATE = ":where(:not(:root.shell-dark *), :is(#{$dashboard-content}, #{$content-popup}) *)";
-   const TINT_RULE = `.viz-shell .btn.btn-primary${GATE}`;
+   const COMPILED_GATE = ":where(:not(:root.shell-dark *), :is(.vs-pane, .viewer-root, ";
    const override = () => read("scss/_bootstrap-override.scss");
-   // compiled resting rules of the modern primary button: the selector before "{", not state branches
-   const tintSelectors = () => [...compiledGlobal().matchAll(/(?:^|\})\s*([^{}]*\.viz-shell \.btn\.btn-primary[^{}]*)\{/g)]
-      .map(m => m[1].trim())
-      .filter(s => !/:hover|:focus|:active|\.focus/.test(s));
+   // a compiled selector list split on its top-level commas (the gate has commas inside parentheses)
+   const splitList = (list: string): string[] => {
+      const parts: string[] = [];
+      let depth = 0;
+      let start = 0;
+
+      for(let i = 0; i < list.length; i++) {
+         depth += list[i] === "(" ? 1 : list[i] === ")" ? -1 : 0;
+
+         if(list[i] === "," && depth === 0) {
+            parts.push(list.slice(start, i).trim());
+            start = i + 1;
+         }
+      }
+
+      return [...parts, list.slice(start).trim()];
+   };
+   // every compiled selector of a rule that draws the tint (a color-mix of the primary)
+   const tintSelectors = (): string[] => [...compiledGlobal().matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(m => /color-mix\(in srgb, var\(--inet-primary-color\) \d+%/.test(m[2]))
+      .flatMap(m => splitList(m[1]))
+      .filter(s => s.includes(".viz-shell .btn.btn-primary"));
 
    it("tints the button only outside the dark shell, or inside dashboard content", () => {
-      const rule = block(override(), TINT_RULE);
+      const rule = block(override(), `.viz-shell .btn.btn-primary${GATE}`);
 
       expect(rule).toContain("background-color: color-mix(in srgb, var(--inet-primary-color) 35%, var(--inet-shell-surface-default));");
+      expect(rule).toContain("background-color: color-mix(in srgb, var(--inet-primary-color) 50%, var(--inet-shell-surface-default));");
       expect(override()).not.toMatch(/^\.viz-shell \.btn\.btn-primary\s*\{/m);
    });
 
-   it("keeps the tint rule's specificity: the gate is inside :where()", () => {
-      expect(TINT_RULE).toMatch(/^\.viz-shell \.btn\.btn-primary:where\(/);
-      expect(variables()).toMatch(/^\$content-popup:/m);
-   });
-
-   it("leaves the dark shell to the solid base rule: no compiled resting tint rule without the gate", () => {
+   it("gates every compiled tint selector, the rest state and every hover, press and focus branch", () => {
       const selectors = tintSelectors();
 
-      expect(selectors.length).toBeGreaterThanOrEqual(1);
-      selectors.forEach(s => expect(s).toContain(":where(:not(:root.shell-dark *), :is(.vs-pane"));
+      // the rest rule plus its four state branches
+      expect(selectors.length).toBeGreaterThanOrEqual(5);
+      selectors.forEach(s => expect(s).toContain(COMPILED_GATE));
+   });
+
+   it("keeps the rest rule's specificity: without the :where() gate it is the old selector", () => {
+      const rest = tintSelectors().filter(s => !/:hover|:focus|:active|\.focus/.test(s));
+
+      expect(rest).toHaveLength(1);
+      const gate = rest[0].indexOf(":where(");
+      expect(rest[0].slice(0, gate)).toBe(".viz-shell .btn.btn-primary");
+      // the gate is the selector's last part: nothing after its closing parenthesis
+      expect(rest[0].endsWith(")")).toBe(true);
+      expect(splitList(rest[0].slice(gate + ":where(".length, -1))).toHaveLength(2);
    });
 
    it("gives the base rule the dark shell's solid orange, on-primary label and lighter hover", () => {
-      const dark = read("scss/_shell-dark.scss");
+      const dark = declarations(block(read("scss/_shell-dark.scss"), ":root.shell-dark"));
 
-      expect(variables()).toMatch(/--inet-button-primary-bg-color:\s*var\(--inet-primary-color\);/);
-      expect(dark).toMatch(/--inet-button-primary-text-color:\s*var\(--inet-dark-on-primary-text-color\);/);
-      expect(dark).toMatch(/--inet-button-primary-hover-bg-color:\s*#\{\$dark-link\};/);
+      expect(runtimeTokens().get("--inet-button-primary-bg-color")).toBe("var(--inet-primary-color)");
+      expect(dark.get("--inet-button-primary-text-color")).toBe("var(--inet-dark-on-primary-text-color)");
+      expect(dark.get("--inet-button-primary-hover-bg-color")).toBe("#{$dark-link}");
+      expect(dark.has("--inet-button-primary-bg-color")).toBe(false);
    });
 });
