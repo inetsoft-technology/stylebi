@@ -17,6 +17,10 @@
  */
 package inetsoft.report.painter;
 
+import inetsoft.report.Size;
+import inetsoft.report.StyleConstants;
+import inetsoft.report.internal.Bounds;
+import inetsoft.report.internal.Common;
 import inetsoft.test.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -156,6 +160,51 @@ class IconCounterPresenterTest {
       assertEquals(3 * STEP + 2, stars.getPreferredSize(3.0).width);
    }
 
+   @ParameterizedTest
+   @ValueSource(booleans = { false, true })
+   void thePreferredSizeOfAnEndlessValueIsPositive(boolean modern) {
+      IconCounterPresenter stars = presenter(modern);
+
+      assertTrue(stars.getPreferredSize(Double.POSITIVE_INFINITY).width > 0);
+      assertTrue(stars.getPreferredSize(2e8).width > 0);
+      assertTrue(stars.getPreferredSize(Double.MAX_VALUE).width > 0);
+   }
+
+   // a table or an export paints a presenter that does not fill its cell in a box of the
+   // presenter's preferred size, so a negative value's text must keep the whole cell there
+   @ParameterizedTest
+   @ValueSource(booleans = { false, true })
+   void aNegativeValuesTextIsNotCutToThePreferredSize(boolean modern) {
+      IconCounterPresenter stars =
+         (IconCounterPresenter) presenter(modern).withValueText("-1,013.7");
+      BufferedImage full = paint(stars, -1013.7);
+      int[] aligns = { StyleConstants.H_LEFT, StyleConstants.H_CENTER, StyleConstants.H_RIGHT };
+
+      for(int align : aligns) {
+         align |= StyleConstants.V_CENTER;
+
+         assertTrue(sameImage(full, paintAligned(stars, -1013.7, align, true)),
+                    "the table cell shows the whole text, align " + align);
+         assertTrue(sameImage(full, paintAligned(stars, -1013.7, align, false)),
+                    "the export shows the whole text, align " + align);
+      }
+   }
+
+   // what SUM or AVG of decimal ratings gives for a whole number is a whole number of stars
+   @ParameterizedTest
+   @ValueSource(booleans = { false, true })
+   void lastDigitNoiseOnAWholeNumberDrawsTheWholeNumber(boolean modern) {
+      IconCounterPresenter stars = presenter(modern);
+
+      assertTrue(sameImage(paint(stars, 1.0), paint(stars, 1.0000000000000002)),
+                 "no part of a second star");
+      assertTrue(sameImage(paint(stars, 3.0), paint(stars, 3.0000000000000004)));
+      assertTrue(sameImage(paint(stars, 5.0), paint(stars, 5.000000000000001)),
+                 "five stars fit, so no marker");
+      assertTrue(sameImage(paint(stars, 5.0), paint(stars, 4.999999999999999)));
+      assertEquals(stars.getPreferredSize(1.0), stars.getPreferredSize(1.0000000000000002));
+   }
+
    private static IconCounterPresenter presenter(boolean modern) {
       IconCounterPresenter stars = new IconCounterPresenter();
 
@@ -175,6 +224,41 @@ class IconCounterPresenterTest {
       stars.paint(g, value, 0, 0, W, H);
       g.dispose();
       return image;
+   }
+
+   // paint the way PresenterService (table cell) or ExportUtil (export) does: a presenter that
+   // does not fill its cell is painted in a box of its preferred size, aligned in the cell
+   private static BufferedImage paintAligned(IconCounterPresenter stars, Object value, int align,
+                                             boolean table)
+   {
+      Bounds b = new Bounds(0, 0, W, H);
+      Dimension psize = stars.getPreferredSize(value);
+
+      if(!stars.isFill() && (!table || psize.width > 0)) {
+         b = table ? Common.alignPresenterCell(b, new Size(psize), align)
+            : Common.alignCell(b, new Size(psize), align);
+      }
+
+      BufferedImage image = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
+      Graphics2D g = image.createGraphics();
+      g.setClip(0, 0, W, H);
+      g.setColor(Color.BLACK);
+      g.setFont(new Font("Dialog", Font.PLAIN, 10));
+      stars.paint(g, value, (int) b.x, (int) b.y, (int) b.width, (int) b.height);
+      g.dispose();
+      return image;
+   }
+
+   private static boolean sameImage(BufferedImage a, BufferedImage b) {
+      for(int x = 0; x < W; x++) {
+         for(int y = 0; y < H; y++) {
+            if(a.getRGB(x, y) != b.getRGB(x, y)) {
+               return false;
+            }
+         }
+      }
+
+      return true;
    }
 
    // the columns [a, a + n) and [b, b + n) hold the same pixels
