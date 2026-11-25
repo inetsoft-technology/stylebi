@@ -221,6 +221,41 @@ class WorksheetPreviewServiceTest {
                    ex.getMessage());
    }
 
+   // Bug #82291: a Long above 2^53 went out as a JSON number, which a double-parsing reader rounds
+   // (639311709851592516 -> 639311709851592600). Such values go out as their decimal text; every
+   // other number keeps its class.
+   @Test
+   void numbersADoubleCannotHoldGoOutAsDecimalText() throws Exception {
+      java.math.BigInteger wide = new java.math.BigInteger("12345678901234567890");
+      java.math.BigDecimal longDecimal = new java.math.BigDecimal("0.1234567890123456789");
+      Object[][] data = {{
+         639311709851592516L, 9007199254740993L, 9007199254740992L, 42L, 7, 1.5d,
+         java.math.BigInteger.valueOf(5), wide, new java.math.BigDecimal("12.34"), longDecimal,
+         new java.math.BigDecimal("12345678901234567890.5"), "x", -9007199254740993L
+      }};
+      String[] headers = {"big", "plus1", "max", "small", "int", "dbl", "smallBig", "wide",
+                          "money", "longDec", "bigDec", "str", "neg"};
+      TableLens tableLens = lens(headers, data);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(tableLens);
+
+      Map<String, Object> row = service.preview(rws(box), "T", 0, 10).rows().get(0);
+
+      assertEquals("639311709851592516", row.get("big"));
+      assertEquals("9007199254740993", row.get("plus1"));
+      assertEquals(9007199254740992L, row.get("max"));
+      assertEquals(42L, row.get("small"));
+      assertEquals(7, row.get("int"));
+      assertEquals(1.5d, row.get("dbl"));
+      assertEquals(java.math.BigInteger.valueOf(5), row.get("smallBig"));
+      assertEquals("12345678901234567890", row.get("wide"));
+      assertEquals(new java.math.BigDecimal("12.34"), row.get("money"));
+      assertEquals("0.1234567890123456789", row.get("longDec"));
+      assertEquals("12345678901234567890.5", row.get("bigDec"));
+      assertEquals("x", row.get("str"));
+      assertEquals("-9007199254740993", row.get("neg"));
+   }
+
    @Test
    void throwsWhenGetTableLensThrows() throws Exception {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);

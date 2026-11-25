@@ -118,6 +118,54 @@ class NoSchemaDocumentParserTest {
       assertEquals(new ValueNode("B"), ((MapNode) cs.get(1)).get("@b"));
    }
 
+   // Bug #82291: an Azure Blob Etag is hex text; NumberUtils.isNumber/createNumber decoded it to a
+   // Long (0x8DF4A9CE673A744 -> 639311709851592516), so the user saw a number that is not the Etag.
+   @Test
+   void identifierLikeTextStaysString() throws Exception {
+      for(String text : new String[] { "0x8DF4A9CE673A744", "0x8FFFFFFFFFFFFFFF", "0XFF", "#FF",
+                                       "007", "010", "00123", "12L", "1.0f", "2d", "+5", "1e",
+                                       "-0x1F", "--5" })
+      {
+         assertEquals(new ValueNode(text), parseRoot("<x><v>" + text + "</v></x>", "x").get("v"),
+                      text);
+      }
+   }
+
+   @Test
+   void canonicalDecimalTextStillBecomesNumber() throws Exception {
+      assertEquals(new ValueNode(639311709851592516L),
+                   parseRoot("<x><v>639311709851592516</v></x>", "x").get("v"));
+      assertEquals(new ValueNode(12), parseRoot("<x><v>12</v></x>", "x").get("v"));
+      assertEquals(new ValueNode(-3), parseRoot("<x><v>-3</v></x>", "x").get("v"));
+      assertEquals(new ValueNode(0), parseRoot("<x><v>0</v></x>", "x").get("v"));
+      assertEquals(new ValueNode(1.5f), parseRoot("<x><v>1.5</v></x>", "x").get("v"));
+      assertEquals(new ValueNode(0.5f), parseRoot("<x><v>0.5</v></x>", "x").get("v"));
+      assertEquals(new ValueNode(true), parseRoot("<x><v>true</v></x>", "x").get("v"));
+      assertEquals(new ValueNode(false), parseRoot("<x><v>false</v></x>", "x").get("v"));
+   }
+
+   @Test
+   void etagColumnIsStringWithExactHexText() throws Exception {
+      final String xml = "<R><B><i><Etag>0x8DF4A9CE673A744</Etag></i>" +
+         "<i><Etag>0x8DF4A9C440CCFB6</Etag></i></B></R>";
+      final Document document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+         .parse(new org.xml.sax.InputSource(new java.io.StringReader(xml)));
+      final NoSchemaDocumentParser parser = new NoSchemaDocumentParser();
+      parser.append(document.getDocumentElement());
+
+      final ExpandedJsonTable table = new ExpandedJsonTable("R.B.i");
+      table.beginStreamedLoading();
+      table.loadStreamed(parser.getRoot());
+      table.finishStreamedLoading();
+
+      assertEquals(XSchema.STRING, table.getColumnType("R.B.i.Etag"));
+      table.rewind();
+      assertEquals(true, table.next());
+      assertEquals("0x8DF4A9CE673A744", table.getObject(0));
+      assertEquals(true, table.next());
+      assertEquals("0x8DF4A9C440CCFB6", table.getObject(0));
+   }
+
    private MapNode parseRoot(String xml, String name) throws Exception {
       final Document document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
          .parse(new org.xml.sax.InputSource(new java.io.StringReader(xml)));
