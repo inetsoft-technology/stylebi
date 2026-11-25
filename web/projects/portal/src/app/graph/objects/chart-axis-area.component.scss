@@ -84,7 +84,7 @@
   }
 }
 
-.axis-drill-pill__btn {
+.axis-drill-pill .axis-drill-pill__btn {
   position: relative;
   flex: 1 1 0;
   min-width: 0;
@@ -173,7 +173,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   justify-content: space-around;
   width: 100%;
   height: 100%;
@@ -219,6 +218,15 @@
   flex-direction: row;
   background: linear-gradient(to right, transparent calc(50% - 0.5px), var(--axis-icon-border) calc(50% - 0.5px),
     var(--axis-icon-border) calc(50% + 0.5px), transparent calc(50% + 0.5px));
+}
+
+.chart-axis-area-scroll-container {
+  position: absolute;
+  overflow: visible;
+}
+
+.no-actions {
+  pointer-events: none;
 }
 
 .floating-icon {

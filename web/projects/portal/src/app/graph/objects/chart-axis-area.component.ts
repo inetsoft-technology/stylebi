@@ -807,7 +807,7 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
 
       // the icon is 18px and the axis area clips what is outside it, so keep it inside the row
       return this.chartObject.axisType == "y" ?
-         height - ChartAxisArea.DRILL_PILL_LENGTH - 2 :
+         Math.max(0, height - ChartAxisArea.DRILL_PILL_LENGTH - 2) :
          Math.min(this.getLabelCenter(height), height - 9);
    }
 }
