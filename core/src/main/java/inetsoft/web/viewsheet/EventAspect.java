@@ -435,7 +435,7 @@ public class EventAspect {
             commandDispatcher.ifPresent(dispatcher -> {
                boolean mvHandled = false;
 
-               for(Exception ex : exceptions) {
+               for(Exception ex : dedupScriptExceptions(exceptions)) {
                   if(ex instanceof ConfirmException e) {
                      if(!(e.getEvent() instanceof CheckMissingMVEvent)) {
                         sendMessage(e, MessageCommand.Type.CONFIRM, dispatcher);
@@ -465,10 +465,42 @@ public class EventAspect {
       }
    }
 
+   /**
+    * Remove repeated script errors from the exceptions recorded during one request. The same
+    * script can run several times in a request (e.g. a selection tree is refreshed at several
+    * points while a viewsheet is opened) and every failed run is recorded, which would send the
+    * same console message several times. Script errors are the same when their message is the
+    * same; the message names the assembly, so errors of different assemblies stay distinct.
+    * Other exception types and the order are not changed.
+    */
+   static List<Exception> dedupScriptExceptions(List<Exception> exceptions) {
+      List<Exception> result = new ArrayList<>(exceptions.size());
+      Set<String> scriptMessages = new HashSet<>();
+
+      for(Exception ex : exceptions) {
+         boolean script = ex instanceof ScriptException ||
+            ex != null && ex.getCause() instanceof ScriptException;
+
+         if(script && !(ex instanceof ConfirmException) && !(ex instanceof MessageException) &&
+            !scriptMessages.add(getMessageText(ex)))
+         {
+            continue;
+         }
+
+         result.add(ex);
+      }
+
+      return result;
+   }
+
+   private static String getMessageText(Exception e) {
+      String msg = e.getMessage();
+      return msg == null || msg.isEmpty() ? e.toString() : msg;
+   }
+
    private void sendMessage(Exception e, MessageCommand.Type type, CommandDispatcher dispatcher) {
       MessageCommand command = new MessageCommand();
-      String msg = e.getMessage();
-      command.setMessage(msg == null || msg.isEmpty() ? e.toString() : msg);
+      command.setMessage(getMessageText(e));
       command.setType(type);
       dispatcher.sendCommand(command);
    }
