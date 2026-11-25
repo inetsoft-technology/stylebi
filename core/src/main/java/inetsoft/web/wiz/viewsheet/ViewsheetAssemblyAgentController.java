@@ -3666,10 +3666,17 @@ public class ViewsheetAssemblyAgentController {
          java.util.Objects.equals(a.getOrgID(), b.getOrgID());
    }
 
+   /**
+    * Counts the other open runtimes of the same asset that hold unsaved edits. The lookup is not
+    * scoped to the agent's own principal: a Composer tab belongs to the browser's principal, which
+    * is a different principal from the agent's even for the same human user, so a principal-scoped
+    * lookup never sees the tab (Redmine #81758 feedback). Copies are matched by owner identity.
+    */
    private int countOtherCopiesWithUnsavedEdits(RuntimeViewsheet rvs, AssetEntry entry,
-                                                Principal user)
+                                                Principal agent)
    {
-      RuntimeViewsheet[] open = viewsheetService.getRuntimeViewsheets(user);
+      Principal owner = rvs.getUser() != null ? rvs.getUser() : agent;
+      RuntimeViewsheet[] open = viewsheetService.getRuntimeViewsheets(null);
       int count = 0;
 
       if(open != null) {
@@ -3677,6 +3684,7 @@ public class ViewsheetAssemblyAgentController {
             if(rs != null && rs.getEntry() != null && rs.getID() != null &&
                !rs.getID().equals(rvs.getID()) &&
                !rs.getID().contains(ViewsheetService.PREVIEW_VIEWSHEET) &&
+               isSameOwner(owner, rs.getUser()) &&
                isSameSavedAsset(entry, rs.getEntry()) && rs.getCurrent() != rs.getSavePoint())
             {
                count++;
@@ -3685,6 +3693,10 @@ public class ViewsheetAssemblyAgentController {
       }
 
       return count;
+   }
+
+   private static boolean isSameOwner(Principal a, Principal b) {
+      return a != null && b != null && a.getName() != null && a.getName().equals(b.getName());
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/save")

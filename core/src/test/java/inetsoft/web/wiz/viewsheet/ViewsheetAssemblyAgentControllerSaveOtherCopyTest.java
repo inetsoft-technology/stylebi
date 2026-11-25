@@ -45,6 +45,9 @@ import static org.mockito.Mockito.*;
 @WizAgentTestSupport
 class ViewsheetAssemblyAgentControllerSaveOtherCopyTest {
    private final Principal agent = TestPrincipals.user("alice", "host-org");
+   // The Composer tab and the runtimes the plugin opens belong to the browser's principal, a
+   // different principal object from the agent's even for the same human user.
+   private final Principal browser = TestPrincipals.user("alice", "host-org");
    private final AssetRepository repository = mock(AssetRepository.class);
    private final ViewsheetService viewsheetService =
       mock(ViewsheetService.class);
@@ -57,6 +60,7 @@ class ViewsheetAssemblyAgentControllerSaveOtherCopyTest {
       when(viewsheetService.getAssetRepository()).thenReturn(repository);
       when(rvs.getEntry()).thenReturn(entry);
       when(rvs.getID()).thenReturn("rt-agent");
+      when(rvs.getUser()).thenReturn(browser);
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
       controller = controller(sessions);
@@ -119,6 +123,26 @@ class ViewsheetAssemblyAgentControllerSaveOtherCopyTest {
    }
 
    @Test
+   void refusesForACopyOwnedByAnotherPrincipalOfTheSameUser() throws Exception {
+      // The Composer tab is held by the browser's principal, not the agent's.
+      other("rt-tab", entry(entry.getPath()), 3, 1, TestPrincipals.user("alice", "host-org"));
+
+      assertThrows(PairingException.class, () -> save(null, null));
+      // Looked up across all principals, not only the agent's own.
+      verify(viewsheetService).getRuntimeViewsheets(isNull());
+      verifySaved(false);
+   }
+
+   @Test
+   void ignoresACopyOwnedByADifferentUser() throws Exception {
+      other("rt-tab", entry(entry.getPath()), 3, 1, TestPrincipals.user("bob", "host-org"));
+
+      save(null, null);
+
+      verifySaved(true);
+   }
+
+   @Test
    void namedSaveIsUnchanged() throws Exception {
       other("rt-tab", entry(entry.getPath()), 3, 1);
 
@@ -133,11 +157,18 @@ class ViewsheetAssemblyAgentControllerSaveOtherCopyTest {
    }
 
    private void other(String id, AssetEntry otherEntry, int current, int savePoint) {
+      other(id, otherEntry, current, savePoint, TestPrincipals.user("alice", "host-org"));
+   }
+
+   private void other(String id, AssetEntry otherEntry, int current, int savePoint,
+                      Principal owner)
+   {
       RuntimeViewsheet rs = mock(RuntimeViewsheet.class);
       when(rs.getID()).thenReturn(id);
       when(rs.getEntry()).thenReturn(otherEntry);
       when(rs.getCurrent()).thenReturn(current);
       when(rs.getSavePoint()).thenReturn(savePoint);
+      when(rs.getUser()).thenReturn(owner);
       when(viewsheetService.getRuntimeViewsheets(any()))
          .thenReturn(new RuntimeViewsheet[] { rvs, rs });
    }

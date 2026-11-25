@@ -147,6 +147,44 @@ class SheetOpenServiceSavedSheetTest {
          () -> service.openSavedSheet("tok-acting", agent(), type, path, scope, false));
    }
 
+   // Redmine #81758: an open of a dashboard another user holds the lock on reports the lock,
+   // as the Composer does, and still opens it.
+   @Test
+   void reportsALockAnotherUserHoldsOnAnOpenedViewsheet() throws Exception {
+      RuntimeViewsheet opened = mock(RuntimeViewsheet.class);
+      when(opened.getLockOwner()).thenReturn("bob~;~host-org");
+      when(viewsheetService.getViewsheet("vs-new", browser)).thenReturn(opened);
+
+      SheetOpenService.OpenedSheet result = service.openSavedSheet(
+         "tok-acting", agent(), SheetType.VIEWSHEET, "Sales/Dashboard", null, false);
+
+      assertEquals("tok-vs-new", result.session().sessionToken());
+      assertEquals(1, result.warnings().size());
+      assertFalse(result.warnings().get(0).isBlank());
+   }
+
+   @Test
+   void doesNotReportALockHeldByTheSameUser() throws Exception {
+      RuntimeViewsheet opened = mock(RuntimeViewsheet.class);
+      when(opened.getLockOwner()).thenReturn(browser.getName());
+      when(viewsheetService.getViewsheet("vs-new", browser)).thenReturn(opened);
+
+      assertTrue(service.openSavedSheet("tok-acting", agent(), SheetType.VIEWSHEET,
+                                        "Sales/Dashboard", null, false).warnings().isEmpty());
+   }
+
+   @Test
+   void surfacesAFailureToReadTheLockStateInsteadOfDroppingIt() throws Exception {
+      when(viewsheetService.getViewsheet("vs-new", browser)).thenThrow(new RuntimeException("gone"));
+
+      SheetOpenService.OpenedSheet result = service.openSavedSheet(
+         "tok-acting", agent(), SheetType.VIEWSHEET, "Sales/Dashboard", null, false);
+
+      assertEquals("tok-vs-new", result.session().sessionToken());
+      assertEquals(1, result.warnings().size());
+      assertTrue(result.warnings().get(0).contains("gone"));
+   }
+
    @Test
    void opensASavedViewsheetAsTheBrowserPrincipalAndPairsIt() throws Exception {
       JoinSession opened = service.openSavedSheet(
