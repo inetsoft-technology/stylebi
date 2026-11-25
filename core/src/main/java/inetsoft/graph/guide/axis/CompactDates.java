@@ -22,16 +22,21 @@ import inetsoft.graph.scale.TimeScale;
 import inetsoft.util.ExtendedDateFormat;
 
 import java.io.Serializable;
+import java.sql.Time;
+import java.text.FieldPosition;
 import java.text.Format;
+import java.text.ParsePosition;
 import java.time.chrono.IsoChronology;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.FormatStyle;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.Locale;
 import java.util.Objects;
 
 /**
- * Date axis labels that show the year only where it changes. The first label of a year uses
- * the full pattern and the others the brief one.
+ * Date axis labels that show the year only where it changes (the date, for times of day). The
+ * first label of a year (a day) uses the full pattern and the others the brief one.
  */
 public final class CompactDates implements Serializable {
    /**
@@ -100,14 +105,14 @@ public final class CompactDates implements Serializable {
    }
 
    /**
-    * Get the format with the year, or null if the unit has none.
+    * Get the format with the year (the date, for times of day), or null if the unit has none.
     */
    public Format full(Scale scale) {
       return format(scale, 0);
    }
 
    /**
-    * Get the format without the year, or null if the unit has none.
+    * Get the format without the year (the date, for times of day), or null if the unit has none.
     */
    public Format brief(Scale scale) {
       return format(scale, 1);
@@ -122,6 +127,15 @@ public final class CompactDates implements Serializable {
          }
 
          u = ((TimeScale) scale).getType();
+
+         // a scale fitted to label every tick: times carry the date once a day, years alone
+         if(isTimeOfDay(scale)) {
+            return idx == 0 ? new DayTimeFormat(patterns(TimeScale.DAY, locale)[1], locale)
+               : new ExtendedDateFormat(TIME_PATTERN, locale);
+         }
+         else if(u == TimeScale.YEAR && ((TimeScale) scale).getFitStep() > 0) {
+            return new ExtendedDateFormat("yyyy", locale);
+         }
       }
 
       String[] patterns = patterns(u, locale);
@@ -131,6 +145,52 @@ public final class CompactDates implements Serializable {
       }
 
       return new ExtendedDateFormat(patterns[idx], locale);
+   }
+
+   /**
+    * Get the period whose first label shows the full text: the day for the times of a fitted
+    * time scale, else the year.
+    */
+   public int period(Scale scale, Date date) {
+      Calendar cal = Calendar.getInstance();
+      cal.setTime(date);
+      int year = cal.get(Calendar.YEAR);
+      return isTimeOfDay(scale) ? year * 1000 + cal.get(Calendar.DAY_OF_YEAR) : year;
+   }
+
+   // hour or minute ticks of a time scale fitted to label every tick
+   private boolean isTimeOfDay(Scale scale) {
+      if(unit != FROM_SCALE || !(scale instanceof TimeScale) ||
+         ((TimeScale) scale).getFitStep() <= 0)
+      {
+         return false;
+      }
+
+      int type = ((TimeScale) scale).getType();
+      return type == TimeScale.HOUR || type == TimeScale.MINUTE;
+   }
+
+   /**
+    * The time of day with its date on a second line, or the time alone for a time value.
+    */
+   private static final class DayTimeFormat extends Format {
+      DayTimeFormat(String datePattern, Locale locale) {
+         this.dateTime = new ExtendedDateFormat(TIME_PATTERN + "\n" + datePattern, locale);
+         this.time = new ExtendedDateFormat(TIME_PATTERN, locale);
+      }
+
+      @Override
+      public StringBuffer format(Object obj, StringBuffer buf, FieldPosition pos) {
+         return (obj instanceof Time ? time : dateTime).format(obj, buf, pos);
+      }
+
+      @Override
+      public Object parseObject(String source, ParsePosition pos) {
+         return dateTime.parseObject(source, pos);
+      }
+
+      private final Format dateTime;
+      private final Format time;
    }
 
    @Override
@@ -154,6 +214,7 @@ public final class CompactDates implements Serializable {
 
    private enum Order { YEAR_FIRST, DAY_FIRST, MONTH_FIRST }
 
+   private static final String TIME_PATTERN = "HH:mm";
    private final int unit;
    private final Locale locale;
 }
