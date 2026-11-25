@@ -22,6 +22,7 @@ import inetsoft.report.filter.*;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.painter.AutoMaximumPresenter;
+import inetsoft.report.painter.BarPresenter;
 import inetsoft.report.painter.PresenterPainter;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
@@ -413,7 +414,7 @@ public class AttributeTableLens extends AbstractTableLens
 
          if(p != null && p.isPresenterOf(obj)) {
             return new PresenterPainter((p.isRawDataRequired() ? obj : obj2),
-                                        withAutoMaximum(r, c, p));
+                                        withValueText(withAutoMaximum(r, c, p), obj, obj2));
          }
 
          if(p == null) {
@@ -425,7 +426,7 @@ public class AttributeTableLens extends AbstractTableLens
 
                if(p.isPresenterOf(obj)) {
                   return new PresenterPainter((p.isRawDataRequired() ? obj : obj2),
-                                              withAutoMaximum(r, c, p));
+                                              withValueText(withAutoMaximum(r, c, p), obj, obj2));
                }
             }
          }
@@ -434,6 +435,22 @@ public class AttributeTableLens extends AbstractTableLens
       }
 
       return obj;
+   }
+
+   /**
+    * Give a Bar presenter a copy that carries the cell's formatted text when the value is negative
+    * or NaN, which the bar cannot draw. Other presenters, and other values, are returned as they are.
+    * @param obj the raw value.
+    * @param display the value after the cell's format, or the raw value when there is none.
+    */
+   private Presenter withValueText(Presenter p, Object obj, Object display) {
+      if(p instanceof BarPresenter bar && obj instanceof Number number &&
+         (number.doubleValue() < 0 || Double.isNaN(number.doubleValue())))
+      {
+         return bar.withValueText(String.valueOf(display == null ? obj : display));
+      }
+
+      return p;
    }
 
    /**
