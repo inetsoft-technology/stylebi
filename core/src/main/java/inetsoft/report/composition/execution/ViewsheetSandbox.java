@@ -1298,21 +1298,30 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       List<String> allRows = tinfo.getAllRows();
 
-      if(allRows.isEmpty() || BoundTableAssembly.findLogicalModelTable(mirror) == null) {
+      if(allRows.isEmpty()) {
          return;
       }
 
-      // the bound table sits under however many mirrors the viewsheet and the worksheet wrapped
-      // it in, each of which is shared with the other assemblies, so the whole chain under this
-      // assembly's own copy is copied down to the bound table
-      TableAssembly inner = copyWithAllRows(mirror.getTableAssembly(), allRows, ws,
-                                            ntable.getName() + "A");
-      mirror.setTableAssemblies(new TableAssembly[] { inner });
+      // The mirrors and the bound table under this assembly's own copy are shared by every
+      // query on the viewsheet, which change them in place under the worksheet lock
+      // (VSAQuery.getVSTableAssembly, 77867), so the chain is read and copied under it, as
+      // copyBoundTable does.
+      synchronized(ws) {
+         if(BoundTableAssembly.findLogicalModelTable(mirror) == null) {
+            return;
+         }
+
+         // the bound table sits under however many mirrors the viewsheet and the worksheet
+         // wrapped it in, so the whole chain is copied down to the bound table
+         TableAssembly inner = copyWithAllRows(mirror.getTableAssembly(), allRows, ws,
+                                               ntable.getName() + "A");
+         mirror.setTableAssemblies(new TableAssembly[] { inner });
+      }
    }
 
    /**
     * Copy a table and every mirror between it and its logical model bound table, the bound copy
-    * carrying the option.
+    * carrying the option. The caller holds the worksheet lock.
     *
     * @return the copy of {@code table}, in {@code ws}.
     */

@@ -31,6 +31,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -155,6 +156,74 @@ class ViewsheetSandboxAllRowsTest {
       TableAssembly pcopy = physical.boundCopyOfCrosstab();
       assertNull(BoundTableAssembly.findLogicalModelTable(pcopy));
       assertSame(physical.worksheetMirror, ((MirrorTableAssembly) pcopy).getTableAssembly());
+   }
+
+   /** Records whether the worksheet lock was held each time the shared table was copied. */
+   private static final class LockedBound extends BoundTableAssembly {
+      final Worksheet lock;
+      final List<Boolean> held;
+
+      LockedBound(Worksheet ws, String name, List<Boolean> held) {
+         super(ws, name);
+         this.lock = ws;
+         this.held = held;
+      }
+
+      @Override
+      public WSAssembly copyAssembly(String name) {
+         held.add(Thread.holdsLock(lock));
+         return super.copyAssembly(name);
+      }
+   }
+
+   private static final class LockedMirror extends MirrorTableAssembly {
+      final Worksheet lock;
+      final List<Boolean> held;
+
+      LockedMirror(Worksheet ws, String name, WSAssembly base, List<Boolean> held) {
+         super(ws, name, base);
+         this.lock = ws;
+         this.held = held;
+      }
+
+      @Override
+      public WSAssembly copyAssembly(String name) {
+         held.add(Thread.holdsLock(lock));
+         return super.copyAssembly(name);
+      }
+   }
+
+   /**
+    * The mirrors and the bound table are shared with the queries of the other assemblies, which
+    * change them in place under the worksheet lock (77867): a copy taken without it can be torn.
+    * Whether a copy is torn cannot be provoked deterministically, so this checks the cause: every
+    * shared table is copied with the lock held.
+    */
+   @Test
+   void everySharedTableIsCopiedUnderTheWorksheetLock() {
+      Worksheet ws = new Worksheet();
+      List<Boolean> held = new ArrayList<>();
+      LockedBound bound = new LockedBound(ws, "M_O", held);
+      bound.setSourceInfo(new SourceInfo(SourceInfo.MODEL, "ds", "M"));
+      ws.addAssembly(bound);
+      LockedMirror outer = new LockedMirror(ws, "M_O2", bound, held);
+      ws.addAssembly(outer);
+      LockedMirror worksheetMirror = new LockedMirror(ws, "M", outer, held);
+      ws.addAssembly(worksheetMirror);
+      Viewsheet vs = new Viewsheet();
+      CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, "Crosstab1");
+      vs.addAssembly(crosstab);
+      ((CrosstabVSAssemblyInfo) crosstab.getInfo()).setAllRows(List.of("Product"));
+      TableAssembly ntable = ViewsheetSandbox.copyBoundTable(ws.getVSTableAssembly("M"),
+                                                             "__vs_MCrosstab1");
+      ws.addAssembly(ntable);
+      held.clear();
+
+      ViewsheetSandbox.applyAllRows(ntable, crosstab, ws);
+
+      // M, M_O2 and the bound table
+      assertEquals(3, held.size());
+      assertFalse(held.contains(false), "a shared table was copied without the worksheet lock");
    }
 
    @Test

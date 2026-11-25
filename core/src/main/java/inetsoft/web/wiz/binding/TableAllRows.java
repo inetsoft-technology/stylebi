@@ -244,16 +244,19 @@ final class TableAllRows {
 
       // the source names the table the viewsheet binds to, which is a mirror of a mirror of ...
       // the bound table of the logical model, whichever spelling of the name finds it
-      for(String name : new String[] { VSUtil.getTableName(source.getSource()),
-                                       source.getSource(),
-                                       TableAssembly.TABLE_VS + source.getSource() })
-      {
-         Assembly assembly = ws.getAssembly(name);
-         BoundTableAssembly bound = assembly instanceof TableAssembly table
-            ? BoundTableAssembly.findLogicalModelTable(table) : null;
+      // read under the worksheet lock: running queries change these tables in place under it
+      synchronized(ws) {
+         for(String name : new String[] { VSUtil.getTableName(source.getSource()),
+                                          source.getSource(),
+                                          TableAssembly.TABLE_VS + source.getSource() })
+         {
+            Assembly assembly = ws.getAssembly(name);
+            BoundTableAssembly bound = assembly instanceof TableAssembly table
+               ? BoundTableAssembly.findLogicalModelTable(table) : null;
 
-         if(bound != null) {
-            return bound;
+            if(bound != null) {
+               return bound;
+            }
          }
       }
 
