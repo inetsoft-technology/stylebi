@@ -25,6 +25,7 @@ import inetsoft.uql.XRepository;
 import inetsoft.uql.erm.AutoAlias;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XPartition;
+import inetsoft.uql.erm.XRelationship;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XUtil;
@@ -923,10 +924,59 @@ final class WizPhysicalViewSession {
                ", " + t2 + ": queries over them are a cross join", t1, t2));
          }
          else if(status == XPartition.CYCLE) {
-            warnings.add(new Warning("CYCLE", "the joins of the view form a cycle", "", ""));
+            warnings.add(cycleWarning(partition));
          }
 
          return new ArrayList<>(warnings);
+      }
+
+      /**
+       * The CYCLE warning, naming the joins the Portal marks red: the relationships between the
+       * tables of the one cycle {@code Graph.findCycle} reports (other overlapping loops may
+       * exist). Falls back to the plain message when the partition reports none.
+       */
+      private Warning cycleWarning(XPartition partition) {
+         String plain = "the joins of the view form a cycle";
+         Set<XRelationship> rels = partition.getCycleRelationships(true);
+
+         if(rels == null || rels.isEmpty()) {
+            return new Warning("CYCLE", plain, "", "");
+         }
+
+         Set<String> joinSet = new TreeSet<>();
+         Set<String> tables = new TreeSet<>();
+         boolean allWeak = true;
+
+         for(XRelationship rel : rels) {
+            String text = rel.getDependentTable() + "." + rel.getDependentColumn() + " -> " +
+               rel.getIndependentTable() + "." + rel.getIndependentColumn();
+
+            if(rel.isWeakJoin()) {
+               text += " (already weak)";
+            }
+            else {
+               allWeak = false;
+            }
+
+            joinSet.add(text);
+            tables.add(rel.getDependentTable());
+            tables.add(rel.getIndependentTable());
+         }
+
+         List<String> joins = new ArrayList<>(joinSet);
+         int cap = 20;
+         String shown = String.join(", ", joins.subList(0, Math.min(cap, joins.size())));
+
+         if(joins.size() > cap) {
+            shown += " and " + (joins.size() - cap) + " more";
+         }
+
+         String message = plain + ": " + shown + " (tables " + String.join(", ", tables) +
+            "). The Portal marks these joins red and asks \"Cycle exists in physical view. " +
+            "Save anyway?\" on save; the view is saved as sent. To break the cycle, remove a " +
+            "redundant join" + (allWeak ? "" : " or make one of the non-weak joins weak") +
+            ". Joins on other loops of the view may also exist.";
+         return new Warning("CYCLE", message, "", "", joins);
       }
 
       /**
