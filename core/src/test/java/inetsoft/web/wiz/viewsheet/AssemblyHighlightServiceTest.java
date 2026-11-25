@@ -180,6 +180,123 @@ class AssemblyHighlightServiceTest {
                     "the replaced one is the rebuilt highlight, in its original position");
    }
 
+   private static HighlightModel existingRow(String name) {
+      HighlightModel highlight = existing(name);
+      highlight.setApplyRow(true);
+      return highlight;
+   }
+
+   private static String[] names(HighlightDialogModel posted) {
+      return Arrays.stream(posted.getHighlights()).map(HighlightModel::getName)
+         .toArray(String[]::new);
+   }
+
+   /** Bug #82309: rename keeps the slot, the lookup is by the old name. */
+   @Test
+   void renamesInPlaceKeepingTheSlot() throws Exception {
+      Harness h = harness(model(existing("A"), existing("B"), existing("C")));
+
+      AssemblyHighlightService.SetResult result = h.service.set(
+         "tok", principal(), "Table1", null, highlight("B"), true, "", "B2", null);
+
+      assertArrayEquals(new String[]{ "A", "B2", "C" }, names(capture(h.highlights)));
+      assertEquals("B2", result.appliedName());
+      assertNull(result.appliedPosition());
+   }
+
+   @Test
+   void movesToTheFrontAndTheEnd() throws Exception {
+      Harness h = harness(model(existing("A"), existing("B"), existing("C")));
+
+      AssemblyHighlightService.SetResult first = h.service.set(
+         "tok", principal(), "Table1", null, highlight("C"), true, "", null, 0);
+      assertArrayEquals(new String[]{ "C", "A", "B" }, names(capture(h.highlights)));
+      assertEquals(0, first.appliedPosition());
+      assertNull(first.appliedName());
+
+      Harness h2 = harness(model(existing("A"), existing("B"), existing("C")));
+      AssemblyHighlightService.SetResult last = h2.service.set(
+         "tok", principal(), "Table1", null, highlight("A"), true, "", null,
+         AssemblyHighlightService.LAST);
+      assertArrayEquals(new String[]{ "B", "C", "A" }, names(capture(h2.highlights)));
+      assertEquals(2, last.appliedPosition());
+   }
+
+   @Test
+   void renamesAndMovesInOneWrite() throws Exception {
+      Harness h = harness(model(existing("A"), existing("B")));
+
+      h.service.set("tok", principal(), "Table1", null, highlight("A"), true, "", "A2", 1);
+
+      assertArrayEquals(new String[]{ "B", "A2" }, names(capture(h.highlights)));
+      verify(h.highlights, times(1)).setHighlightDialogModel(
+         anyString(), anyString(), any(), anyString(), any(Principal.class), any());
+   }
+
+   /** Position counts within the highlight's own kind; the other kind's entries stay put. */
+   @Test
+   void positionIsAnIndexAmongTheSameKind() throws Exception {
+      HighlightDialogModel rowModel = model(existing("A"), existing("B"), existingRow("R1"),
+                                            existingRow("R2"));
+      rowModel.setShowRow(true);
+      Harness h = harness(rowModel);
+
+      h.service.set("tok", principal(), "Table1", null, highlightApplyRow("R2"), true, "", null,
+                    0);
+
+      assertArrayEquals(new String[]{ "A", "B", "R2", "R1" }, names(capture(h.highlights)));
+   }
+
+   @Test
+   void refusesAPositionPastTheEndOfItsKind() {
+      Harness h = harness(model(existing("A"), existing("B"), existingRow("R1")));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Table1", null, highlight("A"), true, "", null,
+                             2));
+
+      assertTrue(thrown.getMessage().contains("0..1"), thrown.getMessage());
+   }
+
+   @Test
+   void refusesARenameOntoAnotherHighlightsNameAcrossKindsIgnoringCase() {
+      Harness h = harness(model(existing("A"), existingRow("Row")));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Table1", null, highlight("A"), true, "", "row",
+                             null));
+
+      assertTrue(thrown.getMessage().contains("'row'"), thrown.getMessage());
+   }
+
+   @Test
+   void allowsACaseOnlyRenameOfItself() throws Exception {
+      Harness h = harness(model(existing("High")));
+
+      h.service.set("tok", principal(), "Table1", null, highlight("High"), true, "", "HIGH", null);
+
+      assertArrayEquals(new String[]{ "HIGH" }, names(capture(h.highlights)));
+   }
+
+   @Test
+   void refusesNewNameOrPositionWithoutReplace() {
+      Harness h = harness(model(existing("A")));
+
+      Exception rename = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Table1", null, highlight("A"), false, "", "B",
+                             null));
+      Exception move = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Table1", null, highlight("A"), false, "", null,
+                             0));
+
+      assertTrue(rename.getMessage().contains("newName"), rename.getMessage());
+      assertTrue(move.getMessage().contains("position"), move.getMessage());
+   }
+
    /**
     * replace:true on a name that matches nothing used to append a new highlight -- leaving the
     * intended one unchanged, stacking a second next to it, and reporting "Updated".

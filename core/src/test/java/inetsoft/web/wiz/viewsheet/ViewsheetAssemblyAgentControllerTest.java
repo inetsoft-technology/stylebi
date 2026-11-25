@@ -1051,17 +1051,17 @@ class ViewsheetAssemblyAgentControllerTest {
    @Test
    void setHighlightPassesANullRegionWhenNoLocationWasNamed() throws Exception {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
-      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any()))
          .thenReturn(new AssemblyHighlightService.SetResult(List.of()));
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
          "Table1", null, null, null, null, null, "HighRevenue", null, "#FFDDDD", null, List.of(),
-         false, false);
+         false, false, null, null);
 
       controller.setHighlight("tok", request, "", principal());
 
       verify(highlightService).set(eq("tok"), any(Principal.class), eq("Table1"), isNull(),
-                                   any(), eq(false), eq(""));
+                                   any(), eq(false), eq(""), isNull(), isNull());
    }
 
    /** Bug #78406: delete relays the warnings mutate captured, like set; clean stays an empty 200. */
@@ -1072,7 +1072,7 @@ class ViewsheetAssemblyAgentControllerTest {
          .thenReturn(List.of("script failed"));
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
-         "Table1", null, null, null, null, null, "Old", null, null, null, List.of(), false, false);
+         "Table1", null, null, null, null, null, "Old", null, null, null, List.of(), false, false, null, null);
 
       assertEquals(java.util.Map.of("warnings", List.of("script failed")),
                    controller.deleteHighlight("tok", request, "", principal()));
@@ -1085,7 +1085,7 @@ class ViewsheetAssemblyAgentControllerTest {
          .thenReturn(List.of());
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
-         "Table1", null, null, null, null, null, "Old", null, null, null, List.of(), false, false);
+         "Table1", null, null, null, null, null, "Old", null, null, null, List.of(), false, false, null, null);
 
       assertNull(controller.deleteHighlight("tok", request, "", principal()));
    }
@@ -1093,59 +1093,59 @@ class ViewsheetAssemblyAgentControllerTest {
    @Test
    void setHighlightPassesARealRegionWhenALocationWasNamed() throws Exception {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
-      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any()))
          .thenReturn(new AssemblyHighlightService.SetResult(List.of()));
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
          "Table1", 0, 0, null, null, null, "HighRevenue", null, "#FFDDDD", null, List.of(), false,
-         false);
+         false, null, null);
 
       controller.setHighlight("tok", request, "", principal());
 
       verify(highlightService).set(eq("tok"), any(Principal.class), eq("Table1"),
                                    eq(new AssemblyHighlightService.Region(0, 0, null, false,
                                                                           false)),
-                                   any(), eq(false), eq(""));
+                                   any(), eq(false), eq(""), isNull(), isNull());
    }
 
    /** Same wiring for {@code set}, reached through {@code HighlightRequest.region()}. */
    @Test
    void setHighlightPassesAxisAndTextRegionFlagsThrough() throws Exception {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
-      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any()))
          .thenReturn(new AssemblyHighlightService.SetResult(List.of()));
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
          "Chart1", null, null, "Sum(Sales)", false, true, "HighRevenue", null, "#FFDDDD", null,
-         List.of(), false, false);
+         List.of(), false, false, null, null);
 
       controller.setHighlight("tok", request, "", principal());
 
       verify(highlightService).set(eq("tok"), any(Principal.class), eq("Chart1"),
                                    eq(new AssemblyHighlightService.Region(null, null, "Sum(Sales)",
                                                                           false, true)),
-                                   any(), eq(false), eq(""));
+                                   any(), eq(false), eq(""), isNull(), isNull());
    }
 
    /** L8 parity finding 1: a {@code fontInfo} on the request reaches the built {@code Highlight}. */
    @Test
    void setHighlightBuildsTheHighlightsFontFromTheRequest() throws Exception {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
-      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any()))
          .thenReturn(new AssemblyHighlightService.SetResult(List.of()));
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var font = new ViewsheetAssemblyAgentController.FontRequest(
          "Arial", 12, true, false, true, false);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
          "Table1", null, null, null, null, null, "HighRevenue", null, "#FFDDDD", font, List.of(),
-         false, false);
+         false, false, null, null);
 
       controller.setHighlight("tok", request, "", principal());
 
       ArgumentCaptor<AssemblyHighlightService.Highlight> captor =
          ArgumentCaptor.forClass(AssemblyHighlightService.Highlight.class);
       verify(highlightService).set(eq("tok"), any(Principal.class), eq("Table1"), isNull(),
-                                   captor.capture(), eq(false), eq(""));
+                                   captor.capture(), eq(false), eq(""), isNull(), isNull());
       inetsoft.web.adhoc.model.FontInfo built = captor.getValue().font();
       assertNotNull(built);
       assertEquals("Arial", built.getFontFamily());
@@ -1159,12 +1159,12 @@ class ViewsheetAssemblyAgentControllerTest {
    @Test
    void setHighlightReturnsOkWithoutAWarningKeyWhenThereAreNone() throws Exception {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
-      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any()))
          .thenReturn(new AssemblyHighlightService.SetResult(List.of()));
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
          "Table1", null, null, null, null, null, "HighRevenue", null, "#FFDDDD", null, List.of(),
-         false, false);
+         false, false, null, null);
 
       Map<String, Object> out = controller.setHighlight("tok", request, "", principal());
 
@@ -1172,16 +1172,35 @@ class ViewsheetAssemblyAgentControllerTest {
       assertFalse(out.containsKey("warning"));
    }
 
+   /** Bug #82309: newName/position reach the service and the applied values are echoed back. */
+   @Test
+   void setHighlightPassesNewNameAndPositionAndEchoesWhatWasApplied() throws Exception {
+      AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any()))
+         .thenReturn(new AssemblyHighlightService.SetResult(List.of(), "B2", 1));
+      ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
+      var request = new ViewsheetAssemblyAgentController.HighlightRequest(
+         "Table1", null, null, null, null, null, "B", null, "#FFDDDD", null, List.of(),
+         false, true, "B2", 1);
+
+      Map<String, Object> out = controller.setHighlight("tok", request, "", principal());
+
+      verify(highlightService).set(eq("tok"), any(Principal.class), eq("Table1"), isNull(),
+                                   any(), eq(true), eq(""), eq("B2"), eq(1));
+      assertEquals("B2", out.get("renamedTo"));
+      assertEquals(1, out.get("position"));
+   }
+
    /** Bug #78567: the plugin relays this field, so its name and joining are the contract. */
    @Test
    void setHighlightReturnsTheJoinedWarningsUnderWarning() throws Exception {
       AssemblyHighlightService highlightService = mock(AssemblyHighlightService.class);
-      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any()))
+      when(highlightService.set(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any()))
          .thenReturn(new AssemblyHighlightService.SetResult(List.of("a", "b")));
       ViewsheetAssemblyAgentController controller = controllerWith(highlightService);
       var request = new ViewsheetAssemblyAgentController.HighlightRequest(
          "Table1", null, null, null, null, null, "HighRevenue", null, "#FFDDDD", null, List.of(),
-         false, false);
+         false, false, null, null);
 
       Map<String, Object> out = controller.setHighlight("tok", request, "", principal());
 
