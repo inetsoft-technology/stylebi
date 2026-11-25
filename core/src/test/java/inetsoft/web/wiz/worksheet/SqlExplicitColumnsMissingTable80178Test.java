@@ -141,6 +141,7 @@ class SqlExplicitColumnsMissingTable80178Test {
          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
          mock(inetsoft.report.composition.execution.AssetDataCache.class),
          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+         mock(inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy.class),
          mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
