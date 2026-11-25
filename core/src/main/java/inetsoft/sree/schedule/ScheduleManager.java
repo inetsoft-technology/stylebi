@@ -29,7 +29,9 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
+import inetsoft.util.dep.XAsset;
 import inetsoft.web.RecycleUtils;
+import inetsoft.web.admin.deploy.XAssetExportPermission;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.ArrayUtils;
@@ -1397,6 +1399,108 @@ public class ScheduleManager implements MessageListener {
       // e.g. another user's private sheet of the same organization. Every viewsheet action sheet
       // and batch action query is checked here against the asset READ check that the run uses.
       checkActionSheetRead(task, checkedTask, stored, principal);
+
+      // Bug #82341, a backup action exports its assets as the task owner when it runs
+      checkBackupAssetsExportable(task, checkedTask, stored);
+   }
+
+   /**
+    * Bug #82341, refuses a backup action asset that the task owner may not export, by the same
+    * check the action makes when the task runs ({@link IndividualAssetBackupAction#run}). The
+    * callers check the saving principal, which is the one that decides when a site admin creates
+    * a task for another user, so an asset only the admin may export was saved and then failed on
+    * every run. Has the same shape as {@link #checkActionSheetRead}:
+    * <ul>
+    *    <li>an asset that isn't held by a backup action of the stored task is checked;</li>
+    *    <li>every asset is checked when the owner changes, the execute-as identity is not
+    *    involved because the action always exports as the owner;</li>
+    *    <li>an asset held by the stored task is otherwise not checked, so a stored task whose
+    *    owner can no longer export it can still be changed, renamed or moved, the run still
+    *    refuses it.</li>
+    * </ul>
+    * Nothing is checked without security. An owner principal that can't be built is a refusal.
+    *
+    * @param task        the task as it's saved.
+    * @param checkedTask the task with the owner it's saved with.
+    * @param stored      the task as it's stored before the save, or {@code null} if none.
+    */
+   private void checkBackupAssetsExportable(ScheduleTask task, ScheduleTask checkedTask,
+                                            ScheduleTask stored)
+      throws inetsoft.sree.security.SecurityException
+   {
+      if(!getSecurityEngine().isSecurityEnabled()) {
+         return;
+      }
+
+      Map<String, XAsset> assets = getBackupAssets(task);
+
+      if(assets.isEmpty()) {
+         return;
+      }
+
+      Set<String> storedAssets = getBackupAssets(stored).keySet();
+      IdentityID owner = checkedTask.getOwner();
+      boolean ownerChanged = stored == null || !Objects.equals(owner, stored.getOwner());
+      Principal ownerPrincipal = null;
+      boolean ownerPrincipalBuilt = false;
+
+      for(Map.Entry<String, XAsset> entry : assets.entrySet()) {
+         if(storedAssets.contains(entry.getKey()) && !ownerChanged) {
+            continue;
+         }
+
+         if(!ownerPrincipalBuilt) {
+            ownerPrincipal = getOwnerPrincipal(owner);
+            ownerPrincipalBuilt = true;
+         }
+
+         XAsset asset = entry.getValue();
+         // the same resource path as the task editor and the run use
+         String path = asset.getPath() == null ? null : SUtil.getUnscopedPath(asset.getPath());
+
+         if(!XAssetExportPermission.isPermitted(asset, path, true, ownerPrincipal)) {
+            throw new inetsoft.sree.security.SecurityException(String.format(
+               "Unauthorized access to backup asset \"%s\", it may not be exported by the task " +
+               "owner %s", entry.getKey(), owner == null ? null : owner.convertToKey()));
+         }
+      }
+   }
+
+   /**
+    * Gets the assets that the backup actions of a task export, by their identifiers.
+    */
+   private static Map<String, XAsset> getBackupAssets(ScheduleTask task) {
+      Map<String, XAsset> assets = new LinkedHashMap<>();
+
+      for(int i = 0; task != null && i < task.getActionCount(); i++) {
+         if(task.getAction(i) instanceof IndividualAssetBackupAction backup &&
+            backup.getAssets() != null)
+         {
+            for(XAsset asset : backup.getAssets()) {
+               assets.putIfAbsent(asset.toIdentifier(), asset);
+            }
+         }
+      }
+
+      return assets;
+   }
+
+   /**
+    * Gets the principal that a backup action exports as, see
+    * {@link IndividualAssetBackupAction}, the task owner.
+    */
+   private static Principal getOwnerPrincipal(IdentityID owner) {
+      if(owner == null) {
+         return null;
+      }
+
+      try {
+         return SUtil.getScheduleTaskOwnerPrincipal(owner, null, false);
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to get the owner principal of schedule task owner {}", owner, ex);
+         return null;
+      }
    }
 
    /**
