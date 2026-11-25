@@ -157,14 +157,11 @@ class SharedMVUtilTest {
       verify(manager, never()).remove(any(MVDef.class));
    }
 
-   // Pinned, looks unintended (Bug #82223): the cluster file deleted after a merge is the file of
-   // the MV that is kept (the log says the other one was removed), in both directions (this test
-   // and the next); the removed one is already deleted by MVManager.remove (MVDef.dispose). It
-   // only deletes on a cluster (server.type server_cluster). Reproduced on a 3-node cluster: the
-   // kept MV stays registered to both viewsheets with no .mv or block file left.
-   // When #82223 is fixed, swap the two names in these verifications rather than removing them.
+   // Bug #82223: the cluster file deleted after a merge is the file of the MV that is removed,
+   // not of the one that is kept, in both directions (this test and the next). It only deletes on
+   // a cluster (server.type server_cluster).
    @Test
-   void clusterFileDeletedWhenTheCreatedMVIsKeptIsItsOwn() {
+   void clusterFileOfTheRemovedStoredMVIsDeleted() {
       MVDef created = def("created", false, vs("f/a"));
       MVDef old = stored("old", false, vs("f/b"));
       canBeSharedBy(created, old);
@@ -172,14 +169,14 @@ class SharedMVUtilTest {
       try(MockedStatic<ClusterUtil> cluster = mockStatic(ClusterUtil.class)) {
          SharedMVUtil.shareCreatedMV(created);
          // created is kept, old is dropped
-         cluster.verify(() -> ClusterUtil.deleteClusterMV("created"));
-         cluster.verify(() -> ClusterUtil.deleteClusterMV("old"), never());
+         cluster.verify(() -> ClusterUtil.deleteClusterMV("old"));
+         cluster.verify(() -> ClusterUtil.deleteClusterMV("created"), never());
       }
    }
 
-   // Pinned, looks unintended (Bug #82223), the other direction: see the test above
+   // the other direction: see the test above
    @Test
-   void clusterFileDeletedWhenTheStoredMVIsKeptIsItsOwn() {
+   void clusterFileOfTheRemovedCreatedMVIsDeleted() {
       MVDef created = def("created", false, vs("f/a"));
       MVDef old = stored("old", false, vs("f/b"));
       canBeSharedBy(old, created);
@@ -187,8 +184,8 @@ class SharedMVUtilTest {
       try(MockedStatic<ClusterUtil> cluster = mockStatic(ClusterUtil.class)) {
          SharedMVUtil.shareCreatedMV(created);
          // old is kept, created is dropped
-         cluster.verify(() -> ClusterUtil.deleteClusterMV("old"));
-         cluster.verify(() -> ClusterUtil.deleteClusterMV("created"), never());
+         cluster.verify(() -> ClusterUtil.deleteClusterMV("created"));
+         cluster.verify(() -> ClusterUtil.deleteClusterMV("old"), never());
       }
    }
 
