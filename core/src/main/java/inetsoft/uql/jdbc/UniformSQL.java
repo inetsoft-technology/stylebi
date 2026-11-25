@@ -86,6 +86,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     */
    public static final String HINT_USER_MAXROWS = "__HINT_USER_MAX_ROWS__";
    /**
+    * Set the hint on a text sql (e.g. the union a ConcatenatedQuery merges) whose text holds
+    * an outer join StyleBI created, see {@link #hasGeneratedOuterJoin()} (Bug #82305).
+    */
+   public static final String HINT_GENERATED_OUTER_JOIN = "__HINT_GENERATED_OUTER_JOIN__";
+   /**
     * Parse status if the sql string has not being parsed.
     */
    public static final int PARSE_INIT = -1;
@@ -5664,6 +5669,39 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       return hints.get(key);
+   }
+
+   /**
+    * Check if this statement holds an outer join that StyleBI created (worksheet merge, data
+    * model, query editor), as opposed to one parsed from user SQL text, which records its
+    * clause. Looks at this level's joins, the sql tables in the from clause, recursively, and
+    * {@link #HINT_GENERATED_OUTER_JOIN} on text sqls. Subqueries in conditions are not
+    * looked at (Bug #82305).
+    */
+   public boolean hasGeneratedOuterJoin() {
+      if(Boolean.TRUE.equals(getHint(HINT_GENERATED_OUTER_JOIN, false))) {
+         return true;
+      }
+
+      XJoin[] joins = getJoins();
+
+      for(int i = 0; joins != null && i < joins.length; i++) {
+         if(joins[i].isOuterJoin() && joins[i].getJoinClause() == XJoin.UNKNOWN_CLAUSE) {
+            return true;
+         }
+      }
+
+      for(int i = 0; i < getTableCount(); i++) {
+         SelectTable table = getSelectTable(i);
+
+         if(table != null && table.getName() instanceof UniformSQL &&
+            ((UniformSQL) table.getName()).hasGeneratedOuterJoin())
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**

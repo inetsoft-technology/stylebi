@@ -5882,6 +5882,29 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Get the text to append to a statement StyleBI generated, right before it runs, or null
+    * to run it as generated. It is not part of generateSentence because StyleBI's parser can't
+    * read it back (e.g. a ClickHouse SETTINGS clause, Bug #82305).
+    *
+    * @param sql the structure the statement is generated from.
+    *
+    * @return the text to append, or {@code null}.
+    */
+   public String getExecutionSuffix(UniformSQL sql) {
+      return null;
+   }
+
+   /**
+    * Check if a statement failed because of the text {@link #getExecutionSuffix(UniformSQL)}
+    * added, so that it can run once more without it.
+    *
+    * @param ex the error the statement failed with.
+    */
+   public boolean isExecutionSuffixRejected(SQLException ex) {
+      return false;
+   }
+
+   /**
     * Create a query that limits the output to the specified number of rows.
     */
    protected String generateMaxRowsClause(String sql, int maxrows) {

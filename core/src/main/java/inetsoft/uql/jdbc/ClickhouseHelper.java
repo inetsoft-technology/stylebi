@@ -18,6 +18,7 @@
 
 package inetsoft.uql.jdbc;
 
+import java.sql.SQLException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,6 +29,12 @@ public class ClickhouseHelper extends SQLHelper {
    public ClickhouseHelper() {
       // default connection
    }
+
+   /**
+    * The clause appended to a statement with an outer join StyleBI created, on its own line
+    * so a trailing line comment can't swallow it (Bug #82305).
+    */
+   static final String JOIN_USE_NULLS = "\nSETTINGS join_use_nulls = 1";
 
    @Override
    public String getSQLHelperType() {
@@ -65,6 +72,29 @@ public class ClickhouseHelper extends SQLHelper {
    @Override
    public String getLikeEscapeClause(char esc) {
       return "";
+   }
+
+   /**
+    * ClickHouse fills the side of an outer join with no match with the type's default value
+    * (0, '') unless join_use_nulls = 1. An outer join StyleBI creates means NULL there, as its
+    * in-memory join does, so the setting is added to a statement holding one. User-written
+    * joins keep the server's setting (Bug #82305).
+    */
+   @Override
+   public String getExecutionSuffix(UniformSQL sql) {
+      return sql != null && sql.hasGeneratedOuterJoin() ? JOIN_USE_NULLS : null;
+   }
+
+   /**
+    * A readonly = 1 user (READONLY, 164) or a settings constraint (452) can't change the
+    * setting, and some column types can't be made Nullable (Bug #82305).
+    */
+   @Override
+   public boolean isExecutionSuffixRejected(SQLException ex) {
+      String msg = ex.getMessage();
+
+      return ex.getErrorCode() == 164 || ex.getErrorCode() == 452 ||
+         msg != null && (msg.contains("join_use_nulls") || msg.contains("Nullable"));
    }
 
    @Override
