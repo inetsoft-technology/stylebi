@@ -292,7 +292,9 @@ public class ScheduleChangesetApplyService {
                             preImage, null, before));
 
       String after = ScheduleXmlProjection.project(scheduleManager.getScheduleTask(taskId));
-      boolean verified = after != null && after.equals(expected);
+      // the plan is made without a request, so the link of the saving request is not compared
+      boolean verified = after != null && ScheduleXmlProjection.withoutLinkUris(after)
+         .equals(ScheduleXmlProjection.withoutLinkUris(expected));
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new ApplyOutcome(taskId, before, after, status,
                                    verified ? null :

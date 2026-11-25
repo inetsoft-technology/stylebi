@@ -66,6 +66,20 @@ public final class ScheduleXmlProjection {
       return normalize(sw.toString());
    }
 
+   /**
+    * Removes the {@code <LinkURI>} element of every viewsheet action from a projection. The link
+    * is the viewer URL of the request that saved the task ({@code ScheduleTask.addAction(action,
+    * linkUri)}), not something an operator approves, so a plan made without a request has none
+    * while the apply that stores the task has one. Compare two projections of the same task
+    * through this, not the plan hash.
+    */
+   public static String withoutLinkUris(String projection) {
+      return projection == null ? null : LINK_URI_ELEMENT.matcher(projection).replaceAll("");
+   }
+
+   private static final Pattern LINK_URI_ELEMENT =
+      Pattern.compile("[ \t]*<LinkURI[^>]*></LinkURI>\r?\n?");
+
    /** The fixed value every {@link #NORMALIZED_ATTRIBUTES} entry is rewritten to. */
    private static final String NORMALIZED_VALUE = "SET";
 
