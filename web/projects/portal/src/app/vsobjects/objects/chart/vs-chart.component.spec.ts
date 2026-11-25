@@ -218,6 +218,50 @@ describe("VSChart Tests", () => {
       expect(newModel.annotationScrollTop).toBe(52);
    });
 
+   // The axis drill actions: a slot of the drillable fields drills the field as its axis button does.
+   describe("axis drill actions", () => {
+      const withAxes = (chartComponent: VSChart): void => {
+         const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
+         model.sheetMaxMode = true;
+         model.axes = [{
+            axisType: "x", axisFields: ["Region", "Month(OrderDate)"], axisFieldOps: ["", "-+"],
+            axisOps: ["-+", ""]
+         } as any];
+         chartComponent.model = model;
+      };
+
+      it("drills the field of the slot down or up through the chart's drill", () => {
+         chartService.drill = vi.fn();
+         const fixture = TestBed.createComponent(VSChart);
+         const chartComponent = fixture.componentInstance;
+         withAxes(chartComponent);
+
+         chartComponent.drillAxisField("+", 0);
+         expect(chartService.drill).toHaveBeenLastCalledWith(
+            chartComponent.model,
+            { axisType: "x", field: "Month(OrderDate)", drillOp: "+" },
+            expect.anything(), expect.anything());
+
+         chartComponent.drillAxisField("-", 0);
+         expect(chartService.drill.mock.calls[1][1]).toEqual(
+            { axisType: "x", field: "Month(OrderDate)", drillOp: "-" });
+      });
+
+      it("does nothing for a slot with no field or a direction the field cannot drill", () => {
+         chartService.drill = vi.fn();
+         const fixture = TestBed.createComponent(VSChart);
+         const chartComponent = fixture.componentInstance;
+         withAxes(chartComponent);
+         (chartComponent.model.axes[0] as any).axisFieldOps = ["", "+"];
+
+         chartComponent.drillAxisField("-", 0);
+         chartComponent.drillAxisField("+", 1);
+         chartComponent.drillAxisField("+", 3);
+
+         expect(chartService.drill).not.toHaveBeenCalled();
+      });
+   });
+
    it.skip("should run callbacks for visible icons", () => {
       let fixture = TestBed.createComponent(TestApp);
       fixture.componentInstance.mockObject.axes.push({

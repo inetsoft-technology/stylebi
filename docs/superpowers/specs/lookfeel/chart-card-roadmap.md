@@ -533,6 +533,8 @@ is the workaround for release notes. **Now that the gate ships true these are tw
 than two accepted costs** — the direction they are wrong in has flipped, and neither has been re-examined
 in that light.
 
+**Superseded 2026-11-24 (Bug #82254): both reads now follow the chart's mark.** `ChartVSAssemblyInfo.getVSChartInfo()` stamps its mark onto the chart info, so `getTooltipStyle` resolves AUTO without the constructor threading; the gate is read only for a chart info no assembly owns. `VSChartInteractionDefaults.isInlineSvg(VizContext)` is resolved per chart into `ChartModel.inlineSvg` (`graph.svg.inline` still wins), and the chart passes its mark to its tooltip (`widget__tooltip--modern` / `--classic`), which scopes the card styling and tail radius. The Chart Properties dialog keeps AUTO unless the radio is changed.
+
 **Four colour defects are recorded and deliberately unfixed**, all found while closing the palette work and
 all narrower than what it fixed: the target-line band fill pins all three colour tiers on every apply
 (separate code path, pre-existing); toggling multi-styles off and back on around a Revert can strand modern
@@ -1186,6 +1188,8 @@ report painter, the exporter, annotations and the scheduler, several with no ass
 **accepted and documented rather than fixed in P6**. Recorded as an accepted cost in the design and in
 decision 13. It stays R20 for whenever the threading job is worth doing on its own terms.
 
+**Superseded 2026-11-24 (Bug #82254): both reads now follow the chart's mark.** `ChartVSAssemblyInfo.getVSChartInfo()` stamps its mark onto the chart info, so `getTooltipStyle` resolves AUTO without the constructor threading; the gate is read only for a chart info no assembly owns. `VSChartInteractionDefaults.isInlineSvg(VizContext)` is resolved per chart into `ChartModel.inlineSvg` (`graph.svg.inline` still wins), and the chart passes its mark to its tooltip (`widget__tooltip--modern` / `--classic`), which scopes the card styling and tail radius. The Chart Properties dialog keeps AUTO unless the radio is changed. Tooltips that describe no chart still follow `.viz-shell`.
+
 ### 4. Three overlay surfaces follow the org, not the assembly (R17, R21)
 
 - **The pop-dim scrim** behind a data tip fills a canvas over the whole container, so `popDimColor` reads
@@ -1294,6 +1298,7 @@ Both are the gate-off mirror of an inconsistency already accepted in the gate-on
 tooltip means widening five `ChartArea` constructor overloads reached by the report painter, the exporter,
 annotations and the scheduler — larger than the whole of P6; `isInlineSvg()` is interaction rather than chrome
 and already carries a `graph.svg.inline` override, which is the workaround for release notes.
+Superseded 2026-11-24 by Bug #82254; see the note under "Two gate reads survive by decision".
 
 **Also for P6's reader:** the design document's §3 carries a correction box added after P5 shipped. Three
 of its statements were edited *during* P5 on reasoning implementation then disproved, including one that

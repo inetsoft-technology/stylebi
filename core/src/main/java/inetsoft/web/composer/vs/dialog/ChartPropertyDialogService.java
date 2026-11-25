@@ -226,8 +226,7 @@ public class ChartPropertyDialogService {
       }
 
       // The two-radio dialog has no AUTO option; preselect the resolved value so a
-      // radio is selected. Saving then persists an explicit DEFAULT/CARD (a deliberate
-      // choice), collapsing AUTO.
+      // radio is selected. applyTooltipStyle keeps AUTO unless the user changes it.
       ChartInfo.TooltipStyle designTipStyle = vsChartInfo.getTooltipStyleValue();
       tipCustomizeDialogModel.setTooltipStyle(designTipStyle == ChartInfo.TooltipStyle.AUTO
          ? vsChartInfo.getTooltipStyle() : designTipStyle);
@@ -478,7 +477,7 @@ public class ChartPropertyDialogService {
          vsChartInfo.setCombinedToolTipValue(tipModel.isCombinedTip());
       }
 
-      vsChartInfo.setTooltipStyleValue(tipModel.getTooltipStyle());
+      applyTooltipStyle(vsChartInfo, tipModel.getTooltipStyle());
 
       // Snap requires a tooltip and a supported chart shape; clamp to false
       // otherwise so a stale flag isn't carried across re-binds.
@@ -661,6 +660,18 @@ public class ChartPropertyDialogService {
       }
 
       return refs;
+   }
+
+   /**
+    * Save the tooltip radio. An AUTO chart whose radio still shows what AUTO resolves to keeps
+    * AUTO, so an untouched dialog does not pin it to the look its mark gives today.
+    */
+   static void applyTooltipStyle(VSChartInfo info, ChartInfo.TooltipStyle chosen) {
+      if(info.getTooltipStyleValue() != ChartInfo.TooltipStyle.AUTO ||
+         chosen != info.getTooltipStyle())
+      {
+         info.setTooltipStyleValue(chosen);
+      }
    }
 
    private boolean hasDynamic(VSChartInfo info) {

@@ -22,6 +22,11 @@ import inetsoft.report.filter.*;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.painter.AutoMaximumPresenter;
+import inetsoft.report.painter.BarPresenter;
+import inetsoft.report.painter.BulletGraphPresenter;
+import inetsoft.report.painter.ColumnStats;
+import inetsoft.report.painter.IconCounterPresenter;
+import inetsoft.report.painter.OutlierFence;
 import inetsoft.report.painter.PresenterPainter;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
@@ -413,7 +418,7 @@ public class AttributeTableLens extends AbstractTableLens
 
          if(p != null && p.isPresenterOf(obj)) {
             return new PresenterPainter((p.isRawDataRequired() ? obj : obj2),
-                                        withAutoMaximum(r, c, p));
+                                        withValueText(withAutoMaximum(r, c, p), obj, obj2));
          }
 
          if(p == null) {
@@ -425,7 +430,7 @@ public class AttributeTableLens extends AbstractTableLens
 
                if(p.isPresenterOf(obj)) {
                   return new PresenterPainter((p.isRawDataRequired() ? obj : obj2),
-                                              withAutoMaximum(r, c, p));
+                                              withValueText(withAutoMaximum(r, c, p), obj, obj2));
                }
             }
          }
@@ -437,19 +442,67 @@ public class AttributeTableLens extends AbstractTableLens
    }
 
    /**
+    * Give a Bar or Stars presenter a copy that carries the cell's formatted text when the value is
+    * negative or NaN, which the bar or stars cannot draw. Other presenters, and other values, are
+    * returned as they are.
+    * @param obj the raw value.
+    * @param display the value after the cell's format, or the raw value when there is none.
+    */
+   private Presenter withValueText(Presenter p, Object obj, Object display) {
+      if(obj instanceof Number number &&
+         (number.doubleValue() < 0 || Double.isNaN(number.doubleValue())))
+      {
+         String text = String.valueOf(display == null ? obj : display);
+
+         if(p instanceof BarPresenter bar) {
+            return bar.withValueText(text);
+         }
+
+         if(p instanceof IconCounterPresenter stars) {
+            return stars.withValueText(text);
+         }
+      }
+
+      return p;
+   }
+
+   /**
     * Give an auto maximum presenter a copy that resolves the data maximum of the cell's group
     * at paint time. Nothing is scanned here: getObject() is also called by readers that never
     * paint (table data loading, column widths, dialogs, CSV). The presenter itself is never
     * changed, since a script presenter is shared by all cells of a column.
     */
    private Presenter withAutoMaximum(int r, int c, Presenter p) {
+      // a bullet graph scales to the column's smallest, largest and average value
+      if(p instanceof BulletGraphPresenter bullet) {
+         return bullet.isAutoScale() ? bullet.withStatsResolver(() -> getAutoStats(r, c)) : p;
+      }
+
       if(!(p instanceof AutoMaximumPresenter ap) || !ap.isAutoMaximum()) {
          return p;
       }
 
       boolean absolute = ap.absoluteMaximum();
-      return ap.withMaximumResolver(() -> getAutoMaximum(r, c, absolute));
+      boolean ignoreOutliers = ap.isIgnoreOutliers();
+      return ap.withMaximumResolver(() -> getAutoMaximum(r, c, absolute, ignoreOutliers));
    }
+
+   // The slots of a scan result, one array per data path:
+   //   the largest positive value, and the largest absolute value,
+   //   the smallest and the largest value, and the sum and count of the numbers,
+   //   the largest and the smallest value that is not an outlier (see OutlierFence), the largest
+   //   absolute value that is not an outlier, and the median.
+   private static final int SCAN_POS_MAX = 0;
+   private static final int SCAN_ABS_MAX = 1;
+   private static final int SCAN_MIN = 2;
+   private static final int SCAN_MAX = 3;
+   private static final int SCAN_SUM = 4;
+   private static final int SCAN_COUNT = 5;
+   private static final int SCAN_FENCE_HIGH = 6;
+   private static final int SCAN_FENCE_ABS = 7;
+   private static final int SCAN_FENCE_LOW = 8;
+   private static final int SCAN_MEDIAN = 9;
+   private static final int SCAN_SLOTS = 10;
 
    /**
     * Get the data maximum of the cells that share the cell's data path (for a plain table,
@@ -459,14 +512,68 @@ public class AttributeTableLens extends AbstractTableLens
     * @return the maximum, or NaN if there is none.
     */
    protected double getAutoMaximum(int r, int c, boolean absolute) {
+      return getAutoMaximum(r, c, absolute, false);
+   }
+
+   /**
+    * Get the data maximum, optionally leaving out outliers (see {@link OutlierFence}).
+    * @param ignoreOutliers true to take the largest value that is not an outlier. A column with no
+    *                       outliers has the same maximum either way.
+    */
+   protected double getAutoMaximum(int r, int c, boolean absolute, boolean ignoreOutliers) {
+      double[] max = getScanSlots(r, c);
+
+      if(max == null) {
+         return Double.NaN;
+      }
+
+      double real = max[absolute ? SCAN_ABS_MAX : SCAN_POS_MAX];
+
+      if(!ignoreOutliers) {
+         return real;
+      }
+
+      double fenced = max[absolute ? SCAN_FENCE_ABS : SCAN_FENCE_HIGH];
+
+      // a fence with no positive value to draw to leaves the real maximum
+      return fenced > 0 && fenced < real ? fenced : real;
+   }
+
+   /**
+    * The scan result of the cells that share the cell's data path (for a plain table, the cells of
+    * the column with that path; for a crosstab or calc table, all cells with that path).
+    * @return the slots of the scan result, or null if the path has no number.
+    */
+   private double[] getScanSlots(int r, int c) {
       TableDataDescriptor desc = getDescriptor();
       boolean column = desc == null || desc.getType() == TableDataDescriptor.NORMAL_TABLE;
       Object scope = column ? Integer.valueOf(c) : AUTO_MAX_ALL_CELLS;
       Map<Object, double[]> maxes = getAutoMaximumScan(scope, column ? c : -1, desc);
       TableDataPath path = desc == null ? null : desc.getCellDataPath(r, c);
-      double[] max = maxes.get(path != null ? path : Integer.valueOf(c));
+      return maxes.get(path != null ? path : Integer.valueOf(c));
+   }
 
-      return max == null ? Double.NaN : max[absolute ? 1 : 0];
+   /**
+    * Get the smallest, largest and average number of the cells that share the cell's data path,
+    * from the same scan as the data maximum.
+    * @return the numbers, or null if there are none.
+    */
+   protected ColumnStats getAutoStats(int r, int c) {
+      double[] max = getScanSlots(r, c);
+
+      if(max == null || max[SCAN_COUNT] <= 0) {
+         return null;
+      }
+
+      double mean = max[SCAN_SUM] / max[SCAN_COUNT];
+      double fenceLow = max[SCAN_FENCE_LOW];
+      double fenceHigh = max[SCAN_FENCE_HIGH];
+      double median = max[SCAN_MEDIAN];
+
+      return new ColumnStats(max[SCAN_MIN], max[SCAN_MAX], mean,
+                             Double.isNaN(fenceLow) ? max[SCAN_MIN] : fenceLow,
+                             Double.isNaN(fenceHigh) ? max[SCAN_MAX] : fenceHigh,
+                             Double.isNaN(median) ? mean : median);
    }
 
    /**
@@ -523,6 +630,8 @@ public class AttributeTableLens extends AbstractTableLens
     */
    private Map<Object, double[]> scanAutoMaximum(int col, TableDataDescriptor desc) {
       Map<Object, double[]> maxes = new HashMap<>();
+      // every number of each data path, for the quartiles that tell the outliers
+      Map<Object, DoubleList> values = new HashMap<>();
       TableLens table = this.table;
 
       if(table == null) {
@@ -548,20 +657,93 @@ public class AttributeTableLens extends AbstractTableLens
 
             TableDataPath path = desc == null ? null : desc.getCellDataPath(r, c);
             double[] max = maxes.computeIfAbsent(path != null ? path : Integer.valueOf(c),
-                                                 k -> new double[] { Double.NaN, Double.NaN });
+                                                 k -> newScanSlots());
+            values.computeIfAbsent(path != null ? path : Integer.valueOf(c),
+                                   k -> new DoubleList()).add(val);
             double abs = Math.abs(val);
 
-            if(val > 0 && !(max[0] >= val)) {
-               max[0] = val;
+            if(Double.isNaN(max[SCAN_MIN]) || val < max[SCAN_MIN]) {
+               max[SCAN_MIN] = val;
             }
 
-            if(abs > 0 && !(max[1] >= abs)) {
-               max[1] = abs;
+            if(Double.isNaN(max[SCAN_MAX]) || val > max[SCAN_MAX]) {
+               max[SCAN_MAX] = val;
+            }
+
+            max[SCAN_SUM] += val;
+            max[SCAN_COUNT]++;
+
+            if(val > 0 && !(max[SCAN_POS_MAX] >= val)) {
+               max[SCAN_POS_MAX] = val;
+            }
+
+            if(abs > 0 && !(max[SCAN_ABS_MAX] >= abs)) {
+               max[SCAN_ABS_MAX] = abs;
             }
          }
       }
 
+      // the fences, from the values of each path, which are then dropped
+      for(Map.Entry<Object, double[]> e : maxes.entrySet()) {
+         DoubleList list = values.get(e.getKey());
+
+         if(list == null) {
+            continue;
+         }
+
+         double[] sorted = list.sorted();
+         double[] fence = OutlierFence.of(sorted);
+         double[] abs = new double[sorted.length];
+
+         for(int i = 0; i < abs.length; i++) {
+            abs[i] = Math.abs(sorted[i]);
+         }
+
+         Arrays.sort(abs);
+         double[] absFence = OutlierFence.of(abs);
+         double[] slots = e.getValue();
+
+         if(fence != null) {
+            slots[SCAN_FENCE_LOW] = fence[0];
+            slots[SCAN_FENCE_HIGH] = fence[1];
+            slots[SCAN_MEDIAN] = fence[2];
+         }
+
+         if(absFence != null) {
+            slots[SCAN_FENCE_ABS] = absFence[1];
+         }
+      }
+
       return maxes;
+   }
+
+   // an empty scan result: no value yet, a zero sum and a zero count
+   private static double[] newScanSlots() {
+      double[] slots = new double[SCAN_SLOTS];
+      Arrays.fill(slots, Double.NaN);
+      slots[SCAN_SUM] = 0;
+      slots[SCAN_COUNT] = 0;
+      return slots;
+   }
+
+   /** A growing list of numbers. */
+   private static final class DoubleList {
+      void add(double value) {
+         if(count == data.length) {
+            data = Arrays.copyOf(data, count * 2);
+         }
+
+         data[count++] = value;
+      }
+
+      double[] sorted() {
+         double[] copy = Arrays.copyOf(data, count);
+         Arrays.sort(copy);
+         return copy;
+      }
+
+      private double[] data = new double[16];
+      private int count;
    }
 
    private boolean isBaseCancelled() {

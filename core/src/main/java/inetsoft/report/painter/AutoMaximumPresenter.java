@@ -39,6 +39,15 @@ public interface AutoMaximumPresenter extends Presenter {
    boolean absoluteMaximum();
 
    /**
+    * Check if the data maximum leaves out outliers, so one huge value does not flatten the rest of
+    * the column. A value above the resulting maximum is drawn as a full bar with a break near its
+    * end.
+    */
+   default boolean isIgnoreOutliers() {
+      return false;
+   }
+
+   /**
     * Create a copy of this presenter that resolves its drawing maximum from the resolver at
     * paint time. The resolver returns NaN or a value {@code <= 0} when no maximum is
     * available, in which case the configured maximum is used. This presenter is not changed.

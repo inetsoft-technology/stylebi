@@ -193,10 +193,13 @@
                           [style.background]="_cell.vsFormatModel.background"
                           [safeFont]="_cell.vsFormatModel.font"
                           [dataTip]="model.dataTip"
-                          [dataTipOnClick]="model.isTipOnClick">
+                          [dataTipOnClick]="model.isTipOnClick"
+                          [style.--sort-bg]="_cell.vsFormatModel.background"
+                          [sortSpace]="getSortSpace(getCellWidth(_cell, j), sortEnable(_cell) && model.sortOnHeader && !vsWizard, isColSorted(_cell))">
                           <ng-container ngProjectAs="[sortButton]">
                             @if (sortEnable(_cell) && model.sortOnHeader && !vsWizard) {
                               <i sortButton
+                                [class.sort-narrow]="isNarrowSort(getCellWidth(_cell, j))"
                                 title="_#(Sort Column)"
                                 class="sort-button vs-header-cell-button-sort hover-bg-secondary"
                                 [class.col-sorted]="isColSorted(_cell)"
@@ -290,10 +293,13 @@
                           [style.word-wrap]="_cell.vsFormatModel.wrapping.wordWrap"
                           [style.color]="_cell.vsFormatModel.foreground"
                           [style.background]="_cell.vsFormatModel.background"
-                          [safeFont]="_cell.vsFormatModel.font">
+                          [safeFont]="_cell.vsFormatModel.font"
+                          [style.--sort-bg]="_cell.vsFormatModel.background"
+                          [sortSpace]="getSortSpace(getCellWidth(_cell, j), sortEnable(_cell) && !model.sortOnHeader && model.sortAggregate && model.timeSeriesNames.length == 0 && !vsWizard, isColSorted(_cell))">
                           <ng-container ngProjectAs="[sortButton]">
                             @if (sortEnable(_cell) && !model.sortOnHeader && model.sortAggregate && model.timeSeriesNames.length == 0 && !vsWizard) {
                               <i sortButton
+                                [class.sort-narrow]="isNarrowSort(getCellWidth(_cell, j))"
                                 title="_#(Sort Column)"
                                 class="sort-button vs-header-cell-button-sort hover-bg-secondary"
                                 [class.col-sorted]="isColSorted(_cell)"
@@ -398,10 +404,13 @@
                           [safeFont]="_cell.vsFormatModel.font"
                           [dataTip]="model.dataTip"
                           [dataTipOnClick]="model.isTipOnClick"
-                          [class.visible-cell]="getCellHeight(_cell.row, _cell) > 0">
+                          [class.visible-cell]="getCellHeight(_cell.row, _cell) > 0"
+                          [style.--sort-bg]="_cell.vsFormatModel.background"
+                          [sortSpace]="getSortSpace(getCellWidth(_cell, j), sortEnable(_cell) && !model.sortOnHeader && !isAggregate(_cell.field) && model.sortDimension && !vsWizard, isColSorted(_cell))">
                           <ng-container ngProjectAs="[sortButton]">
                             @if (sortEnable(_cell) && !model.sortOnHeader && !isAggregate(_cell.field) && model.sortDimension && !vsWizard) {
                               <i sortButton
+                                [class.sort-narrow]="isNarrowSort(getCellWidth(_cell, j))"
                                 title="_#(Sort Column)"
                                 class="sort-button vs-header-cell-button-sort hover-bg-secondary"
                                 [class.col-sorted]="isColSorted(_cell)"
@@ -498,10 +507,13 @@
                           [style.background]="_cell.vsFormatModel.background"
                           [safeFont]="_cell.vsFormatModel.font"
                           [dataTip]="model.dataTip"
-                          [dataTipOnClick]="model.isTipOnClick">
+                          [dataTipOnClick]="model.isTipOnClick"
+                          [style.--sort-bg]="_cell.vsFormatModel.background"
+                          [sortSpace]="getSortSpace(getCellWidth(_cell, j), sortDimensionEnable(_cell) && !vsWizard, isColSorted(_cell))">
                           <ng-container ngProjectAs="[sortButton]">
                             @if (sortDimensionEnable(_cell) && !vsWizard) {
                               <i sortButton
+                                [class.sort-narrow]="isNarrowSort(getCellWidth(_cell, j))"
                                 title="_#(Sort Column)"
                                 class="sort-button vs-header-cell-button-sort hover-bg-secondary"
                                 [class.col-sorted]="isColSorted(_cell)"

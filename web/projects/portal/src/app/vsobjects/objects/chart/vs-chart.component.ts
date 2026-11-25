@@ -51,6 +51,7 @@ import { DataPathConstants } from "../../../common/util/data-path-constants";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { Axis } from "../../../graph/model/axis";
+import { getAxisDrillFields } from "../../../graph/model/axis-drill";
 import { ChartAreaName } from "../../../graph/model/chart-area-name";
 import { ChartDrillInfo } from "../../../graph/model/chart-drill-info";
 import { ChartModel } from "../../../graph/model/chart-model";
@@ -270,6 +271,14 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
       if(value) {
          this.actionSubscription = value.onAssemblyActionEvent.subscribe((event) => {
+            // the axis drill actions: one id for each slot of a drillable field
+            const axisDrill = /^chart axis-drill-(up|down):(\d+)$/.exec(event.id);
+
+            if(axisDrill) {
+               this.drillAxisField(axisDrill[1] === "up" ? "-" : "+", +axisDrill[2]);
+               return;
+            }
+
             switch(event.id) {
             case "chart edit":
                if(this.isIFrame) {
@@ -732,6 +741,17 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
    drill(payload: ChartDrillInfo): void {
       this.chartService.drill(this.model, payload, this.viewsheetClient, this.appSize);
+   }
+
+   /**
+    * Drill the axis field in a slot of the axis drill actions, as its axis button does.
+    */
+   drillAxisField(drillOp: string, slot: number): void {
+      const field = getAxisDrillFields(this.model.axes)[slot];
+
+      if(field && field.op.includes(drillOp)) {
+         this.drill({ axisType: field.axisType, field: field.field, drillOp: drillOp });
+      }
    }
 
    drillAction(drillOp: string) {

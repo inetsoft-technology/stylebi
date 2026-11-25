@@ -179,6 +179,13 @@ $handle-mid: calc(50% - 4px);
   border: 1px solid var(--inet-composer-selected-outline);
 }
 
+// in the composer they take its two-tone overlay pair (_composer-overlay.scss), like the assembly's
+// handles; the viewer keeps the rule above
+.object-editor :is(.title-resize-handle, .selection-list-cell-handle).bg-primary {
+  background-color: var(--inet-composer-overlay-halo, var(--inet-shell-surface-default)) !important;
+  border: 1px solid var(--inet-composer-overlay-stroke, var(--inet-composer-selected-outline));
+}
+
 // a selected narrow title's full-width drag target; drawn, it shows through a dashed border's gaps
 .selected-cell > .title-resize-handle.resize-line {
   background-color: transparent !important;

@@ -513,7 +513,7 @@ export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestro
          .row(cell.row)
          .col(cell.col)
          .colName(cell.field)
-         .multi(mouseEvent.ctrlKey)
+         .multi(mouseEvent.ctrlKey || mouseEvent.shiftKey || mouseEvent.metaKey)
          .build();
       this.viewsheetClient.sendEvent("/events/table/sort-column", event);
    }

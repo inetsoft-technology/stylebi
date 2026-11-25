@@ -145,6 +145,8 @@ public class GraphBuilder {
       this.model.setMultiStyles(cinfo.isMultiStyles());
       this.model.setShowValues(isShowValues());
       this.model.setTooltipStyle(cinfo.getTooltipStyle().name());
+      this.model.setInlineSvg(VSChartInteractionDefaults.isInlineSvg(assembly == null ?
+         VizContext.LEGACY : VizContext.of(assembly.getVSAssemblyInfo())));
       // Catches snap=true persisted on a chart later switched to an
       // unsupported shape without re-opening the dialog.
       this.model.setSnapTooltip(cinfo.isSnapTooltip() && cinfo.isTooltipVisible()
@@ -281,6 +283,38 @@ public class GraphBuilder {
    static boolean isDrillEnabled(ChartVSAssembly assembly) {
       return assembly == null || assembly.getChartInfo() == null ||
          assembly.getChartInfo().isDrillEnabled();
+   }
+
+   /**
+    * Get the date level of each field of an axis that can be drilled, and the levels its drill up
+    * and drill down go to.
+    *
+    * @return {levels, up levels, down levels}, each with an entry (possibly "") for every field of
+    * the axis.
+    */
+   private static String[][] getAxisDrillLevels(ChartVSAssembly assembly, AxisArea axis) {
+      VSChartInfo info = assembly.getVSChartInfo();
+      XCube cube = getCube(assembly);
+      String[] fields = axis.getAxisField();
+      String[] ops = axis.getAxisOps();
+      ChartRef[] refs = "x".equals(axis.getAxisType()) ? info.getRTXFields() : info.getRTYFields();
+      String[][] drills = new String[3][fields.length];
+
+      for(int i = 0; i < fields.length; i++) {
+         String[] targets = null;
+
+         if(ops != null && i < ops.length && !ops[i].isEmpty()) {
+            Object ref = info.getRTFieldByFullName(fields[i]);
+            targets = ref instanceof XDimensionRef ?
+               VSUtil.getChartDrillTargets((XDimensionRef) ref, cube, refs) : null;
+         }
+
+         for(int k = 0; k < 3; k++) {
+            drills[k][i] = targets == null ? "" : targets[k];
+         }
+      }
+
+      return drills;
    }
 
    private static List<DrillLevel> getDrillLevels(ChartVSAssembly assembly, AxisArea axis) {
@@ -599,12 +633,14 @@ public class GraphBuilder {
          Boolean secondary = axisArea.isSecondary();
          String sortField = axisArea.getSortField();
          List<DrillLevel> levels = new ArrayList<>();
+         String[][] drills = null;
 
          if(assembly != null) {
             levels = getDrillLevels(assembly, axisArea);
+            drills = getAxisDrillLevels(assembly, axisArea);
          }
 
-         chartObject = Axis.builder()
+         ImmutableAxis.Builder axisBuilder = Axis.builder()
             .areaName(areaName)
             .bounds(rectangle)
             .layoutBounds(layoutBounds)
@@ -613,6 +649,7 @@ public class GraphBuilder {
             .axisType(axisType)
             .sortOp(sortOp)
             .axisOps(axisOps)
+            .axisFieldOps(axisOps)
             .axisFields(axisFields)
             .axisSizes(axisSizes)
             .secondary(secondary)
@@ -621,8 +658,13 @@ public class GraphBuilder {
             .drillFilter(hasDrillFilter(area))
             .sortFieldIsCalc(axisArea.isSortFieldIsCalc())
             .containsCustomDcRangeRef(containsCustomDcRangeRef(axisFields))
-            .containsCustomDcMergeRef(containsCustomDcMergeRef(axisFields))
-            .build();
+            .containsCustomDcMergeRef(containsCustomDcMergeRef(axisFields));
+
+         if(drills != null) {
+            axisBuilder.axisLevels(drills[0]).axisUpLevels(drills[1]).axisDownLevels(drills[2]);
+         }
+
+         chartObject = axisBuilder.build();
       }
       else if(area instanceof TitleArea) {
          chartObject = Title.builder()

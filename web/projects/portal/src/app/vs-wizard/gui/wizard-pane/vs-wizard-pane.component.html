@@ -25,6 +25,7 @@
   <div #paneContainer class="vs-wizard-pane-container"
     (click)="viewsheet.clearFocusedAssemblies()">
     <div #scrollContainer class="scroll-container" selectionBox
+      selectionBoxClass="selection-box composer-selection-box"
       selectionBoxBannedSelector="[data-is-element-editor].active"
       [selectOnMouseMove]="true"
       (onSelectionBox)="onSelectionBox($event)">

@@ -54,9 +54,12 @@
 // !important is required: _bootstrap-override.scss's .bg-primary declares
 // background-color with !important, which always wins over a non-!important
 // rule regardless of selector specificity or source order.
+// The fill and ring are the composer's two-tone overlay pair (_composer-overlay.scss): a light halo
+// fill and a dark stroke ring, so a handle reads on any dashboard background in either shell. A
+// themed page leaves the pair undeclared and keeps the earlier values.
 .handle.bg-primary {
-  background-color: var(--inet-shell-surface-default) !important;
-  border: 1px solid var(--inet-composer-selected-outline);
+  background-color: var(--inet-composer-overlay-halo, var(--inet-shell-surface-default)) !important;
+  border: 1px solid var(--inet-composer-overlay-stroke, var(--inet-composer-selected-outline));
 }
 
 .active .handle {
@@ -145,8 +148,16 @@
   z-index: 2;
 }
 
+// The selection outline is the composer's two-tone overlay pair (_composer-overlay.scss): the dark
+// stroke as the outline and the light halo as a 2px ring under it, so the gaps of the dotted or
+// dashed outline show the halo instead of the content, and the outline reads on any dashboard
+// background. A search result or drop zone draws its own solid 2px outline over the same band,
+// which covers the halo. A themed page leaves the pair undeclared: the assembly outline colour and
+// no halo, as before (the halo has no fallback, so an undeclared token makes box-shadow compute to
+// none, its pre-PR8 value).
 .active .object  {
-  outline: 2px dotted var(--inet-viz-assembly-outline);
+  outline: 2px dotted var(--inet-composer-overlay-stroke, var(--inet-viz-assembly-outline));
+  box-shadow: 0 0 0 2px var(--inet-composer-overlay-halo);
 }
 
 // Modern/dark objects switch to the dashed treatment; legacy objects keep the
@@ -156,6 +167,15 @@
 .active.viz-modern .object,
 .active.viz-dark .object {
   outline-style: dashed;
+}
+
+// A selection-container child draws its outline inside its box (.container-child > .object above)
+// in a scroller that clips to the child, where the outward halo would sit in another band, so it
+// keeps a one-tone outline. .container-child and .active are on the same element, so this rule
+// must outrank .active .object: it is more specific (0,3,0 against 0,2,0, before encapsulation)
+// and also comes after it.
+.active.container-child > .object {
+  box-shadow: none;
 }
 
 .drop-target {
@@ -202,7 +222,9 @@
   opacity: 0.2 !important;
 }
 
+// the move handle takes the same two-tone pair as the resize handles: halo fill and stroke ring (its
+// glyph colour is set in _composer-overlay.scss)
 .composer-object__move-handle {
-  border: 1px solid var(--inet-default-border-color);
-  background: var(--inet-shell-surface-default);
+  border: 1px solid var(--inet-composer-overlay-stroke, var(--inet-default-border-color));
+  background: var(--inet-composer-overlay-halo, var(--inet-shell-surface-default));
 }

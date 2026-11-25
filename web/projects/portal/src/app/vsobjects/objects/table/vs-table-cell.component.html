@@ -32,7 +32,9 @@
         [style.padding-bottom.px]="cell.vsFormatModel?.padding?.bottom"
         [style.padding-right.px]="cell.vsFormatModel?.padding?.right"
         [class.cursor-pointer]="isShowLinkedHeader && (viewer || preview)"
-        [class.cell-padding-defined]="!!cell.vsFormatModel?.padding">
+        [class.cell-padding-defined]="!!cell.vsFormatModel?.padding"
+        [class.sort-space]="sortSpace === 'always'"
+        [class.sort-space-hover]="sortSpace === 'hover'">
         <div class="w-100"
           [class.cell-editor]="selected && !cell.drillOp && !numLinks"
           [class.highlightable]="selected && (viewer || preview)"

@@ -23,15 +23,18 @@ export type TailAxis = "vertical" | "horizontal";
 
 // The tailed card's SVG chrome draws the outline in place of the box's own background, border
 // and shadow (.widget__card-tooltip--tailed), so this is its one visible radius and must track
-// .widget__card-tooltip's border-radius: 8px gate-off, 6px under .viz-modern (--inet-radius-xl).
+// .widget__card-tooltip's border-radius: 8px classic, 6px modern (--inet-radius-xl).
 // An SVG path needs a plain number, so the token cannot be referenced — keep the two in step.
-// Deliberately unexported: reach these through tailRadius(), or the gate is bypassed.
+// Deliberately unexported: reach these through tailRadius(), or the look is bypassed.
 const TAIL_RADIUS = 8;
 const TAIL_RADIUS_MODERN = 6;
 
-/** Reads the shell state at call time; the body class toggles at runtime. */
-export function tailRadius(): number {
-   return GuiTool.isVizShell() ? TAIL_RADIUS_MODERN : TAIL_RADIUS;
+/**
+ * The radius for the look of the chart the tooltip describes; with no chart (null), the shell
+ * state at call time, since the body class toggles at runtime.
+ */
+export function tailRadius(modern: boolean | null = null): number {
+   return (modern ?? GuiTool.isVizShell()) ? TAIL_RADIUS_MODERN : TAIL_RADIUS;
 }
 
 /** How far the tail projects past the box edge, and so the gap between the box and the mark. */
@@ -81,6 +84,8 @@ export interface TailPlacementInput {
    hostHeight: number;
    container: Rectangular;
    axis: TailAxis;
+   /** The described chart's look; null follows the shell. */
+   modern?: boolean | null;
 }
 
 interface Bounds {
@@ -104,9 +109,10 @@ export function computeTailPlacement(input: TailPlacementInput): TailPlacement |
       return null;
    }
 
+   const modern = input.modern ?? null;
    const place = (anchor: TailAnchor) => input.axis === "horizontal"
-      ? placeHorizontal(anchor, bw, bh, bounds)
-      : placeVertical(anchor, bw, bh, bounds);
+      ? placeHorizontal(anchor, bw, bh, bounds, modern)
+      : placeVertical(anchor, bw, bh, bounds, modern);
 
    // A mark with no room past its edges, such as a bar reaching the top of the window, takes the
    // box over its middle instead.
@@ -114,7 +120,7 @@ export function computeTailPlacement(input: TailPlacementInput): TailPlacement |
 }
 
 function placeVertical(anchor: TailAnchor, bw: number, bh: number,
-                       bounds: Bounds): TailPlacement | null
+                       bounds: Bounds, modern: boolean | null): TailPlacement | null
 {
    const top = intoMark(anchor.top, anchor.y);
    const bottom = intoMark(anchor.bottom, anchor.y);
@@ -139,12 +145,12 @@ function placeVertical(anchor: TailAnchor, bw: number, bh: number,
       x: bx - TOOLTIP_INSET,
       y: by - TOOLTIP_INSET,
       tailSide: below ? "top" : "bottom",
-      tailOffset: seatTail(anchor.x - bx, bw).tip
+      tailOffset: seatTail(anchor.x - bx, bw, modern).tip
    };
 }
 
 function placeHorizontal(anchor: TailAnchor, bw: number, bh: number,
-                         bounds: Bounds): TailPlacement | null
+                         bounds: Bounds, modern: boolean | null): TailPlacement | null
 {
    const left = intoMark(anchor.left, anchor.x);
    const right = intoMark(anchor.right, anchor.x);
@@ -163,7 +169,7 @@ function placeHorizontal(anchor: TailAnchor, bw: number, bh: number,
       x: bx - TOOLTIP_INSET,
       y: by - TOOLTIP_INSET,
       tailSide: toRight ? "left" : "right",
-      tailOffset: seatTail(anchor.y - by, bh).tip
+      tailOffset: seatTail(anchor.y - by, bh, modern).tip
    };
 }
 
@@ -202,12 +208,12 @@ interface TailSeat {
  * straight part of the edge between the corner arcs. Seating a seated tip leaves it unchanged,
  * so the placement and the chrome agree on one offset.
  */
-function seatTail(tip: number, edge: number): TailSeat {
+function seatTail(tip: number, edge: number, modern: boolean | null): TailSeat {
    // An edge shorter than 2 * (radius + half-width) cannot hold the opening between the corner
    // arcs. Shrink the half-width, then the radius, so the opening always clears them. Both are
    // inert on every box the current padding can produce.
    const halfWidth = Math.min(TAIL_HALF_WIDTH, edge / 2);
-   const radius = Math.max(0, Math.min(tailRadius(), edge / 2 - halfWidth));
+   const radius = Math.max(0, Math.min(tailRadius(modern), edge / 2 - halfWidth));
    const skew = halfWidth * TAIL_SKEW;
    const sweep = tip <= edge / 2 ? -1 : 1;
    const base = clamp(tip - sweep * skew, radius + halfWidth, edge - radius - halfWidth);
@@ -230,11 +236,11 @@ type Point = [number, number];
 const EDGE_INDEX: Record<TailSide, number> = { top: 0, right: 1, bottom: 2, left: 3 };
 
 export function buildChromePaths(boxWidth: number, boxHeight: number, tailSide: TailSide,
-                                 tailOffset: number): ChromeGeometry
+                                 tailOffset: number, modern: boolean | null = null): ChromeGeometry
 {
    const l = TAIL_LENGTH;
    const vertical = tailSide === "top" || tailSide === "bottom";
-   const seat = seatTail(tailOffset, vertical ? boxWidth : boxHeight);
+   const seat = seatTail(tailOffset, vertical ? boxWidth : boxHeight, modern);
    const r = seat.radius;
    const bL = l, bT = l, bR = l + boxWidth, bB = l + boxHeight;
    const corners: Point[] = [[bL, bT], [bR, bT], [bR, bB], [bL, bB]];

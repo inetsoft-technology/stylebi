@@ -72,7 +72,12 @@ export class SelectionBoxDirective implements OnInit, OnDestroy {
 
    ngOnInit() {
       this.selectionBox = this.renderer.createElement("div");
-      this.renderer.addClass(this.selectionBox, this.selectionBoxClass);
+
+      // a space-separated list: the composer's authoring panes add a second class for their marquee
+      for(const name of (this.selectionBoxClass || "").split(/\s+/).filter(n => !!n)) {
+         this.renderer.addClass(this.selectionBox, name);
+      }
+
       this.hideSelectionBox();
       this.renderer.appendChild(this.hostRef.nativeElement, this.selectionBox);
    }

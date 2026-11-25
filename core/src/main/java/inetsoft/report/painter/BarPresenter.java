@@ -48,6 +48,7 @@ public class BarPresenter implements AutoMaximumPresenter {
    public BarPresenter(double max, Color color) {
       this.max = max;
       this.color = color;
+      this.scaleSet = true;
    }
 
    /**
@@ -76,6 +77,7 @@ public class BarPresenter implements AutoMaximumPresenter {
     */
    public void setMaximum(double max) {
       this.max = max;
+      this.scaleSet = true;
    }
 
    /**
@@ -93,6 +95,46 @@ public class BarPresenter implements AutoMaximumPresenter {
     */
    public void setAutoMaximum(boolean autoMaximum) {
       this.autoMaximum = autoMaximum;
+      this.scaleSet = true;
+   }
+
+   /**
+    * Check if the data maximum leaves out outliers, so one huge value does not flatten the rest of
+    * the column.
+    */
+   @Override
+   public boolean isIgnoreOutliers() {
+      return ignoreOutliers;
+   }
+
+   /**
+    * Set whether the data maximum leaves out outliers. Only used while Auto Maximum is on.
+    */
+   public void setIgnoreOutliers(boolean ignoreOutliers) {
+      this.ignoreOutliers = ignoreOutliers;
+      this.outliersSet = true;
+   }
+
+   /**
+    * Leave outliers out of the data maximum in the modern style, unless the author set Ignore
+    * Outliers either way. This is not a bean property, so it does not show in the presenter dialog
+    * or get saved.
+    */
+   public void useModernIgnoreOutliers() {
+      if(!outliersSet) {
+         ignoreOutliers = true;
+      }
+   }
+
+   /**
+    * Scale to the column's data in the modern style, unless the author chose the scale: set Auto
+    * Maximum either way, or set a Maximum. This is not a bean property, so it does not show in the
+    * presenter dialog or get saved.
+    */
+   public void useModernAutoMaximum() {
+      if(!scaleSet) {
+         autoMaximum = true;
+      }
    }
 
    @Override
@@ -102,24 +144,55 @@ public class BarPresenter implements AutoMaximumPresenter {
 
    @Override
    public Presenter withMaximumResolver(DoubleSupplier resolver) {
+      BarPresenter copy = copy();
+      copy.maxResolver = resolver;
+      return copy;
+   }
+
+   /**
+    * Give a cell its own copy that shows the cell's text when its value is negative or NaN. Neither
+    * has a bar to draw, so without this the cell looks empty, like a zero or a missing value. The text is the cell's formatted value, which only the table lens has. The presenter
+    * itself is never changed, since a script presenter is shared by all cells of a column.
+    * @param text the cell's formatted value.
+    */
+   public Presenter withValueText(String text) {
+      BarPresenter copy = copy();
+      copy.valueText = text;
+      return copy;
+   }
+
+   /**
+    * The text a negative value is drawn as, or null when the table lens has not given one.
+    */
+   public String valueText() {
+      return valueText;
+   }
+
+   // every field, so no copy forgets one
+   private BarPresenter copy() {
       BarPresenter copy = new BarPresenter();
       copy.color = color;
       copy.psize = psize == null ? null : new Dimension(psize);
       copy.max = max;
       copy.fillCell = fillCell;
       copy.bg = bg;
-      // a modern table sets the bar thickness on the presenter before this copy is made
+      // a modern table sets the bar thickness on the presenter before the copy is made
       copy.thickness = thickness;
       copy.autoMaximum = autoMaximum;
-      copy.maxResolver = resolver;
+      copy.scaleSet = scaleSet;
+      copy.ignoreOutliers = ignoreOutliers;
+      copy.outliersSet = outliersSet;
+      copy.maxResolver = maxResolver;
+      copy.valueText = valueText;
       return copy;
    }
 
    /**
-    * Get the maximum used for drawing: the data maximum when auto maximum is on and one is
-    * available, otherwise the configured maximum.
+    * The data maximum the table lens resolved while auto maximum is on, or NaN when there is none
+    * (auto maximum is off, no resolver was given, or the column has no positive number), in which
+    * case the configured maximum is used.
     */
-   private double getDrawingMaximum() {
+   private double resolvedMaximum() {
       if(autoMaximum && maxResolver != null) {
          double dataMax = maxResolver.getAsDouble();
 
@@ -128,7 +201,16 @@ public class BarPresenter implements AutoMaximumPresenter {
          }
       }
 
-      return max;
+      return Double.NaN;
+   }
+
+   /**
+    * Get the maximum used for drawing: the data maximum when auto maximum is on and one is
+    * available, otherwise the configured maximum.
+    */
+   private double getDrawingMaximum() {
+      double dataMax = resolvedMaximum();
+      return Double.isNaN(dataMax) ? max : dataMax;
    }
 
    /**
@@ -150,6 +232,15 @@ public class BarPresenter implements AutoMaximumPresenter {
 
          double n = ((Number) v).doubleValue();
 
+         // there is no bar for a negative value or a number that is not one: show its text so the
+         // cell does not look empty
+         if((n < 0 || Double.isNaN(n)) && valueText != null) {
+            paintValueText(g, oc, x, y, w, h);
+            g.setColor(oc);
+            g.setClip(clip);
+            return;
+         }
+
          if(color != null) {
             g.setColor(color);
          }
@@ -163,10 +254,42 @@ public class BarPresenter implements AutoMaximumPresenter {
             barHeight = thickness;
          }
 
-         g.fillRect(x, barTop, (int) (n * w / getDrawingMaximum()), barHeight);
+         double resolved = resolvedMaximum();
+         double drawMax = Double.isNaN(resolved) ? max : resolved;
+
+         // a value beyond the maximum that left outliers out is one: a full bar, broken near its end.
+         // Not against the configured maximum, which a column with no data to scale to falls back to
+         if(ignoreOutliers && !Double.isNaN(resolved) && n > resolved) {
+            CappedBar.fill(g, x, barTop, w, barHeight, true);
+            g.setColor(oc);
+            g.setClip(clip);
+            return;
+         }
+
+         // a value above zero always shows, even when it is far smaller than the maximum
+         int barWidth = (int) (n * w / drawMax);
+
+         if(n > 0 && barWidth < 1 && w > 0) {
+            barWidth = 1;
+         }
+
+         g.fillRect(x, barTop, barWidth, barHeight);
          g.setColor(oc);
          g.setClip(clip);
       }
+   }
+
+   /**
+    * Draw the value's text at the right of the cell, in the cell's text colour but fainter, so it
+    * reads as a note and not as the value of a bar.
+    */
+   private void paintValueText(Graphics g, Color fg, int x, int y, int w, int h) {
+      FontMetrics fm = g.getFontMetrics();
+      int tw = fm.stringWidth(valueText);
+
+      g.setColor(new Color(fg.getRed(), fg.getGreen(), fg.getBlue(), (int) (fg.getAlpha() * 0.65)));
+      g.drawString(valueText, Math.max(x + 2, x + w - tw - 2),
+                   y + (h - fm.getHeight()) / 2 + fm.getAscent());
    }
 
    /**
@@ -300,7 +423,7 @@ public class BarPresenter implements AutoMaximumPresenter {
       }
 
       return max == bar2.max && fillCell == bar2.fillCell &&
-         autoMaximum == bar2.autoMaximum;
+         autoMaximum == bar2.autoMaximum && ignoreOutliers == bar2.ignoreOutliers;
    }
 
    /**
@@ -315,6 +438,7 @@ public class BarPresenter implements AutoMaximumPresenter {
       hash += Math.abs(Math.round(max));
       hash += fillCell ? 0 : 17;
       hash += autoMaximum ? 31 : 0;
+      hash += ignoreOutliers ? 37 : 0;
       return hash;
    }
 
@@ -350,7 +474,16 @@ public class BarPresenter implements AutoMaximumPresenter {
    private int thickness = 0;
    private Color bg = null;
    private boolean autoMaximum = false;
+   // true once the author chose the scale, by setting Auto Maximum either way or a Maximum, so the
+   // modern default leaves it alone
+   private boolean scaleSet = false;
+   // leave outliers out of the data maximum, and whether the author set it either way
+   private boolean ignoreOutliers = false;
+   private boolean outliersSet = false;
    // resolves the data maximum at paint time, set by the table lens on a copy of the
    // presenter; not a bean property, so it is never shown in the dialog or saved
    private transient DoubleSupplier maxResolver;
+   // the cell's formatted value, set by the table lens on a copy for a negative value; not a bean
+   // property, so it is never shown in the dialog or saved
+   private transient String valueText;
 }

@@ -125,7 +125,7 @@ class VSFormatTableLensPresenterColorsTest {
          TrafficLightPresenter light =
             (TrafficLightPresenter) lens(LIGHT, mark).getPresenter(1, 1);
 
-         assertEquals(VSObjectChromeDefaults.objectBorderColor(VizContext.of(mark)),
+         assertEquals(VSObjectChromeDefaults.trafficLightHousingColor(VizContext.of(mark)),
                       light.modernHousing());
       }
    }
@@ -384,6 +384,71 @@ class VSFormatTableLensPresenterColorsTest {
                       g.getRenderingHint(RenderingHints.KEY_ANTIALIASING));
          g.dispose();
       }
+   }
+
+   @Test
+   void theDarkTrafficLightColorsAreTheLightOnesLiftedTowardWhite() {
+      Color[] light = VSObjectChromeDefaults.trafficLightColors(VizContext.of(VizMark.MODERN_LIGHT));
+      Color[] dark = VSObjectChromeDefaults.trafficLightColors(VizContext.of(VizMark.MODERN_DARK));
+
+      assertEquals(3, dark.length);
+
+      for(int i = 0; i < 3; i++) {
+         assertNotEquals(light[i], dark[i]);
+         assertTrue(dark[i].getRed() >= light[i].getRed(), "red " + i);
+         assertTrue(dark[i].getGreen() >= light[i].getGreen(), "green " + i);
+         assertTrue(dark[i].getBlue() >= light[i].getBlue(), "blue " + i);
+      }
+
+      // still green, amber and red in the dark: the dominant channel is unchanged
+      assertTrue(dark[0].getGreen() > dark[0].getRed() && dark[0].getGreen() > dark[0].getBlue());
+      assertTrue(dark[1].getRed() > dark[1].getBlue() && dark[1].getGreen() > dark[1].getBlue());
+      assertTrue(dark[2].getRed() > dark[2].getGreen() && dark[2].getRed() > dark[2].getBlue());
+   }
+
+   @Test
+   void theTrafficLightHousingIsVisibleOnTheCardInBothThemes() {
+      for(VizMark mark : new VizMark[] { VizMark.MODERN_LIGHT, VizMark.MODERN_DARK }) {
+         VizContext ctx = VizContext.of(mark);
+         Color housing = VSObjectChromeDefaults.trafficLightHousingColor(ctx);
+         Color card = VSObjectChromeDefaults.cardBackground(ctx);
+
+         // it was the object border neutral, 1.5:1 on a white card and lost on a tinted row
+         assertTrue(contrast(housing, card) >= 3.0,
+                    mark + ": the housing " + housing + " is only " + contrast(housing, card)
+                       + ":1 on the card " + card);
+         assertNotEquals(VSObjectChromeDefaults.objectBorderColor(ctx), housing);
+      }
+
+      assertNull(VSObjectChromeDefaults.trafficLightHousingColor(null));
+   }
+
+   @Test
+   void theTrafficLightHousingFollowsTheTextColorSoItIsDarkerThanTheCardInLightMode() {
+      VizContext light = VizContext.of(VizMark.MODERN_LIGHT);
+      VizContext dark = VizContext.of(VizMark.MODERN_DARK);
+
+      assertTrue(lightness(VSObjectChromeDefaults.trafficLightHousingColor(light)) <
+                    lightness(VSObjectChromeDefaults.cardBackground(light)));
+      assertTrue(lightness(VSObjectChromeDefaults.trafficLightHousingColor(dark)) >
+                    lightness(VSObjectChromeDefaults.cardBackground(dark)));
+   }
+
+   // WCAG relative luminance contrast ratio
+   private static double contrast(Color a, Color b) {
+      double la = luminance(a);
+      double lb = luminance(b);
+      return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+   }
+
+   private static double luminance(Color c) {
+      double[] v = { c.getRed() / 255.0, c.getGreen() / 255.0, c.getBlue() / 255.0 };
+
+      for(int i = 0; i < 3; i++) {
+         v[i] = v[i] <= 0.03928 ? v[i] / 12.92 : Math.pow((v[i] + 0.055) / 1.055, 2.4);
+      }
+
+      return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
    }
 
    @Test

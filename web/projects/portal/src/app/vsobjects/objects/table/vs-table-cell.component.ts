@@ -97,6 +97,8 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
    @Input() dataTipOnClick: boolean = false;
    @Input() isFlyOnClick: boolean = false;
    @Input() width: number = 0;
+   /** Room the sort icon takes from the header text: none, always or hover. */
+   @Input() sortSpace: string = "none";
    @Input() height: number = 0;
    @Input() lastStart: number = 0;
    @Input() linkUri: string;
@@ -611,10 +613,13 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
    get presenter(): string {
       // The image has to fit inside the cell's padding. A cell with padding of its own, as a
       // modern table's cells have, is padded by that; any other keeps the stylesheet's default of
-      // 2px on each side and 1px above and below.
+      // 2px on each side and 1px above and below. The cell's content box is also narrower and
+      // lower than the cell by its borders (hBorderWidth, vBorderWidth, the same amounts the
+      // template takes off), and an image wider than that is clipped, which cut the last pixel
+      // column off a right-aligned check box.
       const padding = this.cell.vsFormatModel?.padding;
-      const horizontal = padding ? padding.left + padding.right : 4;
-      const vertical = padding ? padding.top + padding.bottom : 2;
+      const horizontal = (padding ? padding.left + padding.right : 4) + (this.hBorderWidth || 0);
+      const vertical = (padding ? padding.top + padding.bottom : 2) + (this.vBorderWidth || 0);
 
       return this.linkUri + "vs/table/presenter/" +
          encodeURIComponent(this.tableName) + "/"

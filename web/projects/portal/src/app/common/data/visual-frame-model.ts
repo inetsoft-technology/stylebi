@@ -59,6 +59,8 @@ export class GradientColorModel extends ColorFrameModel {
    toColor: string;
    cssToColor: string;
    defaultToColor: string;
+   // blend in the perceptual OKLab space instead of sRGB; absent on charts saved before it existed
+   smooth: boolean = false;
 
    constructor() {
       super();

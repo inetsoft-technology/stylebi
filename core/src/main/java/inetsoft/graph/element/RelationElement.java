@@ -118,6 +118,7 @@ public class RelationElement extends GraphElement {
    @Override
    public void createGeometry(DataSet data0, GGraph graph) {
       laidOutBox = null;
+      layoutDeferred = false;
       VisualModel vmodel = createVisualModel(data0);
       SortedDataSet sdata = sortData(data0, graph);
 
@@ -301,7 +302,17 @@ public class RelationElement extends GraphElement {
          }
 
          laidOutBox = resolveLayoutBox(graph);
-         mxLayout(nodes, edges, mxgraph, mxroot, graph);
+         // no plot box before the first plot, which is always replotted, so the replot lays out
+         layoutDeferred = laidOutBox != null &&
+            graph.getCoordinate() instanceof RelationCoord coord && coord.getPlotBox() == null;
+
+         if(layoutDeferred) {
+            layoutCenter = null;
+            layoutRadius = 0;
+         }
+         else {
+            mxLayout(nodes, edges, mxgraph, mxroot, graph);
+         }
 
          if(shapeBorderShape != null && layoutCenter != null && layoutRadius > 0) {
             graph.getEGraph().addForm(new BorderForm(this));
@@ -1000,10 +1011,20 @@ public class RelationElement extends GraphElement {
    }
 
    /**
-    * Get the box the last createGeometry laid out in, or null if it used no box.
+    * Get the box the last createGeometry laid out in, or null if it used no box. A deferred
+    * layout keeps the box it would have used.
     */
    public Dimension2D getLaidOutBox() {
       return laidOutBox;
+   }
+
+   /**
+    * Check whether the last createGeometry left its nodes unplaced because the plot box was
+    * not known yet. The coordinate then asks for a replot, which lays them out.
+    * @hidden
+    */
+   public boolean isLayoutDeferred() {
+      return layoutDeferred;
    }
 
    /**
@@ -1393,6 +1414,7 @@ public class RelationElement extends GraphElement {
    private transient Point2D layoutCenter;
    private transient double layoutRadius;
    private transient Dimension2D laidOutBox;
+   private transient boolean layoutDeferred;
    private boolean horizontal = false;
    private boolean flipped = false;
 

@@ -1927,4 +1927,108 @@ describe("ChartActions", () => {
          expect(ids).toContain("chart clear-zoom");
       });
    });
+
+   describe("axis drill actions", () => {
+      const axisOf = (fields: string[], ops: string[], overrides: any = {}) => ({
+         axisType: "x", axisFields: fields, axisFieldOps: ops, axisOps: ops,
+         axisLevels: fields.map(() => "Month"), axisUpLevels: fields.map(() => "Quarter"),
+         axisDownLevels: fields.map(() => "Day"), ...overrides
+      } as any);
+
+      const axisDrillGroup = (groups: AssemblyActionGroup[]) =>
+         groups.find(g => g.actions.some(a => a.id().startsWith("chart axis-drill")));
+
+      it("puts the drill up and down of a single field in the toolbar and in the menu", () => {
+         const model = createModel();
+         model.axes = [axisOf(["Month(OrderDate)"], ["-+"])];
+         const actions = new ChartActions(model, popService, viewerContext);
+
+         for(const groups of [actions.toolbarActions, actions.menuActions]) {
+            const group = axisDrillGroup(groups);
+            const visible = group.actions.filter(a => a.visible());
+
+            expect(visible.map(a => a.id()))
+               .toEqual(["chart axis-drill-up:0", "chart axis-drill-down:0"]);
+            expect(visible.map(a => a.label()))
+               .toEqual(["_#(js:Drill Up to) _#(js:Quarter)", "_#(js:Drill Down to) _#(js:Day)"]);
+         }
+
+         // the toolbar draws glyphs, the menu labels only
+         expect(axisDrillGroup(actions.toolbarActions).actions.filter(a => a.visible())
+            .map(a => a.icon())).toEqual(["minus-box-outline-icon", "plus-box-outline-icon"]);
+         expect(axisDrillGroup(actions.menuActions).actions.filter(a => a.visible())
+            .map(a => a.icon())).toEqual([null, null]);
+      });
+
+      it("shows only the direction the op allows", () => {
+         const model = createModel();
+         model.axes = [axisOf(["Year(OrderDate)"], ["+"])];
+         const actions = new ChartActions(model, popService, viewerContext);
+         const visible = axisDrillGroup(actions.toolbarActions).actions.filter(a => a.visible());
+
+         expect(visible.map(a => a.id())).toEqual(["chart axis-drill-down:0"]);
+      });
+
+      it("falls back to a label without a level when the server named no target", () => {
+         const model = createModel();
+         model.axes = [axisOf(["Year(OrderDate)"], ["+"], { axisDownLevels: [""] })];
+         const actions = new ChartActions(model, popService, viewerContext);
+         const down = axisDrillGroup(actions.toolbarActions).actions
+            .find(a => a.id() === "chart axis-drill-down:0");
+
+         expect(down.label()).toBe("_#(js:Drill Down Axis)");
+      });
+
+      it("keeps several fields out of the toolbar and names each in the menu", () => {
+         const model = createModel();
+         model.axes = [axisOf(["Month(OrderDate)", "Country"], ["-+", "+"])];
+         const actions = new ChartActions(model, popService, viewerContext);
+
+         const toolbar = axisDrillGroup(actions.toolbarActions).actions.filter(a => a.visible());
+         expect(toolbar).toEqual([]);
+
+         const menu = axisDrillGroup(actions.menuActions).actions.filter(a => a.visible());
+         expect(menu.map(a => a.id())).toEqual(
+            ["chart axis-drill-up:0", "chart axis-drill-down:0", "chart axis-drill-down:1"]);
+         expect(menu[0].label()).toBe("OrderDate: _#(js:Drill Up to) _#(js:Quarter)");
+         expect(menu[2].label()).toBe("Country: _#(js:Drill Down to) _#(js:Day)");
+      });
+
+      it("is hidden where the axis drill buttons are", () => {
+         const model = createModel();
+         model.axes = [axisOf(["Month(OrderDate)"], ["-+"])];
+         const actions = new ChartActions(model, popService, viewerContext);
+         const visibleIds = () => axisDrillGroup(actions.toolbarActions).actions
+            .filter(a => a.visible()).map(a => a.id());
+
+         expect(visibleIds().length).toBe(2);
+
+         model.dateComparisonDefined = true;
+         expect(visibleIds()).toEqual([]);
+
+         model.dateComparisonDefined = false;
+         model.axes = [axisOf(["Month(OrderDate)"], [""])];
+         expect(visibleIds()).toEqual([]);
+      });
+
+      it("reads the model when asked, not when the actions were built", () => {
+         const model = createModel();
+         const actions = new ChartActions(model, popService, viewerContext);
+         const group = axisDrillGroup(actions.toolbarActions);
+
+         expect(group.actions.filter(a => a.visible()).length).toBe(0);
+
+         model.axes = [axisOf(["Month(OrderDate)"], ["-+"])];
+         expect(group.actions.filter(a => a.visible()).length).toBe(2);
+      });
+
+      it("leaves the selection drill actions as they were", () => {
+         const model = createModel();
+         const actions = new ChartActions(model, popService, viewerContext);
+         const ids = actions.toolbarActions.flatMap(g => g.actions.map(a => a.id()));
+
+         expect(ids).toContain("chart drill-down");
+         expect(ids).toContain("chart drill-up");
+      });
+   });
 });

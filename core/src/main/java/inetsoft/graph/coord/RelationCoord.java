@@ -144,7 +144,10 @@ public class RelationCoord extends Coordinate {
          vgraph.setPlotBounds(getBounds(plotx, ploty, plotw, ploth, c2));
       }
 
-      layoutText(vgraph, true);
+      // the replot lays out the labels of nodes that were never placed
+      if(!isLayoutDeferred()) {
+         layoutText(vgraph, true);
+      }
    }
 
    @Override
@@ -291,7 +294,8 @@ public class RelationCoord extends Coordinate {
    }
 
    /**
-    * Re-plot when a plot-fitted element laid out in a box other than the plot box.
+    * Re-plot when a plot-fitted element laid out in a box other than the plot box, or
+    * deferred its layout to the replot.
     * @hidden
     */
    @Override
@@ -301,6 +305,11 @@ public class RelationCoord extends Coordinate {
 
       if(box == null || vgraph == null || vgraph.getEGraph() == null) {
          return false;
+      }
+
+      // nodes that were never placed, even if the box happens to match
+      if(isLayoutDeferred()) {
+         return true;
       }
 
       EGraph egraph = vgraph.getEGraph();
@@ -316,6 +325,20 @@ public class RelationCoord extends Coordinate {
             {
                return true;
             }
+         }
+      }
+
+      return false;
+   }
+
+   // whether a plot-fit element left its nodes for the replot to place
+   private boolean isLayoutDeferred() {
+      VGraph vg = getVGraph();
+      EGraph eg = vg != null ? vg.getEGraph() : null;
+
+      for(int i = 0; eg != null && i < eg.getElementCount(); i++) {
+         if(eg.getElement(i) instanceof RelationElement re && re.isLayoutDeferred()) {
+            return true;
          }
       }
 

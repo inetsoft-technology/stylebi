@@ -18,6 +18,7 @@
 package inetsoft.report.composition.graph;
 
 import inetsoft.graph.AxisSpec;
+import inetsoft.graph.GraphConstants;
 import inetsoft.graph.coord.*;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.GraphElement;
@@ -522,6 +523,12 @@ public class DefaultGraphGenerator extends GraphGenerator {
          yscale.setAxisSpec((AxisSpec) yscale.getAxisSpec().clone());
          yscale.getAxisSpec().setLabelVisible(false);
          ((RectCoord) coord).setYScale(yscale);
+      }
+
+      // the grid follows the primary axis ticks
+      if(vizContext.modern) {
+         scale2.getAxisSpec().setGridStyle(GraphConstants.NONE);
+         yscale.getAxisSpec().setEdgeGridTrimmed(true);
       }
 
       // setup default color encoding to show axis labels in the

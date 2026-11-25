@@ -718,6 +718,8 @@ costing inline-SVG animation and hover dimming; it is interaction rather than ch
 documented workaround. Both are the gate-off mirror of an inconsistency already accepted in the gate-on
 direction, and both are accepted costs rather than work.
 
+**Superseded 2026-11-24 (Bug #82254): both reads now follow the chart's mark.** `ChartVSAssemblyInfo.getVSChartInfo()` stamps its mark onto the chart info, so `getTooltipStyle` resolves AUTO without the constructor threading; the gate is read only for a chart info no assembly owns. `VSChartInteractionDefaults.isInlineSvg(VizContext)` is resolved per chart into `ChartModel.inlineSvg` (`graph.svg.inline` still wins), and the chart passes its mark to its tooltip (`widget__tooltip--modern` / `--classic`), which scopes the card styling and tail radius. The Chart Properties dialog keeps AUTO unless the radio is changed.
+
 ### Known issue the phase has to settle — settled 2026-08-20
 
 **Reverting while the gate is on immediately re-arms Modernize.** `modernizable` is recomputed on every

@@ -182,6 +182,26 @@ class ChartChromeRenderTest {
    }
 
    @Test
+   void aModernParetoPercentAxisLeavesTheGridToTheValueAxis() {
+      EGraph g = paretoGraph(VizMark.MODERN_LIGHT, false);
+      AxisSpec primary = ((RectCoord) g.getCoordinate()).getYScale().getAxisSpec();
+      AxisSpec percent = ((RectCoord) g.getCoordinate()).getYScale2().getAxisSpec();
+      assertEquals(StyleConstants.THIN_LINE, primary.getGridStyle(), "premise: a Y grid");
+      assertEquals(GraphConstants.NONE, percent.getGridStyle());
+      assertTrue(primary.isEdgeGridTrimmed());
+   }
+
+   @Test
+   void aClassicParetoPercentAxisKeepsTheGridCopy() {
+      EGraph g = paretoGraph(null, false);
+      AxisSpec primary = ((RectCoord) g.getCoordinate()).getYScale().getAxisSpec();
+      AxisSpec percent = ((RectCoord) g.getCoordinate()).getYScale2().getAxisSpec();
+      assertEquals(primary.getGridStyle(), percent.getGridStyle());
+      assertEquals(primary.getGridColor(), percent.getGridColor());
+      assertFalse(primary.isEdgeGridTrimmed());
+   }
+
+   @Test
    void aModernParetoLineTakesSlotTwo() {
       EGraph g = paretoGraph(VizMark.MODERN_LIGHT, false);
       assertEquals(new Color(0xFF5A35),

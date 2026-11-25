@@ -112,8 +112,10 @@ class WizardSeededLinearFrameTest {
    void theFactoryRunsTheRecommenderWithTheHandlersContext() {
       VizContext expected = VizContext.of(VizMark.MODERN_LIGHT);
       VSWizardData wizardData = new VSWizardData(new AssetEntry[0], new VSTemporaryInfo());
+      // built before when(): the constructor calls mocked beans, which a pending stubbing rejects
+      VSChartInfo tempChart = new VSChartInfo();
       VSWizardBindingHandler handler = mock(VSWizardBindingHandler.class);
-      when(handler.getTempChart(wizardData)).thenReturn(new VSChartInfo());
+      when(handler.getTempChart(wizardData)).thenReturn(tempChart);
       when(handler.getTempChartContext(wizardData)).thenReturn(expected);
 
       // both collaborators serve isAutoOrder alone; a null runtime viewsheet takes its documented

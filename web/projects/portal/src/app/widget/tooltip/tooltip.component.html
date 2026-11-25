@@ -31,6 +31,8 @@
     }
     <div [ngClass]="tooltipCSS" [class.widget__card-tooltip--tailed]="!!chrome"
          [class.widget__tooltip--dark]="dark"
+         [class.widget__tooltip--modern]="modern === true"
+         [class.widget__tooltip--classic]="modern === false"
          [innerHTML]="content"></div>
   </div>
 }

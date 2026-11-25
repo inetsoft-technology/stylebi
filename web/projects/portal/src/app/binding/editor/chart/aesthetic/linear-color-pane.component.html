@@ -44,7 +44,70 @@
           [isDisabled]="frame.clazz !== gmodel.clazz">
         </gradient-color-editor>
       </div>
+      <div class="col-4 color-label">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="smooth-blend"
+            title="_#(Blend the colors so the lightness changes evenly along the ramp)"
+            [disabled]="frame.clazz !== gmodel.clazz"
+            [ngModel]="gmodel.smooth" (ngModelChange)="setSmooth($event)"/>
+          <label class="form-check-label" for="smooth-blend"
+            title="_#(Blend the colors so the lightness changes evenly along the ramp)">
+            _#(Smooth blend)
+          </label>
+        </div>
+      </div>
     </div>
+    @if (flatRows) {
+    <div class="row shell-form-row--field">
+      <div class="col-2 color-label">
+        <div class="form-check">
+          <input type="radio" class="form-check-input" name="lgroup"
+            value="{{TealColorModel.clazz}}" id="teal"
+            (click)="switchColorModel(TealColorModel.clazz)" [ngModel]="frame.clazz"/>
+          <label class="form-check-label" for="teal">
+            _#(Teal)
+          </label>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="color-strip" (click)="switchColorModel(TealColorModel.clazz)">
+          <img src="assets/Teal.png"/>
+        </div>
+      </div>
+      <div class="col-2 color-label">
+        <div class="form-check">
+          <input type="radio" class="form-check-input" name="lgroup"
+            value="{{AmberColorModel.clazz}}" id="amber"
+            (click)="switchColorModel(AmberColorModel.clazz)" [ngModel]="frame.clazz"/>
+          <label class="form-check-label" for="amber">
+            _#(Amber)
+          </label>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="color-strip" (click)="switchColorModel(AmberColorModel.clazz)">
+          <img src="assets/Amber.png"/>
+        </div>
+      </div>
+    </div>
+    <div class="row shell-form-row--field">
+      <div class="col-2 color-label">
+        <div class="form-check">
+          <input type="radio" class="form-check-input" name="lgroup"
+            value="{{VarianceColorModel.clazz}}" id="variance"
+            (click)="switchColorModel(VarianceColorModel.clazz)" [ngModel]="frame.clazz"/>
+          <label class="form-check-label" for="variance">
+            _#(Variance)
+          </label>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="color-strip" (click)="switchColorModel(VarianceColorModel.clazz)">
+          <img src="assets/Variance.png"/>
+        </div>
+      </div>
+    </div>
+    } @else {
     <div class="row shell-form-row--field">
       <div class="col-2 color-label">
         <div class="form-check">
@@ -62,22 +125,24 @@
           (colorFrameChange)="switchColorModel($event)">
         </linear-color-dropdown>
       </div>
-      <div class="col-2 color-label">
-        <div class="form-check">
-          <input type="radio" class="form-check-input" name="lgroup"
-            value="{{multiHueModel.clazz}}" id="multihue"
-            (click)="switchColorModel(multiHueModel.clazz)" [ngModel]="frame.clazz"/>
-          <label class="form-check-label" for="multihue">
-            _#(Multi-Hue)
-          </label>
+      @if (multiHueVisible) {
+        <div class="col-2 color-label">
+          <div class="form-check">
+            <input type="radio" class="form-check-input" name="lgroup"
+              value="{{multiHueModel.clazz}}" id="multihue"
+              (click)="switchColorModel(multiHueModel.clazz)" [ngModel]="frame.clazz"/>
+            <label class="form-check-label" for="multihue">
+              _#(Multi-Hue)
+            </label>
+          </div>
         </div>
-      </div>
-      <div class="col-4">
-        <linear-color-dropdown [colorFrames]="visibleMultiHue"
-          [colorFrame]="getMultiHueModel()"
-          (colorFrameChange)="switchColorModel($event)">
-        </linear-color-dropdown>
-      </div>
+        <div class="col-4">
+          <linear-color-dropdown [colorFrames]="visibleMultiHue"
+            [colorFrame]="getMultiHueModel()"
+            (colorFrameChange)="switchColorModel($event)">
+          </linear-color-dropdown>
+        </div>
+      }
     </div>
     <div class="row shell-form-row--field">
       <div class="col-2 color-label">
@@ -114,5 +179,6 @@
         </div>
       }
     </div>
+    }
   </div>
 }

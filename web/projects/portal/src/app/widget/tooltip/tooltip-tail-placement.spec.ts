@@ -270,6 +270,22 @@ describe("tailRadius (shell state)", () => {
       expect(tailRadius()).toBe(6);
    });
 
+   it("takes the modern radius from a modern chart in a gate-off org", () => {
+      expect(tailRadius(true)).toBe(6);
+      expect(buildChromePaths(200, 100, "bottom", 50, true).radius).toBe(6);
+   });
+
+   it("takes the classic radius from a classic chart in a gate-on org", () => {
+      document.body.classList.add("viz-shell");
+      expect(tailRadius(false)).toBe(8);
+      expect(buildChromePaths(200, 100, "bottom", 50, false).radius).toBe(8);
+   });
+
+   it("follows the shell when the caller has no chart", () => {
+      document.body.classList.add("viz-shell");
+      expect(tailRadius(null)).toBe(6);
+   });
+
    it("shrinks buildChromePaths' corner radius under the gate, tail geometry unchanged", () => {
       document.body.classList.add("viz-shell");
       const c = buildChromePaths(200, 100, "bottom", 50);

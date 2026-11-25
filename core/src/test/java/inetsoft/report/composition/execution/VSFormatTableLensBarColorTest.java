@@ -104,8 +104,31 @@ class VSFormatTableLensBarColorTest {
    void aClassicSignedBarKeepsItsOwnNegativeColour() throws Exception {
       Presenter presenter = lens(BAR2, null).getPresenter(1, 1);
 
-      assertEquals(Bar2Presenter.DEFAULT_NEGATIVE_COLOR,
-                   ((Bar2Presenter) presenter).getNegativeColor());
+      // none is set, so the bar is drawn in the default
+      assertNull(((Bar2Presenter) presenter).getNegativeColor());
+      assertEquals(Bar2Presenter.DEFAULT_NEGATIVE_COLOR.getRGB(), negativePixel(presenter));
+   }
+
+   @Test
+   void aSavedClassicDefaultIsStillReplacedOnAModernTable() throws Exception {
+      // dashboards saved through the dialog before the default was left empty carry the maroon
+      PresenterRef ref = new PresenterRef(BAR2);
+      ref.setParameter("negativeColor", Bar2Presenter.DEFAULT_NEGATIVE_COLOR);
+      Presenter presenter = lens(ref, VizMark.MODERN_LIGHT).getPresenter(1, 1);
+
+      assertEquals(
+         VSObjectChromeDefaults.dataBarNegativeColor(VizContext.of(VizMark.MODERN_LIGHT)),
+         ((Bar2Presenter) presenter).getNegativeColor());
+   }
+
+   // the color of a negative bar's pixel in a 100 by 20 cell
+   private static int negativePixel(Presenter presenter) {
+      java.awt.image.BufferedImage image =
+         new java.awt.image.BufferedImage(100, 20, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+      java.awt.Graphics2D g = image.createGraphics();
+      presenter.paint(g, -50.0, 0, 0, 100, 20);
+      g.dispose();
+      return image.getRGB(40, 10);
    }
 
    @Test

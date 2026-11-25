@@ -169,10 +169,10 @@ class BarPresenterAutoMaximumTest {
    }
 
    @Test
-   void propertyDialogListsExactlyOneNewProperty() throws Exception {
-      assertEquals(Set.of("autoMaximum", "color", "maximum"),
+   void propertyDialogListsTheAutoMaximumProperties() throws Exception {
+      assertEquals(Set.of("autoMaximum", "ignoreOutliers", "color", "maximum"),
                    propertyNames(BarPresenter.class));
-      assertEquals(Set.of("autoMaximum", "color", "maximum", "negativeColor"),
+      assertEquals(Set.of("autoMaximum", "ignoreOutliers", "color", "maximum", "negativeColor"),
                    propertyNames(Bar2Presenter.class));
    }
 

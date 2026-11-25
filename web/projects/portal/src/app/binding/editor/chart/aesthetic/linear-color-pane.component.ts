@@ -195,6 +195,26 @@ export class LinearColorPane implements OnInit {
          || this.frame?.clazz?.endsWith(".HeatColorModel");
    }
 
+   /**
+    * Whether the pane lists the house ramps as flat rows instead of family dropdowns. That is the
+    * modern layout: with the legacy families hidden, each family would hold one or two ramps, so a
+    * dropdown only hides them. A chart already on a hidden ramp keeps the family layout, which
+    * holds that ramp selected and offers a way back to it.
+    */
+   get flatRows(): boolean {
+      const clazz = this.frame?.clazz;
+      return this.hiddenFrames.length > 0 &&
+         !this.hiddenFrames.some(h => clazz?.endsWith("." + h));
+   }
+
+   /**
+    * Whether the Multi-Hue column is rendered. Empty once the family is hidden, unless the chart
+    * is already on a ramp in it.
+    */
+   get multiHueVisible(): boolean {
+      return this.visibleMultiHue.length > 0;
+   }
+
    // set single/multi/diverging from frame
    setBrewerColor() {
       if(this.singleHueModels.find(m => this.frame.clazz.endsWith("." + m))) {
@@ -259,9 +279,17 @@ export class LinearColorPane implements OnInit {
             cssToColor = (<V.GradientColorModel> this.originalFrame).cssToColor;
          }
 
+         // a chart that already holds a Custom ramp keeps its blend; a chart choosing Custom for the
+         // first time gets the smooth blend under a modern mark and the classic one otherwise
+         let smooth = this.frame && this.frame.clazz == this.gradientModel.clazz ?
+            (<V.GradientColorModel> this.frame).smooth :
+            this.originalFrame && this.originalFrame.clazz == this.gradientModel.clazz ?
+               (<V.GradientColorModel> this.originalFrame).smooth : this.flatRows;
+
          this.frame = <V.GradientColorModel> Tool.clone(this.gradientModel);
          (<V.GradientColorModel> this.frame).cssFromColor = cssFromColor;
          (<V.GradientColorModel> this.frame).cssToColor = cssToColor;
+         (<V.GradientColorModel> this.frame).smooth = !!smooth;
       }
       else if(val == this.heatModel.clazz) {
          this.frame = new V.HeatColorModel();
@@ -278,6 +306,18 @@ export class LinearColorPane implements OnInit {
       this.setBrewerColor();
       this.recomputeVisible();
       this.onChangeColorFrame.emit(this.frame);
+   }
+
+   /**
+    * Choose the blend of the Custom ramp: smooth (OKLab) or classic (sRGB).
+    */
+   setSmooth(smooth: boolean) {
+      this.gradientModel.smooth = smooth;
+
+      if(this.isSelectedFrame(this.gradientModel)) {
+         (<V.GradientColorModel> this.frame).smooth = smooth;
+         this.onChangeColorFrame.emit(this.frame);
+      }
    }
 
    /**

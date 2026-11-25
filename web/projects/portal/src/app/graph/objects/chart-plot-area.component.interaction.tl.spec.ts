@@ -60,10 +60,17 @@ import { ChartTool } from "../model/chart-tool";
 import { SelectionBoxEvent } from "../../widget/directive/selection-box.directive";
 import { Rectangle } from "../../common/data/rectangle";
 import {
-   createComponent, makePlot, makeRealisticRegions, makeTile,
+   createComponent, makeModel, makePlot, makeRealisticRegions, makeTile,
 } from "./chart-plot-area.component.test-helpers";
 
 afterEach(() => vi.restoreAllMocks());
+
+describe("ChartPlotArea — inlineSvg", () => {
+   it("renders inline SVG only for a chart whose own model asks for it", () => {
+      expect(createComponent({ model: makeModel({ inlineSvg: true }) }).comp.inlineSvg).toBe(true);
+      expect(createComponent({ model: makeModel({ inlineSvg: false }) }).comp.inlineSvg).toBe(false);
+   });
+});
 
 function setupCanvasWithContext(comp: any) {
    const canvas = document.createElement("canvas");

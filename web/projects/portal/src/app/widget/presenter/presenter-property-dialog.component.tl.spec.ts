@@ -106,6 +106,28 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 // ---------------------------------------------------------------------------
+// The note about values the presenter cannot draw
+// ---------------------------------------------------------------------------
+
+describe("PresenterPropertyDialog — description", () => {
+   it("should show the description at the top of the dialog", async () => {
+      const { fixture } = await renderComponent({
+         description: "Draws numbers. Other values show as plain text.",
+      });
+
+      const note = fixture.nativeElement.querySelector(".presenter-description");
+      expect(note).not.toBeNull();
+      expect(note.textContent).toContain("Other values show as plain text.");
+   });
+
+   it("should show nothing when the presenter has no description", async () => {
+      const { fixture } = await renderComponent({ description: undefined });
+
+      expect(fixture.nativeElement.querySelector(".presenter-description")).toBeNull();
+   });
+});
+
+// ---------------------------------------------------------------------------
 // Group 1: isColorEnable [Risk 3]
 // ---------------------------------------------------------------------------
 

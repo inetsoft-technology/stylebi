@@ -53,6 +53,7 @@
   --ln-shadow-low: var(--inet-shadow-low, 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04));
   --ln-shadow-medium: var(--inet-shadow-medium, 0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 6px rgba(0, 0, 0, 0.05));
   --ln-focus: var(--inet-focus-ring-color, rgba(217, 122, 26, 0.28));
+  --ln-focus-width: 2px;
   --ln-nav-h: 56px;
 }
 
@@ -66,6 +67,8 @@
   --ln-text-muted: var(--inet-text-muted-color, #5F5E56);
   --ln-hover: var(--inet-ui-neutral-hover-bg-color, #E9E5DD);
   --ln-focus: var(--inet-focus-ring-color, #B4610F);
+  /* thin, with the solid ring; a themed page keeps its faint 2px one */
+  --ln-focus-width: var(--inet-focus-ring-width, 1px);
 }
 
 /* Label colour on the primary fill (Bug #81490): dark by default, or, where relative color syntax is
@@ -235,7 +238,7 @@ body {
 
 .login-left .form-control:focus {
   border-color: var(--ln-primary);
-  box-shadow: 0 0 0 2px var(--ln-focus);
+  box-shadow: 0 0 0 var(--ln-focus-width) var(--ln-focus);
   outline: none;
 }
 
@@ -442,7 +445,7 @@ body {
 .btn-default:focus-visible,
 .restricted-action-btn:not(.restricted-action-btn--primary):focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ln-focus);
+  box-shadow: 0 0 0 var(--ln-focus-width) var(--ln-focus);
 }
 
 .social-login-div {

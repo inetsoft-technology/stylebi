@@ -215,9 +215,9 @@ a:hover {
   outline: none;
 }
 
-/* keyboard focus always draws the 2px ring, in both shells, hovered or not */
+/* keyboard focus always draws the thin ring, in both shells, hovered or not */
 .module-link:focus-visible .module-tile {
-  box-shadow: 0 0 0 2px var(--inet-focus-ring-color), var(--inet-shadow-medium);
+  box-shadow: 0 0 0 var(--inet-focus-ring-width, 1px) var(--inet-focus-ring-color), var(--inet-shadow-medium);
 }
 
 .tile-header {

@@ -100,6 +100,23 @@ public class GradientColorFrameWrapper extends RGBCubeColorFrameWrapper {
    }
 
    /**
+    * Check whether the colors are blended in the perceptual OKLab space.
+    */
+   public boolean isSmooth() {
+      GradientColorFrame frame = (GradientColorFrame) getVisualFrame();
+      return frame.isSmooth();
+   }
+
+   /**
+    * Set whether the colors are blended in the perceptual OKLab space instead of sRGB.
+    */
+   public void setSmooth(boolean smooth) {
+      GradientColorFrame frame = (GradientColorFrame) getVisualFrame();
+      setChanged(isChanged() || frame.isSmooth() != smooth);
+      frame.setSmooth(smooth);
+   }
+
+   /**
     * Write attributes.
     * @param writer the specified writer.
     */
@@ -129,6 +146,10 @@ public class GradientColorFrameWrapper extends RGBCubeColorFrameWrapper {
       if(frame.getUserToColor() != null) {
          writer.print(" userToColor=\"" + frame.getUserToColor().getRGB()  +
             "\"");
+      }
+
+      if(frame.isSmooth()) {
+         writer.print(" smooth=\"true\"");
       }
    }
 
@@ -185,5 +206,8 @@ public class GradientColorFrameWrapper extends RGBCubeColorFrameWrapper {
       }
 
       frame.setUserToColor(color);
+
+      // absent on every chart saved before the option existed, which keeps the sRGB blend
+      frame.setSmooth("true".equals(Tool.getAttribute(tag, "smooth")));
    }
 }

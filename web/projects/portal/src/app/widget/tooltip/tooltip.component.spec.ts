@@ -77,6 +77,38 @@ describe("TooltipComponent chrome", () => {
       expect(box.classList.contains("widget__card-tooltip--tailed")).toBe(true);
    });
 
+   it("marks the box modern or classic only when the caller says which", () => {
+      const box = () => render(null).querySelector(".widget__card-tooltip");
+      const classes = () => [
+         box().classList.contains("widget__tooltip--modern"),
+         box().classList.contains("widget__tooltip--classic")
+      ];
+
+      comp.modern = true;
+      expect(classes()).toEqual([true, false]);
+      comp.modern = false;
+      expect(classes()).toEqual([false, true]);
+      comp.modern = null;
+      expect(classes()).toEqual([false, false]);
+   });
+
+   it("rounds the tailed outline with the radius of the chart's own look", () => {
+      const d = () => render("bottom").querySelector(".tooltip-chrome__outline").getAttribute("d");
+
+      comp.modern = true;
+      expect(d()).toContain("Q12,12 18,12");
+
+      document.body.classList.add("viz-shell");
+
+      try {
+         comp.modern = false;
+         expect(d()).toContain("Q12,12 20,12");
+      }
+      finally {
+         document.body.classList.remove("viz-shell");
+      }
+   });
+
    it("moves the tail to the matching edge for each side", () => {
       const d = (side: TailSide) =>
          render(side).querySelector(".tooltip-chrome__outline").getAttribute("d");

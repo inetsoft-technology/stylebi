@@ -32,6 +32,9 @@ import inetsoft.report.painter.BarPresenter;
 import inetsoft.report.painter.BulletGraphPresenter;
 import inetsoft.report.painter.ButtonPresenter;
 import inetsoft.report.painter.ImagePresenter;
+import inetsoft.report.painter.ModernAutoDefault;
+import inetsoft.util.Catalog;
+import inetsoft.web.composer.vs.PresenterValueHint;
 import inetsoft.report.painter.ShadowPresenter;
 import inetsoft.report.painter.TrafficLightPresenter;
 import inetsoft.report.painter.PresenterPainter;
@@ -160,6 +163,12 @@ public class PresenterPropertyDialogService {
          return null;
       }
 
+      // a modern table scales a bar or bullet graph to the data unless the author set it either way,
+      // so the dialog shows it ticked and pressing OK keeps what is drawn
+      if(isModernTableCell(assembly)) {
+         ModernAutoDefault.apply(pr);
+      }
+
       PropertyDescriptor[] descs = ref.getPropertyDescriptors();
       List<PresenterDescriptorModel> descriptors = new ArrayList<>();
 
@@ -174,9 +183,12 @@ public class PresenterPropertyDialogService {
          }
       }
 
+      String hint = PresenterValueHint.of(pr);
+
       return PresenterPropertyDialogModel.builder()
          .descriptors(descriptors)
          .presenter(presenter)
+         .description(hint == null ? null : Catalog.getCatalog().getString(hint))
          .build();
    }
 

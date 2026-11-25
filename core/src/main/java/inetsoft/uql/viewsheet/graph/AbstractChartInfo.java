@@ -3813,18 +3813,30 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    public TooltipStyle getTooltipStyle() {
       TooltipStyle style =
          parseTooltipStyle(tooltipStyle.getStringValue(false, tooltipStyle.getDValue()));
-      // AUTO is never a rendered style: resolve it to the org modern-visualization
-      // default so every runtime consumer (PlotArea tooltip content, GraphBuilder model)
-      // agrees. The design value (getTooltipStyleValue) stays AUTO for persistence.
-      // reads the gate directly: no assembly or context reaches this getter
+      // AUTO is never a rendered style: resolve it here so every runtime consumer (PlotArea
+      // tooltip content, GraphBuilder model) agrees. The design value
+      // (getTooltipStyleValue) stays AUTO for persistence.
       return style == TooltipStyle.AUTO
-         ? (VSDensityDefaults.isModern() ? TooltipStyle.CARD : TooltipStyle.DEFAULT)
+         ? (isOwnerModern() ? TooltipStyle.CARD : TooltipStyle.DEFAULT)
          : style;
    }
 
    @Override
    public void setTooltipStyle(TooltipStyle style) {
       tooltipStyle.setRValue(style == null ? TooltipStyle.DEFAULT.name() : style.name());
+   }
+
+   /**
+    * Set whether the assembly that owns this info is modern-marked, or null when no assembly owns
+    * it. ChartVSAssemblyInfo stamps it so the AUTO tooltip style follows the chart's own mark.
+    */
+   public void setOwnerModern(Boolean modern) {
+      this.ownerModern = modern;
+   }
+
+   // the org gate only for an info no assembly owns, e.g. a report chart
+   private boolean isOwnerModern() {
+      return ownerModern != null ? ownerModern : VSDensityDefaults.isModern();
    }
 
    @Override
@@ -4153,6 +4165,7 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    private boolean aggregated; // boolean aggregated
    private boolean donut = false; // if donut chart (with a middle total label)
    private transient ChartDescriptor chartDescriptor;
+   private transient Boolean ownerModern;
    private String customTooltip;
    private boolean tooltipVisible = true;
    private DynamicValue2 tooltipStyle = new DynamicValue2("AUTO", XSchema.STRING);

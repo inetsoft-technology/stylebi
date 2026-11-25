@@ -24,6 +24,7 @@ import inetsoft.report.painter.*;
 import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -103,14 +104,67 @@ class VSFormatTableLensAutoMaximumTest {
    void barAutoMaximumOnNegativeOnlyColumnFallsBackToConfiguredMaximum() {
       VSFormatTableLens lens = formatLens(BarPresenter.class, LOSS, true);
 
-      // no positive value: Bar keeps the configured maximum and draws nothing for negatives
-      for(int r = 1; r <= 6; r++) {
-         assertEquals(0, width(lens, r, LOSS), "row " + r);
+      // no positive value: Bar keeps the configured maximum and draws no bar for negatives. The
+      // cell shows the value's text at its right edge instead, so only the bar's half is checked
+      // for a negative value, and the zero draws nothing at all.
+      assertEquals(0, width(lens, 1, LOSS), "row 1, the zero");
+
+      for(int r = 2; r <= 6; r++) {
+         boolean[] filled = paintLine((Painter) lens.getObject(r, LOSS));
+
+         for(int x = 0; x < 50; x++) {
+            assertFalse(filled[x], "row " + r + ", x " + x);
+         }
+
+         assertTrue(width(lens, r, LOSS) > 0, "row " + r + " shows the value's text");
       }
+   }
+
+   @Test
+   void aModernTableScalesAnUnsetBarToTheColumn() {
+      VSFormatTableLens lens = formatLens(BarPresenter.class, SALES, null, VizMark.MODERN_LIGHT);
+
+      assertEquals(20, width(lens, 2, SALES)); // 1000 of 5000, not 1000 of the default 100
+      assertEquals(100, width(lens, 6, SALES));
+   }
+
+   @Test
+   void aModernTableKeepsABarTheAuthorTurnedOff() {
+      VSFormatTableLens lens = formatLens(BarPresenter.class, SALES, false, VizMark.MODERN_LIGHT);
+
+      assertEquals(100, width(lens, 2, SALES)); // the configured maximum of 100
+      assertEquals(100, width(lens, 3, SALES));
+   }
+
+   @Test
+   void aModernTableScalesAnUnsetBar2AndBulletGraph() {
+      VSFormatTableLens bar2 = formatLens(Bar2Presenter.class, LOSS, null, VizMark.MODERN_LIGHT);
+      assertArrayEquals(new int[] { 25, 0 }, widths2(bar2, 3, LOSS)); // -1000 of 2000
+
+      VSFormatTableLens bullet =
+         formatLens(BulletGraphPresenter.class, SALES, null, VizMark.MODERN_LIGHT);
+      PresenterPainter painter = (PresenterPainter) bullet.getObject(3, SALES);
+      assertTrue(((BulletGraphPresenter) painter.getPresenter()).isAutoScale());
+   }
+
+   @Test
+   void aClassicTableKeepsTheConfiguredMaximumWhenNothingIsSet() {
+      VSFormatTableLens lens = formatLens(BarPresenter.class, SALES, null, null);
+
+      assertEquals(100, width(lens, 2, SALES));
+      PresenterPainter painter = (PresenterPainter) lens.getObject(2, SALES);
+      assertFalse(((BarPresenter) painter.getPresenter()).isAutoMaximum());
    }
 
    private static VSFormatTableLens formatLens(Class<? extends Presenter> cls, int col,
                                                boolean auto)
+   {
+      return formatLens(cls, col, auto ? Boolean.TRUE : null, null);
+   }
+
+   // auto is null when the author never set Auto Maximum or Auto Scale
+   private static VSFormatTableLens formatLens(Class<? extends Presenter> cls, int col,
+                                               Boolean auto, VizMark mark)
    {
       DefaultTableLens data = new DefaultTableLens(new Object[][] {
          { "Name", "Sales", "Loss" },
@@ -124,11 +178,13 @@ class VSFormatTableLensAutoMaximumTest {
 
       Viewsheet vs = new Viewsheet();
       TableVSAssembly assembly = new TableVSAssembly(vs, "T1");
+      assembly.getVSAssemblyInfo().setVizMark(mark);
 
       PresenterRef ref = new PresenterRef(cls.getName());
 
-      if(auto) {
-         ref.setParameter("autoMaximum", true);
+      if(auto != null) {
+         ref.setParameter(BulletGraphPresenter.class.equals(cls) ? "autoScale" : "autoMaximum",
+                          auto);
       }
 
       VSCompositeFormat vfmt = new VSCompositeFormat();

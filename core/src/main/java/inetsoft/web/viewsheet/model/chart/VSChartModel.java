@@ -253,6 +253,16 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
    }
 
    @Override
+   public boolean isInlineSvg() {
+      return inlineSvg;
+   }
+
+   @Override
+   public void setInlineSvg(boolean inlineSvg) {
+      this.inlineSvg = inlineSvg;
+   }
+
+   @Override
    public RectangularShape getLegendsBounds() {
       return this.legendsBounds;
    }
@@ -612,6 +622,7 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
    private boolean showValues = false;
    private String tooltipStyle;
    private boolean snapTooltip = false;
+   private boolean inlineSvg = false;
    private boolean brushed = false;
    private boolean zoomed = false;
    private boolean hasFlyovers = false;

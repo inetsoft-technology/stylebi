@@ -255,3 +255,57 @@ describe("BaseTable cell height follow", () => {
       expect(event.followsDensity).toBeUndefined();
    });
 });
+
+// The sort icon keeps its own room in the header, so it never covers the header text. In a narrow
+// column it shows only on hover or when sorted, and the room is taken then.
+describe("BaseTable sort icon room", () => {
+   it("keeps the room in a wide column and gives it only on hover in a narrow one", () => {
+      const { comp } = createTableComponent();
+
+      expect(comp.getSortSpace(140, true, false)).toBe("always");
+      expect(comp.getSortSpace(99, true, false)).toBe("hover");
+      expect(comp.getSortSpace(100, true, false)).toBe("always");
+   });
+
+   it("keeps the room in a narrow column that is sorted, because its icon always shows", () => {
+      const { comp } = createTableComponent();
+
+      expect(comp.getSortSpace(60, true, true)).toBe("always");
+   });
+
+   it("takes no room when the column has no sort icon", () => {
+      const { comp } = createTableComponent();
+
+      expect(comp.getSortSpace(60, false, false)).toBe("none");
+      expect(comp.getSortSpace(300, false, true)).toBe("none");
+   });
+
+   it("calls a column narrow below 100px", () => {
+      const { comp } = createTableComponent();
+
+      expect(comp.isNarrowSort(99)).toBe(true);
+      expect(comp.isNarrowSort(100)).toBe(false);
+   });
+});
+
+// Ctrl-click, and Shift-click or Cmd-click, add the column to a multi-column sort.
+describe("VSTable header sort modifiers", () => {
+   const sortWith = (init: any) => {
+      const { comp, viewsheetClient } = createTableComponent();
+      comp.sortColumn({ stopPropagation: () => {}, ctrlKey: false, shiftKey: false, metaKey: false,
+                         ...init } as any,
+                      { row: 0, col: 1, field: "a" } as any);
+      return viewsheetClient.sendEvent.mock.calls.find(
+         (c: any[]) => c[0] === "/events/table/sort-column")[1];
+   };
+
+   it("sorts one column on a plain click", () => {
+      expect(sortWith({}).multi).toBe(false);
+   });
+
+   it("adds the column to the sort on Ctrl, Shift or Cmd click", () => {
+      expect(sortWith({ ctrlKey: true }).multi).toBe(true);
+      expect(sortWith({ shiftKey: true }).multi).toBe(true);
+      expect(sortWith({ metaKey: true }).multi).toBe(true);
+   });
+});

@@ -343,7 +343,11 @@ public class RectCoord extends Coordinate {
             yaxis2.setZIndex(-1);
          }
 
-         if(yaxis2.getZIndex() < 0 && yaxis2.getGridLineCount() == 0 && !ydrawn) {
+         // keep a hidden y2 so fit() also moves a primary grid drawn in its place
+         boolean y1grid = yaxis1.getGridLineCount() > 0 &&
+            yaxis1.getScale().getAxisSpec().isEdgeGridTrimmed();
+
+         if(yaxis2.getZIndex() < 0 && yaxis2.getGridLineCount() == 0 && !ydrawn && !y1grid) {
             yaxis2 = null;
          }
          else {
@@ -664,16 +668,25 @@ public class RectCoord extends Coordinate {
       }
 
       if(yaxis2 != null) {
-         int n = yaxis2.getGridLineCount();
+         DefaultAxis ygrid = yaxis2;
+
+         // the primary axis carries the grid when the secondary axis has none
+         if(yscale2 != null && yaxis1 != null && yaxis2.getGridLineCount() == 0 &&
+            yaxis1.getScale().getAxisSpec().isEdgeGridTrimmed())
+         {
+            ygrid = yaxis1;
+         }
+
+         int n = ygrid.getGridLineCount();
 
          if(Math.floor((ploty2 - ploty) / yfactor) <= AXIS_GRID_MIN_GAP) {
-            removeMinGridLine(yaxis2);
+            removeMinGridLine(ygrid);
          }
 
          if(Math.floor((ploty + ploth - ploty2 - ploth2) / yfactor)
             <= AXIS_GRID_MIN_GAP && n > 1)
          {
-            removeMaxGridLine(yaxis2);
+            removeMaxGridLine(ygrid);
          }
       }
 

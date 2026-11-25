@@ -20,14 +20,12 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.sree.SreeEnv;
 
 /**
- * Resolves whether chart plot areas render as inline SVG in the page DOM rather than as an
+ * Resolves whether a chart's plot area renders as inline SVG in the page DOM rather than as an
  * image. Inline SVG is what makes the chart interactions reachable — hover dimming, snap and
- * series dimming, and the card tooltip tail — so it follows the org modern-visualization gate.
+ * series dimming, and the card tooltip tail — so it follows the chart's own mark.
  *
  * graph.svg.inline is an explicit override in both directions: set it to opt one org (or the
- * whole install) out while keeping modern chrome, or to turn inline SVG on with modern off.
- * Unlike the chrome sub-gates, which only ever switch a modern feature off, this one has to
- * support inline SVG without modern, so it is not an isModern() && != "false" expression.
+ * whole install) out while keeping modern chrome, or to turn inline SVG on for classic charts.
  */
 public final class VSChartInteractionDefaults {
    private VSChartInteractionDefaults() {
@@ -35,16 +33,16 @@ public final class VSChartInteractionDefaults {
 
    /**
     * Whether the chart plot area is delivered as inline SVG. An explicit graph.svg.inline wins;
-    * unset follows the modern gate. Read org-scoped, so a per-org override resolves before the
+    * unset follows the chart's mark. Read org-scoped, so a per-org override resolves before the
     * global value.
     */
-   public static boolean isInlineSvg() {
+   public static boolean isInlineSvg(VizContext ctx) {
       String prop = SreeEnv.getProperty("graph.svg.inline", false, true);
 
       if(prop != null && !prop.isEmpty()) {
          return "true".equals(prop);
       }
 
-      return VSDensityDefaults.isModern();
+      return ctx.modern;
    }
 }
