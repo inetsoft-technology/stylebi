@@ -635,28 +635,19 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             hasFormula = hasFormula || formula[i] != null && !(formula[i] instanceof NoneFormula);
          }
 
+         // aggrh is never empty here: null/empty aggregates return above and
+         // aggrh.length == aggregates.length
          if(rowh.length == 0 && colh.length == 0) {
-            if(aggrh.length > 0) {
-               if(hasFormula) {
-                  String[] measurename = getMeasureHeader(formula, aggregates);
-                  SummaryFilter filter = new SummaryFilter(base, rowh, aggrh, formula, formula);
-                  filter.setMeasureNames(measurename);
-                  return filter;
-               }
-               else {
-                  // if aggregate only and summary is set to None,
-                  // the table is a plain table (for scatter chart)
-                  return new SubTableLens(base, null, aggrh);
-               }
-            }
-            else if(cinfo.getDesignRowHeaders().length > 0 ||
-                    cinfo.getDesignColHeaders().length > 0 ||
-                    cinfo.getDesignAggregates().length > 0)
-            {
-               return new DefaultTableLens(1, 0);
+            if(hasFormula) {
+               String[] measurename = getMeasureHeader(formula, aggregates);
+               SummaryFilter filter = new SummaryFilter(base, rowh, aggrh, formula, formula);
+               filter.setMeasureNames(measurename);
+               return filter;
             }
 
-            return new RotatedTableLens(base);
+            // if aggregate only and summary is set to None,
+            // the table is a plain table (for scatter chart)
+            return new SubTableLens(base, null, aggrh);
          }
 
          CrossTabFilter crosstab;
