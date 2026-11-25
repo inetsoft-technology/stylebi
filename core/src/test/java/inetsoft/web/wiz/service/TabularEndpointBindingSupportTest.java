@@ -217,6 +217,119 @@ class TabularEndpointBindingSupportTest {
       assertFalse(message.contains("\n"), message);
    }
 
+   // ─── declared choices (Bug #82261) ─────────────────────────────────────────
+
+   @Test
+   void applyEndpointContractRefusesValueOutsideDeclaredChoices() {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> applyWithChoiceParameter("Sort Order", "ascend|descend", false, "sideways"));
+      String message = ex.getMessage();
+
+      assertTrue(message.contains("Sort Order 'sideways'"), message);
+      assertTrue(message.contains("ascend|descend"), message);
+      assertFalse(message.contains("\n"), message);
+   }
+
+   @Test
+   void applyEndpointContractNormalizesCaseVariantToDeclaredChoice() throws Exception {
+      FakeLegacyEndpointQuery query =
+         applyWithChoiceParameter("Accounting Method", "Cash|Accrual", false, "cash");
+
+      assertEquals("Cash", query.getParameters().getParameters().get(0).getValue());
+   }
+
+   @Test
+   void applyEndpointContractRefusesNearMissOfDeclaredChoice() {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> applyWithChoiceParameter("Accounting Method", "Cash|Accrual", false, "Cash basis"));
+
+      assertTrue(ex.getMessage().contains("Accounting Method 'Cash basis'"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Cash|Accrual"), ex.getMessage());
+   }
+
+   @Test
+   void applyEndpointContractAcceptsExactDeclaredChoice() throws Exception {
+      FakeLegacyEndpointQuery query =
+         applyWithChoiceParameter("Agency ID", "1|2", true, "2");
+
+      assertEquals("2", query.getParameters().getParameters().get(0).getValue());
+   }
+
+   @Test
+   void applyEndpointContractChecksEachElementOfCommaSeparatedValue() throws Exception {
+      FakeLegacyEndpointQuery query =
+         applyWithChoiceParameter("Generations", "legacy|dynamic|legacy,dynamic", false,
+                                  "Dynamic, legacy");
+
+      assertEquals("dynamic,legacy", query.getParameters().getParameters().get(0).getValue());
+      assertThrows(IllegalArgumentException.class,
+         () -> applyWithChoiceParameter("Generations", "legacy|dynamic", false, "legacy,other"));
+   }
+
+   @Test
+   void applyEndpointContractLeavesOpenListsFormatsAndVariablesUnchecked() throws Exception {
+      assertEquals("fr", applyWithChoiceParameter("Language", "en|de|es|...", false, "fr")
+         .getParameters().getParameters().get(0).getValue());
+      assertEquals("2025-01-01", applyWithChoiceParameter(
+         "Start Date", "YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ", false, "2025-01-01")
+         .getParameters().getParameters().get(0).getValue());
+      assertEquals("$(method)", applyWithChoiceParameter(
+         "Accounting Method", "Cash|Accrual", false, "$(method)")
+         .getParameters().getParameters().get(0).getValue());
+   }
+
+   @Test
+   void declaredChoicesTrimsAndRejectsNonClosedPlaceholders() {
+      assertEquals(List.of("true", "false"), choicesOf("true | false"));
+      assertEquals(List.of(), choicesOf(null));
+      assertEquals(List.of(), choicesOf("YYYY-MM-DD"));
+      assertEquals(List.of(), choicesOf("open|…"));
+      assertEquals(List.of(), choicesOf("totals|utm-[campaigns|sources]"));
+      assertEquals(List.of(), choicesOf("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds"));
+   }
+
+   @Test
+   void contractInRefusalListsChoicesAndHints() {
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
+      query.getParameters().getParameters().add(choiceParameter("Agency ID", "1|2", true));
+      query.getParameters().getParameters().add(choiceParameter("Start Date", "YYYY-MM-DD", false));
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> TabularEndpointBindingSupport.applyEndpointContract(
+            query, pmap, "Repos", null, null, null, null, "myds"));
+
+      assertTrue(ex.getMessage().contains(
+         "Its parameters are: Agency ID (required) (choices: 1|2), Start Date (hint: YYYY-MM-DD)"),
+         ex.getMessage());
+   }
+
+   private static List<String> choicesOf(String placeholder) {
+      return TabularEndpointBindingSupport.declaredChoices(
+         choiceParameter("p", placeholder, false));
+   }
+
+   private static RestParameter choiceParameter(String name, String placeholder, boolean required) {
+      RestParameter parameter = new RestParameter();
+      parameter.setName(name);
+      parameter.setPlaceholder(placeholder);
+      parameter.setRequired(required);
+      return parameter;
+   }
+
+   private static FakeLegacyEndpointQuery applyWithChoiceParameter(String name, String placeholder,
+                                                                   boolean required, String value)
+      throws Exception
+   {
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
+      query.getParameters().getParameters().add(choiceParameter(name, placeholder, required));
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+
+      TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, "Repos", Map.of(name, value), null, null, null, "myds");
+      return query;
+   }
+
    private static void applyWithIdAndOptionalStep(Map<String, String> supplied)
       throws Exception
    {
