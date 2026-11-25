@@ -66,7 +66,7 @@ public class WizPhysicalViewController {
       this.source = new WizDataModelSource(repository);
       this.session = new WizPhysicalViewSession(
          manager, physicalModelService, runtimes, graphService, dataSourceService, repository,
-         securityEngine);
+         securityEngine, new PhysicalGraphModelService(runtimes, physicalModelService, manager));
       this.ops = ops;
    }
 
@@ -118,8 +118,7 @@ public class WizPhysicalViewController {
       stored(dataModel, database, parent, name, principal);
       View view = session.read(database, dataModel, parent, name);
       Map<String, Object> definition = WizPhysicalViewMapper.toWire(view);
-      return new GetResponse(true, definition, view.folder(), false,
-                             WizDataModelRevision.of(definition));
+      return new GetResponse(true, definition, view.folder(), false, revisionOf(view));
    }
 
    // -- auto join ------------------------------------------------------------------------------
@@ -222,7 +221,7 @@ public class WizPhysicalViewController {
          database, dataModel, parent, desired, Boolean.TRUE.equals(request.dryRun()), principal);
       Map<String, Object> written = wire(outcome);
       return new WriteResponse(true, name, outcome.folder(), written, outcome.warnings(), null,
-                               written == null ? null : WizDataModelRevision.of(written));
+                               outcome.view() == null ? null : revisionOf(outcome.view()));
    }
 
    // -- update ---------------------------------------------------------------------------------
@@ -273,7 +272,7 @@ public class WizPhysicalViewController {
       // view is no longer what that read returned (dry runs included)
       if(request.baseRevision() != null && !request.baseRevision().isEmpty()) {
          View current = session.read(database, dataModel, parent, name);
-         String revision = WizDataModelRevision.of(WizPhysicalViewMapper.toWire(current));
+         String revision = revisionOf(current);
 
          if(!revision.equals(request.baseRevision())) {
             throw new DmFailure(
@@ -305,7 +304,7 @@ public class WizPhysicalViewController {
       Map<String, Object> written = wire(outcome);
       return new WriteResponse(true, name, outcome.folder(), written, outcome.warnings(),
                                dependents,
-                               written == null ? null : WizDataModelRevision.of(written));
+                               outcome.view() == null ? null : revisionOf(outcome.view()));
    }
 
    // -- helpers --------------------------------------------------------------------------------
@@ -364,6 +363,14 @@ public class WizPhysicalViewController {
       return visible;
    }
 
+   /**
+    * The revision of a view: taken over the definition without its layout, so that moving a table
+    * does not make an edit that was planned from an earlier read stale.
+    */
+   private static String revisionOf(View view) {
+      return WizDataModelRevision.of(WizPhysicalViewMapper.toRevisionForm(view));
+   }
+
    private static Map<String, Object> wire(WizPhysicalViewSession.Outcome outcome) {
       return outcome.view() == null ? null : WizPhysicalViewMapper.toWire(outcome.view());
    }
@@ -388,7 +395,7 @@ public class WizPhysicalViewController {
          new View(view.name(), view.description(), folder, view.connection(), view.parent(),
                   view.tables(), view.joins()),
          desired.hasDescription(), desired.hasFolder(), desired.hasConnection(),
-         desired.hasTables(), desired.hasJoins());
+         desired.hasTables(), desired.hasJoins(), desired.autoLayout(), desired.viewport());
    }
 
    /**

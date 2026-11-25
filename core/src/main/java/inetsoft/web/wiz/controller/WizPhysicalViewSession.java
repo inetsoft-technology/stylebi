@@ -42,6 +42,7 @@ import inetsoft.web.wiz.controller.WizPhysicalViewWire.MetaColumn;
 import inetsoft.web.wiz.controller.WizPhysicalViewWire.NameColumn;
 import inetsoft.web.wiz.controller.WizPhysicalViewWire.Warning;
 
+import java.awt.Rectangle;
 import java.io.FileNotFoundException;
 import java.security.Principal;
 import java.util.*;
@@ -65,8 +66,9 @@ final class WizPhysicalViewSession {
    WizPhysicalViewSession(PhysicalModelManagerService manager, PhysicalModelService modelService,
                           RuntimePartitionService runtimes, PhysicalGraphService graphService,
                           DataSourceService dataSourceService, XRepository repository,
-                          SecurityEngine securityEngine)
+                          SecurityEngine securityEngine, PhysicalGraphModelService layouts)
    {
+      this.layouts = layouts;
       this.manager = manager;
       this.modelService = modelService;
       this.runtimes = runtimes;
@@ -138,7 +140,7 @@ final class WizPhysicalViewSession {
             RuntimePartitionService.RuntimeXPartition runtime =
                createRuntime(database, dataModel, null, want);
             id = runtime.getId();
-            Run run = new Run(database, dataModel, null, id, principal);
+            Run run = new Run(database, dataModel, null, want.name(), id, principal);
             run.apply(start, desired, plan);
             definition = run.posted(plan);
             view = WizPhysicalViewMapper.fromDto(definition, null, null);
@@ -217,7 +219,7 @@ final class WizPhysicalViewSession {
          RuntimePartitionService.RuntimeXPartition runtime =
             createRuntime(database, dataModel, parent, want);
          id = runtime.getId();
-         Run run = new Run(database, dataModel, parent, id, principal);
+         Run run = new Run(database, dataModel, parent, want.name(), id, principal);
          run.apply(start, desired, plan);
          List<Warning> warnings = run.warnings();
 
@@ -229,8 +231,10 @@ final class WizPhysicalViewSession {
          manager.createAndSaveModel(database, parent == null ?
                                        WizPhysicalViewMapper.blankToNull(want.folder()) : null,
                                     parent, posted, principal);
-         View stored = readBack(database, parent, want.name(), run.translate(want), desired);
-         return new Outcome(want.name(), stored.folder(), stored, warnings);
+         View asked = run.translate(want);
+         View stored = readBack(database, parent, want.name(), asked, desired);
+         return new Outcome(want.name(), stored.folder(), stored,
+                            withAdjustedPositions(warnings, asked, stored));
       }
       catch(Exception e) {
          throw scrub(e, id);
@@ -326,7 +330,7 @@ final class WizPhysicalViewSession {
          }
 
          id = runtime.getId();
-         Run run = new Run(database, dataModel, parent, id, principal);
+         Run run = new Run(database, dataModel, parent, name, id, principal);
          run.apply(stored, desired, plan);
          List<Warning> warnings = run.warnings();
 
@@ -348,7 +352,7 @@ final class WizPhysicalViewSession {
          manager.updateAndSaveModel(database, folder, parent, name, posted, principal);
          View want = run.translate(withStoredDefaults(desired.view(), stored));
          View back = readBack(database, parent, name, want, desired);
-         return new Outcome(name, back.folder(), back, warnings);
+         return new Outcome(name, back.folder(), back, withAdjustedPositions(warnings, want, back));
       }
       catch(Exception e) {
          throw scrub(e, id);
@@ -356,6 +360,37 @@ final class WizPhysicalViewSession {
       finally {
          destroy(id);
       }
+   }
+
+   /**
+    * The save lays the tables out the way the Portal's save does (it unfolds the column heights
+    * the editor shows folded), so a table placed over another may be stored somewhere else than
+    * asked. The stored position is the answer, and each table that is not where it was asked to be
+    * is named.
+    */
+   private static List<Warning> withAdjustedPositions(List<Warning> warnings, View asked,
+                                                      View stored)
+   {
+      Map<String, TableDef> storedTables = new HashMap<>();
+      stored.tables().forEach(t -> storedTables.put(t.name(), t));
+      List<Warning> result = new ArrayList<>(warnings);
+
+      for(TableDef table : asked.tables()) {
+         TableDef now = storedTables.get(table.name());
+
+         if(table.hasPosition() && now != null && !table.baseElement() &&
+            !(now.hasPosition() && now.x().equals(table.x()) && now.y().equals(table.y())))
+         {
+            result.add(new Warning(
+               "POSITION_ADJUSTED", "table \"" + table.name() + "\" was asked to be at x=" +
+               table.x() + ", y=" + table.y() + " and is stored at " +
+               (now.hasPosition() ? "x=" + now.x() + ", y=" + now.y() : "no position") +
+               ": the server moves a table that would sit over another, as the Portal's save does",
+               table.name(), ""));
+         }
+      }
+
+      return result;
    }
 
    private static View withStoredDefaults(View want, View stored) {
@@ -425,10 +460,13 @@ final class WizPhysicalViewSession {
 
    /** The state of one request's operations on one runtime. */
    private final class Run {
-      Run(String database, XDataModel dataModel, String parent, String id, Principal principal) {
+      Run(String database, XDataModel dataModel, String parent, String viewName, String id,
+          Principal principal)
+      {
          this.database = database;
          this.dataModel = dataModel;
          this.parent = parent;
+         this.viewName = viewName;
          this.id = id;
          this.principal = principal;
       }
@@ -501,6 +539,9 @@ final class WizPhysicalViewSession {
          // 7. auto aliases: each is derived from a join, so after the joins
          applyAutoAliases(plan);
          restoreKeptAutoAliases(start, plan);
+
+         // 8. positions, then an Auto Layout, last: both need the final tables and joins
+         applyPositions(plan);
       }
 
       /**
@@ -608,6 +649,55 @@ final class WizPhysicalViewSession {
             model.setAutoAliases(rows);
             model.setAutoAliasesEnabled(!rows.isEmpty());
             manager.updateAutoAliasing(id, model);
+         }
+      }
+
+      /**
+       * Sets the asked-for positions the way the Portal's move does (the width and height of the
+       * table stay), or runs the Portal's Auto Layout on the runtime. The viewport is only the
+       * diagram size that layout wraps to; it lives in the runtime and is dropped with it.
+       */
+      private void applyPositions(Plan plan) throws Exception {
+         for(TableDef table : plan.moveTables) {
+            String name = translateName(table.name());
+            Boolean moved = runtimes.update(id, rp -> {
+               XPartition partition = rp.getPartition();
+
+               if(partition.getPartitionTable(name) == null) {
+                  return Boolean.FALSE;
+               }
+
+               Rectangle old = partition.getBounds(name);
+               rp.setBounds(name, new Rectangle(table.x(), table.y(),
+                                                old == null ? -1 : old.width,
+                                                old == null ? -1 : old.height));
+               return Boolean.TRUE;
+            });
+
+            if(moved == null) {
+               throw expired();
+            }
+
+            if(!moved) {
+               throw invalid("tables[" + table.name() + "].x", "TABLE_INVALID",
+                             "no table \"" + table.name() + "\" in this view to position");
+            }
+         }
+
+         if(plan.autoLayout != null) {
+            if(plan.viewport != null) {
+               Boolean sized = runtimes.update(id, rp -> {
+                  rp.setGraphWidth(plan.viewport.width());
+                  rp.setGraphHeight(plan.viewport.height());
+                  return Boolean.TRUE;
+               });
+
+               if(sized == null) {
+                  throw expired();
+               }
+            }
+
+            layouts.layoutPhysicalModel(id, database, viewName, plan.autoLayout.colPriority());
          }
       }
 
@@ -1062,6 +1152,7 @@ final class WizPhysicalViewSession {
       private final String database;
       private final XDataModel dataModel;
       private final String parent;
+      private final String viewName;
       private final String id;
       private final Principal principal;
       private final Map<String, TableDef> current = new LinkedHashMap<>();
@@ -1096,6 +1187,7 @@ final class WizPhysicalViewSession {
    private final DataSourceService dataSourceService;
    private final XRepository repository;
    private final SecurityEngine securityEngine;
+   private final PhysicalGraphModelService layouts;
 
    private static final org.slf4j.Logger LOG =
       org.slf4j.LoggerFactory.getLogger(WizPhysicalViewSession.class);

@@ -69,6 +69,14 @@ final class WizPhysicalViewDiff {
       final List<JoinChange> changeJoins = new ArrayList<>();
       /** Applied last: an auto alias is derived from a join, so the joins come first. */
       final List<AutoAliasChange> autoAliasChanges = new ArrayList<>();
+      /**
+       * Tables (new ones included) whose position is to be set: the submitted table, whose x and y
+       * differ from the stored ones. Applied after the tables and joins are in place.
+       */
+      final List<TableDef> moveTables = new ArrayList<>();
+      /** An Auto Layout to run once everything else is in place, with the diagram size to use. */
+      AutoLayout autoLayout;
+      Viewport viewport;
       boolean descriptionChanged;
       boolean folderChanged;
       boolean connectionChanged;
@@ -77,7 +85,8 @@ final class WizPhysicalViewDiff {
          return removeJoins.isEmpty() && removeTables.isEmpty() && renames.isEmpty() &&
             updateViews.isEmpty() && addPlain.isEmpty() && addViews.isEmpty() &&
             addAliases.isEmpty() && addJoins.isEmpty() && changeJoins.isEmpty() &&
-            autoAliasChanges.isEmpty();
+            autoAliasChanges.isEmpty() &&
+            moveTables.isEmpty() && autoLayout == null;
       }
 
       boolean isEmpty() {
@@ -269,6 +278,19 @@ final class WizPhysicalViewDiff {
          }
 
          orderAliases(plan.addAliases, wantTables);
+         planMoves(storedTables, wantTables, plan);
+      }
+
+      if(desired.autoLayout() != null) {
+         if(!plan.moveTables.isEmpty()) {
+            throw WizPhysicalViewMapper.invalid(List.of(new Err(
+               "definition.autoLayout", "autoLayout arranges every table itself and cannot be " +
+               "combined with explicit table positions (" + plan.moveTables.get(0).name() +
+               " has x/y); send one or the other", "TABLE_INVALID")));
+         }
+
+         plan.autoLayout = desired.autoLayout();
+         plan.viewport = desired.viewport();
       }
 
       if(desired.hasJoins()) {
@@ -303,6 +325,41 @@ final class WizPhysicalViewDiff {
       }
 
       return plan;
+   }
+
+   /**
+    * The tables whose submitted position differs from the stored one. A table that is new, or
+    * re-created because its kind or source changed, has no stored position to equal. A position
+    * of an inherited table is refused: the base view's rectangle is what the extended view uses,
+    * so a write there would silently do nothing.
+    */
+   private static void planMoves(Map<String, TableDef> storedTables,
+                                 Map<String, TableDef> wantTables, Plan plan)
+   {
+      Set<String> removed = new HashSet<>();
+      plan.removeTables.forEach(t -> removed.add(t.name()));
+      Map<String, String> renamedFrom = plan.renamedFrom();
+
+      for(TableDef now : wantTables.values()) {
+         if(!now.hasPosition()) {
+            continue;
+         }
+
+         String was = renamedFrom.getOrDefault(now.name(), now.name());
+         TableDef old = removed.contains(was) ? null : storedTables.get(was);
+
+         if(old != null && old.hasPosition() && old.x().equals(now.x()) &&
+            old.y().equals(now.y()))
+         {
+            continue;
+         }
+
+         if(old != null && old.baseElement()) {
+            throw baseReadOnly("tables[" + now.name() + "].x");
+         }
+
+         plan.moveTables.add(now);
+      }
    }
 
    /**

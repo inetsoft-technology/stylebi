@@ -49,7 +49,8 @@ class WizPhysicalViewAutoJoinSessionTest {
    private final RuntimePartitionService runtimes = mock(RuntimePartitionService.class);
    private final WizPhysicalViewSession session = new WizPhysicalViewSession(
       manager, modelService, runtimes, new PhysicalGraphService(), mock(DataSourceService.class),
-      mock(XRepository.class), mock(SecurityEngine.class));
+      mock(XRepository.class), mock(SecurityEngine.class),
+      mock(PhysicalGraphModelService.class));
 
    @Test
    void aStoredViewIsReadWithoutOpeningARuntimeAndTheCandidatesBecomeJoins() throws Exception {
