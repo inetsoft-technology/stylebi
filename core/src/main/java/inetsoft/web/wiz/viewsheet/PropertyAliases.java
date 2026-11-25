@@ -938,6 +938,10 @@ public final class PropertyAliases {
       return String.join(".", segments);
    }
 
+   /** The only two paths under the Filters / Localization tabs that a write may name. */
+   public static final String FILTERS_SHARED_PATH = "filtersPane.sharedFilters";
+   public static final String LOCALIZED_PATH = "localizationPane.localized";
+
    /**
     * The viewsheet-level write refusals. Checked against both the input key (so
     * {@code vsScriptPane}, which is not in the vocabulary at all, still gets a specific,
@@ -957,16 +961,20 @@ public final class PropertyAliases {
             "instead. Reading it is fine — call get_viewsheet_properties with raw=true.";
       }
 
-      if(isOrUnder(pathOrKey, "filtersPane")) {
-         return "'filtersPane' is read-only through set_viewsheet_properties in this version. " +
-            "Its filter-id assignments are relational to the sheet's own selection assemblies, " +
-            "not a simple scalar write.";
+      if(isOrUnder(pathOrKey, "filtersPane") && !FILTERS_SHARED_PATH.equals(pathOrKey)) {
+         return "'filtersPane' is only settable through set_viewsheet_properties as one list (" +
+            "'" + pathOrKey + "' is not). The Filters tab is written as: set '" + FILTERS_SHARED_PATH + "' to the " +
+            "complete array of {column, filterId} assignments (column is the selection/input " +
+            "assembly's name; filterId defaults to that name). 'filtersPane.filters' is only " +
+            "the list of assemblies that are not shared, so writing it would un-share them.";
       }
 
-      if(isOrUnder(pathOrKey, "localizationPane")) {
-         return "'localizationPane' is read-only through set_viewsheet_properties in this " +
-            "version. Its entries are keyed to the sheet's own component tree, not a simple " +
-            "scalar write.";
+      if(isOrUnder(pathOrKey, "localizationPane") && !LOCALIZED_PATH.equals(pathOrKey)) {
+         return "'localizationPane' is only settable through set_viewsheet_properties as one " +
+            "list ('" + pathOrKey + "' is not). The Localization tab is written as: set '" + LOCALIZED_PATH + "' to the " +
+            "complete array of {name, textId} entries (name is a component key from " +
+            "get_viewsheet_properties raw=true, localizationPane.components, such as " +
+            "B5Chart^_^Title). 'localizationPane.components' is the read-only component tree.";
       }
 
       // Lowercased as a whole: PropertyPath accepts a capitalized first letter on any segment
@@ -2271,12 +2279,12 @@ public final class PropertyAliases {
                   "vsOptionsPane.viewsheetParametersDialogModel.disabledParameters");
       // filtersPane and localizationPane are deliberately NOT aliased.
       //
-      // They are read-only, and they are whole object graphs rather than properties: aliasing them
-      // made every list/get response carry the entire localization component tree -- ~350 lines on
-      // a small sheet, and it grows with assembly count. That is a curated vocabulary paying a
-      // large cost for something it cannot even write. Reading them is still possible, and is what
-      // `raw: true` is for; resolveForWrite still refuses them by name, since it matches on the
-      // path rather than on membership in this map.
+      // They are whole object graphs rather than properties: aliasing them made every list/get
+      // response carry the entire localization component tree -- ~350 lines on a small sheet, and
+      // it grows with assembly count. Reading them is what `raw: true` is for; their two writable
+      // lists (FILTERS_SHARED_PATH, LOCALIZED_PATH) are written by raw path through
+      // SheetPaneListWriter; resolveForWrite refuses every other path under the panes, since it
+      // matches on the path rather than on membership in this map.
       // width/height/preview are deliberately absent. They are not sheet state: getViewsheetInfo
       // never populates them, so they read back as the Immutables defaults 0/0/false, and
       // setViewsheetInfo reads them only to size a one-off refresh. Writing one reported success

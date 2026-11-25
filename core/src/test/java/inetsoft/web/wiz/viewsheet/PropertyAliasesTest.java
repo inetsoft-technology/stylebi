@@ -227,28 +227,45 @@ class PropertyAliasesTest {
    }
 
    /**
-    * {@code filtersPane} and {@code localizationPane} are deliberately absent from the vocabulary
-    * and still refused on write.
+    * {@code filtersPane} and {@code localizationPane} are deliberately absent from the vocabulary.
+    * Only their two lists are writable (bug #82317), by raw path, as complete lists; every other
+    * path under the panes is refused with a message naming those two keys.
     *
-    * <p>They are read-only -- their entries are relational to other assemblies (filter ids keyed to
-    * selection assemblies, localization keyed to the component tree), not a simple scalar
-    * {@code info.setX}. They were briefly aliased so they could be read by name, which made every
-    * list/get carry the whole localization component tree: ~350 lines on a small sheet, growing
-    * with assembly count. Reading them is what {@code raw: true} is for.
-    *
-    * <p>These two tests matter more now, not less: the refusal has to keep working for a key that
-    * is no longer in the map, which it does because {@code resolveForWrite} matches on the path.
+    * <p>They were briefly aliased so they could be read by name, which made every list/get carry
+    * the whole localization component tree: ~350 lines on a small sheet, growing with assembly
+    * count. Reading them is what {@code raw: true} is for. The refusal has to keep working for a
+    * key that is not in the map, which it does because {@code resolveForWrite} matches on the
+    * path.
     */
    @Test
    void refusesToWriteFiltersPane() {
       assertThrows(IllegalArgumentException.class,
                    () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "filtersPane"));
+      IllegalArgumentException filters = assertThrows(IllegalArgumentException.class,
+         () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "filtersPane.filters"));
+      assertTrue(filters.getMessage().contains("filtersPane.sharedFilters"), filters.getMessage());
    }
 
    @Test
    void refusesToWriteLocalizationPane() {
       assertThrows(IllegalArgumentException.class,
                    () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "localizationPane"));
+      IllegalArgumentException components = assertThrows(IllegalArgumentException.class,
+         () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET,
+                                               "localizationPane.components"));
+      assertTrue(components.getMessage().contains("localizationPane.localized"),
+                 components.getMessage());
+   }
+
+   /** Bug #82317: the two lists, and only those, resolve for write. */
+   @Test
+   void theTwoPaneListsResolveForWrite() {
+      assertEquals("filtersPane.sharedFilters", PropertyAliases.resolveForWrite(
+         PropertyAliases.SHEET, "filtersPane.sharedFilters"));
+      assertEquals("localizationPane.localized", PropertyAliases.resolveForWrite(
+         PropertyAliases.SHEET, "localizationPane.localized"));
+      assertThrows(IllegalArgumentException.class, () -> PropertyAliases.resolveForWrite(
+         PropertyAliases.SHEET, "filtersPane.sharedFilters[0].filterId"));
    }
 
    /** Device layouts, print layout and the device catalogue stay their own tools' business. */
@@ -1108,10 +1125,10 @@ class PropertyAliasesTest {
    @Test
    void indexedSpellingsOfRefusedSheetPanesGetTheirSpecificRefusal() {
       Map<String, String> expected = Map.of(
-         "filtersPane[0].x", "'filtersPane' is read-only",
+         "filtersPane[0].x", "filtersPane.sharedFilters",
          "screensPane0.x", "'screensPane' is not settable",
          "vsScriptPane[0]", "update_script",
-         "localizationPane[1]", "'localizationPane' is read-only",
+         "localizationPane[1]", "localizationPane.localized",
          "vsOptionsPane.selectDataSourceDialogModel[0].dataSource", "set_viewsheet_data_source");
 
       for(Map.Entry<String, String> entry : expected.entrySet()) {

@@ -137,10 +137,16 @@ public class SheetPropertyService {
          // model: without it, the wither's new instance would be discarded and the write would
          // vanish with no error and no compile failure.
          for(Map.Entry<String, String> entry : resolved.entrySet()) {
+            // The two list-of-bean paths cannot go through PropertyPath; applied below.
+            if(SheetPaneListWriter.handles(entry.getValue())) {
+               continue;
+            }
+
             model = (ViewsheetPropertyDialogModel)
                PropertyPath.set(model, entry.getValue(), patch.get(entry.getKey()));
          }
 
+         SheetPaneListWriter.apply(model, resolved, patch);
          requireScreenCouplings(model, resolved);
          baseEntry.reattach(model);
          reconcileParameterLists(model, resolved);
