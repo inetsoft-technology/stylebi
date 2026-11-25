@@ -94,6 +94,20 @@ class MVCreatorUtilColTypeTest {
    }
 
    /**
+    * The aggregate output of an aggregated MV keeps the integral type of its data instead of
+    * the double declared by the formula, as the live query returns it (bug #82319). Decimals
+    * and mixed values keep the declared type.
+    */
+   @Test
+   void aggregateOutputKeepsTheIntegralType() {
+      assertEquals(Integer.class, aggregateColType(XSchema.DOUBLE, 1, 2, 3));
+      assertEquals(Long.class, aggregateColType(XSchema.DOUBLE, 1L, 5000000000L));
+      assertEquals(Double.class, aggregateColType(XSchema.DOUBLE, 1, 2.5, 3));
+      assertEquals(Double.class,
+                   aggregateColType(XSchema.DOUBLE, new java.math.BigDecimal("12101")));
+   }
+
+   /**
     * Values that are not all numbers keep the declared type as before.
     */
    @Test
@@ -121,5 +135,20 @@ class MVCreatorUtilColTypeTest {
       ColumnRef ref = new ColumnRef(new AttributeRef(null, "num"));
       ref.setDataType(dataType);
       return MVCreatorUtil.getColType(new DefaultTableLens(data), new MVColumn(ref, false), 0);
+   }
+
+   // the type the MV gives an aggregate output column of an aggregated MV
+   private static Class<?> aggregateColType(String dataType, Object... values) {
+      Object[][] data = new Object[values.length + 1][];
+      data[0] = new Object[] { "num" };
+
+      for(int i = 0; i < values.length; i++) {
+         data[i + 1] = new Object[] { values[i] };
+      }
+
+      ColumnRef ref = new ColumnRef(new AttributeRef(null, "num"));
+      ref.setDataType(dataType);
+      return MVCreatorUtil.getColType(new DefaultTableLens(data), new MVColumn(ref, false), 0,
+                                      true);
    }
 }
