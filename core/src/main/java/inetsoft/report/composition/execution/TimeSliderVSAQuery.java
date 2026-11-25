@@ -32,6 +32,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.util.XSourceInfo;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.xmla.*;
@@ -168,7 +169,8 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
 
                         if(omin != null && omax != null) {
                            return createEmbeddedTable(
-                              ws, vname, omin, omax, XSchema.TIME_INSTANT, col.getXMetaInfo());
+                              ws, vname, omin, omax, XSchema.TIME_INSTANT, col.getXMetaInfo(),
+                              isYearDateRange(tassembly, column));
                         }
                      }
                   }
@@ -417,6 +419,19 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
                                                  Object min, Object max,
                                                  String type, XMetaInfo meta)
    {
+      return createEmbeddedTable(ws, vname, min, max, type, meta, false);
+   }
+
+   /**
+    * Create an embedded table assembly of min and max values.
+    * @param yearRange true if the bound column is a year level date range column, whose
+    *                  yyyy format the query without MV shows too.
+    */
+   private DataTableAssembly createEmbeddedTable(Worksheet ws, String vname,
+                                                 Object min, Object max,
+                                                 String type, XMetaInfo meta,
+                                                 boolean yearRange)
+   {
       Object[][] arr = {{"max", "min"}, {max, min}};
       String[] types = new String[] {type, type};
       XEmbeddedTable table = new XEmbeddedTable(types, arr);
@@ -425,9 +440,11 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       if(meta != null && meta.getXFormatInfo() != null) {
          // refreshSingleSelectionValue supplies a default date format depending on the
          // interval type. the default format from meta should not be used. (53446, 53446, 53530)
+         // a year level date range column has yyyy as its own format, which the query
+         // without MV shows as well, so keep it there. (82320)
          boolean defaultFmt = "yyyy".equals(meta.getXFormatInfo().getFormatSpec());
 
-         if(!defaultFmt || !(min instanceof Date && max instanceof Date)) {
+         if(!defaultFmt || yearRange || !(min instanceof Date && max instanceof Date)) {
             table.setXMetaInfo("max", meta);
             table.setXMetaInfo("min", meta);
          }
@@ -435,6 +452,70 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
 
       dtable.setData(table);
       return dtable;
+   }
+
+   /**
+    * Check if the column of the slider table resolves to a year level date range column.
+    * The slider table is a mirror (V_) of the selection table, so its columns are plain
+    * attributes; follow each one down the table chain to the column that defines it, and
+    * judge by the first date range found there.
+    */
+   static boolean isYearDateRange(TableAssembly table, ColumnRef column) {
+      for(int depth = 0; depth < 32 && column != null; depth++) {
+         DateRangeRef range = XUtil.findDateRage(column);
+
+         if(range != null) {
+            return range.getDateOption() == DateRangeRef.YEAR_INTERVAL;
+         }
+
+         if(!(column.getDataRef() instanceof AttributeRef) ||
+            !(table instanceof ComposedTableAssembly))
+         {
+            return false;
+         }
+
+         TableAssembly child;
+
+         if(table instanceof MirrorTableAssembly) {
+            child = ((MirrorTableAssembly) table).getTableAssembly();
+         }
+         else {
+            String entity = column.getEntity();
+            child = entity == null ? null :
+               ((ComposedTableAssembly) table).getTableAssembly(entity);
+         }
+
+         if(child == null) {
+            return false;
+         }
+
+         column = findInnerColumn(child.getColumnSelection(true), column.getAttribute());
+         table = child;
+      }
+
+      return false;
+   }
+
+   /**
+    * Find the column of an inner table that an outer table column refers to, the reverse
+    * of AssetUtil.getOuterAttribute (the outer attribute is the alias or the attribute).
+    */
+   private static ColumnRef findInnerColumn(ColumnSelection columns, String attr) {
+      if(attr == null) {
+         return null;
+      }
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         if(columns.getAttribute(i) instanceof ColumnRef inner) {
+            String name = inner.getAlias() != null ? inner.getAlias() : inner.getAttribute();
+
+            if(attr.equals(name)) {
+               return inner;
+            }
+         }
+      }
+
+      return null;
    }
 
    /**
