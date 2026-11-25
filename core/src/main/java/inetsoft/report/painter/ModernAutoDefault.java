@@ -36,12 +36,15 @@ public final class ModernAutoDefault {
    public static void apply(Presenter presenter) {
       if(presenter instanceof BarPresenter bar) {
          bar.useModernAutoMaximum();
+         bar.useModernIgnoreOutliers();
       }
       else if(presenter instanceof Bar2Presenter bar) {
          bar.useModernAutoMaximum();
+         bar.useModernIgnoreOutliers();
       }
       else if(presenter instanceof BulletGraphPresenter bullet) {
          bullet.useModernAutoScale();
+         bullet.useModernIgnoreOutliers();
       }
    }
 }

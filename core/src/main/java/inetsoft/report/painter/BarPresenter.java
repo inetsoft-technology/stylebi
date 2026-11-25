@@ -99,6 +99,34 @@ public class BarPresenter implements AutoMaximumPresenter {
    }
 
    /**
+    * Check if the data maximum leaves out outliers, so one huge value does not flatten the rest of
+    * the column.
+    */
+   @Override
+   public boolean isIgnoreOutliers() {
+      return ignoreOutliers;
+   }
+
+   /**
+    * Set whether the data maximum leaves out outliers. Only used while Auto Maximum is on.
+    */
+   public void setIgnoreOutliers(boolean ignoreOutliers) {
+      this.ignoreOutliers = ignoreOutliers;
+      this.outliersSet = true;
+   }
+
+   /**
+    * Leave outliers out of the data maximum in the modern style, unless the author set Ignore
+    * Outliers either way. This is not a bean property, so it does not show in the presenter dialog
+    * or get saved.
+    */
+   public void useModernIgnoreOutliers() {
+      if(!outliersSet) {
+         ignoreOutliers = true;
+      }
+   }
+
+   /**
     * Scale to the column's data in the modern style, unless the author chose the scale: set Auto
     * Maximum either way, or set a Maximum. This is not a bean property, so it does not show in the
     * presenter dialog or get saved.
@@ -152,6 +180,8 @@ public class BarPresenter implements AutoMaximumPresenter {
       copy.thickness = thickness;
       copy.autoMaximum = autoMaximum;
       copy.scaleSet = scaleSet;
+      copy.ignoreOutliers = ignoreOutliers;
+      copy.outliersSet = outliersSet;
       copy.maxResolver = maxResolver;
       copy.valueText = valueText;
       return copy;
@@ -214,8 +244,18 @@ public class BarPresenter implements AutoMaximumPresenter {
             barHeight = thickness;
          }
 
+         double drawMax = getDrawingMaximum();
+
+         // a value beyond the maximum that left outliers out is one: a full bar, broken near its end
+         if(ignoreOutliers && autoMaximum && maxResolver != null && n > drawMax) {
+            CappedBar.fill(g, x, barTop, w, barHeight, true);
+            g.setColor(oc);
+            g.setClip(clip);
+            return;
+         }
+
          // a value above zero always shows, even when it is far smaller than the maximum
-         int barWidth = (int) (n * w / getDrawingMaximum());
+         int barWidth = (int) (n * w / drawMax);
 
          if(n > 0 && barWidth < 1 && w > 0) {
             barWidth = 1;
@@ -371,7 +411,7 @@ public class BarPresenter implements AutoMaximumPresenter {
       }
 
       return max == bar2.max && fillCell == bar2.fillCell &&
-         autoMaximum == bar2.autoMaximum;
+         autoMaximum == bar2.autoMaximum && ignoreOutliers == bar2.ignoreOutliers;
    }
 
    /**
@@ -386,6 +426,7 @@ public class BarPresenter implements AutoMaximumPresenter {
       hash += Math.abs(Math.round(max));
       hash += fillCell ? 0 : 17;
       hash += autoMaximum ? 31 : 0;
+      hash += ignoreOutliers ? 37 : 0;
       return hash;
    }
 
@@ -424,6 +465,9 @@ public class BarPresenter implements AutoMaximumPresenter {
    // true once the author chose the scale, by setting Auto Maximum either way or a Maximum, so the
    // modern default leaves it alone
    private boolean scaleSet = false;
+   // leave outliers out of the data maximum, and whether the author set it either way
+   private boolean ignoreOutliers = false;
+   private boolean outliersSet = false;
    // resolves the data maximum at paint time, set by the table lens on a copy of the
    // presenter; not a bean property, so it is never shown in the dialog or saved
    private transient DoubleSupplier maxResolver;

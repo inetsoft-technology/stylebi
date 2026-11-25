@@ -232,6 +232,35 @@ public class BulletGraphPresenter implements Presenter {
    }
 
    /**
+    * Check if the auto scale leaves out outliers, so one huge value does not flatten the rest of
+    * the column.
+    */
+   public boolean isIgnoreOutliers() {
+      return ignoreOutliers;
+   }
+
+   /**
+    * Set whether the auto scale leaves out outliers. The scale then runs from the column's
+    * smallest to its largest value that is not an outlier, and the target is the median. Only used
+    * while Auto Scale is on.
+    */
+   public void setIgnoreOutliers(boolean ignoreOutliers) {
+      this.ignoreOutliers = ignoreOutliers;
+      this.outliersSet = true;
+   }
+
+   /**
+    * Leave outliers out of the auto scale in the modern style, unless the author set Ignore
+    * Outliers either way. This is not a bean property, so it does not show in the presenter dialog
+    * or get saved.
+    */
+   public void useModernIgnoreOutliers() {
+      if(!outliersSet) {
+         ignoreOutliers = true;
+      }
+   }
+
+   /**
     * Scale to the column's data in the modern style, unless the author chose the scale: set Auto
     * Scale either way, or set any of the minimum, maximum, ranges and target. This is not a bean
     * property, so it does not show in the presenter dialog or get saved.
@@ -276,6 +305,9 @@ public class BulletGraphPresenter implements Presenter {
       copy.fmt = fmt;
       copy.autoScale = autoScale;
       copy.scaleSet = scaleSet;
+      copy.ignoreOutliers = ignoreOutliers;
+      copy.outliersSet = outliersSet;
+      copy.outliersCut = outliersCut;
       copy.statsResolver = statsResolver;
       return copy;
    }
@@ -295,8 +327,11 @@ public class BulletGraphPresenter implements Presenter {
          return this;
       }
 
-      double lo = Math.min(0, stats.min());
-      double hi = Math.max(0, stats.max());
+      // outliers left out: the scale runs over the values that are not outliers
+      boolean cut = ignoreOutliers && !Double.isNaN(stats.cappedMin()) &&
+         !Double.isNaN(stats.cappedMax());
+      double lo = Math.min(0, cut ? stats.cappedMin() : stats.min());
+      double hi = Math.max(0, cut ? stats.cappedMax() : stats.max());
 
       if(!(hi > lo) || Double.isInfinite(lo) || Double.isInfinite(hi)) {
          return this;
@@ -312,7 +347,9 @@ public class BulletGraphPresenter implements Presenter {
       copy.range1 = lo + span / 4;
       copy.range2 = lo + span / 2;
       copy.range3 = lo + span * 3 / 4;
-      copy.target = Double.isNaN(stats.mean()) ? lo : Math.max(lo, Math.min(hi, stats.mean()));
+      double center = cut && !Double.isNaN(stats.median()) ? stats.median() : stats.mean();
+      copy.target = Double.isNaN(center) ? lo : Math.max(lo, Math.min(hi, center));
+      copy.outliersCut = cut;
       return copy;
    }
 
@@ -429,7 +466,16 @@ public class BulletGraphPresenter implements Presenter {
             bw = 1;
          }
 
-         g.fillRect(fillx, filly + (int) Math.ceil(fillh / 4.0), bw, (int) Math.floor(fillh / 2.0));
+         int barY = filly + (int) Math.ceil(fillh / 4.0);
+         int barH = (int) Math.floor(fillh / 2.0);
+
+         // a value beyond the scale that left outliers out is one: a full bar, broken near its end
+         if(outliersCut && n > max) {
+            CappedBar.fill(g, fillx, barY, fillw, barH, true);
+         }
+         else {
+            g.fillRect(fillx, barY, bw, barH);
+         }
 
          // draw target
          // a target at the maximum is at the cell's edge, so keep it inside the cell
@@ -623,7 +669,8 @@ public class BulletGraphPresenter implements Presenter {
 
       BulletGraphPresenter bar2 = (BulletGraphPresenter) obj;
 
-      return fillCell == bar2.fillCell && autoScale == bar2.autoScale && max == bar2.max &&
+      return fillCell == bar2.fillCell && autoScale == bar2.autoScale &&
+         ignoreOutliers == bar2.ignoreOutliers && max == bar2.max &&
          min == bar2.min && target == bar2.target &&
          range1 == bar2.range1 && range2 == bar2.range2 &&
          range3 == bar2.range3 && Tool.equals(psize, bar2.psize) &&
@@ -649,6 +696,7 @@ public class BulletGraphPresenter implements Presenter {
       hash += Math.abs(Math.round(range3));
       hash += fillCell ? 0 : 999999;
       hash += autoScale ? 31 : 0;
+      hash += ignoreOutliers ? 37 : 0;
       hash += color1 == null ? 0 : color1.hashCode();
       hash += color2 == null ? 0 : color2.hashCode();
       hash += color3 == null ? 0 : color3.hashCode();
@@ -724,6 +772,11 @@ public class BulletGraphPresenter implements Presenter {
    // true once the author chose the scale, by setting Auto Scale either way or any of the minimum,
    // maximum, ranges and target, so the modern default leaves it alone
    private boolean scaleSet = false;
+   // leave outliers out of the auto scale, and whether the author set it either way
+   private boolean ignoreOutliers = false;
+   private boolean outliersSet = false;
+   // set on the copy painted with a scale that left outliers out
+   private boolean outliersCut = false;
    // resolves the column's numbers at paint time, set by the table lens on a copy of the
    // presenter; not a bean property, so it is never shown in the dialog or saved
    private transient Supplier<ColumnStats> statsResolver;
