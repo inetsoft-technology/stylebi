@@ -37,9 +37,12 @@
 }
 
 // selection container children sit inside an overflow:hidden scroller sized to the child,
-// so draw the selection/highlight outline inside the box instead of outside it.
+// so draw the selection/highlight outline inside the box instead of outside it. The two-tone
+// halo (box-shadow, outside the box) would be clipped there and sit in a different band, so a
+// child keeps a one-tone outline.
 .container-child > .object {
   outline-offset: -2px;
+  box-shadow: none;
 }
 
 .handle {

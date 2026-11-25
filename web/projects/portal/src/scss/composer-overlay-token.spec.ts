@@ -29,8 +29,9 @@ function contrast(a: string, b: string): number {
 function block(text: string, start: RegExp): string {
    const i = text.search(start);
 
+   // a missing anchor must fail the test, not hand an empty block to a not.toContain
    if(i < 0) {
-      return "";
+      throw new Error(`anchor not found: ${start}`);
    }
 
    let depth = 0;
@@ -72,6 +73,10 @@ describe("composer overlay tokens", () => {
       expect(pins.length).toBeGreaterThanOrEqual(2);
       pins.forEach(pin => expect(pin).not.toContain("composer-overlay"));
       expect(read(__dirname, "_shell-dark.scss")).not.toContain("composer-overlay");
+   });
+
+   it("blockThrowsOnAMissingAnchor", () => {
+      expect(() => block("a { b }", /@mixin\s+no-such-mixin\b/)).toThrow(/anchor not found/);
    });
 
    it("globalImportsThePartial", () => {
@@ -124,10 +129,17 @@ describe("composer overlay consumers", () => {
       // legacy dotted, modern and dark dashed (C5)
       expect(rule(container(), /^\.active\.viz-modern \.object,\s*\r?\n\.active\.viz-dark \.object\s*\{/m).trim())
          .toBe("outline-style: dashed;");
-      // layout pane: the stroke on its 2px dotted border, the halo as a ring outside it
+      // layout pane: .object-container clips anything outside .object (overflow: hidden), so both tones
+      // share the 2px band: a halo border with the dotted stroke outline drawn over it (offset -2px)
       const lay = rule(layout(), /^\.active \.object\s*\{/m);
-      expect(lay).toMatch(/border:\s*2px dotted var\(--inet-composer-overlay-stroke,\s*var\(--inet-viz-assembly-outline\)\)/);
-      expect(lay).toMatch(HALO_RING);
+      expect(lay).toMatch(/border:\s*2px solid var\(--inet-composer-overlay-halo,\s*transparent\)/);
+      expect(lay).toMatch(/outline:\s*2px dotted var\(--inet-composer-overlay-stroke,\s*var\(--inet-viz-assembly-outline\)\)/);
+      expect(lay).toMatch(/outline-offset:\s*-2px/);
+      expect(lay).not.toMatch(/box-shadow/);
+      expect(layout()).toMatch(/\.active \.viz-dark \.object\s*\{\s*outline-style:\s*dashed;\s*\}/);
+      // a selection-container child's outline sits inside its box (offset -2px) in a scroller that clips:
+      // no outward halo there
+      expect(rule(container(), /^\.container-child > \.object\s*\{/m)).toMatch(/box-shadow:\s*none/);
    });
 
    it("outlineStatesDontStack", () => {
@@ -135,14 +147,13 @@ describe("composer overlay consumers", () => {
       expect(rule(container(), /^\.search-result\s*\{/m)).toMatch(/outline:\s*2px solid !important/);
       expect(rule(read(__dirname, "_themeable.scss"), /^\.bd-highlight-med\s*\{/m))
          .toMatch(/outline:\s*2px solid var\(--inet-drag-drop-highlight-color\) !important/);
-      // the layout search result replaces the border, so it drops the halo ring
-      expect(rule(layout(), /^\.active \.object\.search-result\s*\{/m)).toMatch(/box-shadow:\s*none/);
+      // no leftover rule for a layout search result (its border never won over the selection)
+      expect(layout()).not.toContain(".active .object.search-result");
    });
 
    it("wizardHandlesAreTwoTone", () => {
       const wizard = read(app, "vs-wizard/gui/objects/vs-wizard-object.component.scss");
-      // a disabled handle keeps its grey (.disabled.handle)
-      const handle = rule(wizard, /^\.wizard-object-container \.handle\.bg-primary:not\(\.disabled\)\s*\{/m);
+      const handle = rule(wizard, /^\.wizard-object-container \.handle\.bg-primary\s*\{/m);
       // themed pages keep today's solid primary handle (.bg-primary, no border)
       expect(handle).toMatch(
          /background-color:\s*var\(--inet-composer-overlay-halo,\s*var\(--inet-primary-color\)\)\s*!important/);
@@ -182,7 +193,8 @@ describe("composer overlay consumers", () => {
          /^:root:where\(:not\(\.custom-theme\)\)\s+\.composer-selection-box\s*\{/m);
       expect(marquee).toMatch(
          /box-shadow:\s*inset 0 0 0 1px var\(--inet-composer-overlay-stroke\),\s*inset 0 0 0 2px var\(--inet-composer-overlay-halo\)\s*!important/);
-      expect(marquee).toMatch(/background-color:\s*rgba\(18,\s*60,\s*68,\s*0\.08\)\s*!important/);
+      expect(marquee).toMatch(
+         /background-color:\s*color-mix\(in srgb, var\(--inet-composer-overlay-stroke\) 8%, transparent\)\s*!important/);
       PANES.forEach(p => expect(read(app, p)).toContain('selectionBoxClass="selection-box composer-selection-box"'));
       // no other template passes the class: the chart brush and cell marquees keep theirs (C1)
       const html = (dir: string): string[] => readdirSync(dir).flatMap(n => {

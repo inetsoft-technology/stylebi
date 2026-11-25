@@ -61,10 +61,10 @@
 
 // The grid's resize and move handles take the composer's two-tone overlay pair
 // (_composer-overlay.scss), as the dashboard editor's do: a light halo fill and a dark stroke ring,
-// so they read on any object. !important beats .bg-primary's. A disabled handle keeps its grey. A
-// themed page leaves the pair undeclared and keeps today's solid primary handle: the primary fill,
-// which also shows under the transparent border.
-.wizard-object-container .handle.bg-primary:not(.disabled) {
+// so they read on any object. !important beats .bg-primary's. A themed page leaves the pair
+// undeclared and keeps today's solid primary handle: the primary fill, which also shows under the
+// transparent border.
+.wizard-object-container .handle.bg-primary {
   background-color: var(--inet-composer-overlay-halo, var(--inet-primary-color)) !important;
   border: 1px solid var(--inet-composer-overlay-stroke, transparent);
 }
