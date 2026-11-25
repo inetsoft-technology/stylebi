@@ -941,6 +941,14 @@ public abstract class EndpointJsonQuery<T extends EndpointJsonQuery.Endpoint>
       default List<String> getExcludeJsonPaths() {
          return Collections.emptyList();
       }
+
+      /**
+       * Whether this endpoint's data is carried in the HTTP response headers rather than in a
+       * body. See {@link AbstractEndpoint#isResponseInHeaders()}.
+       */
+      default boolean isResponseInHeaders() {
+         return false;
+      }
    }
 
    public static abstract class Endpoints<E extends Endpoint> {
