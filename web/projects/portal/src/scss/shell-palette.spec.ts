@@ -477,10 +477,10 @@ describe("solid, keyboard-only focus ring", () => {
       expect(css.replace(/\s+/g, " ")).toContain(FILLED_RING);
    });
 
-   it("fills a modern primary button with the ring colour on keyboard focus, outside content and themed pages", () => {
+   it("fills a modern primary button with the ring colour on keyboard focus, outside content, themed pages and the dark shell", () => {
       const css = read("scss/_bootstrap-override.scss").replace(/\s+/g, " ");
       const rule = css.match(
-         /:where\(:root:not\(\.custom-theme\)\) \.viz-shell \.btn\.btn-primary#\{\$outside-content\} \{([^}]*\{[^}]*\}|[^}]*)\}/);
+         /:where\(:root:not\(\.custom-theme\):not\(\.shell-dark\)\) \.viz-shell \.btn\.btn-primary#\{\$outside-content\} \{([^}]*\{[^}]*\}|[^}]*)\}/);
 
       expect(rule).not.toBeNull();
       expect(rule[0]).toContain("&:focus-visible, &:focus-visible:hover:not(:disabled)");
@@ -1084,6 +1084,17 @@ describe("modern primary button in the dark shell (PR7a)", () => {
       // the gate is the selector's last part: nothing after its closing parenthesis
       expect(rest[0].endsWith(")")).toBe(true);
       expect(splitList(rest[0].slice(gate + ":where(".length, -1))).toHaveLength(2);
+   });
+
+   it("keeps the focus ring in the dark shell: #8774's focus fill is light shell only", () => {
+      // in the dark shell the fill would be the hover fill (#F0A75A), so focus and hover would look alike
+      const fills = [...compiledGlobal().matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+         .filter(m => /background-color:\s*var\(--inet-focus-ring-color\)/.test(m[2]))
+         .flatMap(m => splitList(m[1]))
+         .filter(sel => sel.includes(".viz-shell .btn.btn-primary"));
+
+      expect(fills.length).toBeGreaterThanOrEqual(1);
+      fills.forEach(sel => expect(sel).toMatch(/^:where\(:root:not\(\.custom-theme\):not\(\.shell-dark\)\) /));
    });
 
    it("gives the base rule the dark shell's solid orange, on-primary label and lighter hover", () => {

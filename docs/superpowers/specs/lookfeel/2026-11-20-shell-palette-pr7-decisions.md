@@ -359,8 +359,9 @@ the `#65472E` brown the product owner rejected on 2026-11-18 for the dark disabl
 "reads as a dim active button".
 
 **Decision.** In the dark shell the primary button keeps the base rule: a solid `#D97A1A` fill with
-the dark shell's on-primary label `#1C1B1F` (5.5:1), the `#F0A75A` hover (8.5:1) and #8774's
-keyboard-focus fill. The tint rule is gated with
+the dark shell's on-primary label `#1C1B1F` (5.5:1) and the `#F0A75A` hover (8.5:1). Keyboard focus
+keeps the 2px surface gap and `#F0A75A` ring: #8774's focus fill (the ring colour, no ring) is gated
+off the dark shell, because there it equals the hover fill and focus would look like hover. The tint rule is gated with
 `:where(:not(:root.shell-dark *), :is(#{$dashboard-content}, #{$content-popup}) *)`, so its
 specificity is unchanged: the light shell and dashboard content (which restores the light shell's
 look) compute exactly as before. Disabled buttons keep the dark disabled values (2026-11-18).
