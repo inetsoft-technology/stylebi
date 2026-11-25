@@ -24,6 +24,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.CoreTool;
@@ -33,7 +34,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.security.Principal;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.*;
@@ -124,7 +127,40 @@ class MemberQueryMaxRowsRaceTest {
       assertEquals(Map.of(MAX + ROWS, RUNS), counts, "row count -> runs");
    }
 
+   /**
+    * A parameter a member query sets in the variable table it runs with (as a VPM trigger
+    * script does) still reaches the caller's table after the in-memory join or the
+    * concatenation, as it did when the members shared one table: the parent's own
+    * conditions and the caller read it there.
+    */
+   @Test
+   void memberParameterReachesCallersTable() throws Exception {
+      Field field = VpmProcessor.class.getDeclaredField("processor");
+      field.setAccessible(true);
+      Object old = field.get(null);
+      field.set(null, new ParameterVpmProcessor());
+
+      try {
+         for(int operation : new int[] { TableAssemblyOperator.INNER_JOIN,
+                                         TableAssemblyOperator.UNION })
+         {
+            VariableTable vars = new VariableTable();
+            rowCount(operation, vars);
+
+            assertEquals("T", vars.get("vpmT"), "set by T's VPM, operation " + operation);
+            assertEquals("C", vars.get("vpmC"), "set by C's VPM, operation " + operation);
+         }
+      }
+      finally {
+         field.set(null, old);
+      }
+   }
+
    private static int rowCount(int operation) throws Exception {
+      return rowCount(operation, new VariableTable());
+   }
+
+   private static int rowCount(int operation, VariableTable vars) throws Exception {
       Worksheet ws = new Worksheet();
       // a run-unique literal, so no run is answered from the data cache
       int run = RUN.incrementAndGet();
@@ -165,7 +201,7 @@ class MemberQueryMaxRowsRaceTest {
 
       try {
          TableLens lens = box.getTableLens(composite.getName(), AssetQuerySandbox.RUNTIME_MODE,
-                                           new VariableTable());
+                                           vars);
          assertNotNull(lens, "the query failed, see the log");
          lens.moreRows(XTable.EOT);
          return lens.getRowCount() - 1;
@@ -225,6 +261,25 @@ class MemberQueryMaxRowsRaceTest {
       ds.setURL("jdbc:derby:" + DB + ";" + name + "=true");
       ds.setRequireLogin(false);
       return ds;
+   }
+
+   // like a VPM trigger script, sets a parameter in the variable table of the member query
+   private static final class ParameterVpmProcessor extends VpmProcessor {
+      @Override
+      public XQuery applyConditions(XQuery query, VariableTable vars, boolean checkVariable,
+                                    Principal user)
+      {
+         String sql = query == null ? "" : String.valueOf(((JDBCQuery) query).getSQLDefinition());
+
+         if(sql.contains("mqro")) {
+            vars.put("vpmT", "T");
+         }
+         else if(sql.contains("mqrc")) {
+            vars.put("vpmC", "C");
+         }
+
+         return query;
+      }
    }
 
    private static EmbeddedDataSource derby() {
