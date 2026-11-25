@@ -162,6 +162,7 @@ import java.util.Map;
  *   <li>{@code edit_unpivot} — {@code table}, {@code headerColumns}</li>
  *   <li>{@code insert_column} — {@code table}, {@code index}, {@code insert} (true=before index, false=append after index)</li>
  *   <li>{@code reorder_concat_subtables} — {@code table} (parent composite assembly), {@code subtables} (new order)</li>
+ *   <li>{@code paste_assemblies} — {@code tables} (the assemblies), {@code cut} (optional), {@code sourceSession} (optional token of another worksheet's session), {@code x}/{@code y} (optional position)</li>
  *   <li>{@code auto_layout} — no required fields (lays out all assemblies)</li>
  *   <li>{@code refresh_data} — {@code table} (optional, if omitted refreshes all)</li>
  * </ul>
@@ -569,11 +570,20 @@ public record EditRequest(
     * condition, as before; an edit_join key change without it keeps the edge's non-equi
     * conditions that the new keys do not restate.
     */
-   List<String> joinOperators
+   List<String> joinOperators,
+   /**
+    * For {@code paste_assemblies}: the session TOKEN of another worksheet the assemblies named in
+    * {@link #tables()} are copied (or cut) from; the session the request is sent on is the
+    * destination. {@code null}/blank pastes inside the destination worksheet itself. A token only:
+    * it is resolved against the caller's own sessions, never taken as a runtime id.
+    */
+   String sourceSession,
+   /** For {@code paste_assemblies}: {@code true} cuts instead of copies. */
+   Boolean cut
 ) {
    /**
-    * Compatibility constructor for callers built before {@code joinOperators} was added --
-    * defaults it to {@code null}.
+    * Compatibility constructor for callers built before {@code joinOperators}, {@code sourceSession} and
+    * {@code cut} were added -- defaults them to {@code null}.
     */
    public EditRequest(
       String op, String table, String column, String name, String type, String newName,
@@ -616,7 +626,55 @@ public record EditRequest(
            mergeable, visibleInViewsheet, confirmed, rowCount, concatDistinct, rankings,
            queryParams, extraProperties, mvUpdatePreConditions, mvUpdatePostConditions,
            mvDeletePreConditions, mvDeletePostConditions, mvForceAppendUpdates, path, scope,
-           format, attributes, null);
+           format, attributes, null, null, null);
+   }
+
+   /**
+    * Compatibility constructor for callers built before {@code sourceSession} and {@code cut} were
+    * added -- defaults both to {@code null}.
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables,
+      String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
+      List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups, Boolean crosstab,
+      List<String> labels, WorksheetMutationSupport.VariableChoicesSpec choices,
+      List<WorksheetMutationSupport.JoinPathSpec> joinPaths, Boolean mergeable,
+      Boolean visibleInViewsheet, Boolean confirmed, Integer rowCount, Boolean concatDistinct,
+      List<WorksheetMutationSupport.RankingSpec> rankings, Map<String, Object> queryParams,
+      Map<String, Object> extraProperties,
+      List<WorksheetMutationSupport.ConditionNode> mvUpdatePreConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvUpdatePostConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvDeletePreConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvDeletePostConditions,
+      Boolean mvForceAppendUpdates, String path, String scope, String format,
+      List<WorksheetMutationSupport.ModelAttributeSpec> attributes, List<String> joinOperators)
+   {
+      this(op, table, column, name, type, newName, field, operation, values, direction, groups,
+           aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType,
+           visible, tables, source, concatType, conditions, ranking, headerColumns, dateOption,
+           boundaries, datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row,
+           col, value, index, alias, description, maxRows, distinct, columnOrder,
+           groupMappings, groupOthers, variableValues, x, y, label, defaultValue, mode, insert,
+           subtables, sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
+           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, joinPaths,
+           mergeable, visibleInViewsheet, confirmed, rowCount, concatDistinct, rankings,
+           queryParams, extraProperties, mvUpdatePreConditions, mvUpdatePostConditions,
+           mvDeletePreConditions, mvDeletePostConditions, mvForceAppendUpdates, path, scope,
+           format, attributes, joinOperators, null, null);
    }
 
    /**
