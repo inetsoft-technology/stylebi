@@ -185,7 +185,7 @@ class WizDatasourceNameAdviceTest {
    private static WizDatabaseDefinition mysql(String name) {
       return new WizDatabaseDefinition(
          name, null, MySQLDatabaseType.TYPE, new WizNetworkLocation("db.example", 3306),
-         new WizAuthentication(true, "user", null), null, false, -1, 3, null, false, false);
+         new WizAuthentication(true, "user", null), null, false, -1, 3, null, false, false, null);
    }
 
    private static DataSourceDefinition tabularDefinition(String name) {

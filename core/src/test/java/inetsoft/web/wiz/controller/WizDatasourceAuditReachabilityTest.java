@@ -239,7 +239,7 @@ class WizDatasourceAuditReachabilityTest {
    private static WizDatabaseDefinition wiz(String name) {
       return new WizDatabaseDefinition(
          name, null, MySQLDatabaseType.TYPE, new WizNetworkLocation("h", 3306),
-         new WizAuthentication(true, "u", null), null, false, -1, 3, null, false, false);
+         new WizAuthentication(true, "u", null), null, false, -1, 3, null, false, false, null);
    }
 
    private static DatabaseDefinition storedDefinition(String name) {

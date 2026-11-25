@@ -349,13 +349,31 @@ public abstract class DatasourcesBaseService {
          if(result instanceof AdditionalConnectionDataSource<?> parent &&
             definition instanceof DataSourceDefinition dsDefinition)
          {
-            additionals = createAdditionalConnections(dsDefinition, parent,
-               stored instanceof AdditionalConnectionDataSource<?> storedParent ?
-                  storedParent : parent);
+            AdditionalConnectionDataSource<?> storedParent =
+               stored instanceof AdditionalConnectionDataSource<?> sp ? sp : null;
+            // read before the definitions are applied: an update may edit the stored object
+            List<XDataSource> storedChildren = new ArrayList<>();
 
-            for(AdditionalConnectionDataSource<?> child : additionals) {
+            if(storedParent != null && dsDefinition.getAdditionalConnections() != null) {
+               for(DataSourceDefinition additional : dsDefinition.getAdditionalConnections()) {
+                  XDataSource storedChild = storedParent.getDataSource(additional.getName());
+                  storedChildren.add(storedChild == null ? null : (XDataSource) Tool.clone(storedChild));
+               }
+            }
+
+            additionals = createAdditionalConnections(dsDefinition, parent,
+               storedParent != null ? storedParent : parent);
+            ServerFilePathPolicy policy = ServerFilePathPolicy.create(securityEngine);
+
+            for(int i = 0; i < additionals.size(); i++) {
+               AdditionalConnectionDataSource<?> child = additionals.get(i);
                SecretIdAuthorizer.checkSecretId(
                   SecretIdAuthorizer.getCloudSecretId(child), check);
+               // an additional connection is a data source of the same connector type, so its
+               // server path (the Portal and the wiz API both save it with the parent) is held
+               // to the same rule as the parent's, against the stored connection of that name
+               policy.checkDataSource(child, i < storedChildren.size() ? storedChildren.get(i) : null,
+                                      principal);
             }
          }
 

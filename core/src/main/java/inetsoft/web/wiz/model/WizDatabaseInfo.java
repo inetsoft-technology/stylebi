@@ -47,6 +47,11 @@ import java.util.Map;
  *                       when {@code customEditMode} is set, so it is the field a {@code CUSTOM}
  *                       editor must write to.
  * @param poolProperties the connection pool properties, may be null.
+ * @param properties     the text appended to the generated URL for the standard types (the
+ *                       Portal's "Properties" field, e.g. {@code ssl=true}). On read it is the
+ *                       tail parsed from the stored URL; on write null keeps the stored value,
+ *                       an empty string clears it and any other value replaces it. Ignored for
+ *                       {@code CUSTOM} and in custom-URL mode, where the URL is written whole.
  */
 public record WizDatabaseInfo(
    String databaseName,
@@ -59,6 +64,7 @@ public record WizDatabaseInfo(
    String testQuery,
    boolean customEditMode,
    String customUrl,
-   Map<String, String> poolProperties)
+   Map<String, String> poolProperties,
+   String properties)
 {
 }
