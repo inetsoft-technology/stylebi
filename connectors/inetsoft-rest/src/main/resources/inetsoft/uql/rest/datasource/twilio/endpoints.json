@@ -3,7 +3,7 @@
     {
       "name": "Calls",
       "paged": true,
-      "suffix": "/2010-04-01/Accounts/{Account ID}/Calls.json?To={To?}&From={From?}&Status={Status?:queued|ringing|in-progress|completed|busy|failed|no-answer}&StartTime={Start Date?:YYYY-MM-DD}&ParentCallSid={Parent Call ID?}",
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Calls.json?To={To?}&From={From?}&Status={Status?:queued|ringing|in-progress|completed|busy|failed|no-answer|canceled}&StartTime={Start Date?:YYYY-MM-DD}&ParentCallSid={Parent Call ID?}",
       "description": "Voice calls made and received, one row each -- the central table of a Twilio voice account. Carries the To and From numbers, direction (inbound, outbound-api, outbound-dial), status, start_time, end_time and duration in SECONDS, the price and price_unit, the answered_by result where answering-machine detection ran, and the parent call for child legs. TWO THINGS TO READ CAREFULLY. PRICE IS NEGATIVE and populated only once Twilio has rated the call, so it is null on a call still in progress and cost analysis run too soon simply finds nothing. And a single conversation is often SEVERAL ROWS: a call that is forwarded or conferenced creates child legs linked by parent_call_sid, so counting rows counts legs rather than conversations. Filter with To, From, Status or StartTime; Twilio also supports inequality forms of the date filters for ranges, which this endpoint does not expose.",
       "responseSchema": {
         "end": "double",
@@ -649,7 +649,7 @@
     {
       "name": "Usage Triggers",
       "paged": true,
-      "suffix": "/2010-04-01/Accounts/{Account ID}/Usage/Triggers.json?Recurring={Recurring?:daily|monthly|yearly}&TriggerBy={Trigger By?:count|usage|price}&UsageCategory={Usage Category?:calls|sms|...}",
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Usage/Triggers.json?Recurring={Recurring?:daily|monthly|yearly|alltime}&TriggerBy={Trigger By?:count|usage|price}&UsageCategory={Usage Category?:calls|sms|...}",
       "description": "The alerts configured to fire when usage crosses a threshold, with the category watched, the trigger value, how it recurs, and whether it triggers on count, usage or price. Configuration -- it records what is being watched, not any usage figure.",
       "responseSchema": {
         "end": "double",
