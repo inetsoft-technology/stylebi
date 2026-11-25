@@ -204,6 +204,10 @@ public abstract class ColorFrameModelFactory<V extends ColorFrameWrapper,
             nwrapper.setUserToColor(toColor);
          }
 
+         if(nwrapper.isSmooth() != model.isSmooth()) {
+            nwrapper.setSmooth(model.isSmooth());
+         }
+
          return nwrapper;
       }
 

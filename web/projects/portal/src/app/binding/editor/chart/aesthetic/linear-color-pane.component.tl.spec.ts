@@ -27,8 +27,7 @@
  *   Group 5 [Risk 1] — isSelectedFrame/gmodel: selected frame exposes live frame reference
  *   Group 6 [Risk 3] — hiddenFrames filtering: modern-mark chart hides legacy ramps but never
  *     the currently selected one (hide-never-remove)
- *   Group 7 [Risk 3] — the family radios and their collapsed faces: a hidden ramp is never the
- *     face a family shows, nor the ramp its radio selects
+ *   Group 7 [Risk 3] — flat house rows under a modern mark: each row checks and switches its ramp
  *
  * HTTP: MSW inline server.use() for GET ../api/composer/chart/hiddenlinearframes; a beforeEach
  *   default returns [] so Groups 1-5 (which don't care about hiding) see every ramp offered.
@@ -65,7 +64,17 @@ const DIVERGING_HIDDEN = [
    "BrBGColorModel", "PiYGColorModel", "PRGnColorModel", "PuOrColorModel",
    "RdBuColorModel", "RdGyColorModel", "RdYlGnColorModel", "SpectralColorModel", "RdYlBuColorModel",
 ];
-const SIXTEEN_HIDDEN = [...SINGLE_HUE_HIDDEN, ...DIVERGING_HIDDEN, "HeatColorModel"];
+const MULTI_HUE_HIDDEN = [
+   "BuGnColorModel", "BuPuColorModel", "GnBuColorModel", "OrRdColorModel", "PuBuColorModel",
+   "PuBuGnColorModel", "PuRdColorModel", "RdPuColorModel", "YlGnBuColorModel", "YlGnColorModel",
+   "YlOrBrColorModel", "YlOrRdColorModel",
+];
+const ALL_HIDDEN = [
+   ...SINGLE_HUE_HIDDEN, ...DIVERGING_HIDDEN, ...MULTI_HUE_HIDDEN, "HeatColorModel"
+];
+const TEAL = "_#(Teal)";
+const AMBER = "_#(Amber)";
+const VARIANCE = "_#(Variance)";
 
 beforeEach(() => {
    server.use(http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json([])));
@@ -237,22 +246,26 @@ describe("LinearColorPane — isSelectedFrame and gmodel [Group 5, Risk 1]", () 
 });
 
 describe("LinearColorPane — hiddenFrames filtering [Group 6, Risk 3]", () => {
-   it("should filter each family down to the house ramps and drop the Heat row under a modern mark", async () => {
+   it("should list the house ramps as flat rows and drop the family rows under a modern mark", async () => {
       server.use(
-         http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json(SIXTEEN_HIDDEN))
+         http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json(ALL_HIDDEN))
       );
       const { fixture } = await renderPane(new V.GradientColorModel(),
          { vsId: "vs1", assemblyName: "Chart1" });
 
       await waitFor(() => {
-         expect(fixture.componentInstance.hiddenFrames).toEqual(SIXTEEN_HIDDEN);
+         expect(fixture.componentInstance.hiddenFrames).toEqual(ALL_HIDDEN);
       });
       fixture.detectChanges();
 
-      const [singleHueDropdown, multiHueDropdown, divergingDropdown] = dropdowns(fixture);
-      expect(singleHueDropdown.colorFrames).toEqual(["AmberColorModel", "TealColorModel"]);
-      expect(divergingDropdown.colorFrames).toEqual(["VarianceColorModel"]);
-      expect(multiHueDropdown.colorFrames).toHaveLength(12);
+      expect(dropdowns(fixture)).toHaveLength(0);
+      expect(radioByLabel(CUSTOM)).toBeInTheDocument();
+      expect(radioByLabel(TEAL)).toBeInTheDocument();
+      expect(radioByLabel(AMBER)).toBeInTheDocument();
+      expect(radioByLabel(VARIANCE)).toBeInTheDocument();
+      expect(screen.queryByLabelText(SINGLE_HUE)).toBeNull();
+      expect(screen.queryByLabelText(MULTI_HUE)).toBeNull();
+      expect(screen.queryByLabelText(DIVERGING)).toBeNull();
       expect(screen.queryByLabelText(HEAT)).toBeNull();
    });
 
@@ -270,38 +283,61 @@ describe("LinearColorPane — hiddenFrames filtering [Group 6, Risk 3]", () => {
       expect(multiHueDropdown.colorFrames).toHaveLength(12);
       expect(divergingDropdown.colorFrames).toHaveLength(10);
       expect(screen.getByLabelText(HEAT)).toBeInTheDocument();
+      expect(screen.queryByLabelText(TEAL)).toBeNull();
    });
 
    it("should keep a hidden ramp offered and selected when the frame is already on it", async () => {
       server.use(
-         http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json(SIXTEEN_HIDDEN))
+         http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json(ALL_HIDDEN))
       );
       const { fixture } = await renderPane(new V.SpectralColorModel(),
          { vsId: "vs1", assemblyName: "Chart1" });
 
       await waitFor(() => {
-         expect(fixture.componentInstance.hiddenFrames).toEqual(SIXTEEN_HIDDEN);
+         expect(fixture.componentInstance.hiddenFrames).toEqual(ALL_HIDDEN);
       });
       fixture.detectChanges();
 
-      const [, , divergingDropdown] = dropdowns(fixture);
+      // the family layout stays, minus the emptied Multi-Hue column
+      const [singleHueDropdown, divergingDropdown] = dropdowns(fixture);
+      expect(singleHueDropdown.colorFrames).toEqual(["AmberColorModel", "TealColorModel"]);
       expect(divergingDropdown.colorFrames).toContain("SpectralColorModel");
       expect(divergingDropdown.colorFrame).toBe("SpectralColorModel");
       expect(radioByLabel(DIVERGING)).toBeChecked();
+      expect(screen.queryByLabelText(MULTI_HUE)).toBeNull();
    });
+
+   it("should keep the Multi-Hue column and its ramp selected when the frame is already on one",
+      async () => {
+         server.use(
+            http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json(ALL_HIDDEN))
+         );
+         const { fixture } = await renderPane(new V.BuGnColorModel(),
+            { vsId: "vs1", assemblyName: "Chart1" });
+
+         await waitFor(() => {
+            expect(fixture.componentInstance.hiddenFrames).toEqual(ALL_HIDDEN);
+         });
+         fixture.detectChanges();
+
+         const [, multiHueDropdown] = dropdowns(fixture);
+         expect(multiHueDropdown.colorFrames).toEqual(["BuGnColorModel"]);
+         expect(multiHueDropdown.colorFrame).toBe("BuGnColorModel");
+         expect(radioByLabel(MULTI_HUE)).toBeChecked();
+      });
 
    // the Heat row is a radio and a fixed image rather than a dropdown entry, so it has no
    // family list to keep it in - without its own escape a chart on Heat under a modern mark
    // would leave all four radios unchecked and no route back
    it("should keep the Heat row rendered and checked when the frame is already on Heat", async () => {
       server.use(
-         http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json(SIXTEEN_HIDDEN))
+         http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json(ALL_HIDDEN))
       );
       const { fixture, container } = await renderPane(new V.HeatColorModel(),
          { vsId: "vs1", assemblyName: "Chart1" });
 
       await waitFor(() => {
-         expect(fixture.componentInstance.hiddenFrames).toEqual(SIXTEEN_HIDDEN);
+         expect(fixture.componentInstance.hiddenFrames).toEqual(ALL_HIDDEN);
       });
       fixture.detectChanges();
 
@@ -310,59 +346,134 @@ describe("LinearColorPane — hiddenFrames filtering [Group 6, Risk 3]", () => {
 
       // the row's width toggle reads the same getter, so it cannot drift from the row itself
       const divergingHost =
-         container.querySelectorAll("linear-color-dropdown")[2].parentElement;
+         container.querySelectorAll("linear-color-dropdown")[1].parentElement;
       expect(divergingHost.classList.contains("col-4")).toBe(true);
       expect(divergingHost.classList.contains("col-10")).toBe(false);
    });
 });
 
-describe("LinearColorPane — family radios under a modern mark [Group 7, Risk 3]", () => {
-   it("should offer a visible single hue and land on it when the frame is a house diverging ramp",
-      async () => {
-         server.use(
-            http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json(SIXTEEN_HIDDEN))
-         );
-         const { fixture } = await renderPane(new V.VarianceColorModel(),
-            { vsId: "vs1", assemblyName: "Chart1" });
+describe("LinearColorPane — flat house rows under a modern mark [Group 7, Risk 3]", () => {
+   async function renderModern(frame: V.ColorFrameModel) {
+      server.use(
+         http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json(ALL_HIDDEN))
+      );
+      const result = await renderPane(frame, { vsId: "vs1", assemblyName: "Chart1" });
 
-         await waitFor(() => {
-            expect(fixture.componentInstance.hiddenFrames).toEqual(SIXTEEN_HIDDEN);
-         });
-         fixture.detectChanges();
+      await waitFor(() => {
+         expect(result.fixture.componentInstance.hiddenFrames).toEqual(ALL_HIDDEN);
+      });
+      result.fixture.detectChanges();
+      return result;
+   }
 
-         const [singleHueDropdown, , divergingDropdown] = dropdowns(fixture);
-         expect(singleHueDropdown.colorFrame).toBe("AmberColorModel");
-         expect(singleHueDropdown.colorFrames).toContain(singleHueDropdown.colorFrame);
-         expect(divergingDropdown.colorFrame).toBe("VarianceColorModel");
-         expect(divergingDropdown.colorFrames).toContain(divergingDropdown.colorFrame);
+   it("should check the row of the house ramp the frame is on", async () => {
+      await renderModern(new V.VarianceColorModel());
 
-         await userEvent.click(radioByLabel(SINGLE_HUE));
-         fixture.detectChanges();
+      expect(radioByLabel(VARIANCE)).toBeChecked();
+      expect(radioByLabel(TEAL)).not.toBeChecked();
+      expect(radioByLabel(AMBER)).not.toBeChecked();
+   });
 
-         expect(fixture.componentInstance.frame.clazz).toMatch(/\.AmberColorModel$/);
-         expect(radioByLabel(SINGLE_HUE)).toBeChecked();
+   it("should switch to Amber when its row is clicked", async () => {
+      const { fixture } = await renderModern(new V.TealColorModel());
+      expect(radioByLabel(TEAL)).toBeChecked();
+
+      await userEvent.click(radioByLabel(AMBER));
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.frame.clazz).toMatch(/\.AmberColorModel$/);
+      expect(radioByLabel(AMBER)).toBeChecked();
+   });
+
+   it("should switch to Variance when its row is clicked", async () => {
+      const { fixture } = await renderModern(new V.TealColorModel());
+
+      await userEvent.click(radioByLabel(VARIANCE));
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.frame.clazz).toMatch(/\.VarianceColorModel$/);
+      expect(radioByLabel(VARIANCE)).toBeChecked();
+   });
+
+   it("should return to the flat rows once a chart on a hidden ramp picks a house ramp", async () => {
+      const { fixture } = await renderModern(new V.SpectralColorModel());
+      expect(dropdowns(fixture).length).toBeGreaterThan(0);
+
+      fixture.componentInstance.switchColorModel(fixture.componentInstance.TealColorModel.clazz);
+      fixture.detectChanges();
+      // ngModel writes a new radio's checked state on a later tick
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(dropdowns(fixture)).toHaveLength(0);
+      expect(radioByLabel(TEAL)).toBeChecked();
+   });
+});
+
+describe("LinearColorPane — Custom ramp blend [Group 8, Risk 3]", () => {
+   const SMOOTH = "_#(Smooth blend)";
+
+   function smoothOf(fixture: any): boolean {
+      return (fixture.componentInstance.frame as V.GradientColorModel).smooth;
+   }
+
+   it("should start a new Custom ramp smooth under a modern mark", async () => {
+      server.use(http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json(ALL_HIDDEN)));
+      const { fixture } = await renderPane(new V.TealColorModel(),
+         { vsId: "vs1", assemblyName: "Chart1" });
+      await waitFor(() => {
+         expect(fixture.componentInstance.hiddenFrames).toEqual(ALL_HIDDEN);
       });
 
-   it("should land the diverging radio on the house ramp rather than the retired default",
-      async () => {
-         server.use(
-            http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json(SIXTEEN_HIDDEN))
-         );
-         const { fixture } = await renderPane(new V.TealColorModel(),
-            { vsId: "vs1", assemblyName: "Chart1" });
+      fixture.componentInstance.switchColorModel(fixture.componentInstance.gradientModel.clazz);
 
-         await waitFor(() => {
-            expect(fixture.componentInstance.hiddenFrames).toEqual(SIXTEEN_HIDDEN);
-         });
-         fixture.detectChanges();
+      expect(smoothOf(fixture)).toBe(true);
+   });
 
-         const [, , divergingDropdown] = dropdowns(fixture);
-         expect(divergingDropdown.colorFrame).toBe("VarianceColorModel");
+   it("should start a new Custom ramp classic when nothing is hidden", async () => {
+      const { fixture } = await renderPane(new V.BluesColorModel(),
+         { vsId: "vs1", assemblyName: "Chart1" });
 
-         await userEvent.click(radioByLabel(DIVERGING));
-         fixture.detectChanges();
+      fixture.componentInstance.switchColorModel(fixture.componentInstance.gradientModel.clazz);
 
-         expect(fixture.componentInstance.frame.clazz).toMatch(/\.VarianceColorModel$/);
-         expect(radioByLabel(DIVERGING)).toBeChecked();
+      expect(smoothOf(fixture)).toBe(false);
+   });
+
+   it("should keep the blend of a Custom ramp the chart already holds", async () => {
+      server.use(http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json(ALL_HIDDEN)));
+      const saved = new V.GradientColorModel();
+      saved.smooth = false;
+      const { fixture } = await renderPane(saved, { vsId: "vs1", assemblyName: "Chart1" });
+      await waitFor(() => {
+         expect(fixture.componentInstance.hiddenFrames).toEqual(ALL_HIDDEN);
       });
+
+      fixture.componentInstance.switchColorModel(fixture.componentInstance.TealColorModel.clazz);
+      fixture.componentInstance.switchColorModel(fixture.componentInstance.gradientModel.clazz);
+
+      expect(smoothOf(fixture)).toBe(false);
+   });
+
+   it("should show the checkbox checked for a smooth ramp and emit when it is cleared", async () => {
+      const saved = new V.GradientColorModel();
+      saved.smooth = true;
+      const emitted: V.ColorFrameModel[] = [];
+      const { fixture } = await renderPane(saved);
+      fixture.componentInstance.onChangeColorFrame.subscribe((f: V.ColorFrameModel) => emitted.push(f));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(radioByLabel(SMOOTH)).toBeChecked();
+
+      await userEvent.click(radioByLabel(SMOOTH));
+
+      expect(smoothOf(fixture)).toBe(false);
+      expect((emitted[emitted.length - 1] as V.GradientColorModel).smooth).toBe(false);
+   });
+
+   it("should disable the checkbox while another ramp is selected", async () => {
+      await renderPane(new V.BluesColorModel());
+
+      expect(radioByLabel(SMOOTH)).toBeDisabled();
+   });
 });

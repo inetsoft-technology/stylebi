@@ -35,6 +35,7 @@ public class GradientColorModel extends ColorFrameModel {
       setToColor(Tool.toString(frame.getUserToColor()));
       setCssToColor(Tool.toString(frame.getCssToColor()));
       setDefaultToColor(Tool.toString(frame.getDefaultToColor()));
+      setSmooth(frame.isSmooth());
    }
 
    public void setFromColor(String from) {
@@ -85,6 +86,14 @@ public class GradientColorModel extends ColorFrameModel {
       this.defaultToColor = defaultColor;
    }
 
+   public boolean isSmooth() {
+      return smooth;
+   }
+
+   public void setSmooth(boolean smooth) {
+      this.smooth = smooth;
+   }
+
    @Override
    public VisualFrame createVisualFrame() {
       return new GradientColorFrame();
@@ -96,4 +105,5 @@ public class GradientColorModel extends ColorFrameModel {
    private String toColor;
    private String cssToColor;
    private String defaultToColor;
+   private boolean smooth;
 }

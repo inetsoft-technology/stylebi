@@ -18,6 +18,7 @@
 package inetsoft.graph.aesthetic;
 
 import com.inetsoft.build.tern.*;
+import inetsoft.graph.internal.OKLab;
 import inetsoft.util.Tool;
 import inetsoft.util.css.*;
 
@@ -26,6 +27,10 @@ import java.awt.*;
 /**
  * This is a color frame that creates gradient colors
  * between the two given colors.
+ *
+ * By default the colors are blended channel by channel in sRGB, which can turn muddy between
+ * distant hues. A smooth frame blends in the perceptual OKLab space instead, so lightness changes
+ * evenly along the ramp. It is off unless set, which keeps every saved chart as it was drawn.
  *
  * @version 10.0
  * @author InetSoft Technology Corp
@@ -59,6 +64,8 @@ public class GradientColorFrame extends RGBCubeColorFrame {
       r1 = (rgb1 >> 16) & 0xFF;
       g1 = (rgb1 >> 8) & 0xFF;
       b1 = (rgb1) & 0xFF;
+      lab1 = OKLab.fromColor(getFromColor());
+      lab2 = OKLab.fromColor(getToColor());
       int a2 = (rgb2 >> 24) & 0xFF;
       int r2 = (rgb2 >> 16) & 0xFF;
       int g2 = (rgb2 >> 8) & 0xFF;
@@ -81,6 +88,14 @@ public class GradientColorFrame extends RGBCubeColorFrame {
       int r = (int) (r1 + disR * ratio);
       int g = (int) (g1 + disG * ratio);
       int b = (int) (b1 + disB * ratio);
+
+      if(smooth) {
+         Color blend = smoothColor(ratio);
+         r = blend.getRed();
+         g = blend.getGreen();
+         b = blend.getBlue();
+      }
+
       double alpha = getAlpha(ratio);
 
       if(alpha != 1) {
@@ -90,6 +105,44 @@ public class GradientColorFrame extends RGBCubeColorFrame {
       int rgb = a << 24 | r << 16 | g << 8 | b;
 
       return process(new Color(rgb), getBrightness());
+   }
+
+   /**
+    * The colour at this ratio, blended in OKLab. Chroma alone is reduced to bring it into sRGB, so
+    * the hue is not shifted by clamping. The two ends are returned as given.
+    */
+   private Color smoothColor(double ratio) {
+      if(ratio <= 0) {
+         return getFromColor();
+      }
+
+      if(ratio >= 1) {
+         return getToColor();
+      }
+
+      double[] lch = OKLab.toLCH(new double[] {
+         lab1[0] + (lab2[0] - lab1[0]) * ratio,
+         lab1[1] + (lab2[1] - lab1[1]) * ratio,
+         lab1[2] + (lab2[2] - lab1[2]) * ratio
+      });
+
+      return OKLab.toColorInGamut(lch[0], lch[1], lch[2]);
+   }
+
+   /**
+    * Check whether the colors are blended in the perceptual OKLab space.
+    * @hidden
+    */
+   public boolean isSmooth() {
+      return smooth;
+   }
+
+   /**
+    * Set whether the colors are blended in the perceptual OKLab space instead of sRGB.
+    * @hidden
+    */
+   public void setSmooth(boolean smooth) {
+      this.smooth = smooth;
    }
 
    /**
@@ -247,7 +300,7 @@ public class GradientColorFrame extends RGBCubeColorFrame {
       }
 
       GradientColorFrame frame2 = (GradientColorFrame) obj;
-      return defaultFrom.equals(frame2.defaultFrom) && defaultTo
+      return smooth == frame2.smooth && defaultFrom.equals(frame2.defaultFrom) && defaultTo
          .equals(frame2.defaultTo) && Tool.equals(cssFrom, frame2.cssFrom) &&
          Tool.equals(cssTo, frame2.cssTo) && Tool.equals(userFrom,
          frame2.userFrom) && Tool.equals(userTo, frame2.userTo);
@@ -255,6 +308,8 @@ public class GradientColorFrame extends RGBCubeColorFrame {
 
    private int a1, r1, g1, b1;
    private int disA, disR, disG, disB;
+   private double[] lab1, lab2;
+   private boolean smooth;
    private Color defaultFrom = new Color(0xFF99CC);
    private Color defaultTo = new Color(0x008000);
    private Color cssFrom;
