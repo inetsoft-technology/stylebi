@@ -112,6 +112,10 @@ describe("composer overlay consumers", () => {
          /^\.object-editor\s+:is\(\.title-resize-handle,\s*\.selection-list-cell-handle\)\.bg-primary\s*\{/m);
       expect(scoped).toMatch(HALO);
       expect(scoped).toMatch(STROKE);
+      // same specificity as the narrow title's transparent full-width drag target, so it must stay
+      // before it (else that target paints an opaque bar over the title)
+      expect(moving().search(/^\.object-editor\s+:is\(\.title-resize-handle/m))
+         .toBeLessThan(moving().search(/^\.selected-cell > \.title-resize-handle\.resize-line/m));
       const viewer = rule(moving(), /^\.title-resize-handle\.bg-primary,\s*\r?\n\.selection-list-cell-handle\.bg-primary\s*\{/m);
       expect(viewer).toMatch(/background-color:\s*var\(--inet-shell-surface-default\)\s*!important/);
       expect(viewer).toMatch(/border:\s*1px solid var\(--inet-composer-selected-outline\)/);
