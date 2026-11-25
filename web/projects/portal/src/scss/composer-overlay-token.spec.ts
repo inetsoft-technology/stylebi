@@ -78,3 +78,37 @@ describe("composer overlay tokens", () => {
       expect(read(src, "global.scss")).toContain("@import './scss/composer-overlay';");
    });
 });
+
+describe("composer overlay consumers", () => {
+   const app = join(src, "app");
+   const container = () => read(app, "composer/gui/vs/editor/editable-object-container.component.scss");
+   const moving = () => read(__dirname, "internal/_moving-resize.scss");
+   // the declarations of the first rule whose selector line matches
+   const rule = (text: string, selector: RegExp) => {
+      const b = block(text, selector);
+      return b.slice(b.indexOf("{") + 1, b.lastIndexOf("}"));
+   };
+   const HALO = /background-color:\s*var\(--inet-composer-overlay-halo,\s*var\(--inet-shell-surface-default\)\)\s*!important/;
+   const STROKE = /border:\s*1px solid var\(--inet-composer-overlay-stroke,\s*var\(--inet-composer-selected-outline\)\)/;
+
+   it("handlesUseTheTwoTonesWithTodaysFallback", () => {
+      const handle = rule(container(), /^\.handle\.bg-primary\s*\{/m);
+      expect(handle).toMatch(HALO);
+      expect(handle).toMatch(STROKE);
+      const move = rule(container(), /^\.composer-object__move-handle\s*\{/m);
+      expect(move).toMatch(/background:\s*var\(--inet-composer-overlay-halo,\s*var\(--inet-shell-surface-default\)\)/);
+      expect(move).toMatch(/border:\s*1px solid var\(--inet-composer-overlay-stroke,\s*var\(--inet-default-border-color\)\)/);
+   });
+
+   it("titleAndListCellHandlesAreTwoToneInTheComposerOnly", () => {
+      // the viewer draws these handles too (vsobjects title, selection list cell): the two-tone rule is
+      // scoped to the composer's object editor, and the unscoped rule keeps today's values
+      const scoped = rule(moving(),
+         /^\.object-editor\s+:is\(\.title-resize-handle,\s*\.selection-list-cell-handle\)\.bg-primary\s*\{/m);
+      expect(scoped).toMatch(HALO);
+      expect(scoped).toMatch(STROKE);
+      const viewer = rule(moving(), /^\.title-resize-handle\.bg-primary,\s*\r?\n\.selection-list-cell-handle\.bg-primary\s*\{/m);
+      expect(viewer).toMatch(/background-color:\s*var\(--inet-shell-surface-default\)\s*!important/);
+      expect(viewer).toMatch(/border:\s*1px solid var\(--inet-composer-selected-outline\)/);
+   });
+});
