@@ -693,3 +693,32 @@ div.loading-indicator.loading {
   background: var(--inet-button-primary-hover-bg-color, var(--ln-primary-hover));
   border-color: var(--inet-button-primary-hover-border-color, var(--ln-primary-hover));
 }
+
+/* The session-expired notice (the pages' only warning alert). The dark warning tint (#3A2E1A) reads
+   as a muddy brown box, so the dark shell draws it as a neutral surface with the shell's text, a
+   grey border and the warning colour as a left stripe and icon (IBM Carbon's dark notifications use
+   the same pattern). The light shell keeps its warning tint. */
+:where(.shell-dark) .login-left .alert-warning {
+  position: relative;
+  padding-left: 40px;
+  background: var(--inet-shell-surface-subtle, #2D2B30);
+  color: var(--ln-text);
+  border: 1px solid var(--ln-border);
+  border-left: 3px solid var(--ln-warning-dark);
+}
+
+:where(.shell-dark) .login-left .alert-warning::before {
+  content: "!" / "";
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ln-warning-dark);
+  color: var(--ln-card);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
