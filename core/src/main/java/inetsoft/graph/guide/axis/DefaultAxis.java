@@ -114,9 +114,9 @@ public class DefaultAxis extends Axis {
                values[i].equals(label))
             {
                texts = new String[] { full.format(values[i]), brief.format(values[i]) };
-               boolean sameYear = hasPrev && values[prev] instanceof Date &&
-                  year((Date) values[prev]) == year((Date) values[i]);
-               label = sameYear ? texts[1] : texts[0];
+               boolean samePeriod = hasPrev && values[prev] instanceof Date &&
+                  period((Date) values[prev]) == period((Date) values[i]);
+               label = samePeriod ? texts[1] : texts[0];
             }
 
             vlabels[i] = createLabel(label, prevLabel, isalias || texts != null, values[i], hor);
@@ -1674,6 +1674,12 @@ public class DefaultAxis extends Axis {
       return cal.get(Calendar.YEAR);
    }
 
+   // a compact date shows its full text once a year, or once a day for times of day
+   private int period(Date date) {
+      CompactDates compact = getScale().getAxisSpec().getCompactDates();
+      return compact == null ? year(date) : compact.period(getScale(), date);
+   }
+
    /**
     * Put the year on the first shown label of each year. A label with the longer text that
     * overlaps a shown neighbour hides the neighbour (the year then moves on if the neighbour
@@ -1703,11 +1709,11 @@ public class DefaultAxis extends Axis {
             String[] texts = compactTexts.get(vl);
 
             if(texts == null) {
-               prevYear = vl.getValue() instanceof Date ? year((Date) vl.getValue()) : null;
+               prevYear = vl.getValue() instanceof Date ? period((Date) vl.getValue()) : null;
                continue;
             }
 
-            int year = year((Date) vl.getValue());
+            int year = period((Date) vl.getValue());
 
             if((prevYear == null || prevYear != year) && !texts[0].equals(vl.getLabel())) {
                vl.setLabel(texts[0]);
@@ -1846,7 +1852,7 @@ public class DefaultAxis extends Axis {
          VDimensionLabel vl = vlabels[cands.get(p)];
          String[] texts = compactTexts == null ? null : compactTexts.get(vl);
          entry[p] = vl.getLabel();
-         years[p] = vl.getValue() instanceof Date ? year((Date) vl.getValue()) : null;
+         years[p] = vl.getValue() instanceof Date ? period((Date) vl.getValue()) : null;
 
          if(texts != null) {
             full[p] = texts[0];
