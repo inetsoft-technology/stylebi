@@ -76,20 +76,25 @@ $stacking-order: (
   overflow: hidden;
 }
 
+// the order of a column in a multi-column sort, a small badge on the icon's lower right corner
 .sort-number {
   position: absolute;
-  line-height: 20px;
-  right: 0px;
-  background: var(--inet-toolbar-bg-color);
-  font-size: 12px;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  min-width: 11px;
+  line-height: 11px;
+  text-align: center;
+  border-radius: 6px;
+  background: var(--inet-primary-color);
+  color: var(--inet-shell-surface-default, #fff);
+  font-size: 9px;
   font-weight: bold;
   font-family: arial;
-  width: 10px;
 }
 
-.sort-button:not(.col-sorted) {
-  visibility: hidden;
-}
+// at rest the sort icon shows faintly in wide columns, so a header reads as sortable; in a narrow
+// column it shows only on hover or when sorted (see base-table.scss)
 
 .drag-message {
   position: absolute;

@@ -97,6 +97,8 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
    @Input() dataTipOnClick: boolean = false;
    @Input() isFlyOnClick: boolean = false;
    @Input() width: number = 0;
+   /** Room the sort icon takes from the header text: none, always or hover. */
+   @Input() sortSpace: string = "none";
    @Input() height: number = 0;
    @Input() lastStart: number = 0;
    @Input() linkUri: string;
