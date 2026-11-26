@@ -972,6 +972,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       XSelection nselection = nsql.getSelection();
       XSelection bselection = nsql.getBackupSelection();
       ColumnSelection columns = getTable().getColumnSelection();
+      hiddenSelected = false;
 
       // group by already merged? the selection is ok now
       if(nselection.getColumnCount() > 0) {
@@ -1030,9 +1031,17 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
       for(int i = 0; i < used.getAttributeCount(); i++) {
          ColumnRef column = (ColumnRef) used.getAttribute(i);
+         int count = nselection.getColumnCount();
 
          if(mergeColumn(nselection, column, ainfoMergeable)) {
             column.setProcessed(true);
+
+            // a hidden column (e.g. the base of a script column) added to the sql selection
+            if(!column.isVisible() && !column.isHiddenParameter() &&
+               nselection.getColumnCount() > count)
+            {
+               hiddenSelected = true;
+            }
 
             if(!nsql.isParseSQL() || !nsql.isLossy()) {
                // need to make sure newly added columns are in final sql string. (59902)
@@ -1105,9 +1114,14 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       SortInfo sortInfo = getTable().getSortInfo();
 
       if(!distinct || disorder || sortInfo.isEmpty()) {
+         boolean tableDistinct = distinct;
          distinct = (nsql.isDistinct() && ginfo.isEmpty()) || distinct;
          nsql.setDistinct(distinct && getAggregateInfo().isEmpty());
-         table.setDistinct(false);
+
+         // the sql distinct covers a hidden column too, so rows that are equal on the
+         // visible columns may remain. keep the flag for the distinct on the visible
+         // columns after the query (AssetQuery.getDistinctTableLens). (82380)
+         table.setDistinct(tableDistinct && nsql.isDistinct() && hiddenSelected);
       }
 
       // aggregate info post processed? do not apply max rows
@@ -5140,6 +5154,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
    protected boolean stable; // sub table flag(post process sub table)
    protected boolean joinSubTable;
    protected ColumnSelection used; // the used columns
+   private boolean hiddenSelected; // a hidden column is in the merged sql selection
    // post sort process might be divided into two parts, the first is
    // processed before group by and having to prepare for them, and the
    // second is processed after group by and having per users' sort will
