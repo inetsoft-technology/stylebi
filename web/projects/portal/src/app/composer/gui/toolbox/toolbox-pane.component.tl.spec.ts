@@ -444,6 +444,29 @@ describe("ToolboxPane — pinned component tiles", () => {
       expect(localStorage.getItem(COLLAPSED_KEY)).toBe("false");
    });
 
+   it("should start open and still fold when browser storage is blocked", async () => {
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
+      vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+      const { container, fixture } = await renderComponent({});
+
+      expect(container.querySelectorAll(".toolbox-components__tile").length)
+         .toBe(leaves(toolbox).length);
+
+      (container.querySelector(".toolbox-components__head") as HTMLElement).click();
+      fixture.detectChanges();
+
+      expect(container.querySelectorAll(".toolbox-components__tile").length).toBe(0);
+   });
+
+   it("should list the tiles as labelled list items, since they are dragged and not pressed", async () => {
+      const { container } = await renderComponent({});
+      const tile = container.querySelector(".toolbox-components__tile");
+
+      expect(tile.getAttribute("role")).toBe("listitem");
+      expect(tile.parentElement.getAttribute("role")).toBe("list");
+      expect(tile.getAttribute("aria-label")).toBeTruthy();
+   });
+
    it("should start folded when it was left folded", async () => {
       localStorage.setItem(COLLAPSED_KEY, "true");
       const { container } = await renderComponent({});

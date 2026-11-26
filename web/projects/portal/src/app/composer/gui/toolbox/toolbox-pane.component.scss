@@ -38,7 +38,6 @@
   gap: var(--inet-space-2, 4px);
   width: 100%;
   padding: var(--inet-space-2, 4px) var(--inet-space-3, 8px);
-  color: var(--inet-text-secondary-color, inherit);
   background: transparent;
   border: 0;
   font-weight: 600;
@@ -46,7 +45,7 @@
 }
 
 .toolbox-components__title {
-  font-size: var(--inet-font-size-sm, 0.85em);
+  font-size: 0.85em;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -59,8 +58,8 @@
 }
 
 .toolbox-components__label {
-  font-size: var(--inet-font-size-sm, 0.85em);
-  color: var(--inet-text-secondary-color, inherit);
+  font-size: 0.85em;
+  opacity: 0.75;
 }
 
 .toolbox-components__tiles {

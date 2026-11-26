@@ -29,9 +29,9 @@
         @if (group.label) {
           <span class="toolbox-components__label">{{group.label}}</span>
         }
-        <span class="toolbox-components__tiles">
+        <span class="toolbox-components__tiles" role="list">
           @for (item of group.items; track item.dragName) {
-            <span class="toolbox-components__tile" role="button" draggable="true"
+            <span class="toolbox-components__tile" role="listitem" draggable="true"
               [title]="item.label" [attr.aria-label]="item.label"
               (dragstart)="tileDragStarted($event, item)">
               <i class="icon-size-medium" [ngClass]="item.icon" aria-hidden="true"></i>
