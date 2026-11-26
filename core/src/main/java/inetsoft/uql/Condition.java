@@ -33,6 +33,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import java.io.PrintWriter;
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -1619,17 +1620,28 @@ public class Condition extends AbstractCondition {
    /**
     * Read a float condition value (e.g. from a Float variable) as the decimal the user
     * typed, so 0.15f compares equal to a Double or BigDecimal 0.15 instead of being widened
-    * to 0.15000000596046448. Integral and non-finite floats are returned unchanged, since
-    * widening is exact for them and Float.toString() would round large integers.
+    * to 0.15000000596046448. Integral and non-finite floats are returned unchanged.
     */
    static Object toDecimalDouble(Float value) {
+      BigDecimal decimal = getFloatDecimal(value);
+      return decimal == null ? value : (Object) decimal.doubleValue();
+   }
+
+   /**
+    * Get the decimal a float was typed as (0.15f -> 0.15), the one rule used for a Float
+    * condition value both in memory and in the SQL (bug #82410).
+    *
+    * @return the decimal, or null for an integral or non-finite float, which is compared as
+    *         is: widening is exact for it, and Float.toString() would round a large one.
+    */
+   public static BigDecimal getFloatDecimal(Float value) {
       float f = value;
 
       if(Float.isNaN(f) || Float.isInfinite(f) || f == Math.rint(f)) {
-         return value;
+         return null;
       }
 
-      return Double.valueOf(Float.toString(f));
+      return new BigDecimal(Float.toString(f));
    }
 
    /**

@@ -589,17 +589,12 @@ public class ConditionListHandler {
     * 0.15f = 0.15000000596..., which some databases (e.g. Derby) then compare at that
     * precision and so never match a DECIMAL 0.15. Bind it as the decimal the user typed
     * when the field is a DECIMAL, NUMERIC, DOUBLE or FLOAT (double precision) column
-    * (bug #82410). A REAL field or a field without a known sql type is left alone.
+    * (bug #82410). A REAL field or a field without a known sql type is left alone. The
+    * elements of an array (a multi-value variable of one of) are converted into a new
+    * array, the condition's own value is not changed.
     */
    static Object toDecimalValue(XExpression field, Object condValue) {
-      if(!(condValue instanceof Float) || field == null || !field.isSqlTypeSet()) {
-         return condValue;
-      }
-
-      float f = (Float) condValue;
-
-      // integral floats are exact as is, and Float.toString() would round large ones
-      if(Float.isNaN(f) || Float.isInfinite(f) || f == Math.rint(f)) {
+      if(field == null || !field.isSqlTypeSet()) {
          return condValue;
       }
 
@@ -608,10 +603,36 @@ public class ConditionListHandler {
       case Types.NUMERIC:
       case Types.DOUBLE:
       case Types.FLOAT:
-         return new BigDecimal(Float.toString(f));
+         break;
       default:
          return condValue;
       }
+
+      if(condValue instanceof Object[] arr) {
+         Object[] converted = null;
+
+         for(int i = 0; i < arr.length; i++) {
+            Object val = toDecimalValue(arr[i]);
+
+            if(val != arr[i]) {
+               if(converted == null) {
+                  // a new Object[], a Float[] can't hold a BigDecimal
+                  converted = Arrays.copyOf(arr, arr.length, Object[].class);
+               }
+
+               converted[i] = val;
+            }
+         }
+
+         return converted == null ? condValue : converted;
+      }
+
+      return toDecimalValue(condValue);
+   }
+
+   private static Object toDecimalValue(Object value) {
+      BigDecimal decimal = value instanceof Float ? Condition.getFloatDecimal((Float) value) : null;
+      return decimal == null ? value : decimal;
    }
 
    private Object fixConditionValue(XExpression field, Object condValue) {
