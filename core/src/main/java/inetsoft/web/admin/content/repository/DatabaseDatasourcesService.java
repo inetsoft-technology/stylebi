@@ -625,7 +625,13 @@ public class DatabaseDatasourcesService {
          }
          else {
             dataSourceStatusService.updateStatus(jdbcDataSource);
-            repository.updateDataSource(jdbcDataSource, fullName, false);
+
+            if(newDataSource) {
+               storeNewDataSource(jdbcDataSource, fullName);
+            }
+            else {
+               repository.updateDataSource(jdbcDataSource, fullName, false);
+            }
 
             // some kind private datasource of the current user
             if(newDataSource && !folderPermission && newSourcePermission ) {
@@ -648,7 +654,8 @@ public class DatabaseDatasourcesService {
                AssetEntry.Type.DATA_SOURCE, jdbcDataSource.getFullName(), null);
             entry = getDataSourceAssetEntry(entry);
 
-            if(entry != null) {
+            // Bug #82414, a new data source is stored once, which records its creator
+            if(!newDataSource && entry != null) {
                entry.setCreatedUsername(user != null ? user : entry.getCreatedUsername());
                entry.setCreatedDate(date != null ? date : entry.getCreatedDate());
                updateDataSourceAssetEntry(entry);
@@ -1409,6 +1416,10 @@ public class DatabaseDatasourcesService {
          principal, ResourceType.DATA_SOURCE, resource, action);
    }
 
+   /**
+    * Checks that the user may create a data source at the path and builds the new, empty data
+    * source in memory. It is stored by the caller, once it is filled in.
+    */
    private JDBCDataSource createNewDatabase(String targetPath, Principal principal) throws Exception {
       int index = targetPath.lastIndexOf('/');
       boolean permitted = false;
@@ -1444,13 +1455,8 @@ public class DatabaseDatasourcesService {
       database.setCreated(System.currentTimeMillis());
       database.setLastModified(System.currentTimeMillis());
 
-      repository.updateDataSource(database, null, false);
-      AssetEntry entry = new AssetEntry(
-         AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, targetPath, null);
-      entry = getDataSourceAssetEntry(entry);
-      entry.setCreatedUsername(IdentityID.getIdentityIDFromKey(principal.getName()).name);
-      updateDataSourceAssetEntry(entry);
-
+      // Bug #82414, not stored here: the caller fills it in and stores it once, so that no blank
+      // copy is ever stored or cached, and written back over the filled one
       return database;
    }
 
@@ -1686,6 +1692,29 @@ public class DatabaseDatasourcesService {
    }
 
    /**
+    * Stores a new, filled in data source. If that fails, nothing is left stored.
+    */
+   private void storeNewDataSource(JDBCDataSource dataSource, String fullName) throws Exception {
+      try {
+         repository.updateDataSource(dataSource, null, false);
+      }
+      catch(Throwable e) {
+         try {
+            if(dataSourceRegistry.containDatasource(fullName)) {
+               repository.removeDataSource(fullName);
+            }
+         }
+         catch(Throwable cleanup) {
+            LOG.warn("Failed to remove the data source that was not created: {}", fullName,
+                     cleanup);
+            e.addSuppressed(cleanup);
+         }
+
+         throw e;
+      }
+   }
+
+   /**
     * Updates the created time/date of a data source entry.
     *
     * @param entry the updated asset entry
@@ -1694,6 +1723,9 @@ public class DatabaseDatasourcesService {
       final DataSourceRegistry registry = dataSourceRegistry;
 
       try {
+         // Bug #82414, read the stored data source, the cached one can be the copy from before
+         // this save, which would be written back over it
+         registry.removeCacheEntry(entry);
          registry.setObject(entry, registry.getObject(entry, true));
       }
       catch(Exception e) {
