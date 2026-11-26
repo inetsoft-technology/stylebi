@@ -4609,6 +4609,13 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          if(item.getAttribute() != null && XSchema.BOOLEAN.equals(item.getAttribute().getDataType())) {
             field.setSqlType(java.sql.Types.BOOLEAN);
          }
+         // An expression column has no database column behind it, so a sqlType on its
+         // ref is not the type of the expression. Assets saved before Bug #71789 store
+         // the old VARCHAR default on every ColumnRef, and fixConditionValue() would then
+         // turn a numeric = / <> value into a String (Bug #82379).
+         else if(base.isExpression()) {
+            // leave the sqlType unset, the condition value is already typed by dataType
+         }
          else if(ref instanceof AttributeRef attributeRef && attributeRef.isSqlTypeSet()) {
             field.setSqlType(((AttributeRef) ref).getSqlType());
          }
