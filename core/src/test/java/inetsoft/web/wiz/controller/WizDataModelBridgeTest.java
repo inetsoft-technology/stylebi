@@ -1322,21 +1322,90 @@ class WizDataModelBridgeTest {
       assertNull(registry().getLogicalModel("plain"));
    }
 
+   // -- Bug #82069: an extended physical view is resolved by its parent --------------------------
+
+   private void addExtendedView(String base, String child) {
+      if(dm.getPartition(base) == null) {
+         addView(base, null);
+      }
+
+      dm.getPartition(base).addPartition(new XPartition(child), false);
+   }
+
    @Test
-   void anExtendedPhysicalViewIsStillResolvedByTheBaseOnlyGate() throws Exception {
-      // a REAL extended view under pv: a parent-aware lookup would find it, so only the base-only
-      // gate can answer NOT_FOUND here
-      registry().getPartition("pv").addPartition(new XPartition("viewKid"), false);
-      assertNotNull(registry().getPartition("pv").getPartition("viewKid"));
-      assertNull(registry().getPartition("viewKid"), "an extended view is not in the base registry");
+   void dependenciesOfAnExtendedPhysicalViewWithParentAreFoundWithNoUsers() throws Exception {
+      addExtendedView("pv", "viewKid");
+      assertNull(dm.getPartition("viewKid"), "an extended view is not in the base registry");
+
       DepItem item = only(ok(items.dependencies(new DependenciesRequest(ds, List.of(
          new Ref(KIND_PHYSICAL_VIEW, "viewKid", "pv"))), bob), DependenciesResponse.class).items());
-      assertFalse(item.exists());
-      assertEquals(NOT_FOUND, item.reason());
 
-      DeleteResult result = only(ok(items.delete(new DeleteRequest(ds, List.of(
+      assertTrue(item.exists(), "an extended view that the lookup finds exists");
+      assertNull(item.reason());
+      assertTrue(item.deletable());
+      assertTrue(item.dependents().isEmpty());
+   }
+
+   @Test
+   void anExtendedViewNamedLikeAUsedBaseViewIsNotBlockedByThatBasesUsers() throws Exception {
+      // logical model lm uses the BASE view "pv"; the extended view "pv" under another base is a
+      // different item that nothing uses
+      addLogical("lm", "pv", null);
+      addExtendedView("other", "pv");
+
+      DepItem item = only(ok(items.dependencies(new DependenciesRequest(ds, List.of(
+         new Ref(KIND_PHYSICAL_VIEW, "pv", "other"))), bob), DependenciesResponse.class).items());
+
+      assertTrue(item.exists());
+      assertNull(item.reason(), "the base view's users are not this view's users");
+      assertTrue(item.dependents().isEmpty());
+      assertTrue(item.danglingAfter().isEmpty());
+   }
+
+   @Test
+   void dependenciesOfAnExtendedPhysicalViewWithoutParentOrWithAWrongParentStayNotFound()
+      throws Exception
+   {
+      addExtendedView("pv", "viewKid");
+      addView("elsewhere", null);
+
+      for(String parent : new String[] { null, "elsewhere" }) {
+         DepItem item = only(ok(items.dependencies(new DependenciesRequest(ds, List.of(
+            new Ref(KIND_PHYSICAL_VIEW, "viewKid", parent))), bob),
+                                DependenciesResponse.class).items());
+         assertFalse(item.exists());
+         assertEquals(NOT_FOUND, item.reason());
+      }
+   }
+
+   @Test
+   void deleteOfAnExtendedPhysicalViewWithParentRemovesOnlyThatView() throws Exception {
+      addExtendedView("pv", "viewKid");
+      PhysicalModelManagerService pmms = mock(PhysicalModelManagerService.class);
+      when(pmms.removeModel(eq(ds), any(), eq("viewKid"), eq("pv"), anyBoolean(), any()))
+         .thenReturn(true);
+      WizDataModelItemController controller = new WizDataModelItemController(
+         List.of(new WizPhysicalViewOps(dss, pmms), new FakeLogicalOps(lms)),
+         mock(DataModelFolderManagerService.class), dss, lms, repository);
+
+      DeleteResult result = only(ok(controller.delete(new DeleteRequest(ds, List.of(
          new DeleteItem(KIND_PHYSICAL_VIEW, "viewKid", "pv", false, null))), bob),
                                     DeleteResponse.class).results());
+
+      assertTrue(result.ok(), result.message());
+      assertEquals(List.of(new Ref(KIND_PHYSICAL_VIEW, "viewKid", "pv")), result.deleted());
+      verify(pmms).removeModel(eq(ds), any(), eq("viewKid"), eq("pv"), anyBoolean(), any());
+      verify(pmms, never()).removeModel(eq(ds), any(), eq("pv"), any(), anyBoolean(), any());
+   }
+
+   @Test
+   void deleteOfAnExtendedPhysicalViewWithoutParentIsStillNotFound() throws Exception {
+      addExtendedView("pv", "viewKid");
+
+      DeleteResult result = only(ok(items.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_PHYSICAL_VIEW, "viewKid", null, false, null))), bob),
+                                    DeleteResponse.class).results());
+
       assertFalse(result.ok());
       assertEquals(NOT_FOUND, result.reason());
    }
