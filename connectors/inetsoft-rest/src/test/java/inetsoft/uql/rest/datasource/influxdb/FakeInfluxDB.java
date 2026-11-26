@@ -38,7 +38,10 @@ import java.util.function.IntFunction;
  *    {@code links.next} once a page is full; users and orgs never do.</li>
  *    <li>{@code /api/v2/tasks}: {@code limit} (default 100, at most 500) and {@code after}, no
  *    {@code offset}. {@code links.next} is present only when the page is full.</li>
- *    <li>{@code /query}: the InfluxQL answer chosen by the {@code q} parameter.</li>
+ *    <li>{@code /query}: the InfluxQL answer chosen by the {@code q} parameter. With
+ *    {@link #requireAuthorization(String)} set it answers 401 unless that exact
+ *    {@code Authorization} header is sent.</li>
+ *    <li>{@code /ping}: 204 for any credentials, as the real server does.</li>
  * </ul>
  *
  * Every request line is recorded so a test can say which pages were asked for.
@@ -55,6 +58,11 @@ final class FakeInfluxDB implements AutoCloseable {
 
    String url() {
       return "http://127.0.0.1:" + server.getAddress().getPort();
+   }
+
+   /** Makes {@code /query} answer 401 unless the request carries exactly this Authorization. */
+   void requireAuthorization(String authorization) {
+      this.authorization = authorization;
    }
 
    /** The path and query of every request, in order. */
@@ -91,8 +99,21 @@ final class FakeInfluxDB implements AutoCloseable {
          body = list("tasks", tasks, 100, 500, params, true, false, "task", id -> "{\"id\":\"t" + id + "\",\"name\":\"task" + id + "\"}", path);
          break;
       case "/query":
-         body = query(params.get("q"));
+         if(authorization != null &&
+            !authorization.equals(exchange.getRequestHeaders().getFirst("Authorization")))
+         {
+            status = 401;
+            body = "{\"code\":\"unauthorized\",\"message\":\"unauthorized access\"}";
+         }
+         else {
+            body = query(params.get("q"));
+         }
+
          break;
+      case "/ping":
+         exchange.sendResponseHeaders(204, -1);
+         exchange.close();
+         return;
       default:
          status = 404;
          body = "{\"code\":\"not found\"}";
@@ -255,6 +276,7 @@ final class FakeInfluxDB implements AutoCloseable {
       return params;
    }
 
+   private volatile String authorization;
    private final HttpServer server;
    private final int buckets;
    private final int users;

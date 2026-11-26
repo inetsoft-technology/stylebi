@@ -119,7 +119,8 @@ public class InfluxDBDataSource extends EndpointJsonDataSource<InfluxDBDataSourc
 
    @Override
    protected String getTestSuffix() {
-      return "/ping";
+      // /ping answers 204 whatever credentials are sent; /query checks both Token and Basic
+      return "/query?q=SHOW+DATABASES";
    }
 
    @Override
