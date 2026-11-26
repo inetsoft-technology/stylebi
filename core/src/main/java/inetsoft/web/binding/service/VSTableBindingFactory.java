@@ -109,6 +109,8 @@ public class VSTableBindingFactory extends VSBindingFactory<TableVSAssembly, Tab
          hidden.removeAttribute(ref);
       }
 
+      info.setAllRows(model.getAllRows());
+
       // a column that left the binding must not keep a sort
       SortInfo sortInfo = info.getSortInfo();
 

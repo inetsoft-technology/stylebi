@@ -167,9 +167,11 @@ public final class TabularEndpointBindingSupport {
 
          if(value != null && !value.isBlank()) {
             // A parameter whose placeholder is a closed list ("Cash|Accrual") takes only those
-            // values: the vendor answers any other spelling with a 400 that names no cause.
+            // values: the vendor answers any other spelling with a 400 that names no cause. A date
+            // format placeholder takes only a date the vendor can parse: it answers an unparsable
+            // one with the unfiltered result.
             String resolved = enforceChoices
-               ? RestParameterChoices.resolve(parameter.getPlaceholder(), value.trim())
+               ? RestParameterChoices.resolveValue(parameter.getPlaceholder(), value.trim())
                : value.trim();
 
             if(resolved == null) {
