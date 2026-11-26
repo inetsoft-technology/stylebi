@@ -110,7 +110,7 @@ public class ExpandedJsonTable extends BaseJsonTable {
 
       // get headers
       Set<String> names = new HashSet<>(headers);
-      int rcnt = Math.min(rows.size(), 10000);
+      int rcnt = Math.min(rows.size(), HEADER_SCAN_ROWS);
 
       for(int r = 0; r < rcnt; r++) {
          Map<String, Object> row = rows.get(r);
@@ -124,6 +124,8 @@ public class ExpandedJsonTable extends BaseJsonTable {
             }
          }
       }
+
+      applyDeclaredObjects(rcnt);
 
       // initialize types
       types = new Class[headers.size()];
@@ -155,7 +157,8 @@ public class ExpandedJsonTable extends BaseJsonTable {
 
          // Default to string when all column's values are null.
          if(types[i] == null) {
-            types[i] = String.class;
+            final Class<?> declared = declaredNullColumnType(headers.get(i));
+            types[i] = declared != null ? declared : String.class;
          }
       }
 
@@ -166,6 +169,25 @@ public class ExpandedJsonTable extends BaseJsonTable {
          if(columnType == null) {
             setColumnType(name, Tool.getDataType(types[i]));
          }
+      }
+   }
+
+   private void applyDeclaredObjects(int rcnt) {
+      List<String> updated = applyDeclaredObjectColumns(headers, name -> {
+         for(int r = 0; r < rcnt; r++) {
+            Map<String, Object> row = rows.get(r);
+
+            if(row != null && row.get(name) != null) {
+               return false;
+            }
+         }
+
+         return true;
+      });
+
+      if(updated != headers) {
+         headers.clear();
+         headers.addAll(updated);
       }
    }
 
@@ -442,7 +464,8 @@ public class ExpandedJsonTable extends BaseJsonTable {
    @Override
    public synchronized Object getObject(int col) {
       Map<String, Object> row = rows.get(curr);
-      return row == null ? null : coerceToColumnType(row.get(headers.get(col)), types[col]);
+      return row == null ? null :
+         coerceToColumnType(getCellValue(row.get(headers.get(col)), types[col]), types[col]);
    }
 
    @Override

@@ -984,6 +984,11 @@ public class XDimDictionary extends XSwappable implements Cloneable {
 
       if(range != null) {
          if(isNumberRange()) {
+            // no non-null value: the range still holds its initial limits
+            if(range[0] + (cnull ? 1 : 0) > range[1]) {
+               return null;
+            }
+
             max = range[1];
          }
          else {
@@ -1014,12 +1019,17 @@ public class XDimDictionary extends XSwappable implements Cloneable {
       Object min = null;
 
       if(range != null) {
-         if(cnull) {
-            min = null;
-         }
-
          if(isNumberRange()) {
-            min = range[0];
+            // complete() lowers range[0] by one to make room for the null index,
+            // the real min is the next value (Bug #82219)
+            int min0 = range[0] + (cnull ? 1 : 0);
+
+            // no non-null value: the range still holds its initial limits
+            if(min0 > range[1]) {
+               return null;
+            }
+
+            min = min0;
          }
          else {
             Object[] values = access();
@@ -1034,8 +1044,11 @@ public class XDimDictionary extends XSwappable implements Cloneable {
       else {
          Object[] values = access();
 
-         if(values != null && values.length > 0) {
-            min = values[0];
+         // skip the null slot complete() puts at index 0, null is not the min (Bug #82219)
+         int idx = values != null && values.length > 0 && values[0] == null ? 1 : 0;
+
+         if(values != null && values.length > idx) {
+            min = values[idx];
          }
       }
 

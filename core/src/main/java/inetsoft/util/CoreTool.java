@@ -266,6 +266,11 @@ public class CoreTool {
          }
          // is not array?
          else if(obj instanceof Number && obj2 instanceof Number) {
+            // integral values above 2^53 are not exactly representable as double
+            if(isIntegral(obj) && isIntegral(obj2)) {
+               return ((Number) obj).longValue() == ((Number) obj2).longValue();
+            }
+
             return ((Number) obj).doubleValue() == ((Number) obj2).doubleValue();
          }
          else if(obj instanceof Date && obj2 instanceof Date) {
@@ -2291,7 +2296,21 @@ public class CoreTool {
    }
 
    /**
-    * Get the time data.
+    * Create a time whose date part is cleared to 1970-01-01 in the JVM default zone and whose
+    * time of day is that of the specified instant.
+    */
+   private static java.sql.Time toTimeOfDay(long millis) {
+      java.util.Calendar cal = new java.util.GregorianCalendar();
+      cal.setTimeInMillis(millis);
+      cal.set(java.util.Calendar.YEAR, 1970);
+      cal.set(java.util.Calendar.MONTH, java.util.Calendar.JANUARY);
+      cal.set(java.util.Calendar.DAY_OF_MONTH, 1);
+      return new java.sql.Time(cal.getTimeInMillis());
+   }
+
+   /**
+    * Get the time data. A date or date-time value is converted to its time of day on
+    * 1970-01-01, the same value the MV and JDBC time columns carry.
     * @param val the specified value.
     * @return the time data.
     */
@@ -2303,7 +2322,7 @@ public class CoreTool {
          return (java.sql.Time) val;
       }
       else if(val instanceof Date) {
-         return new java.sql.Time(((Date) val).getTime());
+         return toTimeOfDay(((Date) val).getTime());
       }
       else if(val instanceof String) {
          Object time = getData(TIME, (String) val);
@@ -2320,7 +2339,7 @@ public class CoreTool {
       }
       else {
          java.sql.Timestamp ts = getTemporalTimestamp(val);
-         return ts == null ? null : new java.sql.Time(ts.getTime());
+         return ts == null ? null : toTimeOfDay(ts.getTime());
       }
    }
 
@@ -2961,6 +2980,11 @@ public class CoreTool {
       // It really makes no sense to have useful class=class comparisons locked
       // inside the class!=class comparison above.
       if(v1 instanceof Number && v2 instanceof Number) {
+         // integral values above 2^53 are not exactly representable as double
+         if(isIntegral(v1) && isIntegral(v2)) {
+            return Long.compare(((Number) v1).longValue(), ((Number) v2).longValue());
+         }
+
          double d1 = ((Number) v1).doubleValue();
          double d2 = ((Number) v2).doubleValue();
          return Double.compare(d1, d2);
@@ -2996,6 +3020,11 @@ public class CoreTool {
       else {
          return v1.toString().compareTo(v2.toString());
       }
+   }
+
+   private static boolean isIntegral(Object value) {
+      return value instanceof Long || value instanceof Integer || value instanceof Short ||
+         value instanceof Byte;
    }
 
    private static int getClassRank(Object value) {
@@ -4149,6 +4178,14 @@ public class CoreTool {
          .orElse(null);
       USER_MESSAGE_LOCAL.remove();
       return message;
+   }
+
+   /**
+    * The user messages pending on this thread as they were added, oldest first: not merged like
+    * {@link #getUserMessages(Type)} and not cleared like {@link #getUserMessage()}.
+    */
+   public static List<UserMessage> peekUserMessages() {
+      return new ArrayList<>(USER_MESSAGE_LOCAL.get());
    }
 
    public static List<UserMessage> getUserMessages(Type level) {

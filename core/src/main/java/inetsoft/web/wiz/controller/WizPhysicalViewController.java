@@ -24,6 +24,7 @@ import inetsoft.uql.XRepository;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.uql.jdbc.JDBCDataSource;
+import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.web.portal.controller.database.*;
 import inetsoft.web.portal.service.database.PhysicalGraphService;
 import inetsoft.web.wiz.controller.WizDataModelErrors.DmFailure;
@@ -39,7 +40,8 @@ import java.util.*;
 import static inetsoft.web.wiz.controller.WizPhysicalViewMapper.blankToNull;
 
 /**
- * {@code /physical/get}, {@code /physical/create}, {@code /physical/update} of the data model
+ * {@code /physical/get}, {@code /physical/create}, {@code /physical/update} and
+ * {@code /physical/autojoin} of the data model
  * bridge (design 4.1, 4.2, 8). A view that the caller cannot see (WRITE on its folder or the
  * data source) is answered exactly like a missing one; a view the caller can see but may not
  * write to is a 403 naming the action and the path. The writes run in a one-request session
@@ -64,7 +66,7 @@ public class WizPhysicalViewController {
       this.source = new WizDataModelSource(repository);
       this.session = new WizPhysicalViewSession(
          manager, physicalModelService, runtimes, graphService, dataSourceService, repository,
-         securityEngine);
+         securityEngine, new PhysicalGraphModelService(runtimes, physicalModelService, manager));
       this.ops = ops;
    }
 
@@ -87,6 +89,17 @@ public class WizPhysicalViewController {
       return WizDataModelErrors.run(() -> locked(request, () -> doUpdate(request, principal)));
    }
 
+   /**
+    * The Auto Join Tables function: the joins the Portal's dialog would build for the tables of
+    * a stored view or of a draft. Read only (no lock, nothing stored), gated like {@code get}.
+    */
+   @PostMapping(value = "/physical/autojoin", produces = MediaType.APPLICATION_JSON_VALUE)
+   public Object autoJoin(@RequestBody AutoJoinRequest request, Principal principal)
+      throws Exception
+   {
+      return WizDataModelErrors.run(() -> doAutoJoin(request, principal));
+   }
+
    /** Runs a write holding the shared per-data-source lock of every data model write. */
    private static <T> T locked(WriteRequest request, WizDataModelErrors.Body<T> body)
       throws Exception
@@ -105,8 +118,57 @@ public class WizPhysicalViewController {
       stored(dataModel, database, parent, name, principal);
       View view = session.read(database, dataModel, parent, name);
       Map<String, Object> definition = WizPhysicalViewMapper.toWire(view);
-      return new GetResponse(true, definition, view.folder(), false,
-                             WizDataModelRevision.of(definition));
+      return new GetResponse(true, definition, view.folder(), false, revisionOf(view));
+   }
+
+   // -- auto join ------------------------------------------------------------------------------
+
+   private Object doAutoJoin(AutoJoinRequest request, Principal principal) throws Exception {
+      String database = required(request == null ? null : request.database(), "database");
+      String name = blankToNull(request.name());
+      boolean hasTables = request.tables() != null;
+
+      if((name != null) == hasTables) {
+         throw WizAutoJoinProposal.invalid(
+            "name", "SOURCE_INVALID",
+            "give exactly one of name (a stored view) and tables (a draft)");
+      }
+
+      XDataModel dataModel = gates.requireVisibleJdbcDataModel(source, database, principal);
+
+      if(!hasTables) {
+         // a view the caller may not see is answered like a missing one, as get does
+         stored(dataModel, database, blankToNull(request.parent()), name, principal);
+         return session.autoJoin(database, dataModel, blankToNull(request.parent()), name, null,
+                                 request.mode(), request.columns(), principal);
+      }
+
+      if(blankToNull(request.parent()) != null) {
+         throw WizAutoJoinProposal.invalid(
+            "parent", "SOURCE_INVALID", "parent goes with name, not with tables");
+      }
+
+      if(request.tables().size() < 2) {
+         throw WizAutoJoinProposal.invalid(
+            "tables", "TABLES_TOO_FEW",
+            "auto join needs at least two tables, got " + request.tables().size());
+      }
+
+      String connection = blankToNull(request.connection());
+      requireConnection(database, connection, principal);
+      // the service checks this too, but only after the draft was built (metadata read, inline
+      // view SQL run): a caller who may not edit the data source is turned away before that
+      dataSourceService.checkDataModelEditPermission(database, connection, principal);
+      Map<String, Object> draft = new LinkedHashMap<>();
+      draft.put("name", "autojoin-draft");
+      draft.put("tables", request.tables());
+
+      if(connection != null) {
+         draft.put("connection", connection);
+      }
+
+      return session.autoJoin(database, dataModel, null, null, draft, request.mode(),
+                              request.columns(), principal);
    }
 
    // -- create ---------------------------------------------------------------------------------
@@ -153,12 +215,13 @@ public class WizPhysicalViewController {
       }
 
       requireConnection(database, want.connection(), principal);
+      requireFullOuterSupported(database, want.connection(), want.joins(), Set.of());
       Desired desired = withFolder(parsed, folder);
       WizPhysicalViewSession.Outcome outcome = session.create(
          database, dataModel, parent, desired, Boolean.TRUE.equals(request.dryRun()), principal);
       Map<String, Object> written = wire(outcome);
       return new WriteResponse(true, name, outcome.folder(), written, outcome.warnings(), null,
-                               written == null ? null : WizDataModelRevision.of(written));
+                               outcome.view() == null ? null : revisionOf(outcome.view()));
    }
 
    // -- update ---------------------------------------------------------------------------------
@@ -209,7 +272,7 @@ public class WizPhysicalViewController {
       // view is no longer what that read returned (dry runs included)
       if(request.baseRevision() != null && !request.baseRevision().isEmpty()) {
          View current = session.read(database, dataModel, parent, name);
-         String revision = WizDataModelRevision.of(WizPhysicalViewMapper.toWire(current));
+         String revision = revisionOf(current);
 
          if(!revision.equals(request.baseRevision())) {
             throw new DmFailure(
@@ -217,6 +280,19 @@ public class WizPhysicalViewController {
                "view " + name + " changed since it was read; read it again and redo the edit; " +
                   "nothing was written");
          }
+      }
+
+      if(parsed.hasJoins()) {
+         Set<String> keep = new HashSet<>();
+
+         for(JoinDef stored : session.read(database, dataModel, parent, name).joins()) {
+            if("FULL_OUTER".equals(stored.type())) {
+               keep.add(stored.key());
+            }
+         }
+
+         requireFullOuterSupported(database, parsed.hasConnection() ? want.connection() :
+                                      view.getConnection(), want.joins(), keep);
       }
 
       boolean dryRun = Boolean.TRUE.equals(request.dryRun());
@@ -228,7 +304,7 @@ public class WizPhysicalViewController {
       Map<String, Object> written = wire(outcome);
       return new WriteResponse(true, name, outcome.folder(), written, outcome.warnings(),
                                dependents,
-                               written == null ? null : WizDataModelRevision.of(written));
+                               outcome.view() == null ? null : revisionOf(outcome.view()));
    }
 
    // -- helpers --------------------------------------------------------------------------------
@@ -287,6 +363,14 @@ public class WizPhysicalViewController {
       return visible;
    }
 
+   /**
+    * The revision of a view: taken over the definition without its layout, so that moving a table
+    * does not make an edit that was planned from an earlier read stale.
+    */
+   private static String revisionOf(View view) {
+      return WizDataModelRevision.of(WizPhysicalViewMapper.toRevisionForm(view));
+   }
+
    private static Map<String, Object> wire(WizPhysicalViewSession.Outcome outcome) {
       return outcome.view() == null ? null : WizPhysicalViewMapper.toWire(outcome.view());
    }
@@ -311,7 +395,7 @@ public class WizPhysicalViewController {
          new View(view.name(), view.description(), folder, view.connection(), view.parent(),
                   view.tables(), view.joins()),
          desired.hasDescription(), desired.hasFolder(), desired.hasConnection(),
-         desired.hasTables(), desired.hasJoins());
+         desired.hasTables(), desired.hasJoins(), desired.autoLayout(), desired.viewport());
    }
 
    /**
@@ -361,6 +445,50 @@ public class WizPhysicalViewController {
          throw new DmFailure(
             WizDataModelWire.FOLDER_NOT_FOUND, "definition.folder",
             "no data-model folder \"" + folder + "\"; create it with manage_data_model_folder");
+      }
+   }
+
+   /**
+    * A FULL_OUTER join is refused on a database whose SQL helper does not support it, as the
+    * Portal's Edit Join dialog does not offer the type there. A join already stored as FULL_OUTER
+    * ({@code keep}, by join key) is left alone so an unrelated edit is not blocked.
+    */
+   private void requireFullOuterSupported(String database, String connection,
+                                          List<JoinDef> joins, Set<String> keep)
+      throws Exception
+   {
+      if(joins == null || joins.stream().noneMatch(j -> "FULL_OUTER".equals(j.type()))) {
+         return;
+      }
+
+      XDataSource dataSource = dataSourceService.getDataSource(database);
+      JDBCDataSource jdbc = dataSource instanceof JDBCDataSource ? (JDBCDataSource) dataSource :
+         null;
+
+      if(jdbc != null && connection != null && !connection.isEmpty() &&
+         jdbc.getDataSource(connection) != null)
+      {
+         jdbc = jdbc.getDataSource(connection);
+      }
+
+      checkFullOuter(database, joins, keep, jdbc == null || JDBCUtil.supportFullOuterJoin(jdbc, true));
+   }
+
+   static void checkFullOuter(String database, List<JoinDef> joins, Set<String> keep,
+                              boolean supported)
+   {
+      if(supported || joins == null) {
+         return;
+      }
+
+      for(int i = 0; i < joins.size(); i++) {
+         JoinDef join = joins.get(i);
+
+         if("FULL_OUTER".equals(join.type()) && !keep.contains(join.key())) {
+            throw invalid("definition.joins[" + join.label() + "].type", "JOIN_TYPE_UNSUPPORTED",
+                          "join type FULL_OUTER is not supported by the database of " + database +
+                             "; use EQUAL, LEFT_OUTER or RIGHT_OUTER; nothing changed");
+         }
       }
    }
 

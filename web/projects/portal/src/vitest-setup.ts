@@ -33,6 +33,17 @@ class _CircularDepPlaceholder {}
    disconnect() {}
 };
 
+// Mock IntersectionObserver (jsdom does not provide it) and the server-injected
+// globalPostParams global. Assigned here, not stubbed with vi.stubGlobal in a shared fixture:
+// vitest-setup runs before every spec file even with isolate off, so a later
+// vi.unstubAllGlobals() restores to this value instead of deleting the global.
+(globalThis as any).IntersectionObserver = class IntersectionObserver {
+   observe() {}
+   unobserve() {}
+   disconnect() {}
+};
+(globalThis as any).globalPostParams = null;
+
 // Patch fixture.detectChanges to:
 //   1. markForCheck() on the fixture's component before invoking CD. Under Angular 21 +
 //      Vitest's zoneless runner, directly assigning to a fixture's componentInstance

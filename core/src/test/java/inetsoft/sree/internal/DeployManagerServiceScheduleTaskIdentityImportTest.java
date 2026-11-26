@@ -37,6 +37,12 @@ import inetsoft.util.*;
 import inetsoft.util.dep.ScheduleTaskAsset;
 import inetsoft.util.dep.XAsset;
 import inetsoft.util.dep.XAssetConfig;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
@@ -62,6 +68,11 @@ import static org.mockito.Mockito.*;
  * is granted on every user of the caller's org, including one that doesn't exist, like the real
  * org admin check (Bug #66393).
  */
+// Bug #81905, the folder writes take the cluster folder lock, which needs the Spring context
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class DeployManagerServiceScheduleTaskIdentityImportTest {
    @BeforeEach

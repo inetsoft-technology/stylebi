@@ -17,10 +17,17 @@
  */
 package inetsoft.uql.rest.datasource.xero;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.OAuthEndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.credential.CredentialType;
+
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.function.Function;
 
 @View(vertical = true, value = {
    @View1(
@@ -71,6 +78,72 @@ public class XeroDataSource extends OAuthEndpointJsonDataSource<XeroDataSource> 
    @Override
    public String getTokenPattern() {
       return "\"tenantId\":\"(.*?)\"";
+   }
+
+   /**
+    * The xero-tenant-id header of the queries must be the tenant id of an organisation, so the
+    * tenant is chosen from the connections by its type instead of by the token pattern.
+    */
+   @Override
+   public Function<String, String> createTwoStepTokenExtractor() {
+      return XeroDataSource::getOrganisationTenantId;
+   }
+
+   /**
+    * Gets the tenant id of the first organisation in the response of the connections endpoint.
+    * If no connection has a tenant type, the tenant id of the first connection is used.
+    *
+    * @param connections the response body of the connections endpoint.
+    *
+    * @return the tenant id.
+    */
+   static String getOrganisationTenantId(String connections) {
+      final JsonNode root;
+
+      try {
+         root = MAPPER.readTree(connections);
+      }
+      catch(JsonProcessingException e) {
+         throw new IllegalArgumentException("Failed to parse the Xero connections response", e);
+      }
+
+      if(root == null || !root.isArray()) {
+         throw new IllegalArgumentException("The Xero connections response is not a list");
+      }
+
+      final Set<String> tenantTypes = new LinkedHashSet<>();
+      String firstTenantId = null;
+
+      for(JsonNode connection : root) {
+         final String tenantId = getText(connection, "tenantId");
+         final String tenantType = getText(connection, "tenantType");
+
+         if(tenantType != null) {
+            tenantTypes.add(tenantType);
+
+            if(tenantId != null && ORGANISATION.equalsIgnoreCase(tenantType)) {
+               return tenantId;
+            }
+         }
+
+         if(firstTenantId == null) {
+            firstTenantId = tenantId;
+         }
+      }
+
+      if(tenantTypes.isEmpty() && firstTenantId != null) {
+         return firstTenantId;
+      }
+
+      throw new IllegalArgumentException(
+         "No Xero organisation is connected. Authorize access to a Xero organisation." +
+         (tenantTypes.isEmpty() ? "" : " Connected tenant types: " + tenantTypes));
+   }
+
+   private static String getText(JsonNode node, String field) {
+      final JsonNode value = node.get(field);
+      return value != null && value.isTextual() && !value.asText().isEmpty() ?
+         value.asText() : null;
    }
 
    @Override
@@ -127,4 +200,6 @@ public class XeroDataSource extends OAuthEndpointJsonDataSource<XeroDataSource> 
    }
 
    public static final String SERVICE_NAME = "xero";
+   private static final String ORGANISATION = "ORGANISATION";
+   private static final ObjectMapper MAPPER = new ObjectMapper();
 }

@@ -22,8 +22,10 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.XNode;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.erm.AutoAlias;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XPartition;
+import inetsoft.uql.erm.XRelationship;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XUtil;
@@ -34,8 +36,13 @@ import inetsoft.web.wiz.controller.WizDataModelErrors.DmFailure;
 import inetsoft.web.wiz.controller.WizDataModelWire.Err;
 import inetsoft.web.wiz.controller.WizPhysicalViewDiff.*;
 import inetsoft.web.wiz.controller.WizPhysicalViewMapper.*;
+import inetsoft.web.wiz.controller.WizPhysicalViewWire.AutoJoinResponse;
+import inetsoft.web.wiz.controller.WizPhysicalViewWire.ColumnRef;
+import inetsoft.web.wiz.controller.WizPhysicalViewWire.MetaColumn;
+import inetsoft.web.wiz.controller.WizPhysicalViewWire.NameColumn;
 import inetsoft.web.wiz.controller.WizPhysicalViewWire.Warning;
 
+import java.awt.Rectangle;
 import java.io.FileNotFoundException;
 import java.security.Principal;
 import java.util.*;
@@ -59,8 +66,9 @@ final class WizPhysicalViewSession {
    WizPhysicalViewSession(PhysicalModelManagerService manager, PhysicalModelService modelService,
                           RuntimePartitionService runtimes, PhysicalGraphService graphService,
                           DataSourceService dataSourceService, XRepository repository,
-                          SecurityEngine securityEngine)
+                          SecurityEngine securityEngine, PhysicalGraphModelService layouts)
    {
+      this.layouts = layouts;
       this.manager = manager;
       this.modelService = modelService;
       this.runtimes = runtimes;
@@ -88,6 +96,90 @@ final class WizPhysicalViewSession {
 
       PhysicalModelDefinition dto = modelService.createModel(database, dataModel, partition);
       return WizPhysicalViewMapper.fromDto(dto, partition, parent);
+   }
+
+   // -- auto join (read only) ------------------------------------------------------------------
+
+   /**
+    * The Auto Join Tables function of the Portal's physical view editor for a stored view
+    * ({@code draft} null) or for a draft given by its tables. Nothing is stored. A stored view
+    * is read as the Portal's definition and opens no runtime. A draft is built in a runtime by
+    * the same operations as {@link #create}, so its tables carry the names the server gives them
+    * (the names {@code create} would store, which the proposed joins must name); the runtime is
+    * destroyed in a {@code finally}, as a write does. An inline view's SQL is run on the
+    * connection, as in the Portal.
+    *
+    * @param draft the tables and connection of the draft as a definition map, or null.
+    */
+   AutoJoinResponse autoJoin(String database, XDataModel dataModel, String parent, String name,
+                             Map<String, Object> draft, String mode, List<String> columns,
+                             Principal principal)
+      throws Exception
+   {
+      String id = null;
+
+      try {
+         View view;
+         PhysicalModelDefinition definition;
+
+         if(draft == null) {
+            XPartition partition = storedPartition(dataModel, parent, name);
+
+            if(partition == null) {
+               throw new FileNotFoundException(database + "/" + name);
+            }
+
+            definition = modelService.createModel(database, dataModel, partition);
+            view = WizPhysicalViewMapper.fromDto(definition, partition, parent);
+         }
+         else {
+            Desired desired = WizPhysicalViewMapper.parse(draft);
+            View want = desired.view();
+            View start = startOf(database, dataModel, null, want);
+            Plan plan = WizPhysicalViewDiff.plan(start, desired, true);
+            RuntimePartitionService.RuntimeXPartition runtime =
+               createRuntime(database, dataModel, null, want);
+            id = runtime.getId();
+            Run run = new Run(database, dataModel, null, want.name(), id, principal);
+            run.apply(start, desired, plan);
+            definition = run.posted(plan);
+            view = WizPhysicalViewMapper.fromDto(definition, null, null);
+         }
+
+         AutoJoinColumnsModel candidates =
+            manager.getAutoJoinColumns(database, definition, principal);
+         List<NameColumn> names = new ArrayList<>();
+         List<MetaColumn> metas = new ArrayList<>();
+
+         for(AutoJoinNameColumnModel column : orEmpty(candidates.getNameColumns())) {
+            names.add(new NameColumn(column.getColumn(), orEmpty(column.getTables())));
+         }
+
+         for(AutoJoinMetaColumnModel column : orEmpty(candidates.getMetaColumns())) {
+            List<ColumnRef> refs = new ArrayList<>();
+
+            for(AutoJoinMetaColumnModel ref : orEmpty(column.getForColumns())) {
+               refs.add(new ColumnRef(ref.getTable(), ref.getColumn()));
+            }
+
+            metas.add(new MetaColumn(column.getTable(), column.getColumn(), refs));
+         }
+
+         List<String> tables = new ArrayList<>();
+         view.tables().forEach(t -> tables.add(t.name()));
+         return WizAutoJoinProposal.propose(names, metas, candidates.isMetaAvailable(), tables,
+                                            view.joins(), mode, columns);
+      }
+      catch(Exception e) {
+         throw scrub(e, id);
+      }
+      finally {
+         destroy(id);
+      }
+   }
+
+   private static <T> List<T> orEmpty(List<T> list) {
+      return list == null ? List.of() : list;
    }
 
    private static XPartition storedPartition(XDataModel dataModel, String parent, String name) {
@@ -127,7 +219,7 @@ final class WizPhysicalViewSession {
          RuntimePartitionService.RuntimeXPartition runtime =
             createRuntime(database, dataModel, parent, want);
          id = runtime.getId();
-         Run run = new Run(database, dataModel, parent, id, principal);
+         Run run = new Run(database, dataModel, parent, want.name(), id, principal);
          run.apply(start, desired, plan);
          List<Warning> warnings = run.warnings();
 
@@ -139,8 +231,10 @@ final class WizPhysicalViewSession {
          manager.createAndSaveModel(database, parent == null ?
                                        WizPhysicalViewMapper.blankToNull(want.folder()) : null,
                                     parent, posted, principal);
-         View stored = readBack(database, parent, want.name(), run.translate(want), desired);
-         return new Outcome(want.name(), stored.folder(), stored, warnings);
+         View asked = run.translate(want);
+         View stored = readBack(database, parent, want.name(), asked, desired);
+         return new Outcome(want.name(), stored.folder(), stored,
+                            withAdjustedPositions(warnings, asked, stored));
       }
       catch(Exception e) {
          throw scrub(e, id);
@@ -236,7 +330,7 @@ final class WizPhysicalViewSession {
          }
 
          id = runtime.getId();
-         Run run = new Run(database, dataModel, parent, id, principal);
+         Run run = new Run(database, dataModel, parent, name, id, principal);
          run.apply(stored, desired, plan);
          List<Warning> warnings = run.warnings();
 
@@ -258,7 +352,7 @@ final class WizPhysicalViewSession {
          manager.updateAndSaveModel(database, folder, parent, name, posted, principal);
          View want = run.translate(withStoredDefaults(desired.view(), stored));
          View back = readBack(database, parent, name, want, desired);
-         return new Outcome(name, back.folder(), back, warnings);
+         return new Outcome(name, back.folder(), back, withAdjustedPositions(warnings, want, back));
       }
       catch(Exception e) {
          throw scrub(e, id);
@@ -266,6 +360,37 @@ final class WizPhysicalViewSession {
       finally {
          destroy(id);
       }
+   }
+
+   /**
+    * The save lays the tables out the way the Portal's save does (it unfolds the column heights
+    * the editor shows folded), so a table placed over another may be stored somewhere else than
+    * asked. The stored position is the answer, and each table that is not where it was asked to be
+    * is named.
+    */
+   private static List<Warning> withAdjustedPositions(List<Warning> warnings, View asked,
+                                                      View stored)
+   {
+      Map<String, TableDef> storedTables = new HashMap<>();
+      stored.tables().forEach(t -> storedTables.put(t.name(), t));
+      List<Warning> result = new ArrayList<>(warnings);
+
+      for(TableDef table : asked.tables()) {
+         TableDef now = storedTables.get(table.name());
+
+         if(table.hasPosition() && now != null && !table.baseElement() &&
+            !(now.hasPosition() && now.x().equals(table.x()) && now.y().equals(table.y())))
+         {
+            result.add(new Warning(
+               "POSITION_ADJUSTED", "table \"" + table.name() + "\" was asked to be at x=" +
+               table.x() + ", y=" + table.y() + " and is stored at " +
+               (now.hasPosition() ? "x=" + now.x() + ", y=" + now.y() : "no position") +
+               ": the server moves a table that would sit over another, as the Portal's save does",
+               table.name(), ""));
+         }
+      }
+
+      return result;
    }
 
    private static View withStoredDefaults(View want, View stored) {
@@ -335,10 +460,13 @@ final class WizPhysicalViewSession {
 
    /** The state of one request's operations on one runtime. */
    private final class Run {
-      Run(String database, XDataModel dataModel, String parent, String id, Principal principal) {
+      Run(String database, XDataModel dataModel, String parent, String viewName, String id,
+          Principal principal)
+      {
          this.database = database;
          this.dataModel = dataModel;
          this.parent = parent;
+         this.viewName = viewName;
          this.id = id;
          this.principal = principal;
       }
@@ -407,6 +535,170 @@ final class WizPhysicalViewSession {
 
          // 6. joins
          applyJoins(plan);
+
+         // 7. auto aliases: each is derived from a join, so after the joins
+         applyAutoAliases(plan);
+         restoreKeptAutoAliases(start, plan);
+
+         // 8. positions, then an Auto Layout, last: both need the final tables and joins
+         applyPositions(plan);
+      }
+
+      /**
+       * A table whose auto aliases the request did not mention keeps them. The Portal drops an
+       * auto alias together with the last join it is derived from and restores it when the same
+       * pair is joined again in the same session; that memory is not something to rely on, so
+       * any kept auto alias that the runtime lost although its pair is still joined (the plan
+       * refuses the update otherwise) is set again from the stored view.
+       */
+      private void restoreKeptAutoAliases(View start, Plan plan) {
+         XPartition partition = runtimes.getPartition(id);
+
+         if(partition == null) {
+            throw expired();
+         }
+
+         Set<String> skip = new HashSet<>();
+         plan.autoAliasChanges.forEach(c -> skip.add(c.table()));
+         plan.removeTables.forEach(t -> skip.add(t.name()));
+         Map<String, String> oldToNew = new HashMap<>();
+         renamedFrom.forEach((now, was) -> oldToNew.put(was, now));
+
+         for(TableDef table : start.tables()) {
+            if(table.kind() != Kind.PLAIN || table.baseElement() || skip.contains(table.name()) ||
+               table.autoAliases() == null || table.autoAliases().isEmpty())
+            {
+               continue;
+            }
+
+            String name = translateName(table.name());
+            AutoAlias now = partition.getAutoAlias(name);
+            List<AutoAliasJoinModel> rows = new ArrayList<>();
+            boolean lost = false;
+
+            for(AutoAliasDef entry : table.autoAliases()) {
+               String from = translateName(oldToNew.getOrDefault(entry.from(), entry.from()));
+               lost = lost || !hasIncomingJoin(now, from);
+               AutoAliasJoinModel row = new AutoAliasJoinModel();
+               row.setForeignTable(from);
+               row.setAlias(entry.alias());
+               row.setKeepOutgoing(entry.keepOutgoing());
+               row.setPrefix(entry.keepOutgoing() ? entry.prefix() : null);
+               row.setSelected(true);
+               rows.add(row);
+            }
+
+            if(lost) {
+               PhysicalTableModel model = new PhysicalTableModel();
+               model.setName(name);
+               model.setQualifiedName(name);
+               model.setAutoAliases(rows);
+               model.setAutoAliasesEnabled(true);
+               manager.updateAutoAliasing(id, model);
+            }
+         }
+      }
+
+      private boolean hasIncomingJoin(AutoAlias autoAlias, String sourceTable) {
+         for(int i = 0; autoAlias != null && i < autoAlias.getIncomingJoinCount(); i++) {
+            if(sourceTable.equals(autoAlias.getIncomingJoin(i).getSourceTable())) {
+               return true;
+            }
+         }
+
+         return false;
+      }
+
+      /**
+       * Sets or clears the auto aliases of each changed table through the Portal's own service
+       * (the same call its Auto Alias dialog makes), whose rules carry over: it also forgets the
+       * incoming joins it remembered for a restore, so the set given here is the whole set.
+       */
+      private void applyAutoAliases(Plan plan) {
+         for(AutoAliasChange change : plan.autoAliasChanges) {
+            String table = translateName(change.table());
+            Set<String> own = new HashSet<>();
+            change.stored().forEach(a -> own.add(a.alias()));
+            List<AutoAliasJoinModel> rows = new ArrayList<>();
+
+            for(int i = 0; i < change.desired().size(); i++) {
+               AutoAliasDef entry = change.desired().get(i);
+
+               // an alias this table already holds is not a new name: the check would see the
+               // table's own auto alias as a duplicate
+               String message = own.contains(entry.alias()) ? null :
+                  manager.checkAliasValid(id, entry.alias(), null);
+
+               if(message != null) {
+                  throw invalid("tables[" + change.table() + "].autoAliases[" + i + "].alias",
+                                "AUTO_ALIAS_INVALID", message);
+               }
+
+               AutoAliasJoinModel row = new AutoAliasJoinModel();
+               row.setForeignTable(translateName(entry.from()));
+               row.setAlias(entry.alias());
+               row.setKeepOutgoing(entry.keepOutgoing());
+               row.setPrefix(entry.keepOutgoing() ? entry.prefix() : null);
+               row.setSelected(true);
+               rows.add(row);
+            }
+
+            PhysicalTableModel model = new PhysicalTableModel();
+            model.setName(table);
+            model.setQualifiedName(table);
+            model.setAutoAliases(rows);
+            model.setAutoAliasesEnabled(!rows.isEmpty());
+            manager.updateAutoAliasing(id, model);
+         }
+      }
+
+      /**
+       * Sets the asked-for positions the way the Portal's move does (the width and height of the
+       * table stay), or runs the Portal's Auto Layout on the runtime. The viewport is only the
+       * diagram size that layout wraps to; it lives in the runtime and is dropped with it.
+       */
+      private void applyPositions(Plan plan) throws Exception {
+         for(TableDef table : plan.moveTables) {
+            String name = translateName(table.name());
+            Boolean moved = runtimes.update(id, rp -> {
+               XPartition partition = rp.getPartition();
+
+               if(partition.getPartitionTable(name) == null) {
+                  return Boolean.FALSE;
+               }
+
+               Rectangle old = partition.getBounds(name);
+               rp.setBounds(name, new Rectangle(table.x(), table.y(),
+                                                old == null ? -1 : old.width,
+                                                old == null ? -1 : old.height));
+               return Boolean.TRUE;
+            });
+
+            if(moved == null) {
+               throw expired();
+            }
+
+            if(!moved) {
+               throw invalid("tables[" + table.name() + "].x", "TABLE_INVALID",
+                             "no table \"" + table.name() + "\" in this view to position");
+            }
+         }
+
+         if(plan.autoLayout != null) {
+            if(plan.viewport != null) {
+               Boolean sized = runtimes.update(id, rp -> {
+                  rp.setGraphWidth(plan.viewport.width());
+                  rp.setGraphHeight(plan.viewport.height());
+                  return Boolean.TRUE;
+               });
+
+               if(sized == null) {
+                  throw expired();
+               }
+            }
+
+            layouts.layoutPhysicalModel(id, database, viewName, plan.autoLayout.colPriority());
+         }
       }
 
       private void applyMetadata(View want, Plan plan) {
@@ -722,10 +1014,59 @@ final class WizPhysicalViewSession {
                ", " + t2 + ": queries over them are a cross join", t1, t2));
          }
          else if(status == XPartition.CYCLE) {
-            warnings.add(new Warning("CYCLE", "the joins of the view form a cycle", "", ""));
+            warnings.add(cycleWarning(partition));
          }
 
          return new ArrayList<>(warnings);
+      }
+
+      /**
+       * The CYCLE warning, naming the joins the Portal marks red: the relationships between the
+       * tables of the one cycle {@code Graph.findCycle} reports (other overlapping loops may
+       * exist). Falls back to the plain message when the partition reports none.
+       */
+      private Warning cycleWarning(XPartition partition) {
+         String plain = "the joins of the view form a cycle";
+         Set<XRelationship> rels = partition.getCycleRelationships(true);
+
+         if(rels == null || rels.isEmpty()) {
+            return new Warning("CYCLE", plain, "", "");
+         }
+
+         Set<String> joinSet = new TreeSet<>();
+         Set<String> tables = new TreeSet<>();
+         boolean allWeak = true;
+
+         for(XRelationship rel : rels) {
+            String text = rel.getDependentTable() + "." + rel.getDependentColumn() + " -> " +
+               rel.getIndependentTable() + "." + rel.getIndependentColumn();
+
+            if(rel.isWeakJoin()) {
+               text += " (already weak)";
+            }
+            else {
+               allWeak = false;
+            }
+
+            joinSet.add(text);
+            tables.add(rel.getDependentTable());
+            tables.add(rel.getIndependentTable());
+         }
+
+         List<String> joins = new ArrayList<>(joinSet);
+         int cap = 20;
+         String shown = String.join(", ", joins.subList(0, Math.min(cap, joins.size())));
+
+         if(joins.size() > cap) {
+            shown += " and " + (joins.size() - cap) + " more";
+         }
+
+         String message = plain + ": " + shown + " (tables " + String.join(", ", tables) +
+            "). The Portal marks these joins red and asks \"Cycle exists in physical view. " +
+            "Save anyway?\" on save; the view is saved as sent. To break the cycle, remove a " +
+            "redundant join" + (allWeak ? "" : " or make one of the non-weak joins weak") +
+            ". Joins on other loops of the view may also exist.";
+         return new Warning("CYCLE", message, "", "", joins);
       }
 
       /**
@@ -771,10 +1112,20 @@ final class WizPhysicalViewSession {
          List<TableDef> tables = new ArrayList<>();
 
          for(TableDef table : view.tables()) {
-            tables.add(new TableDef(
-               translateName(table.name()), table.kind(), table.schema(), table.catalog(),
-               table.aliasOf() == null ? null : translateName(table.aliasOf()), table.sql(),
-               table.oldName(), table.baseElement()));
+            List<AutoAliasDef> autoAliases = null;
+
+            if(table.autoAliases() != null) {
+               autoAliases = new ArrayList<>();
+
+               for(AutoAliasDef entry : table.autoAliases()) {
+                  autoAliases.add(new AutoAliasDef(translateName(entry.from()), entry.alias(),
+                                                   entry.keepOutgoing(), entry.prefix()));
+               }
+            }
+
+            tables.add(table.withNames(
+               translateName(table.name()),
+               table.aliasOf() == null ? null : translateName(table.aliasOf()), autoAliases));
          }
 
          List<JoinDef> joins = new ArrayList<>();
@@ -801,6 +1152,7 @@ final class WizPhysicalViewSession {
       private final String database;
       private final XDataModel dataModel;
       private final String parent;
+      private final String viewName;
       private final String id;
       private final Principal principal;
       private final Map<String, TableDef> current = new LinkedHashMap<>();
@@ -835,6 +1187,7 @@ final class WizPhysicalViewSession {
    private final DataSourceService dataSourceService;
    private final XRepository repository;
    private final SecurityEngine securityEngine;
+   private final PhysicalGraphModelService layouts;
 
    private static final org.slf4j.Logger LOG =
       org.slf4j.LoggerFactory.getLogger(WizPhysicalViewSession.class);

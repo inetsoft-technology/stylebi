@@ -22,6 +22,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.XDataSourceWrapper;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.service.DataSourceRegistry;
@@ -39,6 +40,7 @@ import org.mockito.MockedStatic;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -79,6 +81,7 @@ class DatasourcesServiceServerPathTest {
       when(securityEngine.checkPermission(any(), eq(ResourceType.DATA_SOURCE), eq("files"),
                                           eq(ResourceAction.WRITE))).thenReturn(true);
       registry = mock(DataSourceRegistry.class);
+      testRegistry = registry;
       when(registry.getEntries(any(), any(AssetEntry.Type.class))).thenReturn(new AssetEntry[0]);
       when(registry.getDataSourceFullNames()).thenReturn(new String[0]);
       service = new DatasourcesService(repository, securityEngine,
@@ -258,6 +261,47 @@ class DatasourcesServiceServerPathTest {
       assertNull(savedFolder(null));
    }
 
+   /**
+    * Bug #82092: an additional connection of a Text/Excel Directory is a data source of the same
+    * type with its own root folder, saved in the same call, so it is held to the same rule.
+    */
+   @Test
+   void createRefusesAdditionalConnectionRootFolderOutsideAllowedRoots() {
+      setAllowedRoots(allowed);
+      DataSourceDefinition def = definition(allowed.resolve("sales").toFile());
+      DataSourceDefinition extra = definition(outside.toFile());
+      extra.setName("extra");
+      def.setAdditionalConnections(List.of(extra));
+
+      MessageException ex = assertThrows(
+         MessageException.class, () -> service.createNewDataSource(def, false, principal));
+
+      assertTrue(ex.getMessage().contains(outside.toString()),
+                 "the refusal names the additional connection's folder: " + ex.getMessage());
+      verifyNothingSaved();
+   }
+
+   @Test
+   void updateRefusesChangedAdditionalConnectionRootFolderOutsideAllowedRoots() throws Exception {
+      setAllowedRoots(allowed);
+      storeSource(allowed.toFile());
+      FolderTestDs storedChild = new FolderTestDs();
+      storedChild.setName("extra");
+      storedChild.setFile(allowed.resolve("kept").toFile());
+      when(registry.getObject(any(AssetEntry.class), eq(true)))
+         .thenReturn(new XDataSourceWrapper(storedChild));
+      DataSourceDefinition def = definition(allowed.toFile());
+      DataSourceDefinition extra = definition(outside.toFile());
+      extra.setName("extra");
+      def.setAdditionalConnections(List.of(extra));
+
+      MessageException ex = assertThrows(
+         MessageException.class, () -> service.updateDataSource("files", def, principal));
+
+      assertTrue(ex.getMessage().contains(outside.toString()), ex.getMessage());
+      verifyNothingSaved();
+   }
+
    private void setAllowedRoots(Path root) {
       sreeEnv.when(() -> SreeEnv.getProperty(
          ServerFilePathPolicy.ALLOWED_ROOTS_PROPERTY, false, false)).thenReturn(root.toString());
@@ -328,6 +372,7 @@ class DatasourcesServiceServerPathTest {
    private XPrincipal principal;
 
    private static final String TYPE = "ServerPathTest";
+   private static DataSourceRegistry testRegistry;
 
    @View(vertical = true, value = { @View1(value = "file") })
    public static class FolderTestDs extends TabularDataSource<FolderTestDs> {
@@ -343,6 +388,11 @@ class DatasourcesServiceServerPathTest {
       @Override
       public String[] getDataSourceNames() {
          return new String[0];
+      }
+
+      @Override
+      protected DataSourceRegistry getRegistry() {
+         return testRegistry;
       }
 
       @Property(label = "Root Folder", required = true)

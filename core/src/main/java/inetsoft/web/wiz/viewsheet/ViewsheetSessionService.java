@@ -28,6 +28,7 @@ import inetsoft.web.viewsheet.controller.UndoRedoServiceProxy;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.wiz.dispatch.CommandErrorException;
+import inetsoft.web.wiz.dispatch.ConsoleMessageCapture;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.script.PaneScopeService;
 import org.slf4j.Logger;
@@ -109,6 +110,13 @@ public class ViewsheetSessionService {
       JoinSession session = sessions.resolve(sessionToken, agentKey(agent));
 
       if(session == null) {
+         // A viewer session that ended with its page says so (same kind, so the plugin's reaper
+         // still clears it); every other end keeps the generic text.
+         if(SheetSessionService.VIEWER_CLOSED.equals(sessions.endedReason(sessionToken))) {
+            throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+                                       ViewerModePolicy.VIEWER_CLOSED_TEXT);
+         }
+
          throw new PairingException(
             PairingException.Kind.SESSION_EXPIRED,
             "Invalid or expired viewsheet session: " + sessionToken +
@@ -314,16 +322,19 @@ public class ViewsheetSessionService {
       Set<String> drawnBefore = broadcast.drawnAssemblyNames(rvs);
 
       try {
-         warnings = CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
-            try {
-               mutation.run(rvs, session.runtimeId(), dispatcher, cellScoped);
-            }
-            finally {
-               producedCommands.addAll(dispatcher.getCapturedCommands());
-            }
+         // the console scope also installs the ASSET_EXCEPTIONS list a failing assembly script is
+         // recorded into (Bug #82316)
+         warnings = ConsoleMessageCapture.scope(session.runtimeId(), () ->
+            CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
+               try {
+                  mutation.run(rvs, session.runtimeId(), dispatcher, cellScoped);
+               }
+               finally {
+                  producedCommands.addAll(dispatcher.getCapturedCommands());
+               }
 
-            return dispatcher.getWarnings();
-         });
+               return dispatcher.getWarnings();
+            }));
       }
       catch(CommandErrorException e) {
          CommandErrorException noted = new CommandErrorException(
@@ -487,8 +498,9 @@ public class ViewsheetSessionService {
    private <T> T read(JoinSession session, Principal agent, Read<T> read) throws Exception {
       RuntimeViewsheet rvs = open(session, agent);
 
-      return CapturingCommandDispatcher.withCapturingDispatcher(
-         agent, dispatcher -> read.run(rvs, session.runtimeId(), dispatcher));
+      return ConsoleMessageCapture.scope(session.runtimeId(), () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(
+            agent, dispatcher -> read.run(rvs, session.runtimeId(), dispatcher)));
    }
 
    @FunctionalInterface

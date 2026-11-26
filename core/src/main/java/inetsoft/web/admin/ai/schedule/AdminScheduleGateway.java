@@ -25,6 +25,7 @@ import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.FileFormatInfo;
@@ -94,13 +95,25 @@ import java.util.stream.Collectors;
  */
 @Service
 public class AdminScheduleGateway {
-   @Autowired
    public AdminScheduleGateway(AnalyticRepository repository, ScheduleManager scheduleManager,
                                ScheduleService scheduleService,
                                ScheduleConditionService scheduleConditionService,
                                ScheduleTaskService scheduleTaskService,
                                SecurityEngine securityEngine)
    {
+      this(repository, scheduleManager, scheduleService, scheduleConditionService,
+           scheduleTaskService, securityEngine, null);
+   }
+
+   @Autowired
+   public AdminScheduleGateway(AnalyticRepository repository, ScheduleManager scheduleManager,
+                               ScheduleService scheduleService,
+                               ScheduleConditionService scheduleConditionService,
+                               ScheduleTaskService scheduleTaskService,
+                               SecurityEngine securityEngine,
+                               ScheduleTaskFolderService taskFolderService)
+   {
+      this.taskFolderService = taskFolderService;
       this.repository = repository;
       this.scheduleManager = scheduleManager;
       this.scheduleService = scheduleService;
@@ -122,7 +135,7 @@ public class AdminScheduleGateway {
          .map(scheduleManager::getScheduleTask)
          .filter(Objects::nonNull)
          .filter(s -> organizationid == null || s.getOwner().getOrgID().equals(organizationid))
-         .map(t -> new ScheduleTaskEntry(convertTask(t), getFolderPath(t)))
+         .map(t -> new ScheduleTaskEntry(convertTask(t), getFolderPath(t), t.getTimeZone()))
          .forEach(list.getTasks()::add);
       return list;
    }
@@ -135,6 +148,40 @@ public class AdminScheduleGateway {
                                String description, String locale, ScheduleTask.ExecuteAsID executeAsID,
                                List<ScheduleCondition> conditions, List<ScheduleAction> actions,
                                String organizationid, String linkUri, Principal user)
+      throws Exception
+   {
+      addScheduleTask(taskMetaData, enabled, deleteIfNotScheduledToRun, startDate, endDate,
+                      description, locale, executeAsID, conditions, actions, organizationid,
+                      linkUri, null, user);
+   }
+
+   /**
+    * Adds a schedule task in {@code folder}, the root folder for {@code null}. {@code folder}
+    * comes from {@link #resolveCreateFolder}.
+    */
+   public void addScheduleTask(ScheduleTaskMetaData taskMetaData, boolean enabled,
+                               boolean deleteIfNotScheduledToRun, long startDate, long endDate,
+                               String description, String locale, ScheduleTask.ExecuteAsID executeAsID,
+                               List<ScheduleCondition> conditions, List<ScheduleAction> actions,
+                               String organizationid, String linkUri, AssetEntry folder,
+                               Principal user)
+      throws Exception
+   {
+      addScheduleTask(taskMetaData, enabled, deleteIfNotScheduledToRun, startDate, endDate,
+                      description, locale, executeAsID, conditions, actions, organizationid,
+                      linkUri, folder, null, user);
+   }
+
+   /**
+    * Adds a schedule task in {@code folder} with the task-level {@code timeZone}, the root folder
+    * for a {@code null} folder and no task zone for a blank {@code timeZone}.
+    */
+   public void addScheduleTask(ScheduleTaskMetaData taskMetaData, boolean enabled,
+                               boolean deleteIfNotScheduledToRun, long startDate, long endDate,
+                               String description, String locale, ScheduleTask.ExecuteAsID executeAsID,
+                               List<ScheduleCondition> conditions, List<ScheduleAction> actions,
+                               String organizationid, String linkUri, AssetEntry folder,
+                               String timeZone, Principal user)
       throws Exception
    {
       checkPermission(user);
@@ -153,8 +200,291 @@ public class AdminScheduleGateway {
 
       task = buildNewTask(taskMetaData, owner, enabled, deleteIfNotScheduledToRun, startDate,
                           endDate, description, locale, executeAsID, conditions, actions, linkUri,
-                          user);
-      scheduleManager.setScheduleTask(task.getTaskId(), task, user);
+                          timeZone, user);
+
+      if(folder == null) {
+         scheduleManager.setScheduleTask(task.getTaskId(), task, user);
+      }
+      else {
+         scheduleManager.setScheduleTask(task.getTaskId(), task, folder, user);
+      }
+   }
+
+   /**
+    * Resolves the folder a new task is created in. The folder must exist and the caller needs the
+    * WRITE right on it, the checks {@code moveTask} makes for the same placement and the portal's
+    * new-task request makes for its parent folder.
+    *
+    * @param path the folder path, {@code null}, blank or {@code "/"} for the root folder.
+    *
+    * @return the folder entry, {@code null} for the root folder.
+    *
+    * @throws IllegalArgumentException if the folder does not exist or the caller may not write to
+    *         it, naming the path.
+    */
+   public AssetEntry resolveCreateFolder(String path, Principal user) throws Exception {
+      String normalized = AdminScheduleFolderGateway.normalizePath(path);
+
+      if(AdminScheduleFolderGateway.isRootPath(normalized)) {
+         return null;
+      }
+
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                        AssetEntry.Type.SCHEDULE_TASK_FOLDER, normalized, null);
+
+      if(taskFolderService != null) {
+         boolean exists;
+
+         try {
+            exists = taskFolderService.getTaskFolder(
+               taskFolderService.getFolderEntry(normalized).toIdentifier()) != null;
+         }
+         catch(Exception e) {
+            exists = false;
+         }
+
+         if(!exists) {
+            throw new IllegalArgumentException(
+               "path: no schedule task folder exists at \"" + normalized + "\"; create it first " +
+               "with the schedule task folder area");
+         }
+      }
+
+      if(!securityEngine.checkPermission(user, ResourceType.SCHEDULE_TASK_FOLDER, normalized,
+                                         ResourceAction.WRITE))
+      {
+         throw new IllegalArgumentException(
+            "path: you do not hold WRITE on the schedule task folder \"" + normalized + "\"");
+      }
+
+      return entry;
+   }
+
+   /**
+    * Whether {@code user} may edit the stored task: the WRITE right on it or the right to delete
+    * it, the rule {@code ScheduleTaskService#setTaskEnabled} and the folder move apply.
+    */
+   public boolean hasEditPermission(inetsoft.sree.schedule.ScheduleTask stored, Principal user)
+      throws Exception
+   {
+      return securityEngine.checkPermission(user, ResourceType.SCHEDULE_TASK, stored.getTaskId(),
+                                            ResourceAction.WRITE) ||
+         scheduleTaskService.canDeleteTask(stored, user);
+   }
+
+   /**
+    * Builds the task an {@code update} would store: a deep copy of the stored task with the
+    * patch applied, after every refusal the portal's save makes that applies to an existing task
+    * (the scheduler permission, the edit right, the organization boundary, the actions and
+    * conditions of a task that runs with site admin roles, the action boundary checks). Changes
+    * nothing persistent. Conditions and actions in the patch replace the stored lists; a stored
+    * file-path password is kept when the patch sends back {@link Util#PLACEHOLDER_PASSWORD} for it.
+    *
+    * @throws MissingResourceException if the task does not exist.
+    * @throws UnauthorizedAccessException if the caller may not edit the task.
+    */
+   public inetsoft.sree.schedule.ScheduleTask buildUpdatedTask(String taskId,
+                                                               ScheduleTaskPatch patch,
+                                                               String linkUri, Principal user)
+      throws Exception
+   {
+      checkPermission(user);
+      inetsoft.sree.schedule.ScheduleTask stored = repository.getScheduleTask(taskId);
+
+      if(stored == null) {
+         throw new MissingResourceException(taskId);
+      }
+
+      if(!OrganizationManager.getInstance().isSiteAdmin(user)) {
+         IdentityID taskOwner = ScheduleManager.getOwner(taskId);
+
+         if(taskOwner != null && taskOwner.getOrgID() != null &&
+            !taskOwner.getOrgID().equals(OrganizationManager.getInstance().getCurrentOrgID(user)))
+         {
+            throw new UnauthorizedAccessException();
+         }
+      }
+
+      if(!hasEditPermission(stored, user)) {
+         throw new UnauthorizedAccessException();
+      }
+
+      boolean replacesContent = patch.getConditions() != null || patch.getActions() != null;
+
+      // Bug #77405, a task that runs with elevated roles runs its actions with those roles, so
+      // only a site admin may change them. Stricter than the portal, which compares the items
+      // and lets a save through that adds or changes none: any replacement is refused here.
+      if(replacesContent &&
+         !identityChecker.isContentChangeAllowed(stored.getOwner(), stored.getIdentity(), user))
+      {
+         throw new MessageException(
+            "conditions/actions: only a site administrator may change the conditions or actions " +
+            "of a task that runs with site administrator roles");
+      }
+
+      inetsoft.sree.schedule.ScheduleTask candidate = ScheduleChangesetApplyService.deepCopy(stored);
+
+      // actions the patch does not replace are the stored ones, not a copy that has been through
+      // another write/parse trip, so an update never rewrites an action it was not asked to change
+      if(patch.getActions() == null) {
+         for(int i = candidate.getActionCount() - 1; i >= 0; i--) {
+            candidate.removeAction(i);
+         }
+
+         for(int i = 0; i < stored.getActionCount(); i++) {
+            candidate.addAction(stored.getAction(i));
+         }
+      }
+
+      if(patch.getDescription() != null) {
+         candidate.setDescription(patch.getDescription());
+      }
+
+      if(patch.getLocale() != null) {
+         candidate.setLocale(patch.getLocale());
+      }
+
+      if(patch.getEnabled() != null) {
+         candidate.setEnabled(patch.getEnabled());
+      }
+
+      if(patch.getDeleteIfNotScheduledToRun() != null) {
+         candidate.setDeleteIfNoMoreRun(patch.getDeleteIfNotScheduledToRun());
+      }
+
+      if(patch.getStartDate() != null) {
+         candidate.setStartDate(patch.getStartDate() > 0 ? new Date(patch.getStartDate()) : null);
+      }
+
+      if(patch.getEndDate() != null) {
+         candidate.setEndDate(patch.getEndDate() > 0 ? new Date(patch.getEndDate()) : null);
+      }
+
+      if(patch.getTimeZone() != null) {
+         candidate.setTimeZone(normalizeTaskTimeZone(patch.getTimeZone()));
+      }
+
+      if(patch.getConditions() != null) {
+         for(int i = candidate.getConditionCount() - 1; i >= 0; i--) {
+            candidate.removeCondition(i);
+         }
+
+         patch.getConditions().stream()
+            .map(ScheduleConditionConverter::convertCondition)
+            .filter(Objects::nonNull)
+            .forEach(candidate::addCondition);
+         scheduleTaskService.sanitizeConditions(candidate, stored, user);
+      }
+
+      if(patch.getActions() != null) {
+         for(ScheduleAction action : patch.getActions()) {
+            checkActionOrgBoundary(action, user);
+            checkBackupAssetsPermitted(action, candidate.getOwner(), user);
+         }
+
+         for(int i = candidate.getActionCount() - 1; i >= 0; i--) {
+            candidate.removeAction(i);
+         }
+
+         patch.getActions().stream()
+            .map(this::convertAction)
+            .filter(Objects::nonNull)
+            .forEach(action -> candidate.addAction(action, linkUri));
+         restoreStoredPasswords(patch.getActions(), stored, candidate);
+
+         for(int i = 0; i < candidate.getActionCount(); i++) {
+            inetsoft.sree.schedule.ScheduleAction original = i < stored.getActionCount() &&
+               stored.getAction(i).getClass() == candidate.getAction(i).getClass() ?
+               stored.getAction(i) : null;
+            scheduleTaskService.sanitizeAction(candidate.getAction(i), original, user);
+         }
+      }
+
+      return candidate;
+   }
+
+   /**
+    * Stores the task {@link #buildUpdatedTask} built, in the folder it is in, since a task saved
+    * without a folder entry goes to the root folder.
+    */
+   public void storeUpdatedTask(String taskId, inetsoft.sree.schedule.ScheduleTask candidate,
+                                Principal user)
+      throws Exception
+   {
+      inetsoft.sree.schedule.ScheduleTask stored = repository.getScheduleTask(taskId);
+      scheduleManager.setScheduleTask(
+         taskId, candidate,
+         ScheduleChangesetApplyService.getFolderEntry(stored, stored.getOwner().getOrgID()), user);
+   }
+
+   /**
+    * The API returns a stored file-path password as {@link Util#PLACEHOLDER_PASSWORD}, so a task
+    * read and sent back keeps it. The placeholder is replaced by the stored password of the same
+    * path in the stored action at the same position.
+    */
+   private void restoreStoredPasswords(List<ScheduleAction> requested,
+                                       inetsoft.sree.schedule.ScheduleTask stored,
+                                       inetsoft.sree.schedule.ScheduleTask candidate)
+   {
+      for(int i = 0; i < requested.size() && i < candidate.getActionCount() &&
+          i < stored.getActionCount(); i++)
+      {
+         inetsoft.sree.schedule.ScheduleAction built = candidate.getAction(i);
+         inetsoft.sree.schedule.ScheduleAction old = stored.getAction(i);
+
+         if(requested.get(i) instanceof ViewsheetAction dto &&
+            built instanceof inetsoft.sree.schedule.ViewsheetAction vs &&
+            old instanceof inetsoft.sree.schedule.ViewsheetAction oldVs)
+         {
+            for(ViewsheetAction.SaveToServerFilePath p : dto.getSaveToServerFilePaths()) {
+               if(p.getPath() != null && p.getFormat() != null && !p.isUseCredential() &&
+                  Util.PLACEHOLDER_PASSWORD.equals(p.getPassword()))
+               {
+                  int format = p.getFormat().getTypeValue();
+                  keepPassword(vs.getFilePathInfo(format), oldVs.getFilePathInfo(format));
+               }
+            }
+
+            keepEmailZipPassword(vs, oldVs);
+         }
+         else if(requested.get(i) instanceof IndividualAssetBackupAction dto &&
+                 dto.getPathInfo() != null && !dto.getPathInfo().isUseCredential() &&
+                 Util.PLACEHOLDER_PASSWORD.equals(dto.getPathInfo().getPassword()) &&
+                 built instanceof inetsoft.sree.schedule.IndividualAssetBackupAction backup &&
+                 old instanceof inetsoft.sree.schedule.IndividualAssetBackupAction oldBackup)
+         {
+            keepPassword(backup.getServerPath(), oldBackup.getServerPath());
+         }
+      }
+   }
+
+   /**
+    * The patch model has no field for the password that encrypts the zip attached to an email
+    * delivery, so a rebuilt action would deliver an unencrypted zip. The stored password, its
+    * credential flag and its secret are kept when the rebuilt action still zips the attachment.
+    * The password protects the delivered zip, not the dashboard, so it is kept whichever
+    * dashboard the action points at, as the public schedule API does.
+    */
+   private static void keepEmailZipPassword(inetsoft.sree.schedule.ViewsheetAction built,
+                                            inetsoft.sree.schedule.ViewsheetAction old)
+   {
+      if(built.isCompressFile() &&
+         (!Tool.isEmptyString(old.getPassword()) || !Tool.isEmptyString(old.getSecretId())))
+      {
+         built.setUseCredential(old.isUseCredential());
+         built.setSecretId(old.getSecretId());
+         built.setPassword(old.getPassword());
+      }
+   }
+
+   private static void keepPassword(inetsoft.sree.schedule.ServerPathInfo built,
+                                    inetsoft.sree.schedule.ServerPathInfo old)
+   {
+      if(built != null && old != null && old.getPassword() != null &&
+         !old.getPassword().isEmpty() && Tool.equals(built.getPath(), old.getPath()))
+      {
+         built.setPassword(old.getPassword());
+      }
    }
 
    /**
@@ -173,6 +503,24 @@ public class AdminScheduleGateway {
     */
    public String getScheduleTaskPath(String taskId, Principal user) throws Exception {
       return getFolderPath(getTask(taskId, user));
+   }
+
+   /**
+    * Gets the task-level time zone id of the schedule task (the portal Options tab's Time Zone),
+    * {@code null} when it has none. The public {@link ScheduleTask} DTO has no time zone, so it is
+    * read from the task itself. Same permission checks as {@link #getScheduleTask}.
+    */
+   public String getScheduleTaskTimeZone(String taskId, Principal user) throws Exception {
+      return getTask(taskId, user).getTimeZone();
+   }
+
+   /**
+    * A blank task time zone is stored as {@code null}, which the scheduler reads in the JVM
+    * default zone. The Enterprise Manager Options tab stores {@code ""} for the same choice, which
+    * the scheduler resolves to GMT, so the two do not behave identically.
+    */
+   private static String normalizeTaskTimeZone(String timeZone) {
+      return timeZone == null || timeZone.isBlank() ? null : timeZone.strip();
    }
 
    private static String getFolderPath(inetsoft.sree.schedule.ScheduleTask task) {
@@ -625,12 +973,14 @@ public class AdminScheduleGateway {
       ScheduleTaskMetaData taskMetaData, IdentityID owner, boolean enabled,
       boolean deleteIfNotScheduledToRun, long startDate, long endDate, String description,
       String locale, ScheduleTask.ExecuteAsID executeAsID, List<ScheduleCondition> conditions,
-      List<ScheduleAction> actions, String linkUri, Principal user)
+      List<ScheduleAction> actions, String linkUri, String timeZone, Principal user)
       throws Exception
    {
       String name = taskMetaData.getTaskName();
       Identity identity = checkOwnerPermission(user, owner, executeAsID);
       inetsoft.sree.schedule.ScheduleTask task = convertTask(new ScheduleTask(name, owner, enabled, deleteIfNotScheduledToRun, startDate, endDate, description, locale, executeAsID), identity);
+
+      task.setTimeZone(normalizeTaskTimeZone(timeZone));
 
       conditions.stream()
          .map(ScheduleConditionConverter::convertCondition)
@@ -641,7 +991,7 @@ public class AdminScheduleGateway {
 
       for(ScheduleAction action : actions) {
          checkActionOrgBoundary(action, user);
-         checkBackupAssetsPermitted(action, user);
+         checkBackupAssetsPermitted(action, owner, user);
       }
 
       actions.stream()
@@ -687,7 +1037,7 @@ public class AdminScheduleGateway {
 
       inetsoft.sree.schedule.ScheduleTask task = buildNewTask(taskMetaData, owner, enabled,
          deleteIfNotScheduledToRun, startDate, endDate, description, locale, executeAsID,
-         conditions, actions, linkUri, user);
+         conditions, actions, linkUri, null, user);
       scheduleManager.checkScheduleTaskSave(task.getTaskId(), task, user);
    }
 
@@ -855,7 +1205,7 @@ public class AdminScheduleGateway {
     * caller must be permitted to export every asset. Mirrors {@code
     * ScheduleApiService#checkBackupAssetsPermitted} for an added task, which has no stored assets.
     */
-   private void checkBackupAssetsPermitted(ScheduleAction action, Principal user)
+   private void checkBackupAssetsPermitted(ScheduleAction action, IdentityID owner, Principal user)
       throws UnauthorizedAccessException
    {
       if(!(action instanceof IndividualAssetBackupAction backupAction) ||
@@ -875,6 +1225,41 @@ public class AdminScheduleGateway {
                "The backup asset " + identifier + " may not be exported by " +
                (user == null ? null : user.getName()));
          }
+
+         checkBackupAssetOwnerOrganization(asset, identifier, owner);
+      }
+   }
+
+   /**
+    * Bug #82341, a sheet of another organization than the task owner's is refused, the way the
+    * owner's READ check refuses a viewsheet action sheet. The organization is read from the raw
+    * identifier, {@code XAsset.parseIdentifier()} replaces it with the current organization, so a
+    * site admin's task of another organization would otherwise back up the same path of its own
+    * organization. Only in multi-tenant mode, the same organization comparison as the save check
+    * of the viewsheet action ({@link ScheduleManager#isForeignOrganization}).
+    */
+   private void checkBackupAssetOwnerOrganization(XAsset asset, String identifier,
+                                                  IdentityID owner)
+      throws UnauthorizedAccessException
+   {
+      int idx = identifier.indexOf('^');
+
+      if(!(asset instanceof AbstractSheetAsset) || owner == null || idx < 0 ||
+         !SUtil.isMultiTenant())
+      {
+         return;
+      }
+
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier.substring(idx + 1));
+
+      if(entry != null && entry.getOrgID() != null &&
+         !Tool.equals(entry.getOrgID(), owner.orgID, false) &&
+         ScheduleManager.isForeignOrganization(
+            entry.getOrgID(), owner.orgID, SUtil.getScheduleTaskOwnerPrincipal(owner, null, false)))
+      {
+         throw new UnauthorizedAccessException(
+            "The backup asset " + identifier + " may not be exported by the task owner " +
+            owner.convertToKey() + ", it is in another organization");
       }
    }
 
@@ -1411,4 +1796,5 @@ public class AdminScheduleGateway {
    private final ScheduleTaskService scheduleTaskService;
    private final SecurityEngine securityEngine;
    private final ScheduleTaskIdentityChecker identityChecker;
+   private final ScheduleTaskFolderService taskFolderService;
 }

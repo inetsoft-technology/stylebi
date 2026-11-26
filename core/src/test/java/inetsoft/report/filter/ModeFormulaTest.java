@@ -17,7 +17,6 @@
  */
 package inetsoft.report.filter;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -124,7 +123,6 @@ class ModeFormulaTest {
       assertEquals(2.5, numeric.getDoubleResult());
    }
 
-   @Disabled("Bug #81205: ModeFormula.clone() returns a NthMostFrequentFormula")
    @Test
    @DisplayName("The clone of a Mode formula is a Mode formula")
    void clone_keepsTheFormulaType() {

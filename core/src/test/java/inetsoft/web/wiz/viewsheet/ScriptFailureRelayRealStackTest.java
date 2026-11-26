@@ -65,6 +65,7 @@ import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.wiz.dispatch.ConsoleMessageCapture;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import org.junit.jupiter.api.AfterEach;
@@ -434,6 +435,48 @@ class ScriptFailureRelayRealStackTest {
       box.resetDataMap(TABLE);
    }
 
+   /**
+    * Bug #82316: inside the console scope the ASSET_EXCEPTIONS list is never null, and
+    * VSObjectPropertyService turns every non-script entry in it into an ERROR that fails the write
+    * after it was applied. A query failure the sandbox records during the edit (simulated here)
+    * must not change the outcome of a property write.
+    */
+   @Test
+   void aQueryFailureRecordedDuringAPropertyWriteDoesNotFailTheWriteUnderTheConsoleScope()
+      throws Exception
+   {
+      RuntimeViewsheet rvs = open();
+      consoleScope = true;
+      duringMutation = () ->
+         WorksheetService.ASSET_EXCEPTIONS.get().add(new RuntimeException("query failed"));
+
+      List<String> warnings = assemblyPropertyService(rvs)
+         .set("tok", principal(), TABLE, Map.of("title", "probe"), "");
+
+      assertEquals(List.of(), warnings);
+   }
+
+   /**
+    * A property write on a table whose script fails: the write relays the failure as a warning and
+    * the Console gets ONE row for it (INFO), not an ERROR from the command the property service
+    * sends plus an INFO from the exception list.
+    */
+   @Test
+   void aScriptFailureDuringAPropertyWriteIsOneInfoRowInTheConsole() throws Exception {
+      RuntimeViewsheet rvs = open();
+      consoleScope = true;
+      addFailingExpressionCondition(rvs);
+      ConsoleMessageCapture.buffer(rvs.getID()).clear();
+
+      assemblyPropertyService(rvs).set("tok", principal(), TABLE, Map.of("title", "probe"), "");
+
+      var snapshot = ConsoleMessageCapture.buffer(rvs.getID()).read(null, 200, 0);
+      assertEquals(0, snapshot.error(), snapshot.entries().toString());
+      assertEquals(1, snapshot.entries().stream()
+                      .filter(e -> e.message().contains("assembly: " + TABLE)).count(),
+                   snapshot.entries().toString());
+   }
+
    @AfterEach
    void clearAssetExceptions() {
       WorksheetService.ASSET_EXCEPTIONS.remove();
@@ -457,15 +500,23 @@ class ScriptFailureRelayRealStackTest {
     * capturing dispatcher, return its warnings); the checkpoint and the broadcast are not part of
     * what is under test.
     */
-   private static ViewsheetSessionService seam(RuntimeViewsheet rvs) throws Exception {
+   private ViewsheetSessionService seam(RuntimeViewsheet rvs) throws Exception {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.mutate(anyString(), any(), any())).thenAnswer(inv -> {
          Principal agent = inv.getArgument(1);
          ViewsheetSessionService.Mutation mutation = inv.getArgument(2);
-         return CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
-            mutation.run(rvs, rvs.getID(), dispatcher);
-            return dispatcher.getWarnings();
-         });
+         java.util.concurrent.Callable<List<String>> run = () ->
+            CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
+               if(duringMutation != null) {
+                  duringMutation.run();
+               }
+
+               mutation.run(rvs, rvs.getID(), dispatcher);
+               return dispatcher.getWarnings();
+            });
+
+         // the scope is what the real mutate opens around the capturing dispatcher (Bug #82316)
+         return consoleScope ? ConsoleMessageCapture.scope(rvs.getID(), run) : run.call();
       });
       return sessions;
    }
@@ -628,6 +679,9 @@ class ScriptFailureRelayRealStackTest {
 
    @RegisterExtension
    RuntimeViewsheetExtension vsResource = new RuntimeViewsheetExtension(openViewsheetEvent());
+
+   private boolean consoleScope;
+   private Runnable duringMutation;
 
    @Autowired ViewsheetService viewsheetService;
    @Autowired CoreLifecycleService coreLifecycleService;

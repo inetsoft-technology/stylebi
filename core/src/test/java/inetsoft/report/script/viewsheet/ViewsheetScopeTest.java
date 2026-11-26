@@ -269,7 +269,8 @@ public class ViewsheetScopeTest {
     */
    @Test
    void testAddImage() throws Exception {
-      URL url = new URL("https://www.inetsoft.com/images/website/homepage/dataPipeline-1.png");
+      // use a bundled classpath image so the test does not depend on network access
+      URL url = getClass().getResource("/inetsoft/web/resources/images/logo.png");
       Image image = ImageIO.read(url);
 
       assertEquals(0, sandbox.getViewsheet().getUploadedImageNames().length);

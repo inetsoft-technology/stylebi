@@ -36,6 +36,7 @@ import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.filter.TextHighlight;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.binding.Field;
+import inetsoft.report.internal.table.PresenterRef;
 import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.Condition;
@@ -93,6 +94,7 @@ import inetsoft.web.adhoc.model.chart.ChartFormatConstants;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
 import inetsoft.web.composer.vs.controller.FormatPainterServiceProxy;
+import inetsoft.web.composer.vs.dialog.PresenterPropertySupport;
 import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
@@ -342,7 +344,38 @@ public class ViewsheetFormatService {
 
       deriveDateSpec(model);
       validateFormatSpec(model, toolName);
+      validatePresenterProperties(model, toolName);
       return model;
+   }
+
+   /**
+    * Refuses {@code presenterProperties} that cannot be stored, before anything is written: an
+    * empty {@code presenter} to put them on, a presenter that does not load, a name that is not
+    * one of its properties, or a value of the wrong type. With no {@code presenter} in the
+    * request the properties go on the presenter already stored, which the painter checks.
+    */
+   private static void validatePresenterProperties(VSObjectFormatInfoModel model, String toolName) {
+      Map<String, Object> properties = model.getPresenterProperties();
+
+      if(properties == null || properties.isEmpty()) {
+         return;
+      }
+
+      String presenter = model.getPresenter();
+
+      if(presenter != null && presenter.isBlank()) {
+         throw new IllegalArgumentException(
+            toolName + ": 'presenterProperties' cannot be set together with an empty 'presenter'.");
+      }
+
+      if(presenter != null) {
+         try {
+            PresenterPropertySupport.validate(presenter, properties);
+         }
+         catch(IllegalArgumentException e) {
+            throw new IllegalArgumentException(toolName + ": " + e.getMessage(), e);
+         }
+      }
    }
 
    /**
@@ -4739,12 +4772,20 @@ public class ViewsheetFormatService {
       if(!(user.isPresenterDefined() || user.isPresenterValueDefined())) {
          drop.add("presenter");
       }
+      else {
+         PresenterRef ref = user.isPresenterValueDefined() ? user.getPresenterValue() :
+            user.getPresenter();
+         all.put("presenterProperties", PresenterPropertySupport.toWire(ref));
+      }
 
       all.keySet().removeIf(key -> drop.contains(key) || all.get(key) == null);
       return all;
    }
 
-   /** A chart text region's format: the keys that region's reader fills, empty ones left out. */
+   /**
+    * A chart text region's format: the keys that region's reader fills, empty ones left out. The
+    * value format keys are the same ones {@code set_format} takes, so a read feeds back unchanged.
+    */
    private static Map<String, Object> toChartTextWireFormat(VSObjectFormatInfoModel model) {
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("color", model.getColor());
@@ -4752,6 +4793,15 @@ public class ViewsheetFormatService {
       out.put("backgroundAlpha", model.getBackgroundAlpha());
       out.put("font", model.getFont());
       out.put("align", model.getAlign());
+      out.put("format", model.getFormat());
+      out.put("formatSpec", model.getFormatSpec());
+      out.put("dateSpec", model.getDateSpec());
+
+      // the model defaults padding to true and only the padding-off variant needs to travel
+      if(!model.isDurationPadZeros()) {
+         out.put("durationPadZeros", false);
+      }
+
       out.values().removeIf(value -> value == null || "".equals(value));
       return out;
    }

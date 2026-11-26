@@ -28,6 +28,7 @@ import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.web.admin.content.repository.MVSupportService;
+import org.awaitility.Awaitility;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.extension.*;
@@ -42,6 +43,7 @@ import java.net.URL;
 import java.nio.file.*;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback, BeforeEachCallback {
@@ -254,7 +256,12 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback, B
       MVSupportService.AnalysisResult analysisResult =
          support.analyze(identifiers, false, true, true, user, false, false);
 
-      analysisResult.waitFor();
+      // not analysisResult.waitFor(): it holds the result's lock while Awaitility polls the
+      // synchronized isCompleted() on another thread, which then never gets the lock
+      Awaitility.await()
+         .atMost(2, TimeUnit.MINUTES)
+         .pollInterval(500, TimeUnit.MILLISECONDS)
+         .until(analysisResult::isCompleted);
 
       if(!analysisResult.getExceptions().isEmpty()) {
          String msg = analysisResult.getExceptions().stream()

@@ -173,7 +173,9 @@ public class WizLogicalModelController {
          modelService.getModel(database, baseModel.getPartition(), parent, null, principal),
          false);
       WizLogicalModelValidator.Result result = validator.validate(
-         new WizLogicalModelEnv(database, dataModel, dataSourceService), definition,
+         new WizLogicalModelEnv(database, dataModel, dataSourceService,
+                                link -> WizDrillLinks.resolve(link, principal),
+                                WizDrillLinks.worksheets(principal)), definition,
          WizLogicalModelValidator.Mode.CREATE, null,
          baseModel == null ? null :
             new WizLogicalModelValidator.Extended(baseModel, baseWire, false));
@@ -316,7 +318,9 @@ public class WizLogicalModelController {
                        "edit; nothing was written");
       }
       WizLogicalModelValidator.Result result = validator.validate(
-         new WizLogicalModelEnv(database, dataModel, dataSourceService), submitted,
+         new WizLogicalModelEnv(database, dataModel, dataSourceService,
+                                link -> WizDrillLinks.resolve(link, principal),
+                                WizDrillLinks.worksheets(principal)), submitted,
          WizLogicalModelValidator.Mode.UPDATE, stored,
          baseModel == null ? null : new WizLogicalModelValidator.Extended(
             baseModel, inheritedOnly(currentWire), true));

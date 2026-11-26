@@ -43,6 +43,7 @@ import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
 import inetsoft.web.viewsheet.service.ExportResponse;
 import inetsoft.web.viewsheet.service.VSExportService;
+import inetsoft.web.wiz.dispatch.ConsoleMessageCapture;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.RenderWaitSupport;
@@ -144,6 +145,17 @@ public class ScriptImageService {
    public ChartImage getAssemblyImage(RuntimeViewsheet rvs, String assemblyName,
                                       Integer width, Integer height, Principal principal,
                                       boolean svg)
+      throws Exception
+   {
+      // the render re-runs assembly scripts, up to RENDER_MAX_ATTEMPTS times; a failure is
+      // recorded into the Console buffer only under a scope (Bug #82316)
+      return ConsoleMessageCapture.scope(rvs.getID(), () ->
+         renderAssemblyImage(rvs, assemblyName, width, height, principal, svg));
+   }
+
+   private ChartImage renderAssemblyImage(RuntimeViewsheet rvs, String assemblyName,
+                                          Integer width, Integer height, Principal principal,
+                                          boolean svg)
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
@@ -317,8 +329,8 @@ public class ScriptImageService {
          WizVsService.checkFailedQuery(box.get().getVSTableLens(assemblyName, false), false);
       }
 
-      return assemblyImageService.exportViewsheetTable(rvs.getID(), assemblyName, agent,
-                                                       principal);
+      return ConsoleMessageCapture.scope(rvs.getID(), () ->
+         assemblyImageService.exportViewsheetTable(rvs.getID(), assemblyName, agent, principal));
    }
 
    /** Whole-viewsheet render returned in place of a single assembly, with {@code note} leading. */
@@ -406,8 +418,9 @@ public class ScriptImageService {
       int w = clamp(width != null && width > 0 ? width : DEFAULT_WIDTH);
       int h = clamp(height != null && height > 0 ? height : DEFAULT_HEIGHT);
 
+      // the export runs on another thread, so the console scope is opened inside the task
       byte[] pngBytes = InFlightViewsheetExport.await(rvs, principal,
-         () -> exportViewsheetToPng(rvs, principal),
+         () -> ConsoleMessageCapture.scope(rvs.getID(), () -> exportViewsheetToPng(rvs, principal)),
          RENDER_MAX_ATTEMPTS * RENDER_RETRY_SLEEP_MS,
          (int) Math.max(1, (RENDER_MAX_ATTEMPTS * RENDER_RETRY_SLEEP_MS) / 1000));
       BufferedImage full = decodePng(pngBytes, "the viewsheet");

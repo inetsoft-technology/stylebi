@@ -67,4 +67,32 @@ class ScheduleTaskPathJsonTest {
 
       assertFalse(json.get("tasks").get(0).has("path"));
    }
+
+   @Test
+   void listEntriesAndTaskViewCarryTheTaskTimeZoneTopLevelAndNotInsideTask() throws Exception {
+      AdminScheduleTaskList list = new AdminScheduleTaskList();
+      list.getTasks().add(new ScheduleTaskEntry(new ScheduleTask(), "/", "Asia/Tokyo"));
+      list.getTasks().add(new ScheduleTaskEntry(new ScheduleTask(), "/"));
+      ScheduleTaskView view = new ScheduleTaskView("id", "/", "Asia/Tokyo", new ScheduleTask(),
+                                                   Collections.emptyList(),
+                                                   Collections.emptyList());
+
+      JsonNode listJson = mapper.readTree(mapper.writeValueAsString(list));
+      JsonNode viewJson = mapper.readTree(mapper.writeValueAsString(view));
+
+      assertEquals("Asia/Tokyo", listJson.get("tasks").get(0).get("timeZone").asText());
+      assertTrue(listJson.get("tasks").get(1).get("timeZone").isNull());
+      assertEquals("Asia/Tokyo", viewJson.get("timeZone").asText());
+      assertFalse(viewJson.get("task").has("timeZone"));
+   }
+
+   @Test
+   void publicDtoJsonHasNoTimeZone() throws Exception {
+      ScheduleTaskList list = new ScheduleTaskList();
+      list.getTasks().add(new ScheduleTask());
+
+      JsonNode json = mapper.readTree(mapper.writeValueAsString(list));
+
+      assertFalse(json.get("tasks").get(0).has("timeZone"));
+   }
 }

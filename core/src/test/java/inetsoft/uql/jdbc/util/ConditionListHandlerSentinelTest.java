@@ -22,6 +22,7 @@ import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.jdbc.*;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.credential.CredentialService;
 import org.junit.jupiter.api.*;
@@ -129,6 +130,13 @@ class ConditionListHandlerSentinelTest {
                                       boolean replace)
       throws Exception
    {
+      return render(buildSql(table, cond, vars, replace), vars);
+   }
+
+   private static UniformSQL buildSql(String table, Condition cond, VariableTable vars,
+                                      boolean replace)
+      throws Exception
+   {
       JDBCDataSource ds = new JDBCDataSource();
       ds.setName("sentinelcond-derby");
       ds.setDriver("org.apache.derby.jdbc.EmbeddedDriver");
@@ -156,7 +164,10 @@ class ConditionListHandlerSentinelTest {
       XFilterNode node = new ConditionListHandler().createXFilterNode(list, sql, vars);
       sql.setWhere(node);
       sql.clearSQLString();
+      return sql;
+   }
 
+   private static Statement0 render(UniformSQL sql, VariableTable vars) throws Exception {
       VarSQL varsql = new VarSQL();
       varsql.setBackslashIsEscapeChar(SQLHelper.getSQLHelper(sql).isBackslashEscapeChar());
       varsql.setSQLType(VarSQL.SQLType.STATEMENT);
@@ -349,7 +360,22 @@ class ConditionListHandlerSentinelTest {
       return op == XCondition.BETWEEN ? cond(op, true, "$(v)", "$(v)") : cond(op, true, "$(v)");
    }
 
-   @Disabled("mismatch C06 #81115")
+   /**
+    * #81115. These two cases (C06, C07) stay disabled on purpose. {@link #rawVarCondition}
+    * puts the plain String "$(v)" in the condition. The product pipeline normally does not:
+    * a condition whose value is a UserVariable (the Variable and Session-data kinds, and every
+    * saved and reloaded sheet) or an ExpressionValue is dropped by
+    * {@code JDBCHandler.xquery.validateConditions} (via {@code XUtil.isNullParam}) when the
+    * variable is missing or null, so SQL returns all rows like memory (see
+    * {@link #c06b_userVariableMissing_isDroppedByValidateConditions}). A plain String "$(v)"
+    * is wrapped as $(dataselcondN), so validateConditions cannot see that v is missing and the
+    * literal text is bound, giving 0 rows. Only an unsaved composer condition of value type
+    * "Value" with $(v) typed by hand on a string column, and the wiz/viewsheet pre-condition
+    * paths, reach that form. {@code Condition.ignored} is read only on the in-memory path.
+    */
+   @Disabled("#81115: plain-String $(v) form is not what the product pipeline normally uses " +
+             "(UserVariable/ExpressionValue values are dropped by validateConditions); " +
+             "this form binds the literal text -> 0 rows, memory -> all rows")
    @DisplayName("C06 condition with a missing variable is ignored in memory and SQL")
    @ParameterizedTest(name = "[{index}] op {0}")
    @ValueSource(ints = { XCondition.EQUAL_TO, XCondition.ONE_OF, XCondition.BETWEEN,
@@ -362,13 +388,33 @@ class ConditionListHandlerSentinelTest {
       assertEquals(memory, sqlRows(st), "SQL rows == memory rows");
    }
 
+   @DisplayName("C06b UserVariable condition with a missing variable is dropped, SQL == memory")
+   @ParameterizedTest(name = "[{index}] op {0}")
+   @ValueSource(ints = { XCondition.EQUAL_TO, XCondition.ONE_OF, XCondition.LIKE,
+                         XCondition.STARTING_WITH })
+   void c06b_userVariableMissing_isDroppedByValidateConditions(int op) throws Exception {
+      VariableTable vars = new VariableTable();
+      Condition cond = cond(op, true, new UserVariable("v"));
+      Set<String> memory = memoryRows(ROWS, varCondition(op, vars));
+      UniformSQL sql = buildSql("t", cond, vars, false);
+      assertFalse(sql.hasSQLString());
+      JDBCQuery query = new JDBCQuery();
+      query.setSQLDefinition(sql);
+      query.validateConditions(vars);
+      assertEquals(set(ROWS), memory, "memory: ignored condition selects all rows");
+      assertEquals(memory, sqlRows(render(sql, vars)), "SQL rows == memory rows");
+   }
+
    static java.util.stream.Stream<Arguments> nullArrays() {
       return java.util.stream.Stream.of(Arguments.of((Object) new Object[] { null, null }),
                                         Arguments.of((Object) new Object[0]),
                                         Arguments.of((Object) new Object[] { null }));
    }
 
-   @Disabled("mismatch C07 #81115")
+   /** See {@link #c06_missingVariable}: same plain-String "$(v)" form, same #81115 reason. */
+   @Disabled("#81115: plain-String $(v) form is not what the product pipeline normally uses " +
+             "(UserVariable/ExpressionValue values are dropped by validateConditions); " +
+             "this form binds the literal text -> 0 rows, memory -> all rows")
    @DisplayName("C07 ONE_OF with an all-null / empty array variable is ignored in memory and SQL")
    @ParameterizedTest(name = "[{index}]")
    @MethodSource("nullArrays")

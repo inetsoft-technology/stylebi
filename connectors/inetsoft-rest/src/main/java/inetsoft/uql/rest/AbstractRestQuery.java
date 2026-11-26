@@ -26,6 +26,10 @@ import inetsoft.util.Tool;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 @View(vertical=true, value={
    @View1("suffix"),
@@ -85,6 +89,25 @@ public abstract class AbstractRestQuery extends TabularQuery {
 
    public boolean isExpandedPathEnabled() {
       return isExpanded() && !isExpandTop();
+   }
+
+   /**
+    * Nested objects the query selects, as object path to leaf paths relative to the row root.
+    * Lets the table build the leaf columns of an object that is null on every row. Empty by
+    * default, so columns stay purely data-driven. Not a bean property on purpose.
+    */
+   public Map<String, List<String>> declaredObjectColumns() {
+      return Collections.emptyMap();
+   }
+
+   /**
+    * Column types the source declares, used only for a column that is null on every row. Null by
+    * default, so such columns stay string. Not a bean property on purpose.
+    *
+    * @return a supplier of column name to type name, called lazily, or null.
+    */
+   public Supplier<Map<String, String>> declaredColumnTypes() {
+      return null;
    }
 
    public PaginationType getPaginationType() {

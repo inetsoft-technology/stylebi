@@ -62,6 +62,21 @@ class TableArrayTest {
    }
 
    @Test
+   void getArrayElementOnNullTableReturnsNull() {
+      TableArray arr = new TableArray((XTable) null);
+
+      assertNull(arr.getArrayElement(0));
+      assertNull(arr.getArrayElement(5));
+   }
+
+   @Test
+   void getArrayElementOutOfRangeReturnsNull() {
+      TableArray arr = new TableArray(table());
+
+      assertNull(arr.getArrayElement(100));
+   }
+
+   @Test
    void hasMemberReportsExistingColumnsPresent() {
       TableArray arr = new TableArray(table());
 

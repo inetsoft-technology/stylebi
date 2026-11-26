@@ -19,11 +19,18 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.ChangedAssemblyList;
+import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.test.*;
+import inetsoft.uql.*;
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.AssemblyEntry;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.RadioButtonVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
@@ -116,6 +123,170 @@ class ViewsheetSandboxOnLoadSelectionTest {
    }
 
    /**
+    * Bug #82168: a viewsheet without an onLoad script, opened with a selection saved in it, and a
+    * crosstab with a condition on an input. A text expression run in reset() before the saved
+    * selection is applied cached the crosstab's table and data arrays, and the later runs of
+    * the expression read them, so the text showed the rows before the selection.
+    */
+   @Test
+   void crosstabTableAndDataReadTheSavedSelectionOnOpenWithoutOnLoad() throws Exception {
+      assertCrosstabScriptReadsTheSavedSelectionOnOpen(true, false);
+   }
+
+   /**
+    * Bug #82168, opened with the breakable change list the viewer uses: the crosstab's data
+    * array, which only clearDataArray() drops, must not keep the rows before the selection.
+    */
+   @Test
+   void crosstabDataReadsTheSavedSelectionOnViewerOpenWithoutOnLoad() throws Exception {
+      assertCrosstabScriptReadsTheSavedSelectionOnOpen(false, true);
+   }
+
+   private void assertCrosstabScriptReadsTheSavedSelectionOnOpen(boolean inputCondition,
+                                                                 boolean viewer)
+      throws Exception
+   {
+      ViewsheetSandbox box = vsResource.getRuntimeViewsheet().getViewsheetSandbox().orElseThrow();
+      Viewsheet vs = box.getViewsheet();
+      SourceInfo source =
+         (SourceInfo) ((TableVSAssembly) vs.getAssembly(TABLE)).getSourceInfo().clone();
+      SelectionListVSAssembly selection = selection(vs, source.getSource());
+      CrosstabVSAssembly crosstab = crosstab(vs, source);
+
+      if(inputCondition) {
+         likeInputCondition(vs, crosstab);
+      }
+
+      vs.addAssembly(crosstab);
+      TextVSAssembly text = new TextVSAssembly(vs, TEXT);
+      ((TextVSAssemblyInfo) text.getVSAssemblyInfo()).setTextValue(
+         "='Rows:' + " + CROSSTAB + ".table.length + ' Data:' + " + CROSSTAB + ".data.length");
+      vs.addAssembly(text);
+      vs.getViewsheetInfo().setScriptEnabled(true);
+      assertNull(vs.getViewsheetInfo().getOnLoad(), "fixture: the viewsheet has no onLoad script");
+
+      int all = rows(box.getData(TABLE));
+      SelectionList list = new SelectionList();
+      SelectionValue value = new SelectionValue("NAMED", "NAMED");
+      value.setState(SelectionValue.STATE_SELECTED);
+      list.setSelectionValues(new SelectionValue[] { value });
+      selection.setStateSelectionList(list);
+      ChangedAssemblyList clist = viewer ? viewerList(box) : new ChangedAssemblyList();
+      box.lockWrite();
+
+      try {
+         box.reset(null, vs.getAssemblies(), clist, true, true, null);
+      }
+      finally {
+         box.unlockWrite();
+      }
+
+      int filtered = rows(box.getData(TABLE));
+      assertTrue(filtered < all, "fixture: the saved selection must filter the table");
+      TableLens view = box.getVSTableLens(CROSSTAB, false);
+      view.moreRows(Integer.MAX_VALUE);
+      // the crosstab's data is the filtered base table with its header row
+      assertEquals("Rows:" + view.getRowCount() + " Data:" + (filtered + 1), textOf(text),
+                   "text expression when the viewsheet is opened");
+   }
+
+   /**
+    * A crosstab of the count of names by type, on the source of the table.
+    */
+   private static CrosstabVSAssembly crosstab(Viewsheet vs, SourceInfo source) {
+      CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, CROSSTAB);
+      crosstab.setSourceInfo(source);
+      VSDimensionRef dim = new VSDimensionRef();
+      dim.setDataRef(new AttributeRef("type"));
+      dim.setGroupColumnValue("type");
+      dim.setDataType(XSchema.STRING);
+      VSAggregateRef agg = new VSAggregateRef();
+      agg.setDataRef(new AttributeRef("name"));
+      agg.setColumnValue("name");
+      agg.setFormulaValue(AggregateFormula.COUNT_ALL.getFormulaName());
+      VSCrosstabInfo cinfo = new VSCrosstabInfo();
+      cinfo.setDesignRowHeaders(new VSDimensionRef[] { dim });
+      cinfo.setDesignColHeaders(new VSDimensionRef[0]);
+      cinfo.setDesignAggregates(new VSAggregateRef[] { agg });
+      crosstab.setVSCrosstabInfo(cinfo);
+      return crosstab;
+   }
+
+   /**
+    * Add a radio button and a crosstab condition {@code name like $(radio)} that matches all.
+    */
+   private static void likeInputCondition(Viewsheet vs, CrosstabVSAssembly crosstab) {
+      RadioButtonVSAssembly radio = new RadioButtonVSAssembly(vs, RADIO);
+      RadioButtonVSAssemblyInfo info = (RadioButtonVSAssemblyInfo) radio.getVSAssemblyInfo();
+      ListData data = new ListData();
+      data.setLabels(new String[] { "All", "A" });
+      data.setValues(new Object[] { "%", "A%" });
+      data.setDataType(XSchema.STRING);
+      info.setListData(data);
+      info.setDataType(XSchema.STRING);
+      info.setSelectedObject("%");
+      vs.addAssembly(radio);
+
+      Condition condition = new Condition(XSchema.STRING);
+      condition.setOperation(XCondition.LIKE);
+      condition.addValue(new UserVariable(RADIO));
+      ConditionList conditions = new ConditionList();
+      conditions.append(new ConditionItem(new AttributeRef("name"), condition, 0));
+      crosstab.setPreConditionList(conditions);
+   }
+
+   /**
+    * A breakable list whose ready listener does what the viewer's does for a ready assembly:
+    * execute its view and load its view table.
+    */
+   private static ChangedAssemblyList viewerList(ViewsheetSandbox box) {
+      ChangedAssemblyList clist = new ChangedAssemblyList(true);
+      clist.setReadyListener(new ChangedAssemblyList.ReadyListener() {
+         @Override
+         public void onReady() throws Exception {
+            while(!clist.getReadyList().isEmpty()) {
+               AssemblyEntry entry = clist.getReadyList().removeFirst();
+               box.executeView(entry.getAbsoluteName(), false);
+               box.getVSTableLens(entry.getAbsoluteName(), false);
+
+               if(!clist.getProcessedList().contains(entry)) {
+                  clist.getProcessedList().add(entry);
+               }
+            }
+         }
+
+         @Override
+         public void setRuntimeSheet(RuntimeSheet rs) {
+         }
+
+         @Override
+         public RuntimeSheet getRuntimeSheet() {
+            return null;
+         }
+
+         @Override
+         public void setInitingGrid(boolean grid) {
+         }
+
+         @Override
+         public boolean isInitingGrid() {
+            return false;
+         }
+
+         @Override
+         public String getID() {
+            return null;
+         }
+
+         @Override
+         public void setID(String id) {
+         }
+      });
+
+      return clist;
+   }
+
+   /**
     * Without an onLoad script the change is applied by processSelections only, as before.
     */
    @Test
@@ -188,4 +359,6 @@ class ViewsheetSandboxOnLoadSelectionTest {
 
    private static final String TABLE = "TableView1";
    private static final String TEXT = "Text79367";
+   private static final String CROSSTAB = "Crosstab82168";
+   private static final String RADIO = "Radio82168";
 }

@@ -37,7 +37,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
 
-import static inetsoft.web.wiz.controller.WizPortalController.WIZ_SERVICE_URL;
+import static inetsoft.web.portal.WizPortalEntry.WIZ_SERVICE_URL;
 
 /**
  * Controller for SSO token endpoints.

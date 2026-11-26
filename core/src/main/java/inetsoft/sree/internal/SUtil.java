@@ -3326,7 +3326,9 @@ public class SUtil {
       String value;
 
       try {
-         value = SreeEnv.getPropertyFromStorage(name);
+         // memoized per request scope; the fallbacks below stay outside so a failure is never pinned
+         value = PermissionRequestScope.memo(
+            SUtil.class, "storageProperty", name, () -> SreeEnv.getPropertyFromStorage(name));
       }
       catch(Exception ex) {
          LOG.debug("Falling back to cached property value for {}", name, ex);

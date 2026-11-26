@@ -78,6 +78,47 @@ class WizVpmMapperRoundTripTest {
    }
 
    @Test
+   void aConditionWithATargetAndNoClauseRoundTripsAsWritten() throws Exception {
+      WizVpmTestSupport support = new WizVpmTestSupport();
+      WizVpmValidator validator = new WizVpmValidator(null);
+
+      for(String script : new String[] { null, "" }) {
+         String name = "NoClause" + (script == null ? "Null" : "Empty");
+         Map<String, Object> target = new LinkedHashMap<>();
+         target.put("kind", "table");
+         target.put("name", "ORDERS");
+         Map<String, Object> condition = new LinkedHashMap<>();
+         condition.put("name", "condition");
+         condition.put("target", target);
+         Map<String, Object> wire = new LinkedHashMap<>();
+         wire.put("name", name);
+         wire.put("conditions", new ArrayList<>(List.of(condition)));
+
+         assertTrue(validator.validate(support.fresh(), wire, WizVpmValidator.Mode.CREATE, null, null)
+                       .errors().isEmpty(), "a tree-less condition is valid");
+
+         VPMDefinition portal = support.mapper.toDefinition(wire, support.ds, null);
+
+         if(script != null) {
+            portal.getConditions().get(0).setScript(script);
+         }
+
+         support.service.create(support.ds, portal, support.bob);
+         VirtualPrivateModel stored = support.service.getStored(support.ds, name, support.bob);
+         Map<String, Object> back = support.mapper.toWire(stored, support.jdbc);
+         List<?> conditions = (List<?>) back.get("conditions");
+
+         assertEquals(1, conditions.size());
+         assertFalse(((Map<?, ?>) conditions.get(0)).containsKey("tree"),
+                     "the read-back carries no tree");
+         assertEquals(support.mapper.normalize(wire), support.mapper.normalize(back));
+         // the get result fed back unchanged is a no-op
+         assertNull(WizVpmController.firstDifference(
+            support.mapper.normalize(back), support.mapper.normalize(wire), "t"));
+      }
+   }
+
+   @Test
    void flatListsTheUiProducesReadAsTheTreeAReaderExpects() throws Exception {
       WizVpmTestSupport support = new WizVpmTestSupport();
       // A(0) AND(0) B(1) OR(1) C(1)

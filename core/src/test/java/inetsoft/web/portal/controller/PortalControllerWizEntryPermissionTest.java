@@ -76,10 +76,10 @@ class PortalControllerWizEntryPermissionTest {
       savedPrincipal = ThreadContext.getPrincipal();
       oldProvider = SreeEnv.getProperty("security.provider");
       oldVisible = SreeEnv.getProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE);
-      oldUrl = SreeEnv.getProperty(WizPortalEntry.WIZ_PORTAL_URL);
+      oldUrl = SreeEnv.getProperty(WizPortalEntry.WIZ_SERVICE_URL);
       SreeEnv.setProperty("security.provider", "file");
       SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_VISIBLE, "true");
-      SreeEnv.setProperty(WizPortalEntry.WIZ_PORTAL_URL, "https://wiz.example.com/");
+      SreeEnv.setProperty(WizPortalEntry.WIZ_SERVICE_URL, "https://wiz.example.com/");
 
       builder = SecurityTestDataBuilder.create()
          .addOrg(ORG, ORG)
@@ -108,7 +108,7 @@ class PortalControllerWizEntryPermissionTest {
       ThreadContext.setPrincipal(savedPrincipal);
       SreeEnv.setProperty("security.provider", oldProvider == null ? "" : oldProvider);
       restore(WizPortalEntry.WIZ_PORTAL_VISIBLE, oldVisible);
-      restore(WizPortalEntry.WIZ_PORTAL_URL, oldUrl);
+      restore(WizPortalEntry.WIZ_SERVICE_URL, oldUrl);
 
       if(builder != null) {
          builder.teardown();

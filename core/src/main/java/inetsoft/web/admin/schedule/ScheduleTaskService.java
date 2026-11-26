@@ -55,9 +55,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.security.Principal;
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.LocalTime;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -570,7 +568,7 @@ public class ScheduleTaskService {
 
          IdentityID owner = null;
 
-         if(model.options() != null && model.options().owner() != null) {
+         if(model.options() != null && !Tool.isEmptyString(model.options().owner())) {
             owner = getIdentityId(model.options().owner(), principal);
          }
 
@@ -1220,87 +1218,17 @@ public class ScheduleTaskService {
          .filter(Objects::nonNull)
          .filter(task -> task.getType() != ScheduleTask.Type.CYCLE_TASK)
          .collect(Collectors.toList());
-      long count = tasks.stream()
-         .flatMap(ScheduleTask::getConditionStream)
-         .filter(TimeCondition.class::isInstance)
-         .count();
+      long count = TaskRedistributor.countTimeConditions(tasks);
 
       if(count == 0) {
          throw new MessageException(Catalog.getCatalog(principal)
             .getString("em.schedule.distribution.noTimeConditions"));
       }
 
-      long duration = Duration.between(startTime, endTime).get(ChronoUnit.SECONDS) / 60L;
-      int concurrency;
-      long interval = duration / count;
-
-      for(concurrency = 1; concurrency < maxConcurrency && interval < 10L; concurrency++) {
-         interval = duration / (long) Math.ceil(count / (double) concurrency);
-      }
-
-      interval = duration / (long) Math.ceil(count / (double) concurrency);
-
-      if(interval > 60) {
-         interval = 60;
-      }
-      else if(interval > 30) {
-         interval = 30;
-      }
-      else if(interval > 15) {
-         interval = 15;
-      }
-      else if(interval > 10) {
-         interval = 10;
-      }
-      else if(interval > 5) {
-         interval = 5;
-      }
-
-      LocalTime time = LocalTime.from(startTime);
-
-      for(ScheduleTask task : tasks) {
-         boolean modified = false;
-
-         for(int i = 0; i < task.getConditionCount(); i++) {
-            if(task.getCondition(i) instanceof TimeCondition) {
-               if(!time.isBefore(endTime)) {
-                  time = LocalTime.from(startTime);
-               }
-
-               TimeCondition condition = (TimeCondition) task.getCondition(i);
-
-               switch(condition.getType()) {
-               case TimeCondition.EVERY_HOUR:
-                  LocalTime conditionStart = LocalTime.of(
-                     condition.getHour(), condition.getMinute(), condition.getSecond());
-                  LocalTime conditionEnd = LocalTime.of(
-                     condition.getHourEnd(), condition.getMinuteEnd(), condition.getSecondEnd());
-                  Duration conditionDuration = Duration.between(conditionStart, conditionEnd);
-                  conditionEnd = time.plus(conditionDuration);
-                  condition.setHourEnd(conditionEnd.getHour());
-                  condition.setMinuteEnd(conditionEnd.getMinute());
-                  condition.setSecondEnd(0);
-               case TimeCondition.EVERY_DAY:
-               case TimeCondition.EVERY_WEEK:
-               case TimeCondition.EVERY_MONTH:
-                  condition.setHour(time.getHour());
-                  condition.setMinute(time.getMinute());
-                  condition.setSecond(0);
-                  break;
-               default:
-                  continue;
-               }
-
-               // set task start time to time
-               time = time.plusMinutes(interval);
-               modified = true;
-            }
-         }
-
-         if(modified) {
-            scheduleService.saveTask(task.getTaskId(), task, principal);
-         }
-      }
+      // each task is saved right after its own conditions were placed
+      TaskRedistributor.redistribute(
+         tasks, startTime, endTime, maxConcurrency,
+         task -> scheduleService.saveTask(task.getTaskId(), task, principal));
 
       return scheduleService.getScheduleTaskList("", "", principal);
    }

@@ -112,6 +112,8 @@ public class SwapXYBindingService {
          boolean hresize = cinfo.isHeightResized();
          double wratio = cinfo.getUnitWidthRatio();
          double hratio = cinfo.getUnitHeightRatio();
+         double wpercent = cinfo.getUnitWidthRatioPercent();
+         double hpercent = cinfo.getUnitHeightRatioPercent();
          final double originalWidthRatio = cinfo.getInitialWidthRatio();
          final double originalHeightRatio = cinfo.getInitialHeightRatio();
 
@@ -119,6 +121,11 @@ public class SwapXYBindingService {
          box.get().processChange(name, hint, clist);
          coreLifecycleService.execute(rvs, name, linkUri, hint, dispatcher);
          assemblyInfoHandler.checkTrap(oinfo, ninfo, obinding, dispatcher, rvs);
+
+         // only a draw sets the swapped chart's initial ratios
+         if(wresize || hresize) {
+            box.get().getVGraphPair(name);
+         }
 
          final VSChartInfo ncinfo = chart.getVSChartInfo();
          final double initialWidthRatio = ncinfo.getInitialWidthRatio();
@@ -132,6 +139,9 @@ public class SwapXYBindingService {
             ncinfo.setHeightResized(wresize);
             ncinfo.setUnitWidthRatio(hratio / originalHeightRatio * initialWidthRatio);
             ncinfo.setUnitHeightRatio(wratio / originalWidthRatio * initialHeightRatio);
+            // each axis keeps the percent of the axis it came from
+            ncinfo.setUnitWidthRatioPercent(hpercent);
+            ncinfo.setUnitHeightRatioPercent(wpercent);
             coreLifecycleService.execute(rvs, name, linkUri, hint, dispatcher);
          }
 

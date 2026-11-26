@@ -217,7 +217,19 @@ class WizPhysicalViewSessionTest extends WizPhysicalViewTestBase {
       createView(definition("v", tables(plain("T1"))));
       GetResponse got = getView("v");
 
-      assertEquals(WizDataModelRevision.of(got.definition()), got.revision());
+      // the revision is over the definition without its layout (a moved table keeps it)
+      Map<String, Object> noLayout = new LinkedHashMap<>(got.definition());
+      List<Map<String, Object>> shown = new ArrayList<>();
+
+      for(Object table : (List<?>) got.definition().get("tables")) {
+         @SuppressWarnings("unchecked")
+         Map<String, Object> copy = new LinkedHashMap<>((Map<String, Object>) table);
+         copy.remove("bounds");
+         shown.add(copy);
+      }
+
+      noLayout.put("tables", shown);
+      assertEquals(WizDataModelRevision.of(noLayout), got.revision());
       assertTrue(got.revision().matches("[0-9a-f]{64}"));
    }
 
@@ -762,6 +774,51 @@ class WizPhysicalViewSessionTest extends WizPhysicalViewTestBase {
       assertEquals(1, response.warnings().size());
       assertEquals("UNJOINED_TABLES", response.warnings().get(0).code());
       assertNotNull(storedView("v"));
+   }
+
+   private static Map<String, Object>[] triangle() {
+      @SuppressWarnings("unchecked")
+      Map<String, Object>[] joins = new Map[] {
+         join("T2", "T1_ID", "T1", "ID"), join("T3", "T2_CODE", "T2", "CODE"),
+         join("T3", "ID", "T1", "ID")};
+      return joins;
+   }
+
+   @Test
+   void aCycleWarningNamesTheJoinsOfTheCycle() throws Exception {
+      WriteResponse response = createView(definition(
+         "v", tables(plain("T1"), plain("T2"), plain("T3")), triangle()));
+
+      assertEquals(1, response.warnings().size());
+      Warning warning = response.warnings().get(0);
+      assertEquals("CYCLE", warning.code());
+      assertEquals(List.of("T2.T1_ID -> T1.ID",
+                           "T3.ID -> T1.ID", "T3.T2_CODE -> T2.CODE"), warning.joins());
+
+      for(String join : warning.joins()) {
+         assertTrue(warning.message().contains(join), join);
+      }
+   }
+
+   @Test
+   void aCycleWarningDoesNotNameTablesOutsideTheCycle() throws Exception {
+      Map<String, Object>[] joins = Arrays.copyOf(triangle(), 4);
+      joins[3] = join("T4", "X", "T1", "NAME");
+      WriteResponse response = createView(definition(
+         "v", tables(plain("T1"), plain("T2"), plain("T3"), plain("T4")), joins));
+
+      Warning warning = response.warnings().get(0);
+      assertEquals("CYCLE", warning.code());
+      assertEquals(3, warning.joins().size());
+      assertFalse(warning.message().contains("T4"));
+   }
+
+   @Test
+   void nonCycleWarningsCarryNoJoins() throws Exception {
+      WriteResponse response = createView(definition("v", tables(plain("T1"), plain("T2"))));
+
+      assertEquals("UNJOINED_TABLES", response.warnings().get(0).code());
+      assertNull(response.warnings().get(0).joins());
    }
 
    @Test

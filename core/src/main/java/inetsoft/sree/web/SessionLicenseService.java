@@ -92,7 +92,8 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
                }
 
                LicenseManager.getInstance().addKeyViolation(
-                  "Concurrent users exceeded - " + srPrincipal.getName(), null);
+                  "Concurrent users exceeded - " + srPrincipal.getName(),
+                  "concurrent-users:" + srPrincipal.getName());
                final Catalog catalog = Catalog.getCatalog(srPrincipal);
                final String msg = String.format("%s %s", catalog.getString("common.sessionsExceed"),
                                                 catalog.getString("common.contactAdmin"));
@@ -242,30 +243,12 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
             }
 
             LicenseManager.getInstance().addKeyViolation(
-               "Named user exception - " + loginUser, null);
+               "Named user exception - " + loginUser, "named-user:" + loginUser);
             throw new UnlicensedUserNameException(Catalog.getCatalog(srPrincipal).
                getString("Named User Not Allowed", loginUser.getName()));
          }
 
-         Set<SRPrincipal> activeSessions = sessionService.getActiveSessions();
-         Set<SRPrincipal> invalidSessions = new HashSet<>();
-
-         for(SRPrincipal session : activeSessions) {
-            ClientInfo activeInfo = session.getUser();
-            IdentityID activeLoginUser = activeInfo.getLoginUserID();
-
-            if(activeLoginUser.equals(loginUser)) {
-               if(!activeInfo.getIPAddress().equals(info.getIPAddress())) {
-                  invalidSessions.add(session);
-               }
-            }
-         }
-
-         // Feature #36409, invalidate old sessions for a named user when a new session is created
-         for(SRPrincipal session : invalidSessions) {
-            // this will also remove the session from the license service
-            SUtil.logout(session, true);
-         }
+         logoutOtherAddressSessions(loginUser, info);
 
          try {
             sessionService.newSession(srPrincipal);
@@ -298,10 +281,12 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
             }
 
             LicenseManager.getInstance().addKeyViolation(
-               "Named user exception - " + loginUser, null);
+               "Named user exception - " + loginUser, "named-user:" + loginUser);
             throw new UnlicensedUserNameException(Catalog.getCatalog(srPrincipal).
                getString("Named User Not Allowed", loginUser.getName()));
          }
+
+         logoutOtherAddressSessions(loginUser, info);
 
          try {
             sessionService.newSession(srPrincipal, sessionIdToReplace);
@@ -338,6 +323,32 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
       @Override
       public void close() throws Exception {
          dispose();
+      }
+
+      /**
+       * Feature #36409, invalidates the active sessions of a named user that were opened from
+       * a different IP address than the new session.
+       */
+      private void logoutOtherAddressSessions(IdentityID loginUser, ClientInfo info) {
+         Set<SRPrincipal> activeSessions = sessionService.getActiveSessions();
+         Set<SRPrincipal> invalidSessions = new HashSet<>();
+
+         for(SRPrincipal session : activeSessions) {
+            ClientInfo activeInfo = session.getUser();
+            IdentityID activeLoginUser = activeInfo.getLoginUserID();
+
+            if(activeLoginUser.equals(loginUser)) {
+               if(!activeInfo.getIPAddress().equals(info.getIPAddress())) {
+                  invalidSessions.add(session);
+               }
+            }
+         }
+
+         // Feature #36409, invalidate old sessions for a named user when a new session is created
+         for(SRPrincipal session : invalidSessions) {
+            // this will also remove the session from the license service
+            SUtil.logout(session, true);
+         }
       }
 
       private void sessionError(SRPrincipal srPrincipal, LicenseException le) {
@@ -402,7 +413,8 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
                   }
 
                   LicenseManager.getInstance().addKeyViolation(
-                     "User hosted hours exhausted - " + srPrincipal.getName(), null);
+                     "User hosted hours exhausted - " + srPrincipal.getName(),
+                     "hosted-hours:" + srPrincipal.getName());
                   Catalog catalog = Catalog.getCatalog(srPrincipal);
                   String msg = catalog.getString("common.sessionHoursExhausted");
                   throw new LicenseException(msg);

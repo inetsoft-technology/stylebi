@@ -47,7 +47,7 @@ class WizDataModelBridgeWireTest {
       WIRE.put(WizDataModelWire.PhysicalTablesRequest.class, "database,view,connection");
       WIRE.put(WizDataModelWire.PhysicalColumn.class, "name,dataType");
       WIRE.put(WizDataModelWire.PhysicalTable.class, "name,columns");
-      WIRE.put(WizDataModelWire.PhysicalTablesResponse.class, "database,view,tables");
+      WIRE.put(WizDataModelWire.PhysicalTablesResponse.class, "database,view,tables,unresolved,note");
       WIRE.put(WizDataModelWire.DependenciesRequest.class, "database,items");
       WIRE.put(WizDataModelWire.AlsoDeleted.class, "kind,name,reason");
       WIRE.put(WizDataModelWire.Dangling.class, "kind,name,via");
@@ -106,6 +106,6 @@ class WizDataModelBridgeWireTest {
          "HAS_DEPENDENCIES", "VIEW_IN_USE", "HAS_EXTENDED_CHILDREN", "CONTAINED_NOT_DELETABLE",
          "EXPECT_MISMATCH", "PERMISSION_DENIED", "UNJOINED_TABLES_PROHIBITED", "STALE_VIEW", "STALE_MODEL",
          "EXTENDED_UNSUPPORTED", "BASE_ELEMENT_READ_ONLY", "READ_BACK_FAILED",
-         "METADATA_UNAVAILABLE", "UNKNOWN")), reasons);
+         "METADATA_UNAVAILABLE", "STORAGE_UNAVAILABLE", "UNKNOWN")), reasons);
    }
 }

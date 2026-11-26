@@ -21,7 +21,7 @@
       <div class="form-inline align-items-start">
         <condition-field-combo [field]="condition.field" [fieldsModel]="fieldsModel"
           [addNoneItem]="addNoneItem" [grayedOutFields]="getGrayedOutFields()"
-          [showOriginalName]="showOriginalName"
+          [showOriginalName]="showOriginalName" [unbound]="isFieldUnbound()"
         (onSelectField)="fieldChanged($event)"></condition-field-combo>
         <select class="form-control" [(ngModel)]="condition.negated"
           (ngModelChange)="conditionChanged()" [disabled]="!negationAllowed">

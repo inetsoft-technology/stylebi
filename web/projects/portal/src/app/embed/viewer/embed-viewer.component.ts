@@ -224,6 +224,7 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    ngOnDestroy() {
+      clearTimeout(this.errorTimeout);
       this.dialogService.ngOnDestroy();
 
       if(!!this.subscriptions) {

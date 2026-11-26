@@ -319,11 +319,46 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
             return douResult / totalNum;
          }
 
-         return douResult;
+         return convertDeclared(douResult);
       }
       catch(NumberFormatException ne) {
+         return convertDeclared(result);
+      }
+   }
+
+   /**
+    * Convert a result to the declared data type of the calc field, as a row level calc field
+    * does. A result that the type cannot hold is kept as is.
+    */
+   private Object convertDeclared(Object result) {
+      if(declaredType == null || result == null || result instanceof Object[]) {
          return result;
       }
+
+      Class<?> cls = Tool.getDataClass(declaredType);
+
+      if(cls == null || cls.equals(result.getClass())) {
+         return result;
+      }
+
+      Object converted = Tool.getData(declaredType, result);
+      return converted == null ? result : converted;
+   }
+
+   /**
+    * Set the declared data type of the calc field (an XSchema type). The result of the formula
+    * is converted to it. Null (the default) leaves the result as the script returns it.
+    */
+   public void setDeclaredType(String declaredType) {
+      this.declaredType = declaredType;
+      clearResult();
+   }
+
+   /**
+    * Get the declared data type of the calc field.
+    */
+   public String getDeclaredType() {
+      return declaredType;
    }
 
    /**
@@ -657,6 +692,7 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
    }
 
    private String expression;
+   private String declaredType;
    private String[] used;
    private Formula[] child;
    private int[] secondColumns;

@@ -71,6 +71,7 @@ class ScheduleChangePlanServiceTest {
       orgStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
       lenient().when(orgManager.getCurrentOrgID(user)).thenReturn("host-org");
+      lenient().when(orgManager.getCurrentOrgID()).thenReturn("host-org");
    }
 
    @AfterEach void tearDown() {
@@ -98,13 +99,14 @@ class ScheduleChangePlanServiceTest {
 
    @Test void resolveThrowsOnUnrecognizedVerb() throws Exception {
       ScheduleChangeRequest change = new ScheduleChangeRequest();
-      change.setVerb("update");
+      change.setVerb("rename");
       change.setTaskId("t1");
       ScheduleChangePlanRequest req = request("task", List.of(change));
 
       IllegalArgumentException ex =
          assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
       assertTrue(ex.getMessage().contains("verb"));
+      assertTrue(ex.getMessage().contains("update"));
    }
 
    @Test void resolveThrowsOnDuplicateTaskId() throws Exception {
@@ -1025,6 +1027,428 @@ class ScheduleChangePlanServiceTest {
       assertEquals(1, resolveCreateOf(specWith(timeCondition(9, 0))).changes().size());
    }
 
+   // -------------------------------------------------------------------------
+   // Bug #82274: completion conditions, batch/backup actions, folder, update
+   // -------------------------------------------------------------------------
+
+   private static CompletionCondition completion(String owner, String taskName) {
+      CompletionCondition condition = new CompletionCondition();
+      condition.setOwner(owner);
+      condition.setTaskName(taskName);
+      return condition;
+   }
+
+   @Test void resolveCreateRefusesACompletionConditionWithoutATaskName() {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      spec.setConditions(List.of(completion("admin", " ")));
+      ScheduleChangePlanRequest req = request("task", List.of(createChange(spec)));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("changes[0].spec.conditions[0].taskName"));
+   }
+
+   @Test void resolveCreateRefusesACompletionConditionWithoutAnOwner() {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      spec.setConditions(List.of(completion(null, "first")));
+      ScheduleChangePlanRequest req = request("task", List.of(createChange(spec)));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("conditions[0].owner"));
+   }
+
+   @Test void resolveCreateRefusesACompletionConditionOnATaskThatDoesNotExist() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      spec.setConditions(List.of(completion("admin", "missing")));
+      lenient().when(scheduleManager.getScheduleTask(anyString())).thenReturn(null);
+      ScheduleChangePlanRequest req = request("task", List.of(createChange(spec)));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("no task exists"));
+   }
+
+   @Test void resolveCreateRefusesATaskThatWaitsOnItself() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      spec.setConditions(List.of(completion("admin", "t1")));
+      ScheduleChangePlanRequest req = request("task", List.of(createChange(spec)));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("cannot wait on itself"));
+   }
+
+   @Test void resolveUpdateRefusesACompletionCycleThroughAnotherTask() throws Exception {
+      String selfId = ScheduleManager.getTaskId(new IdentityID("admin", "host-org").convertToKey(), "a");
+      String otherId = ScheduleManager.getTaskId(new IdentityID("admin", "host-org").convertToKey(), "b");
+      inetsoft.sree.schedule.ScheduleTask self = sreeTask("a", "admin");
+      inetsoft.sree.schedule.ScheduleTask other = sreeTask("b", "admin");
+      other.addCondition(new inetsoft.sree.schedule.CompletionCondition(selfId));
+      when(scheduleManager.getScheduleTask(selfId)).thenReturn(self);
+      when(scheduleManager.getScheduleTask(otherId)).thenReturn(other);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setConditions(List.of(completion("admin", "b")));
+      ScheduleChangePlanRequest req = request("task", List.of(updateChange(selfId, patch)));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("wait for each other"));
+      verify(scheduleGateway, never()).buildUpdatedTask(any(), any(), any(), any());
+   }
+
+   @Test void resolveCreateAcceptsACompletionConditionOnAnExistingTask() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      spec.setConditions(List.of(completion("admin", "first")));
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), "t1");
+      String firstId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), "first");
+      when(scheduleManager.getScheduleTask(firstId)).thenReturn(sreeTask("first", "admin"));
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(createChange(spec))), user);
+
+      assertTrue(plan.changes().get(0).proposedValue()
+                    .contains("condition[type=COMPLETION,taskName=first,owner=admin]"));
+   }
+
+   @Test void resolveCreateAcceptsBatchAndBackupActionsAndNeverShowsAPassword() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      BatchAction batch = new BatchAction();
+      batch.setTaskName("first");
+      batch.setOwner("admin");
+      batch.setQueryEntry("1^128^__NULL__^q");
+      batch.setEmbeddedParameters(List.of());
+      IndividualAssetBackupAction backup = new IndividualAssetBackupAction();
+      backup.setAssetIdentifiers(List.of("1^2^__NULL__^ws"));
+      inetsoft.web.api.schedule.ServerPathInfo info = new inetsoft.web.api.schedule.ServerPathInfo();
+      info.setPath("ftp://host/dir");
+      info.setUserName("u");
+      info.setPassword("s3cret");
+      backup.setPathInfo(info);
+      spec.setActions(List.of(batch, backup));
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), "t1");
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(createChange(spec))), user);
+
+      String proposed = plan.changes().get(0).proposedValue();
+      assertTrue(proposed.contains("action[batch,taskName=first,owner=admin"));
+      assertTrue(proposed.contains("action[backup,assets=[1^2^__NULL__^ws]"));
+      assertTrue(proposed.contains("password=set"));
+      assertFalse(proposed.contains("s3cret"));
+   }
+
+   @Test void resolveCreateRefusesABatchActionWithoutATargetTask() {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      BatchAction batch = new BatchAction();
+      batch.setOwner("admin");
+      batch.setQueryEntry("q");
+      batch.setEmbeddedParameters(List.of());
+      spec.setActions(List.of(batch));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(createChange(spec))), user));
+      assertTrue(ex.getMessage().contains("changes[0].spec.actions[0].taskName"));
+   }
+
+   @Test void resolveCreateRefusesABackupActionWithoutAssets() {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      spec.setActions(List.of(new IndividualAssetBackupAction()));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(createChange(spec))), user));
+      assertTrue(ex.getMessage().contains("actions[0].assetIdentifiers"));
+   }
+
+   @Test void resolveCreateRefusesABackupActionWithoutPathInfo() {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      IndividualAssetBackupAction backup = new IndividualAssetBackupAction();
+      backup.setAssetIdentifiers(List.of("1^2^__NULL__^ws"));
+      spec.setActions(List.of(backup));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(createChange(spec))), user));
+      assertTrue(ex.getMessage().contains("changes[0].spec.actions[0].pathInfo.path"));
+   }
+
+   @Test void resolveCreateRefusesABackupActionWithABlankPath() {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      IndividualAssetBackupAction backup = new IndividualAssetBackupAction();
+      backup.setAssetIdentifiers(List.of("1^2^__NULL__^ws"));
+      inetsoft.web.api.schedule.ServerPathInfo info = new inetsoft.web.api.schedule.ServerPathInfo();
+      info.setPath("  ");
+      backup.setPathInfo(info);
+      spec.setActions(List.of(backup));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(createChange(spec))), user));
+      assertTrue(ex.getMessage().contains("changes[0].spec.actions[0].pathInfo.path"));
+   }
+
+   @Test void resolveUpdateRefusesABackupActionWithoutPathInfo() throws Exception {
+      String taskId = ScheduleManager.getTaskId(new IdentityID("admin", "host-org").convertToKey(), "a");
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(sreeTask("a", "admin"));
+      IndividualAssetBackupAction backup = new IndividualAssetBackupAction();
+      backup.setAssetIdentifiers(List.of("1^2^__NULL__^ws"));
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setActions(List.of(backup));
+      ScheduleChangePlanRequest req = request("task", List.of(updateChange(taskId, patch)));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("changes[0].patch.actions[0].pathInfo.path"));
+   }
+
+   @Test void resolveCreateNamesTheFolderPathWhenTheFolderIsRefused() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      ScheduleChangeRequest change = createChange(spec);
+      change.setPath("Finance/Reports");
+      when(scheduleGateway.resolveCreateFolder(eq("Finance/Reports"), eq(user)))
+         .thenThrow(new IllegalArgumentException("path: no schedule task folder exists at \"Finance/Reports\""));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().startsWith("changes[0].path:"));
+   }
+
+   @Test void resolveCreateShowsTheFolderInThePlan() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      ScheduleChangeRequest change = createChange(spec);
+      change.setPath("/Finance/Reports");
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), "t1");
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
+
+      assertTrue(plan.changes().get(0).proposedValue().endsWith(";path=Finance/Reports"));
+      verify(scheduleGateway).resolveCreateFolder("/Finance/Reports", user);
+   }
+
+   @Test void resolveDeleteRefusesATaskAnotherTaskWaitsOn() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask task = sreeTask("t1", "admin");
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(task);
+      when(scheduleManager.getScheduleTasks("host-org")).thenReturn(new java.util.Vector<>());
+      when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn("t2", (String) null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(deleteChange("t1"))), user));
+      assertTrue(ex.getMessage().contains("waits on"));
+      assertTrue(ex.getMessage().contains("\"t2\""));
+      verify(scheduleGateway, never()).hasOwnerAdminPermission(any(), any(), any());
+   }
+
+   private static String tid(String name) {
+      return sreeTask(name, "admin").getTaskId();
+   }
+
+   private void stubDeletableTasks(String... ids) throws Exception {
+      for(String id : ids) {
+         lenient().when(scheduleManager.getScheduleTask(id)).thenReturn(sreeTask(id, "admin"));
+      }
+
+      lenient().when(scheduleManager.getScheduleTasks("host-org")).thenAnswer(
+         inv -> new java.util.Vector<inetsoft.sree.schedule.ScheduleTask>());
+      lenient().when(scheduleManager.findDependant(any(), any())).thenReturn(null);
+      lenient().when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user)))
+         .thenReturn(true);
+   }
+
+   @Test void resolveDeleteAllowsTheWaitingTaskDeletedEarlierInThePlan() throws Exception {
+      stubDeletableTasks("t1", "t2");
+      when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn(tid("t2"), (String) null);
+
+      ResolvedPlan plan = service.resolve(
+         request("task", List.of(deleteChange("t2"), deleteChange("t1"))), user);
+
+      assertEquals(2, plan.changes().size());
+   }
+
+   @Test void resolveDeleteStillRefusesWhenTheWaitingTaskIsDeletedLater() throws Exception {
+      stubDeletableTasks("t1", "t2");
+      when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn(tid("t2"), (String) null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(
+            request("task", List.of(deleteChange("t1"), deleteChange("t2"))), user));
+      assertTrue(ex.getMessage().startsWith("changes[0].taskId:"));
+      assertTrue(ex.getMessage().contains("waits on"));
+   }
+
+   @Test void resolveDeleteAllowsAChainDeletedOutsideIn() throws Exception {
+      stubDeletableTasks("t1", "t2", "t3");
+      when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn(tid("t2"), (String) null);
+      when(scheduleManager.findDependant(any(), eq("t2"))).thenReturn(tid("t3"), (String) null);
+
+      ResolvedPlan plan = service.resolve(request("task",
+         List.of(deleteChange("t3"), deleteChange("t2"), deleteChange("t1"))), user);
+
+      assertEquals(3, plan.changes().size());
+   }
+
+   @Test void resolveDeleteRefusesAChainDeletedOutOfOrder() throws Exception {
+      stubDeletableTasks("t1", "t2", "t3");
+      lenient().when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn(tid("t2"), (String) null);
+      lenient().when(scheduleManager.findDependant(any(), eq("t2"))).thenReturn(tid("t3"), (String) null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task",
+            List.of(deleteChange("t2"), deleteChange("t3"), deleteChange("t1"))), user));
+      assertTrue(ex.getMessage().startsWith("changes[0].taskId:"));
+   }
+
+   @Test void resolveDeleteStillRefusesADependantOutsideThePlan() throws Exception {
+      stubDeletableTasks("t1", "t2");
+      when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn(tid("t2"), tid("t9"), (String) null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(
+            request("task", List.of(deleteChange("t2"), deleteChange("t1"))), user));
+      assertTrue(ex.getMessage().startsWith("changes[1].taskId:"));
+      assertTrue(ex.getMessage().contains(tid("t9")));
+   }
+
+   private static ScheduleChangeRequest updateChange(String taskId, ScheduleTaskPatch patch) {
+      ScheduleChangeRequest change = new ScheduleChangeRequest();
+      change.setVerb(ScheduleChangeRequest.VERB_UPDATE);
+      change.setTaskId(taskId);
+      change.setPatch(patch);
+      return change;
+   }
+
+   private static ScheduleTaskPatch enabledPatch(boolean enabled) {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setEnabled(enabled);
+      return patch;
+   }
+
+   @Test void resolveUpdateRefusesAMissingTaskId() {
+      ScheduleChangeRequest change = updateChange(null, enabledPatch(false));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("changes[0].taskId"));
+   }
+
+   @Test void resolveUpdateRefusesASpecAndAPath() {
+      ScheduleChangeRequest withSpec = updateChange("t1", enabledPatch(false));
+      withSpec.setSpec(createSpec("t1", "admin"));
+      ScheduleChangeRequest withPath = updateChange("t1", enabledPatch(false));
+      withPath.setPath("Finance");
+
+      assertTrue(assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(withSpec)), user))
+         .getMessage().contains("changes[0].spec"));
+      assertTrue(assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(withPath)), user))
+         .getMessage().contains("changes[0].path"));
+   }
+
+   @Test void resolveUpdateRefusesAnEmptyPatch() {
+      ScheduleChangeRequest change = updateChange("t1", new ScheduleTaskPatch());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("changes[0].patch"));
+   }
+
+   @Test void resolveUpdateRefusesATaskThatDoesNotExist() throws Exception {
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateChange("t1", enabledPatch(false)))), user));
+      assertTrue(ex.getMessage().contains("no task exists"));
+   }
+
+   @Test void resolveUpdateRefusesABuiltInTask() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask task = sreeTask("__balance tasks__", "admin");
+      task.setRemovable(false);
+      when(scheduleManager.getScheduleTask("__balance tasks__")).thenReturn(task);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> service.resolve(
+         request("task", List.of(updateChange("__balance tasks__", enabledPatch(false)))), user));
+      assertTrue(ex.getMessage().contains("built-in"));
+   }
+
+   @Test void resolveUpdateShowsTheWholeTaskBeforeAndAfter() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = sreeTask("t1", "admin");
+      inetsoft.sree.schedule.ScheduleTask candidate = sreeTask("t1", "admin");
+      candidate.setEnabled(false);
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(stored);
+      ScheduleTaskPatch patch = enabledPatch(false);
+      when(scheduleGateway.buildUpdatedTask("t1", patch, null, user)).thenReturn(candidate);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(updateChange("t1", patch))), user);
+
+      PlanChange change = plan.changes().get(0);
+      assertEquals("t1", change.property());
+      assertNotEquals(change.currentValue(), change.proposedValue());
+      assertTrue(change.currentValue().contains("enabled=\"true\""));
+      assertTrue(change.proposedValue().contains("enabled=\"false\""));
+      assertTrue(plan.requiresAgentSignoff());
+      // the dry-run save of the candidate and of the pre-image (the rollback) both passed
+      assertFalse(plan.requiresStorageBackup());
+      verify(scheduleManager).checkScheduleTaskSave("t1", candidate, user);
+   }
+
+   @Test void resolveUpdateKeepsTheBackupWhenTheRollbackCannotBePredicted() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = sreeTask("t1", "admin");
+      inetsoft.sree.schedule.ScheduleTask candidate = sreeTask("t1", "admin");
+      candidate.setEnabled(false);
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(stored);
+      ScheduleTaskPatch patch = enabledPatch(false);
+      when(scheduleGateway.buildUpdatedTask("t1", patch, null, user)).thenReturn(candidate);
+      when(orgManager.getCurrentOrgID(user)).thenReturn("other-org");
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(updateChange("t1", patch))), user);
+
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   @Test void resolveUpdateRefusesAPatchThatChangesNothing() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = sreeTask("t1", "admin");
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(stored);
+      ScheduleTaskPatch patch = enabledPatch(true);
+      when(scheduleGateway.buildUpdatedTask("t1", patch, null, user))
+         .thenReturn(sreeTask("t1", "admin"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateChange("t1", patch))), user));
+      assertTrue(ex.getMessage().contains("nothing to update"));
+   }
+
+   @Test void resolveUpdateNamesThePatchWhenTheGatewayRefusesIt() throws Exception {
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(sreeTask("t1", "admin"));
+      ScheduleTaskPatch patch = enabledPatch(false);
+      when(scheduleGateway.buildUpdatedTask("t1", patch, null, user))
+         .thenThrow(new inetsoft.web.security.auth.UnauthorizedAccessException());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateChange("t1", patch))), user));
+      assertTrue(ex.getMessage().startsWith("changes[0].patch: the update would be refused"));
+   }
+
+   @Test void resolveUpdateHashChangesWithThePatch() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = sreeTask("t1", "admin");
+      inetsoft.sree.schedule.ScheduleTask off = sreeTask("t1", "admin");
+      off.setEnabled(false);
+      inetsoft.sree.schedule.ScheduleTask described = sreeTask("t1", "admin");
+      described.setDescription("nightly");
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(stored);
+      ScheduleTaskPatch disable = enabledPatch(false);
+      ScheduleTaskPatch describe = new ScheduleTaskPatch();
+      describe.setDescription("nightly");
+      when(scheduleGateway.buildUpdatedTask("t1", disable, null, user)).thenReturn(off);
+      when(scheduleGateway.buildUpdatedTask("t1", describe, null, user)).thenReturn(described);
+
+      String first = service.resolve(request("task", List.of(updateChange("t1", disable))), user).planHash();
+      String second = service.resolve(request("task", List.of(updateChange("t1", describe))), user).planHash();
+
+      assertNotEquals(first, second);
+   }
+
    private static ScheduleChangePlanRequest request(String task, List<ScheduleChangeRequest> changes) {
       ScheduleChangePlanRequest req = new ScheduleChangePlanRequest();
       req.setTask(task);
@@ -1075,5 +1499,147 @@ class ScheduleChangePlanServiceTest {
       task.setOwner(new IdentityID(owner, "host-org"));
       task.setEnabled(true);
       return task;
+   }
+
+   // -------------------------------------------------------------------------
+   // task-level time zone (the portal Options tab's Time Zone)
+   // -------------------------------------------------------------------------
+
+   private ResolvedPlan resolveCreateWithZone(String zone) throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      ScheduleChangeRequest change = createChange(spec);
+      change.setTimeZone(zone);
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), "t1");
+      lenient().when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      lenient().when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      return service.resolve(request("task", List.of(change)), user);
+   }
+
+   @Test void resolveCreateShowsTheTaskTimeZoneInThePlan() throws Exception {
+      ResolvedPlan plan = resolveCreateWithZone("America/New_York");
+
+      assertTrue(plan.changes().get(0).proposedValue().endsWith(";timeZone=America/New_York"));
+   }
+
+   @Test void resolveCreateWithoutATaskTimeZoneKeepsTheProjectionAndHash() throws Exception {
+      String none = resolveCreateWithZone(null).changes().get(0).proposedValue();
+      String blank = resolveCreateWithZone("  ").changes().get(0).proposedValue();
+
+      assertFalse(none.contains(";timeZone="));
+      assertEquals(none, blank);
+      assertNotEquals(none, resolveCreateWithZone("Asia/Tokyo").changes().get(0).proposedValue());
+   }
+
+   @Test void resolveCreateRefusesAnUnknownTaskTimeZoneNamingTheField() {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> resolveCreateWithZone("Mars/Base"));
+
+      assertTrue(ex.getMessage().startsWith("changes[0].timeZone: \"Mars/Base\""),
+                 ex.getMessage());
+      assertThrows(IllegalArgumentException.class, () -> resolveCreateWithZone("GMT+99"));
+   }
+
+   // A5 differential: the task zone and a time condition's zone accept and refuse the same ids
+   @Test void taskTimeZoneAndConditionTimeZoneAreValidatedIdentically() throws Exception {
+      String[] ids = {"America/New_York", "UTC", "utc", "GMT", "Etc/UTC", "GMT+8", "Asia/Tokyo",
+                      "Mars/Base", "GMT+99", "Not/AZone", "new_york"};
+
+      for(String id : ids) {
+         boolean taskAccepts;
+         boolean conditionAccepts;
+
+         try {
+            resolveCreateWithZone(id);
+            taskAccepts = true;
+         }
+         catch(IllegalArgumentException e) {
+            taskAccepts = false;
+         }
+
+         try {
+            TimeCondition condition = timeCondition(9, 0);
+            condition.setTimeZone(id);
+            resolveCreateOf(specWith(condition));
+            conditionAccepts = true;
+         }
+         catch(IllegalArgumentException e) {
+            conditionAccepts = false;
+         }
+
+         assertEquals(conditionAccepts, taskAccepts, id);
+      }
+   }
+
+   @Test void resolveUpdateAcceptsAPatchOfOnlyATimeZone() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = sreeTask("t1", "admin");
+      inetsoft.sree.schedule.ScheduleTask candidate = sreeTask("t1", "admin");
+      candidate.setTimeZone("Asia/Tokyo");
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(stored);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("Asia/Tokyo");
+      when(scheduleGateway.buildUpdatedTask("t1", patch, null, user)).thenReturn(candidate);
+
+      PlanChange change = service.resolve(
+         request("task", List.of(updateChange("t1", patch))), user).changes().get(0);
+
+      assertFalse(change.currentValue().contains("timeZone="));
+      assertTrue(change.proposedValue().contains("timeZone=\"Asia/Tokyo\""),
+                 change.proposedValue());
+   }
+
+   @Test void resolveUpdateWithTheSameTaskTimeZoneIsTheNoOpRefusal() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = sreeTask("t1", "admin");
+      stored.setTimeZone("Asia/Tokyo");
+      inetsoft.sree.schedule.ScheduleTask candidate = sreeTask("t1", "admin");
+      candidate.setTimeZone("Asia/Tokyo");
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(stored);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("Asia/Tokyo");
+      when(scheduleGateway.buildUpdatedTask("t1", patch, null, user)).thenReturn(candidate);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateChange("t1", patch))), user));
+      assertTrue(ex.getMessage().contains("nothing to update"));
+   }
+
+   @Test void resolveUpdateWithABlankTaskTimeZoneIsAClearNotAnEmptyPatch() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = sreeTask("t1", "admin");
+      stored.setTimeZone("Asia/Tokyo");
+      inetsoft.sree.schedule.ScheduleTask candidate = sreeTask("t1", "admin");
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(stored);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("");
+      when(scheduleGateway.buildUpdatedTask("t1", patch, null, user)).thenReturn(candidate);
+
+      PlanChange change = service.resolve(
+         request("task", List.of(updateChange("t1", patch))), user).changes().get(0);
+
+      assertTrue(change.currentValue().contains("timeZone=\"Asia/Tokyo\""));
+      assertFalse(change.proposedValue().contains("timeZone="));
+   }
+
+   @Test void resolveUpdateRefusesAnUnknownTaskTimeZoneNamingTheField() {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("Mars/Base");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateChange("t1", patch))), user));
+
+      assertTrue(ex.getMessage().startsWith("changes[0].patch.timeZone: \"Mars/Base\""),
+                 ex.getMessage());
+   }
+
+   @Test void resolveUpdateAndDeleteRefuseAChangeLevelTimeZone() {
+      ScheduleChangeRequest update = updateChange("t1", enabledPatch(false));
+      update.setTimeZone("Asia/Tokyo");
+      ScheduleChangeRequest delete = deleteChange("t1");
+      delete.setTimeZone("Asia/Tokyo");
+
+      assertTrue(assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(update)), user))
+         .getMessage().startsWith("changes[0].timeZone:"));
+      assertTrue(assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(delete)), user))
+         .getMessage().startsWith("changes[0].timeZone:"));
    }
 }

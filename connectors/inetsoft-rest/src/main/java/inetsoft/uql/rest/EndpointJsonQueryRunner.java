@@ -55,6 +55,7 @@ public class EndpointJsonQueryRunner extends RestJsonQueryRunner {
    public XTableNode runStream() {
       final BaseJsonTable table = getTable();
       table.beginStreamedLoading();
+      warnLookupsBelowExpansion(query);
 
       try(RestDataIteratorStrategy<Object> strategy = factory.createStrategy(query)) {
          strategy.setLiveMode(isLiveMode());

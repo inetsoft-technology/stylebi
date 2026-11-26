@@ -23,8 +23,15 @@ import java.util.List;
 /**
  * Batch lookup of the recorded connection state of several data sources.
  *
- * @param paths the full data source paths to report on. Folder paths are meaningless here and will
- *              report as disconnected.
+ * @param paths   the full data source paths to report on. Folder paths are meaningless here and
+ *                will report as disconnected.
+ * @param refresh true to re-test each connection and store the outcome (the Portal's "Refresh
+ *                Status"); false or absent reports the stored status only. A refresh opens a
+ *                connection per path and writes the data source, so it needs WRITE on every path.
  */
-public record WizDatasourceStatusRequest(List<String> paths) {
+public record WizDatasourceStatusRequest(List<String> paths, boolean refresh) {
+   /** The browse-time request: stored state only. */
+   public WizDatasourceStatusRequest(List<String> paths) {
+      this(paths, false);
+   }
 }

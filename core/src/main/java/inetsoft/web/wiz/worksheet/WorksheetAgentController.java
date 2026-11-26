@@ -19,6 +19,7 @@ package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.TableLens;
 import inetsoft.report.internal.XNodeMetaTable;
+import inetsoft.report.composition.QueryTreeModel;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
@@ -78,6 +79,7 @@ import inetsoft.util.CoreTool;
 import inetsoft.util.FileSystemService;
 import inetsoft.util.MessageException;
 import inetsoft.util.TimedQueue;
+import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
 import inetsoft.web.composer.ws.ConvertEmbeddedService;
 import inetsoft.web.composer.ws.LayoutGraphService;
@@ -87,6 +89,7 @@ import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.command.WSCollectVariablesCommand;
 import inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy;
 import inetsoft.web.composer.ws.dialog.ImportCSVDialogService;
+import inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.composer.ws.service.SaveWorksheetService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
@@ -160,6 +163,7 @@ public class WorksheetAgentController {
                                    SheetOpenService openService,
                                    AssetDataCache assetDataCache,
                                    AssemblyConditionDialogServiceProxy dialogServiceProxy,
+                                   ShowPlanServiceProxy showPlanServiceProxy,
                                    RawDataService rawDataService)
    {
       this.feature = feature;
@@ -181,6 +185,7 @@ public class WorksheetAgentController {
       this.openService = openService;
       this.assetDataCache = assetDataCache;
       this.dialogServiceProxy = dialogServiceProxy;
+      this.showPlanServiceProxy = showPlanServiceProxy;
       this.rawDataService = rawDataService;
    }
 
@@ -392,11 +397,12 @@ public class WorksheetAgentController {
       boolean[] madeVisibleHolder = new boolean[1];
       boolean[] sortNoOpHolder = new boolean[1];
       String[] refreshNoteHolder = new String[1];
+      PasteAssembliesOutcome[] pasteHolder = new PasteAssembliesOutcome[1];
       editOp(sessionToken, req, user, resolvedNameHolder, madeVisibleHolder, sortNoOpHolder,
-             refreshNoteHolder);
+             refreshNoteHolder, pasteHolder);
 
       if(resolvedNameHolder[0] == null && !madeVisibleHolder[0] && !sortNoOpHolder[0] &&
-         refreshNoteHolder[0] == null)
+         refreshNoteHolder[0] == null && pasteHolder[0] == null)
       {
          return ResponseEntity.noContent().build();
       }
@@ -407,7 +413,8 @@ public class WorksheetAgentController {
          sortNoOpHolder[0]
             ? "Column '" + req.field() + "' has no sort on table '" + req.table()
                + "'; nothing was removed."
-            : refreshNoteHolder[0]));
+            : refreshNoteHolder[0],
+         pasteHolder[0]));
    }
 
    /**
@@ -427,7 +434,7 @@ public class WorksheetAgentController {
    public void editOp(String sessionToken, EditRequest req, Principal user)
       throws Exception
    {
-      editOp(sessionToken, req, user, null, null, null, null);
+      editOp(sessionToken, req, user, null, null, null, null, null);
    }
 
    /** Aggregate-dialog parity for the warn-only trap check (Bug #80958). */
@@ -447,10 +454,25 @@ public class WorksheetAgentController {
     */
    private void editOp(String sessionToken, EditRequest req, Principal user,
                        String[] resolvedNameHolder, boolean[] madeVisibleHolder,
-                       boolean[] sortNoOpHolder, String[] refreshNoteHolder)
+                       boolean[] sortNoOpHolder, String[] refreshNoteHolder,
+                       PasteAssembliesOutcome[] pasteHolder)
       throws Exception
    {
       requireEnabled();
+
+      // paste_assemblies reports the names the pasted assemblies got and what it skipped (see
+      // PasteAssembliesOutcome); the caller cannot work out either from the request.
+      if("paste_assemblies".equals(req.op())) {
+         PasteAssembliesOutcome outcome = editService.pasteAssemblies(
+            sessionToken, req.sourceSession(), req.cut() != null && req.cut(), req.tables(),
+            req.x(), req.y(), user);
+
+         if(pasteHolder != null) {
+            pasteHolder[0] = outcome;
+         }
+
+         return;
+      }
 
       // set_sort NONE on a column with no sort changes nothing; the caller is told so (see
       // EditResponse#note) rather than getting a 204 that reads as a removal.
@@ -754,7 +776,7 @@ public class WorksheetAgentController {
 
       // add_variable needs RuntimeWorksheet to add the assembly.
       if("add_variable".equals(req.op())) {
-         addVariableFromEdit(sessionToken, req, user);
+         addVariableFromEdit(sessionToken, req, user, refreshNoteHolder);
          return;
       }
 
@@ -763,7 +785,7 @@ public class WorksheetAgentController {
       if("delete_variable".equals(req.op()) || "rename_variable".equals(req.op()) ||
          "edit_variable".equals(req.op()))
       {
-         editVariableAndSyncValues(sessionToken, req, user);
+         editVariableAndSyncValues(sessionToken, req, user, refreshNoteHolder);
          return;
       }
 
@@ -898,7 +920,8 @@ public class WorksheetAgentController {
     * which would wipe every variable's value), and only after the edit has succeeded, so a
     * refused edit keeps the live value.
     */
-   private void editVariableAndSyncValues(String sessionToken, EditRequest req, Principal user)
+   private void editVariableAndSyncValues(String sessionToken, EditRequest req, Principal user,
+                                          String[] noteHolder)
       throws Exception
    {
       String name = req.name();
@@ -926,7 +949,13 @@ public class WorksheetAgentController {
 
       boolean newNameOwned = targetDeclaredElsewhere;
 
-      editService.apply(sessionToken, user, editor -> dispatch(editor, req));
+      editService.apply(sessionToken, user, editor -> {
+         dispatch(editor, req);
+
+         if(noteHolder != null) {
+            noteHolder[0] = editor.variableDefaultWarning();
+         }
+      });
 
       if("edit_variable".equals(req.op()) && (!typeEdit || oldType == null)) {
          return;
@@ -4072,7 +4101,7 @@ public class WorksheetAgentController {
             }
          }
          assembly.setPixelOffset(new Point(10, maxY + 10));
-         assembly.setPixelSize(new Dimension(AssetUtil.defw, nrows + 1));
+         assembly.setPixelSize(new Dimension(AssetUtil.defw, AssetUtil.defh));
 
          assembly.setEmbeddedData(table);
          ws.addAssembly(assembly);
@@ -4594,7 +4623,7 @@ public class WorksheetAgentController {
             else {
                editor.addJoin(req.name(), req.leftTable(), req.leftKey(),
                               req.rightTable(), req.rightKey(), req.joinType(),
-                              req.leftKeys(), req.rightKeys());
+                              req.leftKeys(), req.rightKeys(), req.joinOperators());
             }
          }
          case "remove_join" ->
@@ -4618,7 +4647,8 @@ public class WorksheetAgentController {
          // edit_join/remove_join_edge reuse leftTable/rightTable as the optional edge selector.
          case "edit_join" ->
             editor.editJoin(req.name(), req.leftKey(), req.rightKey(), req.joinType(),
-                            req.leftKeys(), req.rightKeys(), req.leftTable(), req.rightTable());
+                            req.leftKeys(), req.rightKeys(), req.leftTable(), req.rightTable(),
+                            req.joinOperators());
          case "remove_join_edge" ->
             editor.removeJoinEdge(req.name(), req.leftTable(), req.rightTable(),
                                   req.leftKey(), req.rightKey());
@@ -4667,12 +4697,14 @@ public class WorksheetAgentController {
             editor.addDateRangeColumn(req.table(), req.column(), req.dateOption());
          case "add_numeric_range_column" ->
             editor.addNumericRangeColumn(req.table(), req.column(), req.boundaries(),
-               req.labels() != null ? req.labels().toArray(new String[0]) : null);
+               req.labels() != null ? req.labels().toArray(new String[0]) : null,
+               req.lessThanMin(), req.greaterThanMax(), req.upperInclusive());
          case "edit_date_range_column" ->
             editor.editDateRangeColumn(req.table(), req.column(), req.dateOption());
          case "edit_numeric_range_column" ->
             editor.editNumericRangeColumn(req.table(), req.column(), req.boundaries(),
-               req.labels() != null ? req.labels().toArray(new String[0]) : null);
+               req.labels() != null ? req.labels().toArray(new String[0]) : null,
+               req.lessThanMin(), req.greaterThanMax(), req.upperInclusive());
          case "edit_cell" -> {
             if(req.row() == null || req.col() == null) {
                throw new PairingException("edit_cell requires 'row' and 'col' fields");
@@ -4739,7 +4771,7 @@ public class WorksheetAgentController {
             editor.setPrimaryAssembly(req.table());
          case "edit_variable" ->
             editor.editVariable(req.name(), req.type(), req.label(), req.defaultValue(),
-                                req.choices());
+                                req.choices(), req.defaultValueType(), req.none());
          case "rename_variable" ->
             editor.renameVariable(req.name(), req.newName());
          case "delete_variable" ->
@@ -6455,7 +6487,8 @@ public class WorksheetAgentController {
    /**
     * Handles {@code add_variable} dispatched through the edit endpoint.
     */
-   private void addVariableFromEdit(String sessionToken, EditRequest req, Principal user)
+   private void addVariableFromEdit(String sessionToken, EditRequest req, Principal user,
+                                    String[] noteHolder)
       throws Exception
    {
       String varName = req.name();
@@ -6467,7 +6500,13 @@ public class WorksheetAgentController {
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
          boolean declaredBefore = declaredVariableNames(ws).contains(varName.toLowerCase());
-         createVariable(ws, varName, req.type(), req.label(), req.defaultValue(), req.choices());
+         String warning = createVariable(ws, varName, req.type(), req.label(),
+                                         req.defaultValue(), req.choices(),
+                                         req.defaultValueType(), req.none());
+
+         if(noteHolder != null) {
+            noteHolder[0] = warning;
+         }
 
          if(!declaredBefore) {
             purgeStaleVariableValue(rws, varName);
@@ -6511,9 +6550,14 @@ public class WorksheetAgentController {
       }
    }
 
-   private void createVariable(Worksheet ws, String name, String type, String label,
-                               String defaultValue,
-                               WorksheetMutationSupport.VariableChoicesSpec choices)
+   /**
+    * @return a warning about the default value to surface to the caller (see
+    *         {@link WorksheetVariableDefault#LITERAL_EQUALS_WARNING}), or {@code null}
+    */
+   private String createVariable(Worksheet ws, String name, String type, String label,
+                                 String defaultValue,
+                                 WorksheetMutationSupport.VariableChoicesSpec choices,
+                                 String defaultValueType, Boolean none)
       throws PairingException
    {
       requireValidVariableName(name);
@@ -6560,37 +6604,8 @@ public class WorksheetAgentController {
          var.setTypeNode(typeNode);
       }
 
-      if(defaultValue != null) {
-         // Determine the effective type for the value node.  When a type is specified,
-         // use the typed factory so the value node matches the variable type (e.g.
-         // IntegerValue for "integer") and the value is parsed correctly through
-         // XValueNode.parse0().  Without this, createValueNode(Object, String) always
-         // creates a StringValue regardless of the variable type, and the stored
-         // default value can be silently lost on serialization round-trips.
-         String effectiveType = type != null
-            ? type : (var.getTypeNode() != null ? var.getTypeNode().getType() : null);
-         inetsoft.uql.schema.XValueNode valueNode =
-            inetsoft.uql.schema.XValueNode.createValueNode(name, effectiveType);
-
-         if(valueNode != null) {
-            try {
-               WizStrictValueParser.parse(defaultValue, effectiveType);
-               valueNode.parse0(defaultValue);
-            }
-            catch(Exception e) {
-               // L2-Group7: previously fell back to storing the raw, unparsed string (e.g.
-               // "not_a_number" on a declared-integer variable) instead of failing loud --
-               // the variable ended up with a default value inconsistent with its own
-               // declared type, silently.
-               throw new PairingException(
-                  "Default value '" + defaultValue + "' is not a valid " +
-                  (effectiveType != null ? effectiveType : "string") +
-                  " value for variable '" + name + "'.");
-            }
-
-            var.setValueNode(valueNode);
-         }
-      }
+      String warning = WorksheetVariableDefault.apply(
+         var, name, type, defaultValue, defaultValueType, none);
 
       WorksheetMutationSupport.applyVariableChoices(ws, var, choices);
 
@@ -6599,6 +6614,7 @@ public class WorksheetAgentController {
       assembly.setPixelOffset(new Point(25, 25));
       AssetEventUtil.adjustAssemblyPosition(assembly, ws);
       ws.addAssembly(assembly);
+      return warning;
    }
 
    // ---------------------------------------------------------------------------
@@ -6606,12 +6622,17 @@ public class WorksheetAgentController {
    // ---------------------------------------------------------------------------
 
    /**
-    * Returns the SQL query string for a SQL-bound table assembly.
+    * Returns the query plan of a worksheet table: the same plan tree the Composer's
+    * "Show Plan..." dialog shows (what actually runs, with worksheet conditions, merged
+    * joins and the in-memory steps), plus the stored SQL text of a SQL-bound table.
     *
     * @param sessionToken the token obtained at join time
     * @param table        the table assembly name
     * @param user         the authenticated agent principal
-    * @return the SQL string, or an error message if the table is not SQL-bound
+    * @return {@code table}; {@code sql}, the stored SQL of a SQL-bound table ({@code ""}
+    *         otherwise); {@code plan}, the runtime plan tree or {@code null} when the table
+    *         has none (then {@code message}, or {@code planError} when building it failed)
+    * @throws ResponseStatusException (404) if the worksheet has no table of that name
     */
    @GetMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/query-plan")
    public Map<String, Object> getQueryPlan(@PathVariable String sessionToken,
@@ -6621,24 +6642,52 @@ public class WorksheetAgentController {
    {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
-      RuntimeWorksheet rws = editService.resolve(sessionToken, user);
-      Worksheet ws = rws.getWorksheet();
+      WorksheetEditService.ResolvedSession resolved =
+         editService.resolveWithSession(sessionToken, user);
+      Worksheet ws = resolved.rws().getWorksheet();
       Assembly a = ws.getAssembly(table);
 
-      if(!(a instanceof SQLBoundTableAssembly sqlTable)) {
-         return Map.of("table", table, "sql", "",
-                        "message", "Not a SQL-bound table — no query plan available.");
+      if(!(a instanceof TableAssembly)) {
+         throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                           "Table '" + table + "' not found in the worksheet");
       }
 
-      SQLBoundTableAssemblyInfo info =
-         (SQLBoundTableAssemblyInfo) sqlTable.getInfo();
+      // the stored SQL is cheap and always returned: preview_worksheet_data's failure hint
+      // reads it to tell a SQL-bound table from the rest
       String sqlStr = "";
 
-      if(info.getQuery() != null && info.getQuery().getSQLDefinition() != null) {
-         sqlStr = info.getQuery().getSQLDefinition().getSQLString();
+      if(a instanceof SQLBoundTableAssembly sqlTable) {
+         SQLBoundTableAssemblyInfo info = (SQLBoundTableAssemblyInfo) sqlTable.getInfo();
+
+         if(info.getQuery() != null && info.getQuery().getSQLDefinition() != null &&
+            info.getQuery().getSQLDefinition().getSQLString() != null)
+         {
+            sqlStr = info.getQuery().getSQLDefinition().getSQLString();
+         }
       }
 
-      return Map.of("table", table, "sql", sqlStr != null ? sqlStr : "");
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("table", table);
+      result.put("sql", sqlStr);
+
+      // best effort: a table whose plan cannot be built must still answer with its sql
+      try {
+         // ShowPlanService decodes the name, as the Composer sends it encoded
+         QueryTreeModel.QueryNode plan =
+            showPlanServiceProxy.showPlan(resolved.runtimeId(), Tool.byteEncode(table), user);
+         result.put("plan", plan);
+
+         if(plan == null) {
+            result.put("message", "No query plan is available for this table.");
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to build the query plan of table {}", table, e);
+         result.put("plan", null);
+         result.put("planError", e.getMessage() != null ? e.getMessage() : e.toString());
+      }
+
+      return result;
    }
 
    // ---------------------------------------------------------------------------
@@ -6747,17 +6796,28 @@ public class WorksheetAgentController {
    /**
     * @param choices the variable's enumerated "Values" picker (embedded list or query
     *               source), or {@code null} for a free-form value
+    * @param defaultValueType {@code "value"} (or {@code null}) / {@code "expression"}; see
+    *               {@link WorksheetVariableDefault}
+    * @param none   {@code true} stores no default
     */
    public record VariableRequest(String name, String type, String label, String defaultValue,
-                                 WorksheetMutationSupport.VariableChoicesSpec choices) {}
+                                 WorksheetMutationSupport.VariableChoicesSpec choices,
+                                 String defaultValueType, Boolean none)
+   {
+      public VariableRequest(String name, String type, String label, String defaultValue,
+                             WorksheetMutationSupport.VariableChoicesSpec choices)
+      {
+         this(name, type, label, defaultValue, choices, null, null);
+      }
+   }
 
    /**
     * Add a user variable to the worksheet.
     */
    @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/variable")
-   public void addVariable(@PathVariable String sessionToken,
-                           @RequestBody VariableRequest body,
-                           Principal user) throws Exception
+   public ResponseEntity<EditResponse> addVariable(@PathVariable String sessionToken,
+                                                   @RequestBody VariableRequest body,
+                                                   Principal user) throws Exception
    {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
@@ -6766,11 +6826,14 @@ public class WorksheetAgentController {
          throw new PairingException("Variable name is required.");
       }
 
+      String[] warningHolder = new String[1];
+
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
          boolean declaredBefore = declaredVariableNames(ws).contains(body.name().toLowerCase());
-         createVariable(ws, body.name(), body.type(), body.label(), body.defaultValue(),
-                        body.choices());
+         warningHolder[0] = createVariable(ws, body.name(), body.type(), body.label(),
+                                           body.defaultValue(), body.choices(),
+                                           body.defaultValueType(), body.none());
 
          if(!declaredBefore) {
             purgeStaleVariableValue(rws, body.name());
@@ -6778,6 +6841,12 @@ public class WorksheetAgentController {
 
          return null;
       });
+
+      // 200 with the warning in the edit response's own "note" channel, else the empty 204 this
+      // endpoint always returned.
+      return warningHolder[0] == null
+         ? ResponseEntity.noContent().build()
+         : ResponseEntity.ok(new EditResponse(null, null, null, warningHolder[0], null));
    }
 
    // ---------------------------------------------------------------------------
@@ -7354,7 +7423,8 @@ public class WorksheetAgentController {
       HttpStatus status = switch(e.getKind()) {
          case SESSION_EXPIRED  -> HttpStatus.NOT_FOUND;
          case USER_MISMATCH,
-              FEATURE_DISABLED -> HttpStatus.FORBIDDEN;
+              FEATURE_DISABLED,
+              VIEWER_MODE      -> HttpStatus.FORBIDDEN;
          case RATE_LIMITED     -> HttpStatus.TOO_MANY_REQUESTS;
          case INTERNAL        -> HttpStatus.INTERNAL_SERVER_ERROR;
          default              -> HttpStatus.BAD_REQUEST;
@@ -7397,6 +7467,7 @@ public class WorksheetAgentController {
    private final SheetOpenService openService;
    private final AssetDataCache assetDataCache;
    private final AssemblyConditionDialogServiceProxy dialogServiceProxy;
+   private final ShowPlanServiceProxy showPlanServiceProxy;
    private final RawDataService rawDataService;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetAgentController.class);
 

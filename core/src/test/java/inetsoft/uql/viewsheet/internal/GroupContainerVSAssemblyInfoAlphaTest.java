@@ -27,6 +27,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Bug #76791: GroupContainerVSAssemblyInfo duplicates ImageVSAssemblyInfo's
@@ -66,12 +67,17 @@ class GroupContainerVSAssemblyInfoAlphaTest {
       assertEquals("42", info.getImageAlphaValue());
    }
 
+   // the script setter no longer NPEs on non-numeric input (#76791); it rejects it with a
+   // readable message and keeps the old value, which the script reports to the author (Bug #81923)
    @Test
-   void setImageAlphaNoLongerThrowsOnNonNumericInputAndClampsToDefault() {
+   void setImageAlphaRejectsNonNumericInputAndKeepsTheValue() {
       GroupContainerVSAssemblyInfo info = new GroupContainerVSAssemblyInfo();
+      info.setImageAlpha("40");
 
-      assertDoesNotThrow(() -> info.setImageAlpha("abc"));
-      assertEquals("100", info.getImageAlpha());
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> info.setImageAlpha("abc"));
+      assertEquals("Numeric value expected: 'abc'", ex.getMessage());
+      assertEquals("40", info.getImageAlpha());
    }
 
    @Test

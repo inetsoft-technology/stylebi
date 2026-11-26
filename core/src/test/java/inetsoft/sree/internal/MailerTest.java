@@ -67,6 +67,29 @@ class MailerTest {
       sreeEnvStatic.close();
    }
 
+   // a silent SMTP server must not block the send forever (#81911)
+   @Test
+   void smtpSessionHasDefaultTimeouts() {
+      java.util.Properties prop = new java.util.Properties();
+      Mailer.applyTimeouts(prop, "smtp");
+
+      assertEquals("30000", prop.getProperty("mail.smtp.connectiontimeout"));
+      assertEquals("60000", prop.getProperty("mail.smtp.timeout"));
+      assertEquals("60000", prop.getProperty("mail.smtp.writetimeout"));
+   }
+
+   @Test
+   void smtpTimeoutsHonorConfiguredValuesAndIgnoreInvalid() {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("mail.smtp.connectiontimeout"))
+         .thenReturn("5000");
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("mail.smtp.timeout")).thenReturn("abc");
+      java.util.Properties prop = new java.util.Properties();
+      Mailer.applyTimeouts(prop, "smtps");
+
+      assertEquals("5000", prop.getProperty("mail.smtps.connectiontimeout"));
+      assertEquals("60000", prop.getProperty("mail.smtps.timeout"));
+   }
+
    // the flags configured in the EM must be applied when the access token is refreshed
    @Test
    void refreshAppliesConfiguredOAuthFlags() {

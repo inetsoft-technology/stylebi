@@ -1057,50 +1057,10 @@
       "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_yieldmat"
     }
   },
-  "Call" : {
-    "!type" : "fn()",
-    "prototype" : {}
-  },
-  "Continuation" : {
-    "!type" : "fn()",
-    "prototype" : {}
-  },
-  "Iterator" : {
-    "!type" : "fn()",
-    "prototype" : {}
-  },
-  "Namespace" : {
-    "!type" : "fn()",
-    "prototype" : {}
-  },
   "Packages" : {
     "!type" : "fn()",
     "prototype" : {}
   },
-  "QName" : {
-    "!type" : "fn()",
-    "prototype" : {}
-  },
-  "Script" : {
-    "!type" : "fn()",
-    "prototype" : {}
-  },
-  "StopIteration" : "?",
-  "StyleReport" : "?",
-  "TOC" : "?",
-  "With" : {
-    "!type" : "fn()",
-    "prototype" : {}
-  },
-  "XML" : {
-    "!type" : "fn()",
-    "prototype" : {}
-  },
-  "XMLList" : {
-    "!type" : "fn()",
-    "prototype" : {}
-  },
-  "XType" : "?",
   "alert" : {
     "!type" : "fn(msg: string, level: string)",
     "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=alert"
@@ -1140,9 +1100,6 @@
     "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createTreemap",
     "!sample" : true
   },
-  "dataBinding" : {
-    "!type" : "fn() -> ?"
-  },
   "edu" : "?",
   "getDate" : {
     "!type" : "fn() -> ?",
@@ -1159,7 +1116,6 @@
   },
   "java" : "?",
   "javax" : "?",
-  "net" : "?",
   "numberToString" : {
     "!type" : "fn() -> ?",
     "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=NumberObjectNumberToString"
@@ -1181,26 +1137,13 @@
     "!type" : "fn() -> ?",
     "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=refreshData"
   },
-  "registerPackage" : {
-    "!type" : "fn(package: string) -> ?",
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=registerPackage"
-  },
-  "reprint" : {
-    "!type" : "fn() -> ?"
-  },
   "saveWorksheet" : {
     "!type" : "fn() -> ?",
     "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=saveWorksheet"
   },
-  "setChanged" : {
-    "!type" : "fn() -> ?"
-  },
   "setCellValue" : {
     "!type" : "fn() -> ?",
     "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setCellValue"
-  },
-  "showReport" : {
-    "!type" : "fn(archive_report: ?, target: ?) -> ?"
   },
   "split" : {
     "!type" : "fn(separator: ?, limit: ?) -> ?",
@@ -1537,12 +1480,6 @@
     "AREA_MAX_COUNT": {
       "!type": "number"
     },
-    "ARROW": {
-      "!type": "number"
-    },
-    "ARROWBAR": {
-      "!type": "number"
-    },
     "ARROW_LINE_1": {
       "!type": "number"
     },
@@ -1550,9 +1487,6 @@
       "!type": "number"
     },
     "ARROW_LINE_3": {
-      "!type": "number"
-    },
-    "ASSET_ERRORS": {
       "!type": "number"
     },
     "AUTO": {
@@ -1585,9 +1519,6 @@
     "BODY": {
       "!type": "number"
     },
-    "BOOLEAN": {
-      "!type": "number"
-    },
     "BORDER_COLOR_DEFINED": {
       "!type": "number"
     },
@@ -1615,9 +1546,6 @@
     "BREAK_BORDER": {
       "!type": "number"
     },
-    "BYTE": {
-      "!type": "number"
-    },
     "CALC_FORMULA": {
       "!type": "string"
     },
@@ -1628,12 +1556,6 @@
       "!type": "number"
     },
     "CENTER_ALIGNMENT": {
-      "!type": "number"
-    },
-    "CHAR": {
-      "!type": "number"
-    },
-    "CHARTACTER": {
       "!type": "number"
     },
     "CHART_3D_BAR": {
@@ -1822,13 +1744,7 @@
     "CITY": {
       "!type": "number"
     },
-    "CLASSIC": {
-      "!type": "number"
-    },
     "CLOSE": {
-      "!type": "number"
-    },
-    "COLOR": {
       "!type": "number"
     },
     "COLUMN": {
@@ -1924,14 +1840,8 @@
     "DAY_OF_YEAR_DATE_GROUP": {
       "!type": "number"
     },
-    "DECIMAL": {
-      "!type": "number"
-    },
     "DECIMAL_FORMAT": {
       "!type": "string"
-    },
-    "DEFAULT": {
-      "!type": "number"
     },
     "DEFAULT_FOOTER": {
       "!type": "number"
@@ -1940,9 +1850,6 @@
       "!type": "number"
     },
     "DEFAULT_PAGE_SIZE": {
-      "!type": "number"
-    },
-    "DESIGN_MODE": {
       "!type": "number"
     },
     "DIAMOND": {
@@ -1954,13 +1861,7 @@
     "DISTINCTCOUNT_FORMULA": {
       "!type": "string"
     },
-    "DISTINCTIVE": {
-      "!type": "number"
-    },
     "DOT_LINE": {
-      "!type": "number"
-    },
-    "DOUBLE": {
       "!type": "number"
     },
     "DOUBLE_3D_LOWERED": {
@@ -1978,15 +1879,6 @@
     "DOWN": {
       "!type": "number"
     },
-    "EMBED_PARAMETER_SHEET": {
-      "!type": "number"
-    },
-    "EMBED_SECTION": {
-      "!type": "number"
-    },
-    "ENUM": {
-      "!type": "number"
-    },
     "EOT": {
       "!type": "number"
     },
@@ -2000,12 +1892,6 @@
       "!type": "number"
     },
     "FILL": {
-      "!type": "number"
-    },
-    "FILLED_ARROW": {
-      "!type": "number"
-    },
-    "FILLED_ARROWBAR": {
       "!type": "number"
     },
     "FILLED_CIRCLE": {
@@ -2029,9 +1915,6 @@
     "FIRST_PAGE_HEADER": {
       "!type": "number"
     },
-    "FLOAT": {
-      "!type": "number"
-    },
     "FONT_DEFINED": {
       "!type": "number"
     },
@@ -2042,9 +1925,6 @@
       "!type": "number"
     },
     "FOREGROUND_VAL_DEFINED": {
-      "!type": "number"
-    },
-    "FORMAL": {
       "!type": "number"
     },
     "FORMAT_DEFINED": {
@@ -2092,9 +1972,6 @@
     "HOUR_OF_DAY_PART": {
       "!type": "number"
     },
-    "HYPHEN": {
-      "!type": "number"
-    },
     "H_ALIGN_MASK": {
       "!type": "number"
     },
@@ -2111,9 +1988,6 @@
       "!type": "number"
     },
     "INNER_JOIN": {
-      "!type": "number"
-    },
-    "INTEGER": {
       "!type": "number"
     },
     "IN_PLACE": {
@@ -2149,9 +2023,6 @@
     "LESS_JOIN": {
       "!type": "number"
     },
-    "LINE": {
-      "!type": "number"
-    },
     "LINEAR": {
       "!type": "number"
     },
@@ -2176,19 +2047,10 @@
     "LINE_MAX_COUNT": {
       "!type": "number"
     },
-    "LIVE_MODE": {
-      "!type": "number"
-    },
     "LOCAL_QUERY": {
       "!type": "number"
     },
-    "LOCAL_SCOPE": {
-      "!type": "number"
-    },
     "LOGARITHMIC": {
-      "!type": "number"
-    },
-    "LONG": {
       "!type": "number"
     },
     "LOW": {
@@ -2198,9 +2060,6 @@
       "!type": "number"
     },
     "LOWERED_MASK": {
-      "!type": "number"
-    },
-    "LSHAPE": {
       "!type": "number"
     },
     "LT_ANGLE": {
@@ -2248,9 +2107,6 @@
     "MIN_FORMULA": {
       "!type": "string"
     },
-    "MODERN": {
-      "!type": "number"
-    },
     "MODE_FORMULA": {
       "!type": "string"
     },
@@ -2292,9 +2148,6 @@
     },
     "NONE_FORMULA": {
       "!type": "string"
-    },
-    "NORMAL_QUERY": {
-      "!type": "number"
     },
     "NOT_EQUAL_JOIN": {
       "!type": "number"
@@ -2713,13 +2566,7 @@
     "RIGHT_JOIN": {
       "!type": "number"
     },
-    "ROLE": {
-      "!type": "number"
-    },
     "ROW_HEADER": {
-      "!type": "number"
-    },
-    "RUN_MODE": {
       "!type": "number"
     },
     "SECOND_DATE_GROUP": {
@@ -2730,12 +2577,6 @@
     },
     "SET_FORMULA": {
       "!type": "string"
-    },
-    "SHORT": {
-      "!type": "number"
-    },
-    "SIMPLE": {
-      "!type": "number"
     },
     "SOLID_MASK": {
       "!type": "number"
@@ -2771,9 +2612,6 @@
       "!type": "number"
     },
     "STATE": {
-      "!type": "number"
-    },
-    "STICK": {
       "!type": "number"
     },
     "STOCK_MAX_COUNT": {
@@ -2825,9 +2663,6 @@
       "!type": "number"
     },
     "TIME": {
-      "!type": "number"
-    },
-    "TIME_INSTANT": {
       "!type": "number"
     },
     "TOP": {
@@ -2893,16 +2728,7 @@
     "ULTRA_THIN_LINE": {
       "!type": "number"
     },
-    "UNKNOWN": {
-      "!type": "number"
-    },
     "UP": {
-      "!type": "number"
-    },
-    "USER": {
-      "!type": "number"
-    },
-    "USER_DEFINED": {
       "!type": "number"
     },
     "USER_SCOPE": {
@@ -2910,9 +2736,6 @@
     },
     "VARIANCE_FORMULA": {
       "!type": "string"
-    },
-    "VSHAPE": {
-      "!type": "number"
     },
     "V_ALIGN_MASK": {
       "!type": "number"
@@ -2978,9 +2801,6 @@
       "!type": "number"
     },
     "X": {
-      "!type": "number"
-    },
-    "XSHAPE": {
       "!type": "number"
     },
     "YEAR": {

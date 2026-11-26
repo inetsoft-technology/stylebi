@@ -17,9 +17,11 @@
  */
 package inetsoft.web.wiz.controller;
 
+import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.DrillPath;
 import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.sqlparser.SQLLexer;
@@ -87,6 +89,24 @@ final class WizLogicalModelValidator {
        */
       Map<String, Map<String, String>> metadata(XPartition view, String connection)
          throws Exception;
+
+      /**
+       * The asset identifier of the viewsheet a drill link names (a repository path or an asset
+       * identifier), {@code null} when the caller can read no such viewsheet.
+       */
+      default String resolveViewsheet(String link) {
+         return link;
+      }
+
+      /** The caller, the owner of a user-scope worksheet; {@code null} when not known. */
+      default IdentityID caller() {
+         return null;
+      }
+
+      /** Whether the worksheet {@code entry} exists and the caller may read it. */
+      default boolean worksheetReadable(AssetEntry entry) {
+         return true;
+      }
    }
 
    enum Mode {
@@ -288,7 +308,8 @@ final class WizLogicalModelValidator {
 
       /**
        * An inherited entity or attribute is the base model's: it may not be changed, renamed or
-       * (on an update) removed here. The service silently ignores an edit of one, so the bridge
+       * (on an update) removed here, except the Visible flag of an inherited attribute, which an
+       * extended model may set (as the Portal editor does). The service silently ignores an edit of one, so the bridge
        * compares each with its reference and names the path.
        */
       private void checkBaseElements(List<Entity> submitted) {
@@ -339,8 +360,8 @@ final class WizLogicalModelValidator {
                         "model and cannot be removed here", BASE_ELEMENT_READ_ONLY);
                   }
                }
-               else if(!WizLogicalModelReadBack.canon(refAttribute)
-                  .equals(WizLogicalModelReadBack.canon(match)))
+               else if(!WizLogicalModelReadBack.canon(refAttribute, false)
+                  .equals(WizLogicalModelReadBack.canon(match, false)))
                {
                   add(apath, "\"" + refAttribute.name() + "\" is inherited from the base model " +
                      "and cannot be changed here", BASE_ELEMENT_READ_ONLY);
@@ -541,7 +562,8 @@ final class WizLogicalModelValidator {
 
             // an inherited attribute is the base model's; it is compared, not re-validated
             normalized.add(isBaseAttribute(entity.name(), attribute.name()) ? attribute :
-                              checkAttribute(attribute, apath));
+                              checkAttribute(attribute, apath,
+                                             storedAttribute(storedEntity, attribute)));
          }
 
          return new Entity(entity.name(), entity.oldName(), entity.description(),
@@ -549,7 +571,20 @@ final class WizLogicalModelValidator {
                            normalized);
       }
 
-      private Attribute checkAttribute(Attribute attribute, String path) {
+      /** The stored attribute an update attribute refers to: its marker, else its own name. */
+      private static XAttribute storedAttribute(XEntity storedEntity, Attribute attribute) {
+         if(storedEntity == null) {
+            return null;
+         }
+
+         String raw = attribute.oldName();
+         String name = raw == null ? attribute.name() : raw;
+         return blank(name) ? null : storedEntity.getAttribute(name);
+      }
+
+      private Attribute checkAttribute(Attribute attribute, String path,
+                                       XAttribute storedAttribute)
+      {
          boolean hasExpression = !blank(attribute.expression());
          boolean hasColumn = !blank(attribute.column()) || !blank(attribute.table());
          String dataType = attribute.dataType();
@@ -619,14 +654,14 @@ final class WizLogicalModelValidator {
                WizLogicalModelWire.REF_TYPES, REFTYPE_INVALID);
          }
 
-         checkDrill(attribute.drill(), path + ".drill");
+         Drill drill = checkDrill(attribute.drill(), path + ".drill", storedAttribute);
 
          return new Attribute(attribute.name(), attribute.oldName(), attribute.description(),
                               attribute.visible(), attribute.type(), attribute.table(),
                               attribute.column(), attribute.expression(), attribute.aggregate(),
                               attribute.parseable(), dataType, attribute.refType(),
                               attribute.formula(), attribute.browseData(),
-                              attribute.browseQuery(), attribute.format(), attribute.drill(),
+                              attribute.browseQuery(), attribute.format(), drill,
                               attribute.baseElement(), attribute.errorMessage());
       }
 
@@ -642,6 +677,15 @@ final class WizLogicalModelValidator {
          String table = attribute.table();
          String column = attribute.column();
          XPartition aliased = partition.applyAutoAliases();
+         List<String> replacements = partition.getAutoAliasReplacements(aliased, table);
+
+         if(!replacements.isEmpty()) {
+            add(path + ".table", "table \"" + table + "\" is no longer in view \"" +
+               partition.getName() + "\": an Auto Alias replaced it with \"" +
+               String.join("\", \"", replacements) + "\". Bind the attribute to one of those " +
+               "tables or remove the Auto Alias", TABLE_NOT_IN_VIEW);
+            return null;
+         }
 
          if(!aliased.containsTable(table)) {
             add(path + ".table", "table \"" + table + "\" is not in view \"" + partition.getName() +
@@ -682,8 +726,8 @@ final class WizLogicalModelValidator {
          Map<String, String> columns = tables.get(table);
 
          if(columns == null) {
-            add(path + ".table", "table \"" + tableName + "\" is not in the database",
-                TABLE_NOT_IN_VIEW);
+            add(path + ".table", "table \"" + tableName + "\" is not in the database, or cannot be " +
+                "resolved in the database's default schema", TABLE_NOT_IN_VIEW);
             return null;
          }
 
@@ -715,10 +759,12 @@ final class WizLogicalModelValidator {
          return metadata;
       }
 
-      private void checkDrill(Drill drill, String path) {
+      private Drill checkDrill(Drill drill, String path, XAttribute storedAttribute) {
          if(drill == null || drill.paths() == null) {
-            return;
+            return drill;
          }
+
+         List<WizLogicalModelWire.DrillPath> resolved = new ArrayList<>();
 
          for(int i = 0; i < drill.paths().size(); i++) {
             WizLogicalModelWire.DrillPath drillPath = drill.paths().get(i);
@@ -750,23 +796,224 @@ final class WizLogicalModelValidator {
                    DRILL_INVALID);
             }
 
-            if(drillPath.query() != null) {
-               AssetEntry entry = null;
+            resolved.add(resolveQuery(resolveViewsheetLink(drillPath, ppath, storedAttribute),
+                                      ppath, storedAttribute));
+         }
 
-               try {
-                  entry = blank(drillPath.query().entry()) ? null :
-                     AssetEntry.createAssetEntry(drillPath.query().entry());
-               }
-               catch(RuntimeException e) {
-                  // reported below
-               }
+         return new Drill(resolved);
+      }
 
-               if(entry == null) {
-                  add(ppath + ".query.entry", "the worksheet entry identifier cannot be read",
-                      DRILL_INVALID);
-               }
+      private static final String QUERY_ENTRY_FORMS =
+         "give the worksheet as its asset identifier, as a ws:global:<path> or " +
+         "ws:<user>:<path> string, or as the {\"path\", \"scope\"} object the worksheet " +
+         "list returns as attach";
+
+      /**
+       * A drill's worksheet query is stored by the asset identifier of the worksheet, as the
+       * Portal stores the one picked from the worksheet tree: a runQuery string or an attach
+       * object is resolved to it, so what is written is what is stored, and a worksheet that does
+       * not exist (or the caller cannot read) is refused. A stored query left as it is is not
+       * looked at again, so a model whose worksheet was deleted later can still be edited
+       * elsewhere.
+       */
+      private WizLogicalModelWire.DrillPath resolveQuery(
+         WizLogicalModelWire.DrillPath drillPath, String ppath, XAttribute storedAttribute)
+      {
+         DrillQuery query = drillPath.query();
+
+         if(query == null) {
+            return drillPath;
+         }
+
+         String field = ppath + ".query.entry";
+         AssetEntry entry = queryEntry(query, field);
+
+         if(entry == null) {
+            return drillPath;
+         }
+
+         String identifier = entry.toIdentifier();
+
+         if(!storedQueryEntry(storedAttribute, drillPath, identifier) &&
+            !env.worksheetReadable(entry))
+         {
+            add(field, "the worksheet \"" + entry.getPath() + "\" does not exist or cannot be " +
+               "read; a drill query must name an existing worksheet (" + QUERY_ENTRY_FORMS + ")",
+               DRILL_INVALID);
+            return drillPath;
+         }
+
+         return new WizLogicalModelWire.DrillPath(
+            drillPath.name(), drillPath.linkType(), drillPath.link(), drillPath.targetFrame(),
+            drillPath.tip(), drillPath.passParams(), drillPath.disablePrompting(),
+            drillPath.params(), new DrillQuery(identifier, null, query.params()),
+            drillPath.queryFields());
+      }
+
+      /** The worksheet entry the query names, {@code null} (and an error added) when none. */
+      private AssetEntry queryEntry(DrillQuery query, String field) {
+         AssetEntry entry;
+
+         if(query.attach() != null) {
+            entry = attachEntry(query.attach(), field);
+
+            if(entry == null) {
+               return null;
             }
          }
+         else if(blank(query.entry())) {
+            add(field, "the worksheet of a drill query is needed (" + QUERY_ENTRY_FORMS + ")",
+                DRILL_INVALID);
+            return null;
+         }
+         else {
+            try {
+               entry = AssetEntry.createAssetEntry(query.entry());
+            }
+            catch(RuntimeException e) {
+               entry = null;
+            }
+
+            if(entry == null) {
+               add(field, "\"" + query.entry() + "\" is not a worksheet entry (" +
+                  QUERY_ENTRY_FORMS + ")", DRILL_INVALID);
+               return null;
+            }
+         }
+
+         if(entry.getType() != AssetEntry.Type.WORKSHEET) {
+            add(field, "the entry \"" + entry.getPath() + "\" is not a worksheet (" +
+               QUERY_ENTRY_FORMS + ")", DRILL_INVALID);
+            return null;
+         }
+
+         if(entry.getScope() != AssetRepository.GLOBAL_SCOPE &&
+            entry.getScope() != AssetRepository.USER_SCOPE)
+         {
+            add(field, "the worksheet must be in the global or the user scope (" +
+               QUERY_ENTRY_FORMS + ")", DRILL_INVALID);
+            return null;
+         }
+
+         if(!blank(entry.getProperty("table.name"))) {
+            add(field, "a table of the worksheet cannot be stored in a drill query; name the " +
+               "worksheet without the :" + entry.getProperty("table.name") + " table segment",
+               DRILL_INVALID);
+            return null;
+         }
+
+         return entry;
+      }
+
+      private AssetEntry attachEntry(WizLogicalModelWire.WorksheetAttach attach, String field) {
+         String scope = attach.scope() == null ? "" : attach.scope().trim().toLowerCase();
+
+         if(scope.equals("global")) {
+            return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                  attach.path(), null);
+         }
+
+         if(scope.equals("user")) {
+            IdentityID caller = env.caller();
+
+            if(caller == null) {
+               add(field, "a user-scope worksheet cannot be resolved without the caller (" +
+                  QUERY_ENTRY_FORMS + ")", DRILL_INVALID);
+               return null;
+            }
+
+            return new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.WORKSHEET,
+                                  attach.path(), caller);
+         }
+
+         add(field, "the scope \"" + attach.scope() + "\" must be \"global\" or \"user\"",
+             DRILL_INVALID);
+         return null;
+      }
+
+      /** Whether the stored attribute already has this drill path with this worksheet. */
+      private boolean storedQueryEntry(XAttribute storedAttribute,
+                                       WizLogicalModelWire.DrillPath drillPath, String identifier)
+      {
+         if(mode != Mode.UPDATE || storedAttribute == null ||
+            storedAttribute.getXMetaInfo() == null ||
+            storedAttribute.getXMetaInfo().getXDrillInfo() == null)
+         {
+            return false;
+         }
+
+         Enumeration<?> paths = storedAttribute.getXMetaInfo().getXDrillInfo().getDrillPaths();
+
+         while(paths.hasMoreElements()) {
+            DrillPath stored = (DrillPath) paths.nextElement();
+
+            if(Tool.equals(stored.getName(), drillPath.name()) && stored.getQuery() != null &&
+               stored.getQuery().getWsEntry() != null &&
+               identifier.equals(stored.getQuery().getWsEntry().toIdentifier()))
+            {
+               return true;
+            }
+         }
+
+         return false;
+      }
+
+      /**
+       * A viewsheet drill is stored by the asset identifier of its target, as the Portal stores
+       * the one picked from the repository tree: a repository path is resolved to it, and a
+       * target that does not exist (or the caller cannot read) is refused. A stored drill path
+       * left as it is is not looked at again, so a model whose target was deleted later can still
+       * be edited elsewhere.
+       */
+      private WizLogicalModelWire.DrillPath resolveViewsheetLink(
+         WizLogicalModelWire.DrillPath drillPath, String ppath, XAttribute storedAttribute)
+      {
+         if(!WizLogicalModelWire.LINK_VIEWSHEET.equals(drillPath.linkType()) ||
+            blank(drillPath.link()) || storedViewsheetLink(storedAttribute, drillPath))
+         {
+            return drillPath;
+         }
+
+         String identifier = env.resolveViewsheet(drillPath.link());
+
+         if(identifier == null) {
+            add(ppath + ".link", "the viewsheet \"" + drillPath.link() + "\" does not exist or " +
+               "cannot be read; a viewsheet drill must target an existing viewsheet (give its " +
+               "repository path or its asset identifier)", DRILL_INVALID);
+            return drillPath;
+         }
+
+         return new WizLogicalModelWire.DrillPath(
+            drillPath.name(), drillPath.linkType(), identifier, drillPath.targetFrame(),
+            drillPath.tip(), drillPath.passParams(), drillPath.disablePrompting(),
+            drillPath.params(), drillPath.query(), drillPath.queryFields());
+      }
+
+      /** Whether the stored attribute already has this viewsheet drill path with this link. */
+      private boolean storedViewsheetLink(XAttribute storedAttribute,
+                                          WizLogicalModelWire.DrillPath drillPath)
+      {
+         if(mode != Mode.UPDATE || storedAttribute == null ||
+            storedAttribute.getXMetaInfo() == null ||
+            storedAttribute.getXMetaInfo().getXDrillInfo() == null)
+         {
+            return false;
+         }
+
+         Enumeration<?> paths = storedAttribute.getXMetaInfo().getXDrillInfo().getDrillPaths();
+
+         while(paths.hasMoreElements()) {
+            DrillPath stored = (DrillPath) paths.nextElement();
+
+            if(stored.getLinkType() == DrillPath.VIEWSHEET_LINK &&
+               Tool.equals(stored.getName(), drillPath.name()) &&
+               Tool.equals(stored.getLink(), drillPath.link()))
+            {
+               return true;
+            }
+         }
+
+         return false;
       }
 
       // -- rename markers ----------------------------------------------------------------------

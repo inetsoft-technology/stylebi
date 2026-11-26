@@ -71,6 +71,10 @@ public class WorksheetStructure {
       public void setConditions(List<ConditionLeaf> conditions) { this.conditions = conditions; }
       public AggregateSummary getAggregate() { return aggregate; }
       public void setAggregate(AggregateSummary aggregate) { this.aggregate = aggregate; }
+      private String conditionsCoverage; // sql tables only: full|partial|unavailable
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public String getConditionsCoverage() { return conditionsCoverage; }
+      public void setConditionsCoverage(String v) { this.conditionsCoverage = v; }
    }
 
    public static class Column {
@@ -114,6 +118,18 @@ public class WorksheetStructure {
       public String getPhase() { return phase; } public void setPhase(String v) { this.phase = v; }
       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
       public String getOf() { return of; } public void setOf(String v) { this.of = v; }
+      private Boolean equal; // LESS_THAN/GREATER_THAN inclusive (>=, <=) when true
+      private String source; // "sql" for leaves parsed from a free-SQL table's text
+      private String text; // sql leaves only: the clause as StyleBI renders it
+      private Boolean grouped; // true when nested inside a parenthesised group
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public Boolean getEqual() { return equal; } public void setEqual(Boolean v) { this.equal = v; }
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public String getSource() { return source; } public void setSource(String v) { this.source = v; }
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public String getText() { return text; } public void setText(String v) { this.text = v; }
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public Boolean getGrouped() { return grouped; } public void setGrouped(Boolean v) { this.grouped = v; }
    }
 
    public static class AggregateSummary {

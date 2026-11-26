@@ -25,7 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.rmi.RemoteException;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class CloudRunnerServerScheduleClient extends ScheduleClient {
@@ -98,6 +98,47 @@ public class CloudRunnerServerScheduleClient extends ScheduleClient {
       }
 
       return new String[0];
+   }
+
+   /**
+    * Lists every non-client cluster node whose scheduler has started, not only the serving node,
+    * because in this mode each node runs its own in-process scheduler. The serving node is always
+    * listed first, as {@link #getScheduleServers()} does; the other nodes follow in host order. A
+    * remote node that has not published a scheduler start time has no scheduler running and is
+    * not listed.
+    */
+   @Override
+   public Map<String, Date> getScheduleStartDates() {
+      Map<String, Date> startDates = new LinkedHashMap<>();
+      String localServer = getSchedulerServer();
+
+      if(localServer != null) {
+         startDates.put(localServer, getScheduleStartDate(localServer));
+      }
+
+      Set<String> nodes = cluster.getClusterNodes();
+
+      if(nodes == null) {
+         return startDates;
+      }
+
+      Map<String, Date> remoteDates = new TreeMap<>();
+
+      for(String node : nodes) {
+         if(node.equals(cluster.getLocalMember())) {
+            continue;
+         }
+
+         String host = cluster.getClusterNodeHost(node);
+         Object startTime = cluster.getClusterNodeProperty(node, Scheduler.SCHEDULER_START_TIME);
+
+         if(host != null && !startDates.containsKey(host) && startTime instanceof Number) {
+            remoteDates.put(host, new Date(((Number) startTime).longValue()));
+         }
+      }
+
+      startDates.putAll(remoteDates);
+      return startDates;
    }
 
    @Override

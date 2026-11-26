@@ -2242,7 +2242,14 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             scope = scope.queryView(wbox.getVariableTable(), getQueryMode());
          }
 
-         form = new CalcFieldFormula(expression, names, forms, cols, wbox.getScriptEnv(), scope);
+         CalcFieldFormula cform =
+            new CalcFieldFormula(expression, names, forms, cols, wbox.getScriptEnv(), scope);
+         // only an explicitly declared type is applied, as for a row-level calc field
+         if(cref.isDataTypeSet()) {
+            cform.setDeclaredType(eref.getDataType());
+         }
+
+         form = cform;
       }
 
       if(form == null) {

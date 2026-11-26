@@ -22,6 +22,8 @@ import inetsoft.uql.rest.pagination.*;
 import inetsoft.uql.tabular.*;
 import inetsoft.sree.SreeEnv;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 @View(vertical = true, value = {
@@ -114,7 +116,7 @@ public class ServiceNowQuery extends EndpointJsonQuery<ServiceNowEndpoint> {
                .offsetParam(PaginationParamType.QUERY, "sysparm_offset")
                .maxResultsPerPageParam(PaginationParamType.QUERY, "sysparm_limit")
                .maxResultsPerPage(1000)
-               .baseRecordLength(1)
+               .zeroBasedPageIndex(true)
                .recordCountPath("$.result.length()")
                .build();
          }
@@ -125,7 +127,6 @@ public class ServiceNowQuery extends EndpointJsonQuery<ServiceNowEndpoint> {
                .maxResultsPerPageParam(PaginationParamType.QUERY, "sysparm_per_page")
                .maxResultsPerPage(100)
                .recordCountPath("$.result.length()")
-               .baseRecordLength(1)
                .build();
          }
       }
@@ -136,6 +137,23 @@ public class ServiceNowQuery extends EndpointJsonQuery<ServiceNowEndpoint> {
       }
    }
 
+   /**
+    * The Change Management API appends a trailing {@code {"__meta": {...}}} element (encoded
+    * query and paging info) to the {@code result} array. Left in place it loads as an extra,
+    * empty row, so drop an element whose only key is {@code __meta}. Records that merely carry
+    * a {@code __meta} key beside other fields are kept.
+    */
+   @Override
+   public List<String> resolveExcludedJsonPaths() {
+      List<String> paths = new ArrayList<>(super.resolveExcludedJsonPaths());
+
+      if(!paths.contains(META_ELEMENT_PATH)) {
+         paths.add(META_ELEMENT_PATH);
+      }
+
+      return paths;
+   }
+
    @Override
    public Map<String, ServiceNowEndpoint> getEndpointMap() {
       if("true".equals(SreeEnv.getProperty("debug.endpoints"))) {
@@ -144,6 +162,9 @@ public class ServiceNowQuery extends EndpointJsonQuery<ServiceNowEndpoint> {
 
       return Singleton.INSTANCE.endpoints;
    }
+
+   private static final String META_ELEMENT_PATH =
+      "$.result[?(@.__meta && @.length()==1)]";
 
    enum Singleton {
       INSTANCE;

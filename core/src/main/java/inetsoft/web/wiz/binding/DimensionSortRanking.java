@@ -71,11 +71,14 @@ public final class DimensionSortRanking {
 
    /**
     * @param mode    {@code top}, {@code bottom} or {@code none}, or a {@code $(Component)}
-    *                reference the viewer's control resolves at render time
-    * @param n       how many: an integer (JSON number or numeric string) or a
-    *                {@code $(Component)} reference. Typed {@code Object} so Jackson binds
-    *                either JSON shape and existing integer-literal callers still compile.
-    * @param measure the measure to rank by, by name
+    *                reference the viewer's control resolves at render time, or an
+    *                {@code =script} expression the viewsheet sandbox evaluates at render time
+    * @param n       how many: an integer (JSON number or numeric string), a
+    *                {@code $(Component)} reference, or an {@code =script} expression. Typed
+    *                {@code Object} so Jackson binds either JSON shape and existing
+    *                integer-literal callers still compile.
+    * @param measure the measure to rank by, by name, or an {@code =script} expression that
+    *                evaluates to the measure's name at render time
     * @param others  group the remainder into an "Others" row
     */
    public record Ranking(String mode, Object n, String measure, Boolean others) {}
@@ -118,7 +121,7 @@ public final class DimensionSortRanking {
 
    public static void applyRanking(BDimensionRefModel dimension, Ranking ranking) {
       String requested = ranking == null || ranking.mode() == null ? null : ranking.mode().trim();
-      boolean dynamicMode = isVariableValue(requested);
+      boolean dynamicMode = isVariableValue(requested) || isScriptValue(requested);
       String mode = dynamicMode ? requested
          : require(RANKINGS, ranking == null ? null : ranking.mode(), "mode", rankingTokens());
       int option = dynamicMode ? XCondition.TOP_N : RANKINGS.get(mode);
@@ -141,12 +144,27 @@ public final class DimensionSortRanking {
             "Ranking by nothing produces an arbitrary result rather than an error.");
       }
 
-      requireName(ranking.measure(), "measure");
-      // A "$(Component)" mode is stored verbatim: BDimensionRefModel/VSDimensionRef keep it as a
-      // dynamic value and resolve it from the component at render time.
+      String measure = ranking.measure();
+
+      if(isScriptValue(measure)) {
+         measure = measure.trim();
+      }
+      else {
+         if(measure.trim().startsWith("=")) {
+            throw new IllegalArgumentException(
+               "'measure' is '" + measure + "', an empty script. Write the expression after the " +
+               "'=' (e.g. =\"Sum(Total)\"), or name a bound measure.");
+         }
+
+         requireName(measure, "measure");
+      }
+
+      // A "$(Component)" or "=script" mode is stored verbatim: BDimensionRefModel/VSDimensionRef
+      // keep it as a dynamic value and resolve it (from the component, or by running the script
+      // in the viewsheet sandbox) at render time.
       dimension.setRankingOption(dynamicMode ? mode : String.valueOf(option));
       dimension.setRankingN(n);
-      dimension.setRankingCol(ranking.measure());
+      dimension.setRankingCol(measure);
 
       if(ranking.others() != null) {
          dimension.setGroupOthers(ranking.others());
@@ -155,13 +173,13 @@ public final class DimensionSortRanking {
 
    /**
     * The ranking count as the string the model stores: an integer of at least 1, or a
-    * {@code $(Component)} reference kept verbatim.
+    * {@code $(Component)} reference or {@code =script} expression kept verbatim.
     */
    private static String resolveN(Object n, String mode) {
       if(n instanceof String text) {
          String trimmed = text.trim();
 
-         if(isVariableValue(trimmed)) {
+         if(isVariableValue(trimmed) || isScriptValue(trimmed)) {
             return trimmed;
          }
 
@@ -170,8 +188,8 @@ public final class DimensionSortRanking {
          }
          catch(NumberFormatException e) {
             throw new IllegalArgumentException(
-               "'" + mode + "' ranking needs an 'n' that is an integer of at least 1 or a " +
-               "$(ComponentName) reference, got '" + text + "'.");
+               "'" + mode + "' ranking needs an 'n' that is an integer of at least 1, a " +
+               "$(ComponentName) reference or an =script expression, got '" + text + "'.");
          }
       }
 
@@ -312,6 +330,15 @@ public final class DimensionSortRanking {
     */
    private static boolean isVariableValue(String value) {
       return value != null && value.startsWith("$(") && value.endsWith(")");
+   }
+
+   /**
+    * An {@code =script} dynamic value: the same {@code "="} prefix test as
+    * {@code VSUtil.isScriptValue}, local for the same reason as {@link #isVariableValue}. A bare
+    * {@code "="} carries no script and is not one.
+    */
+   private static boolean isScriptValue(String value) {
+      return value != null && value.trim().startsWith("=") && value.trim().length() > 1;
    }
 
    private static boolean blank(String value) {

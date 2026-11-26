@@ -184,9 +184,9 @@ public class BindingReadService {
          }
       }
       else if(model instanceof CrosstabBindingModel crosstab) {
-         shelves.put("rows", refs(crosstab.getRows()));
-         shelves.put("cols", refs(crosstab.getCols()));
-         shelves.put("aggregates", refs(crosstab.getAggregates()));
+         shelves.put("rows", TableAllRows.report(crosstab, refs(crosstab.getRows())));
+         shelves.put("cols", TableAllRows.report(crosstab, refs(crosstab.getCols())));
+         shelves.put("aggregates", TableAllRows.report(crosstab, refs(crosstab.getAggregates())));
       }
       else if(model instanceof TableBindingModel table) {
          // Details are read the way get_table_binding reads them: typed, and with the hidden
@@ -198,9 +198,9 @@ public class BindingReadService {
             TableBindingMutator.enrichTableVisibility(tableAssembly, details, refModelService);
          }
 
-         shelves.put("groups", refs(table.getGroups()));
+         shelves.put("groups", TableAllRows.report(table, refs(table.getGroups())));
          shelves.put("details", details.get("details"));
-         shelves.put("aggregates", refs(table.getAggregates()));
+         shelves.put("aggregates", TableAllRows.report(table, refs(table.getAggregates())));
       }
 
       return new AssemblyBinding(assemblyName,

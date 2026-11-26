@@ -247,3 +247,83 @@ describe("EmbedChartComponent close before the viewsheet is open", () => {
       expect(connection.disconnects).toBe(1);
    });
 });
+
+// Bug #81644: a removed element must stop listening to the login.
+describe("EmbedChartComponent login subscription", () => {
+   it("releases the inetsoftConnected subscription and timer on destroy", () => {
+      const connected = new BehaviorSubject<boolean>(false);
+      window.inetsoftConnected = connected;
+
+      TestBed.configureTestingModule({
+         providers: [
+            provideZonelessChangeDetection(),
+            ...embedElementConfig.providers,
+            provideRouter([]),
+            ...EMBED_CHART_ROUTE_PROVIDERS,
+            provideHttpClientTesting()
+         ]
+      });
+      TestBed.overrideComponent(EmbedChartComponent, {
+         set: {
+            imports: [],
+            schemas: [NO_ERRORS_SCHEMA],
+            providers: [{
+               provide: ViewsheetClientService,
+               useValue: {
+                  commands: new Subject<any>(),
+                  onHeartbeat: NEVER,
+                  connectionError: () => NEVER,
+                  whenConnected: () => NEVER,
+                  connect: () => {},
+                  sendEvent: () => {},
+                  beforeDestroy: null
+               }
+            }]
+         }
+      });
+
+      const fixture = TestBed.createComponent(EmbedChartComponent);
+      fixture.componentRef.setInput("url", "global/folder/chart/Chart1");
+      fixture.detectChanges();
+      expect(connected.observed).toBe(true);
+
+      fixture.destroy();
+      expect(connected.observed).toBe(false);
+      expect(() => connected.next(true)).not.toThrow();
+      delete window.inetsoftConnected;
+   });
+});
+
+// Bug #81645: a url without path segments makes the url matcher return null, which must leave
+// assetId undefined instead of throwing in ngOnInit.
+describe("EmbedChartComponent url without a path", () => {
+   afterEach(() => {
+      delete window.inetsoftConnected;
+   });
+
+   for(const url of ["?region=east", "/", "/?region=east"]) {
+      it(`leaves assetId undefined for url "${url}"`, () => {
+         window.inetsoftConnected = new BehaviorSubject<boolean>(true);
+
+         TestBed.configureTestingModule({
+            providers: [
+               provideZonelessChangeDetection(),
+               ...embedElementConfig.providers,
+               provideRouter([]),
+               ...EMBED_CHART_ROUTE_PROVIDERS,
+               provideHttpClientTesting()
+            ]
+         });
+         TestBed.overrideComponent(EmbedChartComponent, {
+            set: { imports: [], schemas: [NO_ERRORS_SCHEMA] }
+         });
+
+         const fixture = TestBed.createComponent(EmbedChartComponent);
+         fixture.componentRef.setInput("url", url);
+         expect(() => fixture.detectChanges()).not.toThrow();
+         expect(fixture.componentInstance.assetId).toBeUndefined();
+         expect(fixture.componentInstance.assemblyName).toBeUndefined();
+         fixture.destroy();
+      });
+   }
+});

@@ -18,6 +18,7 @@
 
 package inetsoft.web.wiz.controller;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
@@ -27,6 +28,9 @@ import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.admin.ai.AdminIdentityRefs;
 import inetsoft.web.admin.security.action.ActionPermissionService;
+import inetsoft.web.admin.security.user.SecurityTreeNode;
+import inetsoft.web.admin.security.user.SecurityTreeRootModel;
+import inetsoft.web.admin.security.user.SecurityTreeServer;
 import inetsoft.web.wiz.WizPermissions;
 import inetsoft.web.wiz.WizUtil;
 import org.slf4j.Logger;
@@ -48,12 +52,20 @@ import java.util.stream.Collectors;
  * for every check, so the {@code entitlement.read}/{@code entitlement.write} gates are evaluated on
  * {@link WizUtil#saveCheckPrincipal} (the same user without the wiz tag). The organization is
  * always the caller's, never a request value.
+ * <p>
+ * It also lists the users, groups and organization roles the caller may name in a grant, for the
+ * Wiz portal's name suggestions: exactly what the Enterprise Manager's "Add Permission" dialog
+ * shows the same user (identities it administers; no global roles, no organization administrator
+ * role), flattened to the caller's organization.
  */
 @RestController
 public class WizEntitlementGrantController {
    @Autowired
-   public WizEntitlementGrantController(SecurityEngine securityEngine) {
+   public WizEntitlementGrantController(SecurityEngine securityEngine,
+                                        SecurityTreeServer securityTreeServer)
+   {
       this.securityEngine = securityEngine;
+      this.securityTreeServer = securityTreeServer;
    }
 
    @GetMapping("/api/wiz/v1/entitlements/grants")
@@ -70,6 +82,105 @@ public class WizEntitlementGrantController {
       }
 
       return result;
+   }
+
+   /**
+    * The names the caller may grant to: the identities of the caller's organization the caller
+    * administers, as the Enterprise Manager's "Add Permission" dialog lists them. Global roles are
+    * left out (a grant to one is refused), and so is the organization administrator role. A name
+    * missing here may still exist; the grant itself remains the judge.
+    */
+   @GetMapping("/api/wiz/v1/entitlements/principals")
+   public PrincipalList getPrincipals(Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      Principal real = requirePermission(principal, "entitlement.write");
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      SecurityTreeRootModel tree;
+
+      try {
+         // The real user, never the wiz principal: the tree filters every identity by the caller's
+         // own SECURITY_* ADMIN grants, which the wiz delegation strategy would approve wholesale.
+         tree = securityTreeServer.getSecurityTree(null, real, true, false, true, false);
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to list the principals of organization {}", orgId, e);
+         throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                                           "the principal list could not be built");
+      }
+
+      return flatten(tree, orgId, securityEngine.getSecurityProvider());
+   }
+
+   /**
+    * Flattens an EM security tree into the caller's organization's users, groups (with the
+    * enclosing group of a nested one) and organization roles. Covers both tree shapes: the
+    * single-tenant one (top-level users/groups/roles folders, global and organization roles mixed)
+    * and the multi-tenant one (an organization node holding the folders, plus a top-level roles
+    * folder of global roles). Folders are root nodes and the organization node is not an
+    * identity, so neither is listed.
+    */
+   static PrincipalList flatten(SecurityTreeRootModel tree, String orgId,
+                                SecurityProvider provider)
+   {
+      Map<String, PrincipalRef> users = new LinkedHashMap<>();
+      Map<String, PrincipalRef> groups = new LinkedHashMap<>();
+      Map<String, PrincipalRef> roles = new LinkedHashMap<>();
+
+      for(SecurityTreeNode root : new SecurityTreeNode[] {
+         tree.users(), tree.groups(), tree.roles(), tree.organizations() })
+      {
+         if(root != null) {
+            collect(root, null, orgId, provider, users, groups, roles);
+         }
+      }
+
+      return new PrincipalList(sorted(users), sorted(groups), sorted(roles));
+   }
+
+   /**
+    * Walks one tree, keeping the first entry per name. A group that belongs to several parent
+    * groups appears under each of them in the tree, so it is reported with the first parent the
+    * walk meets; the parent is display-only (a hint in the name picker), never used for a grant.
+    */
+   private static void collect(SecurityTreeNode node, String parentGroup, String orgId,
+                               SecurityProvider provider, Map<String, PrincipalRef> users,
+                               Map<String, PrincipalRef> groups, Map<String, PrincipalRef> roles)
+   {
+      boolean folder = node.root() || node.type() == Identity.ORGANIZATION;
+      IdentityID id = node.identityID();
+      String childParent = parentGroup;
+
+      // a user can also appear under each group it belongs to: the first occurrence is kept
+      if(!folder && id != null && orgId.equals(id.getOrgID())) {
+         String name = id.getName();
+
+         switch(node.type()) {
+         case Identity.USER -> users.putIfAbsent(name, new PrincipalRef(name, null));
+         case Identity.GROUP -> {
+            groups.putIfAbsent(name, new PrincipalRef(name, parentGroup));
+            childParent = name;
+         }
+         case Identity.ROLE -> {
+            if(!provider.isOrgAdministratorRole(id)) {
+               roles.putIfAbsent(name, new PrincipalRef(name, null));
+            }
+         }
+         default -> {
+         }
+         }
+      }
+
+      for(SecurityTreeNode child : node.children()) {
+         collect(child, childParent, orgId, provider, users, groups, roles);
+      }
+   }
+
+   private static List<PrincipalRef> sorted(Map<String, PrincipalRef> refs) {
+      return refs.values().stream()
+         .sorted(Comparator.comparing(PrincipalRef::name, String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(PrincipalRef::name))
+         .toList();
    }
 
    @PostMapping("/api/wiz/v1/entitlements/grants")
@@ -254,7 +365,8 @@ public class WizEntitlementGrantController {
       return false;
    }
 
-   private void requirePermission(Principal principal, String permission)
+   /** Answers the real (non-wiz) user the permission was checked on. */
+   private Principal requirePermission(Principal principal, String permission)
       throws inetsoft.sree.security.SecurityException
    {
       AdminAiCallerGuard.requireBearerAuthenticatedRequest();
@@ -270,6 +382,8 @@ public class WizEntitlementGrantController {
       {
          throw new ResponseStatusException(HttpStatus.FORBIDDEN, permission + " required");
       }
+
+      return real;
    }
 
    private static int identityType(String type) {
@@ -450,8 +564,24 @@ public class WizEntitlementGrantController {
    {
    }
 
+   /** The names the caller may grant to, each list sorted by name. */
+   public record PrincipalList(List<PrincipalRef> users, List<PrincipalRef> groups,
+                               List<PrincipalRef> roles)
+   {
+   }
+
+   /**
+    * @param name   the organization-local name, as {@code POST .../grants} takes it.
+    * @param parent the enclosing group of a nested group; null (and left out of the JSON)
+    *               otherwise.
+    */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public record PrincipalRef(String name, String parent) {
+   }
+
    private static final int MAX_PRINCIPAL_LENGTH = 256;
    private static final Object WRITE_LOCK = new Object();
    private static final Logger LOG = LoggerFactory.getLogger(WizEntitlementGrantController.class);
    private final SecurityEngine securityEngine;
+   private final SecurityTreeServer securityTreeServer;
 }

@@ -181,13 +181,18 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
 
    @Override
    public void removeTask(String taskName) throws RemoteException {
+      removeTask(taskName, false);
+   }
+
+   @Override
+   public void removeTask(String taskName, boolean replacing) throws RemoteException {
       LOG.debug(
          "Received remove task [" + taskName + "] request on " +
          Tool.getRmiIP() + " with config directory " +
          ConfigurationContext.getContext().getHome());
 
       try {
-         Scheduler.getScheduler().removeTask(taskName);
+         Scheduler.getScheduler().removeTask(taskName, replacing);
       }
       catch(Exception exc) {
          throw new RemoteException("Unable to remove task " + taskName, exc);

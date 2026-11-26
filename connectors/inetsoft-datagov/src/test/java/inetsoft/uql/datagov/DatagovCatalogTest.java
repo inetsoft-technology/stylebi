@@ -455,11 +455,11 @@ class DatagovCatalogTest {
       Map<String, String> types = new HashMap<>();
       schema.columns().forEach(c -> types.put(c.name(), c.type()));
 
-      for(String numeric : List.of("sid", "position", "created_at", "updated_at")) {
+      for(String numeric : List.of("position", "created_at", "updated_at")) {
          assertEquals(XSchema.DECIMAL, types.get(numeric), numeric);
       }
 
-      for(String text : List.of("id", "created_meta", "updated_meta", "meta")) {
+      for(String text : List.of("sid", "id", "created_meta", "updated_meta", "meta")) {
          assertEquals(XSchema.STRING, types.get(text), text);
       }
    }
@@ -480,7 +480,7 @@ class DatagovCatalogTest {
    void describeDataset_typesAgreeWithWhatDatagovTableBuildsFromTheFirstRow() throws Exception {
       String fixture;
 
-      try(InputStream in = getClass().getResourceAsStream("rows.json")) {
+      try(InputStream in = getClass().getResourceAsStream("rows-string-sid.json")) {
          fixture = new String(IOUtils.toByteArray(in), StandardCharsets.UTF_8);
       }
 
@@ -488,7 +488,7 @@ class DatagovCatalogTest {
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
 
       DatagovDataSource fileDs = new DatagovDataSource();
-      fileDs.setURL(getClass().getResource("rows.json").toExternalForm());
+      fileDs.setURL(getClass().getResource("rows-string-sid.json").toExternalForm());
       DatagovQuery query = new DatagovQuery();
       query.setDataSource(fileDs);
       XTableNode table = new DatagovRuntime().runQuery(query, new VariableTable());

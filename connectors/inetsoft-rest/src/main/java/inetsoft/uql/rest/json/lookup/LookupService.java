@@ -54,6 +54,7 @@ public class LookupService {
    {
       final CustomJsonLookupEndpoint lookupEndpoint = (CustomJsonLookupEndpoint) lookupQuery.getLookupEndpoint();
       final JsonProvider jsonProvider = JsonTransformer.getJsonProvider();
+      boolean keyMissing = false;
 
       if(lookupEndpoint.key().isEmpty() && jsonEntity instanceof String) {
          query.setLookupValue(parentQuery.getLookupDepth(), (String) jsonEntity);
@@ -69,9 +70,16 @@ public class LookupService {
             .orElse(null);
 
          query.setLookupValue(parentQuery.getLookupDepth(), id);
+         keyMissing = id == null && !lookupEndpoint.key().isEmpty();
       }
 
       SuffixTemplate template = new SuffixTemplate(lookupEndpoint.url());
+
+      // the entity doesn't have the configured key, skip its lookup like the endpoint queries do
+      // instead of failing the query or requesting the URL without the key
+      if(keyMissing && usesVariable(template, lookupEndpoint.parameterName())) {
+         return null;
+      }
 
       for(int i = 0; i < parentQuery.getLookupDepth() + 1; i ++) {
          if(query.getCustomLookup(i) != null) {
@@ -110,6 +118,11 @@ public class LookupService {
       final JsonLookupEndpoint lookupEndpoint = lookupQuery.getLookupEndpoint();
       final Object valueNode = entity.get(lookupEndpoint.key());
 
+      // the entity doesn't have the key element, skip its lookup
+      if(valueNode == null) {
+         return null;
+      }
+
       if(valueNode instanceof ValueNode) {
          final Object nodeValue = ((ValueNode) valueNode).unwrap();
          final String id = nodeValue != null ? nodeValue.toString() : null;
@@ -119,6 +132,57 @@ public class LookupService {
          throw new IllegalStateException(String.format("Expected value %s was missing from entity.",
             lookupEndpoint.key()));
       }
+   }
+
+   /**
+    * Move a field of an entity that has the name a lookup result is attached under, so that the
+    * lookup doesn't overwrite it. The field is renamed to "name (Field)", or to
+    * "name (Field n)" if that is taken. The match is case-sensitive.
+    *
+    * @param entity the entity the lookup result is attached to.
+    * @param name   the name of the lookup result.
+    *
+    * @return the new name of the moved field, or null if nothing was moved.
+    */
+   @SuppressWarnings("unchecked")
+   public String moveCollidingField(Object entity, String name) {
+      if(!(entity instanceof Map) || name == null) {
+         return null;
+      }
+
+      final Map<String, Object> map = (Map<String, Object>) entity;
+
+      if(!map.containsKey(name)) {
+         return null;
+      }
+
+      String newName = name + " (Field)";
+
+      for(int n = 2; map.containsKey(newName); n++) {
+         newName = name + " (Field " + n + ")";
+      }
+
+      map.put(newName, map.remove(name));
+      return newName;
+   }
+
+   /**
+    * Check if a suffix template references a variable, in the path or in the query.
+    */
+   private static boolean usesVariable(SuffixTemplate template, String name) {
+      for(TemplateComponent part : template.getPath()) {
+         if(part.isVariable() && name.equals(part.getValue())) {
+            return true;
+         }
+      }
+
+      for(TemplateComponent part : template.getQuery().values()) {
+         if(part.isVariable() && name.equals(part.getValue())) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private EndpointQuery createEndpointQuery(EndpointQuery parentQuery, JsonLookupQuery lookupQuery,

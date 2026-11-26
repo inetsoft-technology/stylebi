@@ -718,6 +718,8 @@ public abstract class InputVSAssemblyInfo extends VSAssemblyInfo {
       if(labelInfo != null) {
          labelInfo.resetRuntimeValues();
       }
+      submitOnChange.setRValue(null);
+      autoRefresh.setRValue(null);
    }
 
    // input data

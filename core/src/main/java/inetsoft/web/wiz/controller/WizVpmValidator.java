@@ -165,15 +165,9 @@ final class WizVpmValidator {
          target(path + ".target", condition.get("target"));
          optionalString(path + ".script", condition.get("script"));
          Object tree = condition.get("tree");
-         boolean hasScript = condition.get("script") instanceof String &&
-            !((String) condition.get("script")).isBlank();
 
-         if(tree == null) {
-            if(!hasScript) {
-               error(path + ".tree", "a condition needs a tree or a script", "TREE_SHAPE_INVALID");
-            }
-         }
-         else {
+         // a condition may name only its target; the Portal saves one with no clause yet
+         if(tree != null) {
             node(path + ".tree", tree, 0);
          }
       }

@@ -151,8 +151,7 @@ public class ScriptFunction implements ProxyExecutable {
          Object[] args = new Object[ptypes.length];
 
          for(int i = 0; i < ptypes.length; i++) {
-            Object host = (i < arguments.length)
-               ? ScriptValueConverter.toHost(arguments[i]) : null;
+            Object host = (i < arguments.length) ? toArgument(arguments[i]) : null;
             args[i] = coerce(host, ptypes[i]);
          }
 
@@ -172,6 +171,20 @@ public class ScriptFunction implements ProxyExecutable {
 
          throw new RuntimeException(text, cause);
       }
+   }
+
+   /**
+    * Convert a script argument for a function call. Unlike {@link ScriptValueConverter#toHost},
+    * which maps NaN/Infinity to null for stored and returned values, a script number keeps
+    * NaN and the infinities here, as Rhino's FunctionObject did for its arguments, so
+    * {@code CALC.abs(NaN)} sees NaN and not the default 0 (Bug #81780).
+    */
+   private static Object toArgument(Value v) {
+      if(v != null && !v.isHostObject() && v.isNumber() && v.fitsInDouble()) {
+         return v.asDouble();
+      }
+
+      return ScriptValueConverter.toHost(v);
    }
 
    /**
@@ -222,6 +235,16 @@ public class ScriptFunction implements ProxyExecutable {
          return null;
       }
 
+      // A boolean parameter may receive a non-Boolean script value, e.g.
+      // Table1.setActionVisible('Edit', 1). Rhino's FunctionObject coerced it
+      // via ScriptRuntime.toBoolean (JS truthiness); without this, reflective
+      // invocation fails with an argument-type mismatch. A Boolean wrapper that
+      // receives null keeps null (handled above), only non-null values reach
+      // here. (Bug #81683)
+      if(ptype == boolean.class || ptype == Boolean.class) {
+         return toBooleanValue(value);
+      }
+
       // A String parameter may receive a non-String script value (a boolean or
       // number), e.g. bindingInfo.setGroupTotal("reseller", ROW_HEADER, true) on
       // the setGroupTotal(String, int, String) overload. Rhino's FunctionObject
@@ -245,6 +268,13 @@ public class ScriptFunction implements ProxyExecutable {
          : (isNumericType(ptype) ? toNumber(value) : null);
 
       if(n != null) {
+         // JavaScript ToInt32/ToUint16 map NaN and +-Infinity to 0 for an integral
+         // parameter, as Rhino's FunctionObject did. Number.intValue() would
+         // saturate the infinities to MAX/MIN_VALUE instead (Bug #81780).
+         if(isIntegralType(ptype) && !Double.isFinite(n.doubleValue())) {
+            n = 0;
+         }
+
          if(ptype == int.class || ptype == Integer.class) {
             return n.intValue();
          }
@@ -269,6 +299,40 @@ public class ScriptFunction implements ProxyExecutable {
       }
 
       return value;
+   }
+
+   /**
+    * Convert a non-null script value to a boolean using JavaScript truthiness
+    * (mirroring Rhino's {@code ScriptRuntime.toBoolean}): a Boolean is kept; a
+    * number is true unless it is zero or NaN; a string is true unless empty, so
+    * the string {@code "false"} is true; any other non-null value (object, array,
+    * date, host object) is true. (Bug #81683)
+    */
+   // package-private: ScriptHostAccess reuses this for the equivalent coercion on
+   // direct host-object method calls, which do not go through ScriptFunction.
+   static boolean toBooleanValue(Object value) {
+      if(value instanceof Boolean b) {
+         return b;
+      }
+
+      if(value instanceof Number n) {
+         double d = n.doubleValue();
+         return d == d && d != 0;
+      }
+
+      if(value instanceof CharSequence cs) {
+         return cs.length() > 0;
+      }
+
+      return value != null;
+   }
+
+   private static boolean isIntegralType(Class<?> ptype) {
+      return ptype == int.class || ptype == Integer.class ||
+         ptype == long.class || ptype == Long.class ||
+         ptype == short.class || ptype == Short.class ||
+         ptype == byte.class || ptype == Byte.class ||
+         ptype == char.class || ptype == Character.class;
    }
 
    /**
@@ -297,6 +361,7 @@ public class ScriptFunction implements ProxyExecutable {
     * Java-only numeric suffixes like {@code "3.0d"} are accepted here (JS yields
     * {@code NaN}). These cases do not occur in practice for CALC formula arguments.
     */
+   // package-private: ScriptHostAccess reuses this for String -> number on host calls. (#81889)
    private static Number toNumber(Object value) {
       if(value instanceof Boolean) {
          return ((Boolean) value) ? 1 : 0;
@@ -375,6 +440,26 @@ public class ScriptFunction implements ProxyExecutable {
          {
             return Long.toString((long) d);
          }
+      }
+
+      // A script array arrives as an Object[] whose toString() is the Java identity
+      // text ("[Ljava.lang.Object;@3ec52163"). JS ToString joins the elements with
+      // commas, a null/undefined element being empty and a nested array flattening
+      // the same way (Rhino parity). (Bug #81781)
+      if(value instanceof Object[] arr) {
+         StringBuilder sb = new StringBuilder();
+
+         for(int i = 0; i < arr.length; i++) {
+            if(i > 0) {
+               sb.append(',');
+            }
+
+            if(arr[i] != null) {
+               sb.append(toStringValue(arr[i]));
+            }
+         }
+
+         return sb.toString();
       }
 
       return String.valueOf(value);

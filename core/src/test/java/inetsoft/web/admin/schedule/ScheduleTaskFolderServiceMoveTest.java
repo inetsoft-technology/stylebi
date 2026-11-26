@@ -28,6 +28,12 @@ import inetsoft.util.IndexedStorage;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.schedule.model.ScheduleTaskModel;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedConstruction;
@@ -44,6 +50,11 @@ import static org.mockito.Mockito.*;
  * task decides whether it can be moved (the removable flag of the model is ignored) and which
  * folder it is moved out of, and nothing is written for a task that can't be moved.
  */
+// Bug #81905, the folder service takes the cluster folder lock, which needs the Spring context
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class ScheduleTaskFolderServiceMoveTest {
    private static final String ORG = "orgx";

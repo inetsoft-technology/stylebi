@@ -65,6 +65,8 @@ import static org.mockito.Mockito.when;
 class SQLBoundTableBuiltinVariableTest {
    private static final String DB = "memory:bug79841";
    private static final String SELECT = "select STATE, CITY from CUSTOMERS where ";
+   private static final String TYPED_SELECT =
+      "select STATE, CITY, PAID, ORDER_TS, ORDER_DATE, ORDER_TIME, PRICE from CUSTOMERS where ";
 
    @Configuration
    static class Credentials {
@@ -92,7 +94,9 @@ class SQLBoundTableBuiltinVariableTest {
             // first run
          }
 
-         stmt.executeUpdate("create table CUSTOMERS (STATE varchar(20), CITY varchar(20))");
+         stmt.executeUpdate("create table CUSTOMERS (STATE varchar(20), CITY varchar(20), " +
+                               "PAID boolean, ORDER_TS timestamp, ORDER_DATE date, " +
+                               "ORDER_TIME time, PRICE decimal(8, 2))");
       }
    }
 
@@ -193,8 +197,43 @@ class SQLBoundTableBuiltinVariableTest {
       assertEquals(XSchema.INTEGER, vars[0].getTypeNode().getType());
    }
 
-   // the table metadata of a repository: STATE is a string, CITY an integer column. The JDBC
-   // handler isn't installed in the core tests, so XEngine has no column types to give.
+   // a variable compared with a boolean, timestamp, date, time or decimal column takes the type of
+   // that column too, so a value typed as text (true, 2001-01-01 01:13:13) is bound to the sql as
+   // a value of the column's type
+   @Test
+   void promptVariablesTakeBooleanAndDateTimeColumnTypes() throws Exception {
+      Worksheet ws = worksheet(TYPED_SELECT + "PAID = $(paid) and ORDER_TS < $(ts) and " +
+                                  "ORDER_DATE >= $(day) and ORDER_TIME = $(time) and " +
+                                  "PRICE > $(price) and STATE = $(_USER_)", typedColumns());
+
+      assertEquals(Map.of("paid", XSchema.BOOLEAN, "ts", XSchema.TIME_INSTANT,
+                          "day", XSchema.DATE, "time", XSchema.TIME, "price", XSchema.DOUBLE),
+                   types(ws.getAllVariables()));
+   }
+
+   // with IN the variable takes multiple values and keeps the date type of the column, a variable
+   // with = next to it is single valued; the variable assembly of the same name gets the type
+   @Test
+   void inVariableOnDateColumnTakesMultipleValuesAndDateType() throws Exception {
+      Worksheet ws = worksheet(TYPED_SELECT + "ORDER_DATE in ($(days)) and PAID = $(paid)",
+                               typedColumns());
+      VariableAssembly daysVar = new DefaultVariableAssembly(ws, "days");
+      daysVar.setVariable(new AssetVariable("days"));
+      ws.addAssembly(daysVar);
+
+      UserVariable[] vars = ws.getAllVariables();
+      assertEquals(Map.of("days", XSchema.DATE, "paid", XSchema.BOOLEAN), types(vars));
+
+      for(UserVariable var : vars) {
+         assertEquals("days".equals(var.getName()), var.isMultipleSelection(), var.getName());
+      }
+
+      assertEquals(XSchema.DATE, daysVar.getVariable().getTypeNode().getType());
+   }
+
+   // the table metadata of a repository: STATE is a string, CITY an integer column, then a boolean,
+   // a timestamp, a date, a time and a decimal column. The JDBC handler isn't installed in the core
+   // tests, so XEngine has no column types to give.
    private static XRepository typedColumns() throws Exception {
       XRepository repository = mock(XRepository.class);
       when(repository.getMetaData(any(), any(), any(), anyBoolean(), any())).thenAnswer(inv -> {
@@ -207,6 +246,11 @@ class SQLBoundTableBuiltinVariableTest {
          XTypeNode result = new XTypeNode("Result");
          result.addChild(XSchema.createPrimitiveType("STATE", String.class));
          result.addChild(XSchema.createPrimitiveType("CITY", Integer.class));
+         result.addChild(XSchema.createPrimitiveType("PAID", Boolean.class));
+         result.addChild(XSchema.createPrimitiveType("ORDER_TS", java.sql.Timestamp.class));
+         result.addChild(XSchema.createPrimitiveType("ORDER_DATE", java.sql.Date.class));
+         result.addChild(XSchema.createPrimitiveType("ORDER_TIME", java.sql.Time.class));
+         result.addChild(XSchema.createPrimitiveType("PRICE", java.math.BigDecimal.class));
          XTypeNode meta = new XTypeNode("meta");
          meta.addChild(result);
          return meta;
@@ -256,6 +300,18 @@ class SQLBoundTableBuiltinVariableTest {
       table.setSQLEdited(true);
       ws.addAssembly(table);
       return ws;
+   }
+
+   // variable name -> type of its type node
+   private static Map<String, String> types(UserVariable[] vars) {
+      Map<String, String> types = new HashMap<>();
+
+      for(UserVariable var : vars) {
+         assertNotNull(var.getTypeNode(), var.getName());
+         types.put(var.getName(), var.getTypeNode().getType());
+      }
+
+      return types;
    }
 
    private static List<String> names(UserVariable[] vars) {

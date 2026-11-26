@@ -3,7 +3,7 @@
     {
       "name": "Calls",
       "paged": true,
-      "suffix": "/2010-04-01/Accounts/{Account ID}/Calls.json?To={To?}&From={From?}&Status={Status?:queued|ringing|in-progress|completed|busy|failed|no-answer}&StartTime={Start Date?:YYYY-MM-DD}&ParentCallSid={Parent Call ID?}",
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Calls.json?To={To?}&From={From?}&Status={Status?:queued|ringing|in-progress|completed|busy|failed|no-answer|canceled}&StartTime={Start Date?:YYYY-MM-DD}&ParentCallSid={Parent Call ID?}",
       "description": "Voice calls made and received, one row each -- the central table of a Twilio voice account. Carries the To and From numbers, direction (inbound, outbound-api, outbound-dial), status, start_time, end_time and duration in SECONDS, the price and price_unit, the answered_by result where answering-machine detection ran, and the parent call for child legs. TWO THINGS TO READ CAREFULLY. PRICE IS NEGATIVE and populated only once Twilio has rated the call, so it is null on a call still in progress and cost analysis run too soon simply finds nothing. And a single conversation is often SEVERAL ROWS: a call that is forwarded or conferenced creates child legs linked by parent_call_sid, so counting rows counts legs rather than conversations. Filter with To, From, Status or StartTime; Twilio also supports inequality forms of the date filters for ranges, which this endpoint does not expose.",
       "responseSchema": {
         "end": "double",
@@ -356,10 +356,10 @@
     {
       "name": "Account",
       "paged": false,
+      "excludeJsonPaths": ["$.auth_token"],
       "suffix": "/2010-04-01/Accounts/{Account ID}.json",
       "description": "One account or subaccount by its SID.",
       "responseSchema": {
-        "auth_token": "string",
         "date_created": "timeInstant",
         "date_updated": "timeInstant",
         "friendly_name": "string",
@@ -376,6 +376,7 @@
     {
       "name": "Accounts",
       "paged": true,
+      "excludeJsonPaths": ["$.accounts[*].auth_token"],
       "suffix": "/2010-04-01/Accounts.json?FriendlyName={Account Name?}&Status={Status?:closed|suspended|active}",
       "lookups": [
         {
@@ -391,7 +392,7 @@
           "parameterName": "Account ID"
         }
       ],
-      "description": "The account and its subaccounts, with the friendly name, status (active, suspended or closed), type, and the auth token. SUBACCOUNTS ARE HOW MOST PLATFORMS SEPARATE THEIR CUSTOMERS, and every other endpoint here takes an Account ID -- so on a multi-tenant account this list is the first request, and a figure taken against the parent account alone excludes all of the subaccount activity.",
+      "description": "The account and its subaccounts, with the friendly name, status (active, suspended or closed) and type. The auth tokens Twilio returns with them are not exposed. SUBACCOUNTS ARE HOW MOST PLATFORMS SEPARATE THEIR CUSTOMERS, and every other endpoint here takes an Account ID -- so on a multi-tenant account this list is the first request, and a figure taken against the parent account alone excludes all of the subaccount activity.",
       "responseSchema": {
         "end": "double",
         "first_page_uri": "string",
@@ -403,7 +404,6 @@
         "uri": "string",
         "accounts": [
           {
-            "auth_token": "string",
             "date_created": "timeInstant",
             "date_updated": "timeInstant",
             "friendly_name": "string",
@@ -649,7 +649,7 @@
     {
       "name": "Usage Triggers",
       "paged": true,
-      "suffix": "/2010-04-01/Accounts/{Account ID}/Usage/Triggers.json?Recurring={Recurring?:daily|monthly|yearly}&TriggerBy={Trigger By?:count|usage|price}&UsageCategory={Usage Category?:calls|sms|...}",
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Usage/Triggers.json?Recurring={Recurring?:daily|monthly|yearly|alltime}&TriggerBy={Trigger By?:count|usage|price}&UsageCategory={Usage Category?:calls|sms|...}",
       "description": "The alerts configured to fire when usage crosses a threshold, with the category watched, the trigger value, how it recurs, and whether it triggers on count, usage or price. Configuration -- it records what is being watched, not any usage figure.",
       "responseSchema": {
         "end": "double",

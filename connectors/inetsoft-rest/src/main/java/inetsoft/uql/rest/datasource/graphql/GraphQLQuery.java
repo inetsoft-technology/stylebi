@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.invoke.MethodHandles;
 import java.util.*;
+import java.util.function.Supplier;
 
 @View(vertical = true, value = {
    @View1(
@@ -86,7 +87,7 @@ import java.util.*;
    @View1(value = "expandedPath", visibleMethod = "isExpandedPathEnabled"),
    @View1(value = "timeout"),
 })
-public class GraphQLQuery extends RestJsonQuery {
+public class GraphQLQuery extends RestJsonQuery implements DerivedRequestBodyQuery {
    public GraphQLQuery() {
       super(GraphQLDataSource.TYPE);
       setJsonPath("$");
@@ -114,6 +115,31 @@ public class GraphQLQuery extends RestJsonQuery {
          LOG.error("Failed to parse GraphQL query", e);
          return null;
       }
+   }
+
+   @Override
+   public Map<String, List<String>> declaredObjectColumns() {
+      // Off when Expand Arrays is off (a null scalar object then still collapses to one column).
+      // Otherwise every selected object is declared; the selection set cannot tell a list from an
+      // object, so a list that is null on every row builds its leaves while a non-empty one stays
+      // one column.
+      if(!isExpanded()) {
+         return Collections.emptyMap();
+      }
+
+      return GraphQLSelectionLeaves.declare(queryString, getValidJsonPath());
+   }
+
+   @Override
+   public Supplier<Map<String, String>> declaredColumnTypes() {
+      final String field = GraphQLSelectionLeaves.rootField(getValidJsonPath());
+      final Object ds = getDataSource();
+
+      if(field == null || !(ds instanceof AbstractGraphQLDataSource)) {
+         return null;
+      }
+
+      return () -> GraphQLColumnTypes.resolve((AbstractGraphQLDataSource<?>) ds, field);
    }
 
    @Override

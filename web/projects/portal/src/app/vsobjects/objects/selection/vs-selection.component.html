@@ -50,13 +50,13 @@
         [class.inactive]="!viewer && !model.titleVisible && model.containerType !== 'VSSelectionContainer'"
         [style.width.px]="titleWidth"
         [style.height.px]="titleHeight"
-        [style.border-bottom]="headerBorderBottom"
+        [style.border-bottom]="headerBorderBottomEffective"
         [style.border-top]="model.titleFormat.border.top"
         [style.border-left]="model.titleFormat.border.left"
         [style.border-right]="model.titleFormat.border.right"
         [style.margin-top.px]="topMarginTitle"
         [style.margin-left.px]="leftMarginTitle"
-        [style.border-radius.px]="model.titleFormat.roundCorner"
+        [style.border-radius]="headerBorderRadius"
         (click)="headerClick()"
         >
         @if (model.dropdown || model.containerType == 'VSSelectionContainer') {

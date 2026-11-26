@@ -304,6 +304,17 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
    }
 
    /**
+    * Reset runtime values.
+    */
+   @Override
+   public void resetRuntimeValues() {
+      super.resetRuntimeValues();
+
+      minDate.setRValue(null);
+      maxDate.setRValue(null);
+   }
+
+   /**
     * Clone this object.
     * @param shallow <tt>true</tt> to perform shallow clone,
     * <tt>false</tt> to perform deep clone.

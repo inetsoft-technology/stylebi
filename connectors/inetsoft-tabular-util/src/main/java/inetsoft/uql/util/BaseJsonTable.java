@@ -34,6 +34,8 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * A class to map a Json array to a table.
@@ -89,6 +91,12 @@ abstract public class BaseJsonTable extends XTableNode {
          return isIntegral(prev) && isIntegral(cls) ? Long.class : Double.class;
       }
 
+      if((prev == java.sql.Date.class && cls == java.sql.Timestamp.class) ||
+         (prev == java.sql.Timestamp.class && cls == java.sql.Date.class))
+      {
+         return java.sql.Timestamp.class;
+      }
+
       return String.class;
    }
 
@@ -102,6 +110,12 @@ abstract public class BaseJsonTable extends XTableNode {
     * the same class.
     */
    static Object coerceToColumnType(Object val, Class<?> type) {
+      if(type == java.sql.Timestamp.class && val instanceof java.sql.Date &&
+         !(val instanceof java.sql.Timestamp))
+      {
+         return new java.sql.Timestamp(((java.sql.Date) val).getTime());
+      }
+
       if(val instanceof Number) {
          if(type == Double.class && val.getClass() != Double.class) {
             return ((Number) val).doubleValue();
@@ -278,9 +292,28 @@ abstract public class BaseJsonTable extends XTableNode {
          return null;
       }
 
+      // true if the date/time type is guessed from the text and not set by the user; the original
+      // text is then kept with the value since the column may still end up a string column
+      boolean inferred = colTypes.get(header) == null;
       String type = getJavaType(header, str);
       String formatType = getColumnFormat(header);
       String formatExtent = getColumnFormatExtent(header);
+
+      // a cached date/time type is not trusted for later values: text that is no longer a date
+      // of that type makes the column a string column, and a date-time in a date column is read
+      // as a date-time so its time is not dropped
+      if(inferred && formatType == null && type != XSchema.STRING &&
+         type != XSchema.BOOLEAN)
+      {
+         String actual = checkDateTime(str);
+
+         if(XSchema.STRING.equals(actual)) {
+            colTypes2.remove(header);
+            return str;
+         }
+
+         type = actual;
+      }
 
       try {
          if(formatType != null) {
@@ -298,33 +331,40 @@ abstract public class BaseJsonTable extends XTableNode {
          try {
             if(XSchema.DATE.equals(type)) {
                try {
-                  if(!isoDateFailed.contains(header)) {
-                     return java.sql.Date.valueOf(parseDate(str));
+                  if(!isoDateFailed.contains(header + "|" + type)) {
+                     java.sql.Date date = java.sql.Date.valueOf(parseDate(str));
+                     return inferred ? new RawDate(date.getTime(), str) : date;
                   }
                }
                catch(DateTimeParseException ex) {
                   // don't try iso parsing again if failed.
-                  isoDateFailed.add(header);
+                  isoDateFailed.add(header + "|" + type);
                }
 
                // a date column keeps the calendar date as written, so the offset of a
                // date-time text is dropped rather than converted to the server zone
-               return new java.sql.Date(parseFlexible(stripOffset(str)).toMillis());
+               long millis = parseFlexible(stripOffset(str)).toMillis();
+               return inferred ? new RawDate(millis, str) : new java.sql.Date(millis);
             }
             else if(XSchema.TIME_INSTANT.equals(type)) {
                try {
-                  if(!isoDateFailed.contains(header)) {
-                     return java.sql.Timestamp.valueOf(parseDateTime(str));
+                  if(!isoDateFailed.contains(header + "|" + type)) {
+                     java.sql.Timestamp ts = java.sql.Timestamp.valueOf(parseDateTime(str));
+                     return inferred ? new RawTimestamp(ts, str) : ts;
                   }
                }
                catch(DateTimeParseException ex) {
-                  isoDateFailed.add(header);
+                  isoDateFailed.add(header + "|" + type);
                }
 
-               return parseFlexible(str).toTimestamp();
+               // like a date column, keep the wall clock as written instead of converting the
+               // offset to the server zone
+               java.sql.Timestamp ts = parseFlexible(stripOffset(str)).toTimestamp();
+               return inferred ? new RawTimestamp(ts, str) : ts;
             }
             else if(XSchema.TIME.equals(type)) {
-               return java.sql.Time.valueOf(parseTime(str));
+               java.sql.Time time = java.sql.Time.valueOf(parseTime(str));
+               return inferred ? new RawTime(time.getTime(), str) : time;
             }
             else if(XSchema.BOOLEAN.equals(type)) {
                return Boolean.parseBoolean(str);
@@ -341,6 +381,30 @@ abstract public class BaseJsonTable extends XTableNode {
       }
 
       return str;
+   }
+
+   /**
+    * Gets the value of a cell as the table exposes it. A date/time inferred from text is a
+    * date/time only if its column is not a string column; otherwise the cell shows the original
+    * text, not the text of the converted date.
+    *
+    * @param val         the stored cell value.
+    * @param columnClass the final class of the cell's column.
+    */
+   static Object getCellValue(Object val, Class<?> columnClass) {
+      if(val instanceof RawTemporal) {
+         RawTemporal raw = (RawTemporal) val;
+         return columnClass == String.class ? raw.getRawText() : raw.toPlain();
+      }
+
+      return val;
+   }
+
+   /**
+    * Gets the class of a stored cell value for column type inference.
+    */
+   static Class<?> getValueClass(Object val) {
+      return val instanceof RawTemporal ? ((RawTemporal) val).getBaseClass() : val.getClass();
    }
 
    // get parsed column name
@@ -444,12 +508,197 @@ abstract public class BaseJsonTable extends XTableNode {
       this.truncated = true;
    }
 
+   /**
+    * Declares the nested objects the query selects, so that an object that is null on every
+    * row still produces its leaf columns instead of a single column named after the object.
+    * Empty by default, which leaves the columns purely data-driven.
+    *
+    * @param declared object path (as this table names columns, relative to the row root) to the
+    *                 recursive leaf paths under it, e.g. {@code folder -> [folder.id]}.
+    */
+   public void setDeclaredObjectColumns(Map<String, List<String>> declared) {
+      this.declaredObjectColumns = declared == null ? Collections.emptyMap() : declared;
+   }
+
+   /**
+    * Supplies column types declared by the source (e.g. a GraphQL schema), used only for a
+    * column that is null on every row. Called lazily, at most once per load, and only when such a
+    * column exists. Columns with data and types set through {@link #setColumnType} are unaffected.
+    * Null by default, which keeps the string fallback.
+    *
+    * @param supplier column name to type name; may throw, which leaves the columns as string.
+    */
+   public void setDeclaredColumnTypes(Supplier<Map<String, String>> supplier) {
+      this.declaredColumnTypes = supplier;
+      this.resolvedColumnTypes = null;
+   }
+
+   /**
+    * @return the declared type of an all-null column, or null if none is known.
+    */
+   protected Class<?> declaredNullColumnType(String name) {
+      if(declaredColumnTypes == null) {
+         return null;
+      }
+
+      if(resolvedColumnTypes == null) {
+         try {
+            final Map<String, String> map = declaredColumnTypes.get();
+            resolvedColumnTypes = map == null ? Collections.emptyMap() : map;
+         }
+         catch(Exception | LinkageError e) {
+            resolvedColumnTypes = Collections.emptyMap();
+         }
+      }
+
+      final String type = resolvedColumnTypes.get(name);
+      return type == null ? null : CoreTool.getDataClass(type);
+   }
+
+   public Map<String, List<String>> getDeclaredObjectColumns() {
+      return declaredObjectColumns;
+   }
+
+   /**
+    * Maximum number of rows scanned when discovering columns and checking declared objects.
+    */
+   protected static final int HEADER_SCAN_ROWS = 10000;
+
+   /**
+    * Replaces the column of each declared object that is null on every scanned row with the
+    * declared leaf columns. Leaves already present are not repeated, so rows that mix null and
+    * non-null objects lose the stray object column. Non-null data is untouched.
+    *
+    * @param headers the discovered column names.
+    * @param allNull tells whether a column is null on every scanned row.
+    *
+    * @return {@code headers} itself when nothing changed, otherwise the new column names.
+    */
+   protected List<String> applyDeclaredObjectColumns(List<String> headers,
+                                                     Predicate<String> allNull)
+   {
+      if(declaredObjectColumns.isEmpty()) {
+         return headers;
+      }
+
+      List<String> result = headers;
+
+      for(Map.Entry<String, List<String>> e : declaredObjectColumns.entrySet()) {
+         int idx = result.indexOf(e.getKey());
+
+         if(idx < 0 || !allNull.test(e.getKey())) {
+            continue;
+         }
+
+         if(result == headers) {
+            result = new ArrayList<>(headers);
+         }
+
+         result.remove(idx);
+         int at = idx;
+
+         for(String leaf : e.getValue()) {
+            if(!result.contains(leaf)) {
+               result.add(at++, leaf);
+            }
+         }
+      }
+
+      return result;
+   }
+
    public Object getJsonMetadata() {
       return jsonMetadata;
    }
 
    public void setJsonMetadata(Object jsonMetadata) {
       this.jsonMetadata = jsonMetadata;
+   }
+
+   /**
+    * A date/time value inferred from text that remembers the text it was parsed from.
+    */
+   interface RawTemporal {
+      String getRawText();
+
+      Class<?> getBaseClass();
+
+      Object toPlain();
+   }
+
+   private static final class RawDate extends java.sql.Date implements RawTemporal {
+      RawDate(long millis, String raw) {
+         super(millis);
+         this.raw = raw;
+      }
+
+      @Override
+      public String getRawText() {
+         return raw;
+      }
+
+      @Override
+      public Class<?> getBaseClass() {
+         return java.sql.Date.class;
+      }
+
+      @Override
+      public Object toPlain() {
+         return new java.sql.Date(getTime());
+      }
+
+      private final String raw;
+   }
+
+   private static final class RawTimestamp extends java.sql.Timestamp implements RawTemporal {
+      RawTimestamp(java.sql.Timestamp ts, String raw) {
+         super(ts.getTime());
+         setNanos(ts.getNanos());
+         this.raw = raw;
+      }
+
+      @Override
+      public String getRawText() {
+         return raw;
+      }
+
+      @Override
+      public Class<?> getBaseClass() {
+         return java.sql.Timestamp.class;
+      }
+
+      @Override
+      public Object toPlain() {
+         java.sql.Timestamp ts = new java.sql.Timestamp(getTime());
+         ts.setNanos(getNanos());
+         return ts;
+      }
+
+      private final String raw;
+   }
+
+   private static final class RawTime extends java.sql.Time implements RawTemporal {
+      RawTime(long millis, String raw) {
+         super(millis);
+         this.raw = raw;
+      }
+
+      @Override
+      public String getRawText() {
+         return raw;
+      }
+
+      @Override
+      public Class<?> getBaseClass() {
+         return java.sql.Time.class;
+      }
+
+      @Override
+      public Object toPlain() {
+         return new java.sql.Time(getTime());
+      }
+
+      private final String raw;
    }
 
    /**
@@ -497,6 +746,9 @@ abstract public class BaseJsonTable extends XTableNode {
    private final boolean usLocale = Locale.getDefault().equals(Locale.US);
    private Boolean dmyOrder;
    private Object jsonMetadata;
+   private Map<String, List<String>> declaredObjectColumns = Collections.emptyMap();
+   private Supplier<Map<String, String>> declaredColumnTypes;
+   private Map<String, String> resolvedColumnTypes;
 
    private static final java.util.regex.Pattern OFFSET_PATTERN = java.util.regex.Pattern.compile(
       "^(.*\\d:\\d{2}(?::\\d{2}(?:[.,]\\d+)?)?)\\s*(?:Z|[+-]\\d{2}(?::?\\d{2})?)$");

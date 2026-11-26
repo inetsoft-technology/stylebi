@@ -27,6 +27,9 @@ import org.slf4j.LoggerFactory;
 
 import javax.json.*;
 import java.text.*;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAccessor;
 import java.util.*;
 
 /**
@@ -80,6 +83,17 @@ class DatagovTable extends XTableNode {
       int dataArraySize = maxRows <= 0 ? dataArray.size() : maxRows;
       dataArraySize = dataArraySize > dataArray.size() ? dataArray.size() : dataArraySize;
       data = new Object[dataArraySize][];
+      declaredTypes = new Class[names.size()];
+
+      for(int j = 0; j < declaredTypes.length; j++) {
+         String columnType = query.getColumnType(names.get(j));
+
+         if(columnType != null) {
+            // values of this column are converted with transform(), so the column type must
+            // follow the worksheet column type and not the Socrata metadata type
+            declaredTypes[j] = Tool.getDataClass(columnType);
+         }
+      }
 
       for(int i = 0; i < dataArraySize; i++) {
          data[i] = new Object[names.size()];
@@ -110,7 +124,7 @@ class DatagovTable extends XTableNode {
       {
          return Double.class;
       }
-      else if("calendar_date".equals(jsonType)) {
+      else if("calendar_date".equals(jsonType) || isTimestampType(jsonType)) {
          return Date.class;
       }
       else if("checkbox".equals(jsonType)) {
@@ -132,22 +146,27 @@ class DatagovTable extends XTableNode {
    private Object parseValueType(JsonValue val, Class javaType,
                                  String dataGovType)
    {
+      if(val == null || val.getValueType() == JsonValue.ValueType.NULL) {
+         return null;
+      }
+
       JsonValue.ValueType valtype = val.getValueType();
       String valStr = TextUtil.stripOffQuote(val.toString());
       Object jsonValue = valStr;
 
       switch(valtype) {
       case ARRAY:
+         JsonArray array = (JsonArray) val;
+
          if("location".equals(dataGovType)) {
-            JsonArray addressArray = (JsonArray) val;
-            JsonValue jLong = addressArray.get(1);
-            JsonValue jLat = addressArray.get(2);
-            jsonValue = TextUtil.stripOffQuote("(" + jLong.toString() +
-                                                  ", " + jLat.toString() + ")");
+            // Socrata legacy location: [human_address, latitude, longitude, ...]
+            String lat = arrayElement(array, 1);
+            String lon = arrayElement(array, 2);
+            jsonValue = lat == null || lon == null ? null : "(" + lat + ", " + lon + ")";
          }
-         else if("phone".equals(dataGovType)) {
-            JsonArray phoneArray = (JsonArray) val;
-            jsonValue = TextUtil.stripOffQuote(phoneArray.get(0).toString());
+         else if("phone".equals(dataGovType) || "url".equals(dataGovType)) {
+            // phone: [number, type]; url: [url, description]
+            jsonValue = arrayElement(array, 0);
          }
          else {
             jsonValue = valStr;
@@ -164,7 +183,15 @@ class DatagovTable extends XTableNode {
          jsonValue = Boolean.FALSE;
          break;
       default:
-         if(Date.class.isAssignableFrom(javaType)) {
+         if(isTimestampType(dataGovType)) {
+            jsonValue = parseTimestamp(valStr);
+         }
+         else if(Date.class.isAssignableFrom(javaType)) {
+            if(valtype == JsonValue.ValueType.NULL) {
+               // keep a null date null so the column type still follows the declared type
+               return null;
+            }
+
             valStr = valStr.replace("T", " ");
 
             try {
@@ -198,6 +225,61 @@ class DatagovTable extends XTableNode {
       }
 
       return jsonValue;
+   }
+
+   /**
+    * Gets an element of a JSON array as plain text.
+    *
+    * @return the text, or null if the element is missing or a JSON null.
+    */
+   private static String arrayElement(JsonArray array, int index) {
+      if(index >= array.size()) {
+         return null;
+      }
+
+      JsonValue elem = array.get(index);
+
+      if(elem == null || elem.getValueType() == JsonValue.ValueType.NULL) {
+         return null;
+      }
+
+      if(elem.getValueType() == JsonValue.ValueType.STRING) {
+         return ((javax.json.JsonString) elem).getString();
+      }
+
+      return elem.toString();
+   }
+
+   private static boolean isTimestampType(String dataGovType) {
+      return "floating_timestamp".equals(dataGovType) ||
+         "fixed_timestamp".equals(dataGovType);
+   }
+
+   /**
+    * Parses an ISO-8601 timestamp. Text without an offset (floating_timestamp) is read in
+    * the server time zone; text with an offset or "Z" (fixed_timestamp) is an exact instant.
+    *
+    * @return the parsed date, null for a null value, or the original text if unparseable.
+    */
+   private static Object parseTimestamp(String valStr) {
+      if(valStr == null || "null".equals(valStr)) {
+         return null;
+      }
+
+      try {
+         TemporalAccessor parsed = TIMESTAMP_PARSER.parseBest(
+            valStr.trim(), OffsetDateTime::from, LocalDateTime::from);
+
+         if(parsed instanceof OffsetDateTime) {
+            return Date.from(((OffsetDateTime) parsed).toInstant());
+         }
+
+         return Date.from(((LocalDateTime) parsed).atZone(ZoneId.systemDefault()).toInstant());
+      }
+      catch(DateTimeException ex) {
+         LOG.debug("Unparseable Data.gov timestamp: {}", valStr);
+         return valStr;
+      }
    }
 
    private Object transform(DatagovQuery query, String header, Object oldValue) {
@@ -256,6 +338,9 @@ class DatagovTable extends XTableNode {
       if(data.length > 0 && data[0][col] != null) {
          return data[0][col].getClass();
       }
+      else if(declaredTypes != null && declaredTypes[col] != null) {
+         return declaredTypes[col];
+      }
       else {
          return types[col];
       }
@@ -273,11 +358,13 @@ class DatagovTable extends XTableNode {
 
    private int maxRows;
    private final SimpleDateFormat formatter =
-      Tool.createGregorianDateFormat("yyyy-MM-dd HH:mm:SS");
+      Tool.createGregorianDateFormat("yyyy-MM-dd HH:mm:ss");
    private List<String> names = new ArrayList<>();
    private Object[][] data;
    private Class[] types;
+   private Class[] declaredTypes;
    private int curr = -1;
    private String[] dataGovTypes;
+   private static final DateTimeFormatter TIMESTAMP_PARSER = DateTimeFormatter.ISO_DATE_TIME;
    private static final Logger LOG = LoggerFactory.getLogger(DatagovTable.class.getName());
 }

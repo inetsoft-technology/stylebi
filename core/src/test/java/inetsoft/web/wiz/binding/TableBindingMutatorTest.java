@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.uql.Condition;
 import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.AttachedAssembly;
@@ -46,11 +47,14 @@ import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.calc.PercentCalcInfo;
 import inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo;
+import inetsoft.web.binding.model.graph.calc.ValueOfCalcInfo;
+import inetsoft.web.binding.model.table.BaseTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
+import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -62,6 +66,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@WizAgentTestSupport
 @Tag("core")
 class TableBindingMutatorTest {
    private static FieldRef dim(String column) {
@@ -898,6 +903,42 @@ class TableBindingMutatorTest {
       assertEquals("$(Spinner1)", model.getRows().get(0).getRankingCol());
    }
 
+   /** Bug #82314: a "=script" ranking mode/N/measure is a render-time dynamic value too. */
+   @Test
+   void acceptsAScriptRankingModeNAndMeasureWithoutMatchingAnyBoundAggregate() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
+         new DimensionSortRanking.Ranking("=Mode.value", "=Spin.value", "=Combo.selectedObject",
+                                          null));
+
+      assertEquals("=Mode.value", model.getRows().get(0).getRankingOption());
+      assertEquals("=Spin.value", model.getRows().get(0).getRankingN());
+      assertEquals("=Combo.selectedObject", model.getRows().get(0).getRankingCol());
+   }
+
+   /**
+    * Bug #82314 covers the ranking measure only: sortByField is the same dynamic-combo-box class
+    * but a separate follow-up, so a "=script" sort measure is still refused.
+    */
+   @Test
+   void stillRefusesAScriptSortByField() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setSort(model, "rows", "Region", null,
+            new DimensionSortRanking.Sort("value_desc", "=Combo.selectedObject", null)));
+
+      assertTrue(thrown.getMessage().contains("=Combo.selectedObject"));
+   }
+
    /**
     * A genuinely unbound LITERAL name must still be refused exactly as before -- the new dynamic-
     * value early return must not widen into accepting an arbitrary unresolved string.
@@ -1299,6 +1340,201 @@ class TableBindingMutatorTest {
          "(bug #77025 R2)");
       assertEquals(String.valueOf(inetsoft.uql.XCondition.NONE),
                    model.getRows().get(0).getRankingOption());
+   }
+
+   // ── Bug #81983 (BUG-52 part B): rank by a calculator-prefixed measure name ──
+   //
+   // VSAssemblyInfoHandler.validateTopN keeps a ranking only when it equals the aggregate's
+   // getFullName(true): for a percent measure that carries the calculator prefix. Any other
+   // spelling silently falls back to the first aggregate, so the prefixed name must be accepted
+   // for ranking (and only for ranking: a sort resolves the plain column name).
+
+   private static FieldRef percentWithPrefix(String column, String aggregate, String prefix,
+                                             boolean supportSortByValue)
+   {
+      PercentCalcInfo info = new PercentCalcInfo();
+      info.setPrefix(prefix);
+      info.setSupportSortByValue(supportSortByValue);
+      return new FieldRef(column, "measure", aggregate, null, null, null, null, null,
+                          info, null, null, null, null, null, null);
+   }
+
+   private static CrosstabBindingModel rowsWithAggregates(FieldRef... aggregates) {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Team")));
+      TableBindingMutator.setShelf(model, "aggregates", List.of(aggregates));
+      TableBindingMutator.drainNotes();
+      return model;
+   }
+
+   @Test
+   void rankingAcceptsThePrefixedNameOfAPercentMeasureAtAnyPosition() {
+      String prefixed = "% of total by row: Sum(Net Amount)";
+      CrosstabBindingModel later = rowsWithAggregates(
+         measure("Quantity", "Sum"),
+         percentWithPrefix("Net Amount", "Sum", "% of total by row: ", true));
+      CrosstabBindingModel first = rowsWithAggregates(
+         percentWithPrefix("Net Amount", "Sum", "% of total by row: ", true),
+         measure("Quantity", "Sum"));
+
+      TableBindingMutator.setRanking(later, "rows", "Team", null,
+         new DimensionSortRanking.Ranking("top", 3, prefixed, null));
+      TableBindingMutator.setRanking(first, "rows", "Team", null,
+         new DimensionSortRanking.Ranking("top", 3, prefixed, null));
+
+      assertEquals(prefixed, later.getRows().get(0).getRankingCol());
+      assertEquals(prefixed, first.getRows().get(0).getRankingCol());
+   }
+
+   @Test
+   void sortStillRefusesThePrefixedNameAndSaysToUseTheColumnName() {
+      CrosstabBindingModel model = rowsWithAggregates(
+         measure("Quantity", "Sum"),
+         percentWithPrefix("Net Amount", "Sum", "% of total by row: ", true));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setSort(model, "rows", "Team", null,
+            new DimensionSortRanking.Sort("value_desc", "% of total by row: Sum(Net Amount)", null)));
+
+      assertTrue(thrown.getMessage().contains("accepted for a ranking"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("'Net Amount'"), thrown.getMessage());
+   }
+
+   @Test
+   void aCalculatorThatDoesNotSortByValueKeepsRefusingThePrefixedName() {
+      CrosstabBindingModel model = rowsWithAggregates(
+         percentWithPrefix("Net Amount", "Sum", "% of total by row: ", false));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setRanking(model, "rows", "Team", null,
+            new DimensionSortRanking.Ranking("top", 3, "% of total by row: Sum(Net Amount)",
+                                             null)));
+      TableBindingMutator.setRanking(model, "rows", "Team", null,
+         new DimensionSortRanking.Ranking("top", 3, "Sum(Net Amount)", null));
+
+      assertTrue(thrown.getMessage().contains("not a bound aggregate"), thrown.getMessage());
+      assertEquals("Sum(Net Amount)", model.getRows().get(0).getRankingCol(),
+                   "the plain full name stays accepted exactly as before");
+   }
+
+   @Test
+   void thePrefixedNameFollowsTheLiveCalculatorNotAConstant() {
+      CrosstabBindingModel model = rowsWithAggregates(
+         percentWithPrefix("Net Amount", "Sum", "% of total: ", true));
+
+      TableBindingMutator.setRanking(model, "rows", "Team", null,
+         new DimensionSortRanking.Ranking("top", 3, "% of total: Sum(Net Amount)", null));
+      Exception stale = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setRanking(model, "rows", "Team", null,
+            new DimensionSortRanking.Ranking("top", 3, "% of total by row: Sum(Net Amount)",
+                                             null)));
+
+      assertEquals("% of total: Sum(Net Amount)", model.getRows().get(0).getRankingCol());
+      assertTrue(stale.getMessage().contains("not a bound aggregate"), stale.getMessage());
+      assertTrue(stale.getMessage().contains("% of total: Sum(Net Amount)"),
+                 "names the spelling that is accepted now: " + stale.getMessage());
+   }
+
+   @Test
+   void anUnknownPrefixedNameIsStillRefused() {
+      CrosstabBindingModel model = rowsWithAggregates(
+         percentWithPrefix("Net Amount", "Sum", "% of total by row: ", true));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setRanking(model, "rows", "Team", null,
+            new DimensionSortRanking.Ranking("top", 3, "% of total by row: Sum(Nope)", null)));
+
+      assertTrue(thrown.getMessage().contains("% of total by row: Sum(Nope)"));
+      assertTrue(thrown.getMessage().contains("not a bound aggregate"), thrown.getMessage());
+   }
+
+   @Test
+   void aStoredPrefixedRankingIsReportedWhenItsAggregateIsRemoved() {
+      CrosstabBindingModel model = rowsWithAggregates(
+         measure("Quantity", "Sum"),
+         percentWithPrefix("Net Amount", "Sum", "% of total by row: ", true));
+      TableBindingMutator.setRanking(model, "rows", "Team", null,
+         new DimensionSortRanking.Ranking("top", 3, "% of total by row: Sum(Net Amount)", null));
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Quantity", "Sum")));
+
+      assertNull(model.getRows().get(0).getRankingCol());
+      List<String> notes = resetNotes();
+      assertEquals(1, notes.size(), notes.toString());
+      assertTrue(notes.get(0).contains("the ranking of 'Team' on rows by '% of total by row: " +
+                                       "Sum(Net Amount)' was removed"), notes.get(0));
+   }
+
+   @Test
+   void aMisCasedPrefixedNameIsStoredInTheCanonicalSpellingTheServerCompares() {
+      CrosstabBindingModel model = rowsWithAggregates(
+         measure("Quantity", "Sum"),
+         percentWithPrefix("Net Amount", "Sum", "% of total by row: ", true));
+
+      TableBindingMutator.setRanking(model, "rows", "Team", null,
+         new DimensionSortRanking.Ranking("top", 3, "% OF TOTAL BY ROW: SUM(NET AMOUNT)", null));
+
+      assertEquals("% of total by row: Sum(Net Amount)", model.getRows().get(0).getRankingCol(),
+                   "validateTopN compares case-sensitively, so the canonical spelling is stored");
+   }
+
+   @Test
+   void theExactPrefixedNameIsStoredUnchanged() {
+      CrosstabBindingModel model = rowsWithAggregates(
+         percentWithPrefix("Net Amount", "Sum", "% of total by row: ", true));
+
+      TableBindingMutator.setRanking(model, "rows", "Team", null,
+         new DimensionSortRanking.Ranking("top", 3, "% of total by row: Sum(Net Amount)", null));
+
+      assertEquals("% of total by row: Sum(Net Amount)", model.getRows().get(0).getRankingCol());
+   }
+
+   @Test
+   void aTwoColumnPrefixedNameKeepsItsSecondColumnAndGetsACanonicalHead() {
+      CrosstabBindingModel model = rowsWithAggregates(
+         percentWithPrefix("Discount", "WeightedAverage", "% of total by row: ", true));
+
+      TableBindingMutator.setRanking(model, "rows", "Team", null,
+         new DimensionSortRanking.Ranking("top", 3,
+            "% OF TOTAL BY ROW: weightedaverage(DISCOUNT, Quantity)", null));
+
+      assertEquals("% of total by row: WeightedAverage(Discount, Quantity)",
+                   model.getRows().get(0).getRankingCol());
+   }
+
+   @Test
+   void aTwoColumnPrefixedNameWithoutTheSpaceAfterTheCommaIsRefused() {
+      CrosstabBindingModel model = rowsWithAggregates(
+         percentWithPrefix("Discount", "WeightedAverage", "% of total by row: ", true));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setRanking(model, "rows", "Team", null,
+            new DimensionSortRanking.Ranking("top", 3,
+               "% of total by row: WeightedAverage(Discount,Quantity)", null)));
+
+      assertTrue(thrown.getMessage().contains("not a bound aggregate"), thrown.getMessage());
+   }
+
+   @Test
+   void onlyThePercentCalculatorGetsThePrefixedRankingName() {
+      ValueOfCalcInfo previous = new ValueOfCalcInfo();
+      previous.setPrefix("Previous year: ");
+      previous.setSupportSortByValue(true);
+      CrosstabBindingModel model = rowsWithAggregates(
+         new FieldRef("Net Amount", "measure", "Sum", null, null, null, null, null,
+                      previous, null, null, null, null, null, null));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setRanking(model, "rows", "Team", null,
+            new DimensionSortRanking.Ranking("top", 3, "Previous year: Sum(Net Amount)", null)));
+
+      assertTrue(thrown.getMessage().contains("not a bound aggregate"), thrown.getMessage());
    }
 
    // ── calculateInfo survives an aggregates shelf rewrite (bug #76881) ────────
@@ -3941,5 +4177,115 @@ class TableBindingMutatorTest {
                                   new DimensionSortRanking.Sort("desc", null, null));
 
       assertDoesNotThrow(() -> TableBindingMutator.setShelf(model, "rows", List.of(monthTs(true))));
+   }
+
+   // ── org column-count limit (Bug #82159) ───────────────────────────────────
+
+   private static void withColumnLimit(int limit, Runnable body) {
+      String original = SreeEnv.getProperty("max.col.count");
+
+      try {
+         SreeEnv.setProperty("max.col.count", String.valueOf(limit));
+         body.run();
+      }
+      finally {
+         SreeEnv.setProperty("max.col.count", original);
+      }
+   }
+
+   private static final RuntimeViewsheet LIVE = mock(RuntimeViewsheet.class);
+
+   private static void setShelfLive(BaseTableBindingModel model, String shelf,
+                                    List<FieldRef> fields)
+   {
+      try {
+         TableBindingMutator.setShelf(model, shelf, fields, LIVE, null, null);
+      }
+      catch(RuntimeException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   private static void addFieldLive(BaseTableBindingModel model, String shelf, FieldRef field) {
+      try {
+         TableBindingMutator.addField(model, shelf, field, null, LIVE, null, null);
+      }
+      catch(RuntimeException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   @Test
+   void refusesATableShelfWriteThatWouldExceedTheOrgColumnLimit() {
+      withColumnLimit(2, () -> {
+         TableBindingModel model = new TableBindingModel();
+         setShelfLive(model, "details", List.of(dim("A"), dim("B")));
+
+         assertThrows(IllegalArgumentException.class, () -> setShelfLive(
+            model, "details", List.of(dim("A"), dim("B"), dim("C"))));
+         assertThrows(IllegalArgumentException.class,
+                      () -> addFieldLive(model, "details", dim("C")));
+         assertEquals(2, model.getDetails().size(), "a refused write must not mutate the model");
+      });
+   }
+
+   @Test
+   void countsACrosstabsRowsColsAndAggregatesTogether() {
+      withColumnLimit(3, () -> {
+         CrosstabBindingModel model = new CrosstabBindingModel();
+         setShelfLive(model, "rows", List.of(dim("Region")));
+         setShelfLive(model, "cols", List.of(dim("Year")));
+         addFieldLive(model, "aggregates", measure("Sales", "Sum"));
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> addFieldLive(model, "aggregates", measure("Cost", "Sum")));
+         assertTrue(thrown.getMessage().contains("3"), thrown.getMessage());
+         assertEquals(1, model.getAggregates().size());
+      });
+   }
+
+   @Test
+   void replacingAShelfDoesNotDoubleCountItsOwnPriorFields() {
+      withColumnLimit(2, () -> {
+         TableBindingModel model = new TableBindingModel();
+         setShelfLive(model, "details", List.of(dim("A"), dim("B")));
+
+         assertDoesNotThrow(() -> setShelfLive(
+            model, "details", List.of(dim("C"), dim("D"))));
+      });
+   }
+
+   @Test
+   void aWriteWithNoLiveViewsheetIsNotChecked() {
+      withColumnLimit(1, () -> {
+         TableBindingModel model = new TableBindingModel();
+
+         assertDoesNotThrow(() -> TableBindingMutator.setShelf(
+            model, "details", List.of(dim("A"), dim("B"))));
+      });
+   }
+
+   @Test
+   void aTableOverTheLimitCanStillBeShrunkOrMovedBetweenShelves() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      setShelfLive(model, "rows", List.of(dim("Region"), dim("State")));
+      setShelfLive(model, "cols", List.of(dim("Year")));
+      addFieldLive(model, "aggregates", measure("Sales", "Sum"));
+
+      withColumnLimit(2, () -> {
+         assertDoesNotThrow(
+            () -> TableBindingMutator.moveField(model, "rows", "cols", "State", null));
+         assertDoesNotThrow(() -> setShelfLive(
+            model, "cols", List.of(dim("Year"))));
+         assertDoesNotThrow(() -> TableBindingMutator.removeField(model, "rows", "Region"));
+         assertThrows(IllegalArgumentException.class,
+                      () -> addFieldLive(model, "rows", dim("Zip")));
+      });
    }
 }

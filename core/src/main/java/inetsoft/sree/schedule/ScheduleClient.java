@@ -424,6 +424,26 @@ public class ScheduleClient {
    /**
     * Notifies the schedule cluster that a task has been removed.
     *
+    * @param task      the name of the task.
+    * @param replacing true if the task is saved again under the same name right away (an edit),
+    *                  which is not a deletion of the task (Bug #81647).
+    */
+   public void taskRemoved(String task, boolean replacing) throws RemoteException {
+      String server = getSchedulerServer();
+
+      if(!replacing) {
+         taskRemoved(server, task);
+      }
+      else if(server != null && isReady(server)) {
+         LOG.debug("Send replace task request [" + task + "] from " + Tool.getIP() +
+            " to " + server);
+         getSchedule(server).removeTask(task, true);
+      }
+   }
+
+   /**
+    * Notifies the schedule cluster that a task has been removed.
+    *
     * @param server the schedule server name.
     * @param task   the name of the task.
     */
@@ -725,6 +745,26 @@ public class ScheduleClient {
       }
 
       return null;
+   }
+
+   /**
+    * Gets the start time of the scheduler on each server listed in the scheduler status table,
+    * in display order. A {@code null} start time means the scheduler on that server is not ready.
+    * Unlike {@link #getScheduleServers()}, an override may list servers that
+    * {@link #getScheduleServers()} does not, so the status table must be built from this method.
+    *
+    * @return the start time of each server's scheduler, keyed by server name.
+    */
+   public Map<String, Date> getScheduleStartDates() {
+      Map<String, Date> startDates = new LinkedHashMap<>();
+
+      for(String server : getScheduleServers()) {
+         if(!startDates.containsKey(server)) {
+            startDates.put(server, getScheduleStartDate(server));
+         }
+      }
+
+      return startDates;
    }
 
    public ServerMetrics getServerMetrics(ServerMetrics oldMetrics, long timestamp,

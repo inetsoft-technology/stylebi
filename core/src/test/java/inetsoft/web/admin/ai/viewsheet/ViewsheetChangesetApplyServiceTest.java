@@ -29,9 +29,11 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.sync.DependenciesInfo;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.DependencyTool;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -77,6 +79,7 @@ class ViewsheetChangesetApplyServiceTest {
    private ViewsheetChangesetApplyService service;
    private MockedStatic<OrganizationManager> orgManagerStatic;
    private MockedStatic<DependencyTool> dependencyToolStatic;
+   private MockedStatic<RecycleUtils> recycleUtilsStatic;
    @Mock private DependencyStorageService dependencyStorageService;
    private MockedStatic<DependencyStorageService> dependencyStorageServiceStatic;
    private MockedStatic<Tool> tool;
@@ -104,6 +107,10 @@ class ViewsheetChangesetApplyServiceTest {
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
       lenient().when(orgManager.getCurrentOrgID()).thenReturn("host-org");
+
+      // Bug #82281: a viewsheet delete asks the server's scheduled-task guard (resolve and apply);
+      // default is "no task uses it"
+      recycleUtilsStatic = mockStatic(RecycleUtils.class, withSettings().lenient());
 
       dependencyToolStatic = mockStatic(DependencyTool.class, withSettings().lenient());
       dependencyToolStatic.when(() -> DependencyTool.getDependencies(anyString()))
@@ -235,6 +242,7 @@ class ViewsheetChangesetApplyServiceTest {
    @AfterEach void tearDown() {
       orgManagerStatic.close();
       dependencyToolStatic.close();
+      recycleUtilsStatic.close();
       dependencyStorageServiceStatic.close();
       tool.close();
       sutil.close();
@@ -1153,6 +1161,78 @@ class ViewsheetChangesetApplyServiceTest {
       verify(viewsheetApiService, never()).deleteViewsheet(eq(secondVsId), eq(user));
       assertFalse(folderStore.getOrDefault(folderKey("Examples/New Folder", null), false),
          "item A's folder create must have rolled back cleanly");
+   }
+
+   /** Bug #82281: a task starts using the dashboard AFTER apply's own re-resolve (which already
+    * asks the server's guard) but before the delete call. The server would refuse before writing
+    * anything, so the refusal must be a clean rolled-back with no rollback failure, and the
+    * delete call must never be made. */
+   @Test void deleteRefusedByAScheduledTaskThatAppearedAfterResolveIsRolledBackNotRollbackFailed()
+      throws Exception
+   {
+      java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+      recycleUtilsStatic.when(() -> RecycleUtils.checkScheduledTasks(any(AssetEntry.class)))
+         .thenAnswer(inv -> {
+            // 1st call: resolve (no task yet); 2nd call: applyViewsheetDelete (task now exists)
+            if(calls.incrementAndGet() >= 2) {
+               throw new MessageException("Dashboard \"Census\" is used in the following " +
+                  "scheduled task(s): [QA-V02-task]. You must remove it from the scheduled " +
+                  "task(s) first.");
+            }
+
+            return null;
+         });
+      ViewsheetChangeRequest change = deleteViewsheetChange(VS_ASSET_ID);
+      change.setForce(true);
+      // applyRequest() resolves once itself to obtain the plan hash; count only apply()'s own calls
+      ViewsheetApplyRequest req = applyRequest("delete", true, change);
+      calls.set(0);
+
+      var result = service.apply(req, user);
+
+      assertEquals(2, calls.get(), "resolve and applyViewsheetDelete must each ask the guard");
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertTrue(result.rollbackFailures() == null || result.rollbackFailures().isEmpty(),
+         "nothing was entered, so there is no unknown state: " + result.rollbackFailures());
+      assertEquals(1, result.results().size());
+      assertEquals(AdminChangeRecord.STATUS_FAILED, result.results().get(0).status());
+      assertTrue(result.results().get(0).error().contains("QA-V02-task"),
+         result.results().get(0).error());
+      verify(viewsheetApiService, never()).deleteViewsheet(anyString(), eq(user));
+      assertTrue(viewsheetStore.containsKey(VS_ASSET_ID));
+   }
+
+   /** Bug #82281: a task that already uses the dashboard when apply re-resolves is refused there,
+    * before the whole-storage snapshot and before any delete call. */
+   @Test void deleteOfADashboardAScheduledTaskUsesIsRefusedBeforeTheSnapshot() throws Exception {
+      recycleUtilsStatic.when(() -> RecycleUtils.checkScheduledTasks(any(AssetEntry.class)))
+         .thenThrow(new MessageException("used in the following scheduled task(s): [QA-V02-task]"));
+      ViewsheetChangeRequest change = deleteViewsheetChange(VS_ASSET_ID);
+      change.setForce(true);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.apply(applyRequest("delete", true, change), user));
+
+      assertTrue(ex.getMessage().contains("QA-V02-task"), ex.getMessage());
+      verify(backupService, never()).backup(anyString());
+      verify(viewsheetApiService, never()).deleteViewsheet(anyString(), eq(user));
+      assertTrue(viewsheetStore.containsKey(VS_ASSET_ID));
+   }
+
+   /** Bug #82281 control: a throw from the delete call itself, AFTER the mutation flag, is still
+    * "state unknown" / rollback-failed -- the fix moved the known refusal in front of the flag, it
+    * did not make post-flag throws look clean. */
+   @Test void throwFromTheDeleteCallAfterTheFlagIsStillRollbackFailed() throws Exception {
+      doThrow(new MessageException("boom after the flag")).when(viewsheetApiService)
+         .deleteViewsheet(eq(VS_ASSET_ID), eq(user));
+
+      var result = service.apply(
+         applyRequest("delete", true, deleteViewsheetChange(VS_ASSET_ID)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals(1, result.rollbackFailures().size());
+      assertTrue(result.rollbackFailures().get(0).error().contains("state unknown"),
+         result.rollbackFailures().get(0).error());
    }
 
    // -------------------------------------------------------------------------

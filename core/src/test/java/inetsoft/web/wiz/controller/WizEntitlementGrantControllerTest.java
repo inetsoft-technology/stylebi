@@ -26,9 +26,17 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.web.admin.security.AuthenticationProviderService;
+import inetsoft.web.admin.security.user.SecurityTreeNode;
+import inetsoft.web.admin.security.user.SecurityTreeRootModel;
+import inetsoft.web.admin.security.user.SecurityTreeServer;
+import inetsoft.web.admin.security.user.UserTreeService;
+import inetsoft.web.admin.server.ServerService;
 import inetsoft.web.wiz.WizPermissions;
 import inetsoft.web.wiz.controller.WizEntitlementGrantController.GrantEntry;
 import inetsoft.web.wiz.controller.WizEntitlementGrantController.GrantRequest;
+import inetsoft.web.wiz.controller.WizEntitlementGrantController.PrincipalList;
+import inetsoft.web.wiz.controller.WizEntitlementGrantController.PrincipalRef;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.AdditionalAnswers;
@@ -67,6 +75,7 @@ class WizEntitlementGrantControllerTest {
    private SecurityTestDataBuilder builder;
    private WizEntitlementGrantController controller;
    private WizEntitlementController meController;
+   private SecurityTreeServer treeServer;
    private Principal savedContextPrincipal;
    private Principal savedPrincipal;
 
@@ -107,7 +116,8 @@ class WizEntitlementGrantControllerTest {
          .setup();
 
       SecurityEngine engine = SecurityEngine.getSecurity();
-      controller = new WizEntitlementGrantController(engine);
+      treeServer = mock(SecurityTreeServer.class);
+      controller = new WizEntitlementGrantController(engine, treeServer);
       meController = new WizEntitlementController(engine);
 
       MockHttpServletRequest request = new MockHttpServletRequest();
@@ -379,7 +389,7 @@ class WizEntitlementGrantControllerTest {
                                        AdditionalAnswers.delegatesTo(real.getSecurityProvider()));
       SecurityEngine engine = mock(SecurityEngine.class, AdditionalAnswers.delegatesTo(real));
       doReturn(provider).when(engine).getSecurityProvider();
-      controller = new WizEntitlementGrantController(engine);
+      controller = new WizEntitlementGrantController(engine, treeServer);
       return new SecurityProvider[] { provider };
    }
 
@@ -933,6 +943,217 @@ class WizEntitlementGrantControllerTest {
          verify(provider, never()).setPermission(any(ResourceType.class), anyString(),
                                                  any(Permission.class), anyString());
       }
+   }
+
+   // ---- principals (name suggestions) -------------------------------------------------------------
+
+   private PrincipalList principals(Principal caller) {
+      try {
+         return controller.getPrincipals(caller);
+      }
+      catch(inetsoft.sree.security.SecurityException e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   private static PrincipalRef ref(String name, String parent) {
+      return new PrincipalRef(name, parent);
+   }
+
+   private static List<String> names(List<PrincipalRef> refs) {
+      return refs.stream().map(PrincipalRef::name).toList();
+   }
+
+   private static SecurityTreeNode node(String name, String org, int type,
+                                        SecurityTreeNode... children)
+   {
+      return SecurityTreeNode.builder().identityID(new IdentityID(name, org)).label(name)
+         .type(type).root(false).addAllChildren(Arrays.asList(children)).build();
+   }
+
+   /** The "Users"/"Groups"/"Roles"/"Organization Roles" folders the EM tree wraps identities in. */
+   private static SecurityTreeNode folder(String name, String org, int type,
+                                          SecurityTreeNode... children)
+   {
+      return SecurityTreeNode.builder().identityID(new IdentityID(name, org)).label(name)
+         .type(type).root(true).addAllChildren(Arrays.asList(children)).build();
+   }
+
+   private static SecurityTreeRootModel tree(boolean multiTenant, SecurityTreeNode users,
+                                             SecurityTreeNode groups, SecurityTreeNode roles,
+                                             SecurityTreeNode organizations)
+   {
+      return SecurityTreeRootModel.builder().users(users).groups(groups).roles(roles)
+         .organizations(organizations).editable(true).isMultiTenant(multiTenant)
+         .namedUsers(false).build();
+   }
+
+   /** A real tree server over the real engine, as the EM "Add Permission" dialog uses it. */
+   private static SecurityTreeServer realTreeServer(SecurityEngine engine) {
+      AuthenticationProviderService providers = mock(AuthenticationProviderService.class);
+      ServerService server = mock(ServerService.class);
+      when(server.getLicenseInfos()).thenReturn(List.of());
+      UserTreeService users = new UserTreeService(
+         providers, null, null, null, engine, null, null, null, null, null, null, null, null,
+         null, null, null, null);
+      return new SecurityTreeServer(providers, server, engine, users);
+   }
+
+   private static SecurityProvider orgAdminRoleIs(String name) {
+      SecurityProvider provider = mock(SecurityProvider.class);
+      when(provider.isOrgAdministratorRole(argThat(id -> id != null && name.equals(id.getName()))))
+         .thenReturn(true);
+      return provider;
+   }
+
+   @Test
+   void principalsNeedEntitlementWriteOnTheRealUser() {
+      // reader holds entitlement.read only; the wiz principal itself would pass every check
+      assertEquals(403, status(() -> principals(wiz("reader", ORG_A))));
+      verifyNoInteractions(treeServer);
+   }
+
+   @Test
+   void principalsNeedABearerToken() {
+      RequestContextHolder.setRequestAttributes(
+         new ServletRequestAttributes(new MockHttpServletRequest()));
+
+      assertEquals(403, status(() -> principals(wiz("writer", ORG_A))));
+      verifyNoInteractions(treeServer);
+   }
+
+   @Test
+   void principalsForANonXPrincipalAreUnauthorized() {
+      assertEquals(401, status(() -> principals(mock(Principal.class))));
+      verifyNoInteractions(treeServer);
+   }
+
+   @Test
+   void principalsAskTheTreeForTheRealUserNotTheWizPrincipal() {
+      when(treeServer.getSecurityTree(any(), any(), anyBoolean(), anyBoolean(), anyBoolean(),
+                                      anyBoolean()))
+         .thenReturn(tree(false, null, null, null, null));
+      SRPrincipal writer = wiz("writer", ORG_A);
+
+      principals(writer);
+
+      ArgumentCaptor<Principal> caller = ArgumentCaptor.forClass(Principal.class);
+      verify(treeServer).getSecurityTree(isNull(), caller.capture(), eq(true), eq(false),
+                                         eq(true), eq(false));
+      assertFalse(SRPrincipal.isWizPrincipal(caller.getValue()));
+      assertEquals(writer.getName(), caller.getValue().getName());
+   }
+
+   @Test
+   void aTreeFailureIsA500WithAPlainMessage() {
+      when(treeServer.getSecurityTree(any(), any(), anyBoolean(), anyBoolean(), anyBoolean(),
+                                      anyBoolean()))
+         .thenThrow(new IllegalStateException("provider down"));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                                                () -> principals(wiz("writer", ORG_A)));
+
+      assertEquals(500, ex.getStatusCode().value());
+      assertEquals("the principal list could not be built", ex.getReason());
+   }
+
+   @Test
+   void flattensASingleTenantTreeToTheCallersOrganization() {
+      SecurityTreeRootModel model = tree(false,
+         folder("Users", ORG_A, Identity.USER,
+                node("alice", ORG_A, Identity.USER), node("dave", ORG_B, Identity.USER)),
+         folder("Groups", ORG_A, Identity.GROUP,
+                node("Company", ORG_A, Identity.GROUP,
+                     node("Sales", ORG_A, Identity.GROUP, node("bob", ORG_A, Identity.USER)))),
+         folder("Roles", ORG_A, Identity.ROLE,
+                node("r1", ORG_A, Identity.ROLE, node("r2", ORG_A, Identity.ROLE)),
+                node("globalr", null, Identity.ROLE),
+                node("orgAdminRole", ORG_A, Identity.ROLE)),
+         null);
+
+      PrincipalList list =
+         WizEntitlementGrantController.flatten(model, ORG_A, orgAdminRoleIs("orgAdminRole"));
+
+      assertEquals(List.of(ref("alice", null), ref("bob", null)), list.users());
+      assertEquals(List.of(ref("Company", null), ref("Sales", "Company")), list.groups());
+      assertEquals(List.of(ref("r1", null), ref("r2", null)), list.roles());
+   }
+
+   @Test
+   void flattensAMultiTenantTreeAndSkipsTheGlobalRoleRoot() {
+      SecurityTreeNode org = SecurityTreeNode.builder()
+         .identityID(new IdentityID("wizGrantOrgAName", ORG_A)).label("wizGrantOrgAName")
+         .type(Identity.ORGANIZATION).root(false)
+         .addAllChildren(List.of(
+            folder("Users", ORG_A, Identity.USER, node("carol", ORG_A, Identity.USER)),
+            folder("Groups", ORG_A, Identity.GROUP, node("g1", ORG_A, Identity.GROUP)),
+            folder("Organization Roles", ORG_A, Identity.ROLE,
+                   node("r1", ORG_A, Identity.ROLE), node("globalr", null, Identity.ROLE),
+                   node("orgAdminRole", ORG_A, Identity.ROLE))))
+         .build();
+      SecurityTreeRootModel model = tree(true, null, null,
+         folder("Roles", ORG_A, Identity.ROLE, node("sysglobal", null, Identity.ROLE)), org);
+
+      PrincipalList list =
+         WizEntitlementGrantController.flatten(model, ORG_A, orgAdminRoleIs("orgAdminRole"));
+
+      assertEquals(List.of(ref("carol", null)), list.users());
+      assertEquals(List.of(ref("g1", null)), list.groups());
+      assertEquals(List.of(ref("r1", null)), list.roles());
+   }
+
+   @Test
+   void sortsCaseInsensitivelyAndKeepsNamesThatDifferOnlyInCase() {
+      SecurityTreeRootModel model = tree(false,
+         folder("Users", ORG_A, Identity.USER, node("bob", ORG_A, Identity.USER),
+                node("alice", ORG_A, Identity.USER), node("Alice", ORG_A, Identity.USER)),
+         null, null, null);
+
+      PrincipalList list =
+         WizEntitlementGrantController.flatten(model, ORG_A, mock(SecurityProvider.class));
+
+      assertEquals(List.of("Alice", "alice", "bob"), names(list.users()));
+   }
+
+   @Test
+   void aCallerSeesOnlyTheIdentitiesItAdministersAsInTheEnterpriseManager() {
+      SecurityEngine engine = SecurityEngine.getSecurity();
+      SecurityProvider provider = engine.getSecurityProvider();
+      String plainKey = new IdentityID("plain", ORG_A).convertToKey();
+      Permission admin = new Permission();
+      admin.setGrants(ResourceAction.ADMIN, Identity.USER,
+                      Set.of(new Permission.PermissionIdentity("writer", ORG_A)));
+      provider.setPermission(ResourceType.SECURITY_USER, plainKey, admin, ORG_A);
+
+      try {
+         controller = new WizEntitlementGrantController(engine, realTreeServer(engine));
+
+         PrincipalList list = principals(wiz("writer", ORG_A));
+
+         assertEquals(List.of(ref("plain", null)), list.users());
+         assertEquals(List.of(), list.groups());
+         assertEquals(List.of(), list.roles());
+      }
+      finally {
+         provider.removePermission(ResourceType.SECURITY_USER, plainKey, ORG_A);
+      }
+   }
+
+   @Test
+   void anOrganizationAdministratorSeesItsOrganizationWithoutGlobalOrAdministratorRoles() {
+      post(request("entitlement.write", "user", "orgadmin", true), wiz("writer", ORG_A));
+      SecurityEngine engine = SecurityEngine.getSecurity();
+      controller = new WizEntitlementGrantController(engine, realTreeServer(engine));
+
+      PrincipalList list = principals(wiz("orgadmin", ORG_A));
+      List<String> users = names(list.users());
+      List<String> roles = names(list.roles());
+
+      assertTrue(users.containsAll(List.of("plain", "carol", "member")), users::toString);
+      assertFalse(users.contains("readerb") || users.contains("dave"), users::toString);
+      assertTrue(roles.contains("r1"), roles::toString);
+      assertFalse(roles.contains("globalr"), roles::toString);
+      assertFalse(roles.contains("orgAdminRole"), roles::toString);
    }
 
    private GrantEntry post(GrantRequest request, Principal caller) {

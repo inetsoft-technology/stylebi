@@ -19,7 +19,9 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.calc.ValueOfCalc;
+import inetsoft.report.internal.Util;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
+import inetsoft.web.binding.model.graph.calc.PercentCalcInfo;
 import inetsoft.web.binding.model.graph.calc.ValueOfCalcInfo;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.DataRef;
@@ -144,6 +146,8 @@ public final class TableBindingMutator {
                                DataRefModelFactoryService refModelService)
       throws Exception
    {
+      requireColumnLimit(rvs, model, requireShelf(model, shelf),
+                         fields == null ? 0 : fields.size());
       setShelf(model, shelf, fields, null, null, rvs, source, refModelService);
    }
 
@@ -218,6 +222,7 @@ public final class TableBindingMutator {
          }
       }
 
+      TableAllRows.apply(model, refs, rvs, source);
       pruneOrphanedSuppression(model);
    }
 
@@ -285,6 +290,49 @@ public final class TableBindingMutator {
       }
    }
 
+   /**
+    * Refuses a shelf write that would push the table's or crosstab's total column count past
+    * {@code Util.getOrganizationMaxColumn()}, the limit a drag-drop add already enforces
+    * ({@code VSTableDndService}, {@code VSCrosstabDndService}). The total is the shown details
+    * of a table, or rows + cols + aggregates of a crosstab, as in the drag-drop count.
+    *
+    * <p>Only the public {@code setShelf} and {@code addField} call this, never {@code moveField}
+    * (total-neutral) or {@code removeField}, and it fires only on net growth of the edited shelf,
+    * so a table already over the limit can still be shrunk or reshuffled. {@code rvs == null}
+    * skips the check: there is no live viewsheet to enforce it for, the same as
+    * {@code ChartBindingMutator.requireColumnLimit} with no {@code chartInfo}.
+    */
+   private static void requireColumnLimit(RuntimeViewsheet rvs, BaseTableBindingModel model,
+                                          String shelf, int newShelfCount)
+   {
+      if(rvs == null) {
+         return;
+      }
+
+      int oldShelfCount = read(model, shelf).size();
+
+      if(newShelfCount <= oldShelfCount) {
+         return;
+      }
+
+      int total = newShelfCount - oldShelfCount;
+
+      if(model instanceof CrosstabBindingModel crosstab) {
+         total += size(crosstab.getRows()) + size(crosstab.getCols()) + size(model.getAggregates());
+      }
+      else {
+         total += size(((TableBindingModel) model).getDetails());
+      }
+
+      if(total > Util.getOrganizationMaxColumn()) {
+         throw new IllegalArgumentException(Util.getColumnLimitMessage());
+      }
+   }
+
+   private static int size(List<?> list) {
+      return list == null ? 0 : list.size();
+   }
+
    public static void addField(BaseTableBindingModel model, String shelf, FieldRef field,
                                Integer position)
    {
@@ -322,6 +370,7 @@ public final class TableBindingMutator {
             current.size() + " field(s). Valid positions are 0 to " + current.size() + ".");
       }
 
+      requireColumnLimit(rvs, model, name, current.size() + 1);
       current.add(index, field);
       List<BDimensionRefModel> carried = carriedModels(model, name);
       List<BAggregateRefModel> carriedAggregates = carriedAggregateModels(model, name);
@@ -654,7 +703,7 @@ public final class TableBindingMutator {
          }
       }
 
-      return out;
+      return TableAllRows.report(model, out);
    }
 
    // ── validation ────────────────────────────────────────────────────────────
@@ -1776,7 +1825,7 @@ public final class TableBindingMutator {
       BDimensionRefModel dimension = requireDimension(model, shelf, column, index);
 
       if(sort != null && !blank(sort.sortByField())) {
-         requireKnownMeasure(model, sort.sortByField(), "sortByField");
+         requireKnownMeasure(model, sort.sortByField(), "sortByField", false);
       }
 
       if(dimension.isTimeSeries() && ChartBindingMutator.overridesAscending(sort) &&
@@ -1805,7 +1854,14 @@ public final class TableBindingMutator {
       if(ranking != null && !"none".equalsIgnoreCase(ranking.mode()) &&
          !blank(ranking.measure()))
       {
-         requireKnownMeasure(model, ranking.measure(), "measure");
+         requireKnownMeasure(model, ranking.measure(), "measure", true);
+
+         String canonical = canonicalRankingMeasure(model, ranking.measure());
+
+         if(!canonical.equals(ranking.measure())) {
+            ranking = new DimensionSortRanking.Ranking(
+               ranking.mode(), ranking.n(), canonical, ranking.others());
+         }
       }
 
       DimensionSortRanking.applyRanking(dimension, ranking);
@@ -2199,7 +2255,7 @@ public final class TableBindingMutator {
             continue;
          }
 
-         if(field.column().equalsIgnoreCase(measure)) {
+         if(field.column().equalsIgnoreCase(measure) || namesRankableCalculator(field, measure)) {
             return true;
          }
 
@@ -2250,6 +2306,64 @@ public final class TableBindingMutator {
       "nthmostfrequent", "pthpercentile", "first", "last");
 
    /**
+    * The name {@code VSAggregateRef.getFullName(true)} renders for a measure whose calculator
+    * is percent of total, up to but not including the closing parenthesis, or {@code null} for
+    * any other measure. A ranking is kept by {@code VSAssemblyInfoHandler.validateTopN} only when
+    * it equals this name (case-sensitively); any other spelling silently falls back to the first
+    * aggregate. The prefix depends on the crosstab's current {@code percentageBy}, so it is read
+    * from the live calculator, never assumed. Limited to percent of total, the one calculator
+    * proven against a rendered result; the previous-period "value of" calculators also sort by
+    * value but are not covered.
+    */
+   private static String rankableCalculatorBase(FieldRef field) {
+      CalculateInfo calc = field.calculateInfo();
+
+      return calc instanceof PercentCalcInfo && calc.isSupportSortByValue() &&
+         !blank(calc.getPrefix()) &&
+         field.aggregate() != null && field.column() != null
+         ? calc.getPrefix() + field.aggregate() + "(" + field.column() : null;
+   }
+
+   /** Whether {@code measure} is the calculator-prefixed full name of {@code field}. */
+   private static boolean namesRankableCalculator(FieldRef field, String measure) {
+      String base = rankableCalculatorBase(field);
+
+      return base != null && measure != null &&
+         ((base + ")").equalsIgnoreCase(measure) ||
+          MULTI_ARG_FORMULA_NAMES.contains(field.aggregate().toLowerCase()) &&
+          measure.regionMatches(true, 0, base + ", ", 0, base.length() + 2) &&
+          measure.trim().endsWith(")"));
+   }
+
+   /**
+    * The spelling {@code validateTopN} compares a ranking measure with, when {@code measure}
+    * names the calculator-prefixed full name of a bound measure in any case, or {@code measure}
+    * unchanged. {@code validateTopN} compares with a case-sensitive {@code equals}, so storing the
+    * typed text would let a mis-cased name pass the check above and then fall back to the first
+    * aggregate silently. A two-column form keeps its second column as typed: {@code FieldRef}
+    * carries no second column to rebuild it from.
+    */
+   private static String canonicalRankingMeasure(BaseTableBindingModel model, String measure) {
+      if(measure == null) {
+         return null;
+      }
+
+      for(FieldRef field : read(model, "aggregates")) {
+         if(!namesRankableCalculator(field, measure)) {
+            continue;
+         }
+
+         String base = rankableCalculatorBase(field);
+         String typed = measure.trim();
+
+         return (base + ")").equalsIgnoreCase(typed) ? base + ")"
+            : base + ", " + typed.substring(base.length() + 2);
+      }
+
+      return measure;
+   }
+
+   /**
     * Refuses a {@code sortByField}/{@code measure} that names no aggregate bound on this
     * assembly's aggregates shelf. Ranking or sorting by an unresolvable measure is accepted
     * silently downstream and renders a plausible-but-arbitrary result (the ranking condition
@@ -2263,18 +2377,26 @@ public final class TableBindingMutator {
     * FieldRef} carries no second-column or N value to reconstruct the exact full name the
     * product would render.
     *
+    * <p>A fourth shape is accepted for {@code ranking} only: the calculator-prefixed full name
+    * of a measure whose calculator sorts by value (e.g. {@code "% of total by row: Sum(Qty)"},
+    * see {@link #rankableCalculatorBase}), the one spelling {@code validateTopN} keeps. A sort
+    * resolves the plain column name instead, so the prefixed name is refused there with that
+    * hint.
+    *
     * <p>A {@code "$(ComponentName)"} dynamic value (bug #76766) is exempt from all of this: it
     * resolves against a live Form component's value at render time, not against this assembly's
     * bound aggregates now, and {@code BDimensionRefModel.createDataRef()} already writes it into
     * {@code VSDimensionRef}'s own dynamic-value-aware setters unconditionally. Checked with
-    * {@link #isVariableValue}, matching {@code VSUtil.isVariableValue}'s own narrower shape
-    * rather than also allowing a {@code "=script"} expression ({@code VSUtil.isDynamicValue}):
-    * the plugin surface calling this endpoint only ever sends the {@code "$(...)"} form for
-    * {@code sortByField}/{@code measure} today, so accepting only that form keeps this gate
-    * catching an accidental {@code "="}-prefixed value the same way it always has.
+    * {@link #isVariableValue}, matching {@code VSUtil.isVariableValue}'s own narrower shape.
+    *
+    * <p>A {@code "=script"} expression (bug #82314) is exempt too, for a {@code ranking} measure
+    * only: the Composer's ranking pane offers Value/Variable/Expression on the ranking measure,
+    * and the viewsheet sandbox evaluates the script at render time, so it cannot be checked
+    * against the bound aggregates now. {@code sortByField} stays {@code "$(...)"}-only, so this
+    * gate keeps catching an accidental {@code "="}-prefixed sort measure the way it always has.
     */
    private static void requireKnownMeasure(BaseTableBindingModel model, String measure,
-                                           String param)
+                                           String param, boolean ranking)
    {
       if(!shelvesOf(model).contains("aggregates")) {
          throw new IllegalArgumentException(
@@ -2299,9 +2421,27 @@ public final class TableBindingMutator {
                multiArgPrefixes.add(field.aggregate() + "(" + field.column() + ",");
             }
          }
+
+         String calculatorBase = rankableCalculatorBase(field);
+
+         if(calculatorBase != null && ranking) {
+            known.add(calculatorBase + ")");
+
+            if(MULTI_ARG_FORMULA_NAMES.contains(field.aggregate().toLowerCase())) {
+               multiArgPrefixes.add(calculatorBase + ", ");
+            }
+         }
+         else if(calculatorBase != null && namesRankableCalculator(field, measure)) {
+            throw new IllegalArgumentException(
+               "'" + param + "' is '" + measure + "', the calculator-prefixed name of a bound " +
+               "measure, which is accepted for a ranking. A sort takes the column name '" +
+               field.column() + "'.");
+         }
       }
 
-      if(isVariableValue(measure)) {
+      if(isVariableValue(measure) ||
+         ranking && measure != null && measure.trim().startsWith("=") && measure.trim().length() > 1)
+      {
          return;
       }
 

@@ -24,6 +24,7 @@ import org.w3c.dom.NodeList;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Parser for a document with no schema.
@@ -131,13 +132,18 @@ public class NoSchemaDocumentParser implements DocumentParser {
    /**
     * Tries to parse String value from text node into a more specific java type.
     *
+    * <p>Only canonical decimal text is treated as a number. {@code NumberUtils} also accepts hex
+    * ({@code 0x8DF4A9CE673A744}, an Azure Blob Etag), octal ({@code 007}) and suffixed ({@code 12L},
+    * {@code 1.0f}) text and decodes it to a different value, which would turn an identifier into
+    * a number that is not the identifier.</p>
+    *
     * @param text the text to parse
     * @return the parsed java object or the original text if the type could not be narrowed down.
     */
    private Object parseValue(String text) {
       Object value = text;
 
-      if(NumberUtils.isNumber(text)) {
+      if(CANONICAL_DECIMAL.matcher(text).matches() && NumberUtils.isNumber(text)) {
          try {
             value = NumberUtils.createNumber(text);
          }
@@ -161,6 +167,8 @@ public class NoSchemaDocumentParser implements DocumentParser {
       root = new EditableNode();
    }
 
+   private static final Pattern CANONICAL_DECIMAL = Pattern.compile(
+      "-?(?:(?:0|[1-9]\\d*)(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?");
    private static final String ATTRIBUTE_PREFIX = "@";
    private static final String XMLNS_URI = "http://www.w3.org/2000/xmlns/";
    private EditableNode root = new EditableNode();

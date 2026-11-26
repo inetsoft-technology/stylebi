@@ -799,6 +799,7 @@ public abstract class SelectionVSAssemblyInfo extends VSAssemblyInfo {
       submitValue.setRValue(null);
       singleValue.setRValue(null);
       quickSwitchAllowed.setRValue(null);
+      selectFirstItem.setRValue(null);
    }
 
    /**

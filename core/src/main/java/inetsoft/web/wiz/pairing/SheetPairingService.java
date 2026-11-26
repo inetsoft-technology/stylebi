@@ -123,6 +123,7 @@ public class SheetPairingService {
            asAccessor(viewsheetService, "ViewsheetService"), worksheetService);
    }
 
+
    /** Back-compat convenience constructor: no editorContext validation is possible. */
    public SheetPairingService() { this(System::currentTimeMillis); }
 
@@ -196,8 +197,32 @@ public class SheetPairingService {
       String code = newCode();
       grants.put(code, new PairingGrant(code, runtimeId, ownerIdentity, socketSessionId,
                                         socketUserName, clock.getAsLong(), TTL_MILLIS, sheetType,
-                                        editorContext));
+                                        editorContext, deriveRuntimeKind(sheetType, runtimeId)));
       return code;
+   }
+
+   /**
+    * What the runtime is, read once here at mint (defence in depth), so the join does not have to
+    * rely on its own lookup, which can be null for a runtime it cannot resolve. A worksheet is never a viewer; a viewsheet is a viewer iff its runtime says so; a
+    * viewsheet runtime that cannot be resolved records nothing ({@code null}), and the join then
+    * refuses rather than guess.
+    */
+   private PairingGrant.RuntimeKind deriveRuntimeKind(SheetType sheetType, String runtimeId) {
+      if(sheetType == SheetType.WORKSHEET) {
+         return PairingGrant.RuntimeKind.DESIGN;
+      }
+
+      if(sheetType != SheetType.VIEWSHEET) {
+         return null;
+      }
+
+      RuntimeSheet rs = viewsheetAccessor.getSheetDirect(runtimeId);
+
+      if(!(rs instanceof RuntimeViewsheet rvs)) {
+         return null;
+      }
+
+      return rvs.isViewer() ? PairingGrant.RuntimeKind.VIEWER : PairingGrant.RuntimeKind.DESIGN;
    }
 
    /**

@@ -150,6 +150,14 @@ public abstract class AbstractEditableAuthenticationProvider
       boolean completed = false;
       String opId = null;
       OrgIdChangeGuard.clear(newOrgID);
+      // Bug #81587, a clone writes the keys of the new id (permissions, schedule cycles, ...)
+      // before the organization is registered. A store re-open in that window, on any node,
+      // must not take them for legacy keys (see FileAuthorizationProvider.isLegacyKey), so the
+      // new id is recorded as changing. The source organization stays in use, so only the new id
+      // is recorded. A new organization that already exists is registered, nothing to protect.
+      boolean guardedNew = !replace && fromId != null && newOrgID != null &&
+         !OrgIdChangeGuard.isRunning(newOrgID) && getOrganization(newOrgID) == null;
+      String newOpId = null;
       // Bug #79875, a clone is a long series of writes, so it is recorded before the first one.
       // An id change is recorded by IdentityService, which also moves the per user data first.
       // A new organization that already exists is not the clone's to undo, so it is not recorded
@@ -158,6 +166,9 @@ public abstract class AbstractEditableAuthenticationProvider
       try {
          if(guarded) {
             opId = OrgIdChangeGuard.begin(fromId, newOrgID);
+         }
+         else if(guardedNew) {
+            newOpId = OrgIdChangeGuard.begin(newOrgID);
          }
 
          if(!replace && fromId != null && newOrgID != null && getOrganization(newOrgID) == null) {
@@ -184,6 +195,11 @@ public abstract class AbstractEditableAuthenticationProvider
 
          if(guarded) {
             OrgIdChangeGuard.end(opId, fromId, completed);
+         }
+
+         if(newOpId != null) {
+            // not retired: the new organization is registered and in use after a clone
+            OrgIdChangeGuard.end(newOpId, newOrgID, false);
          }
       }
    }
@@ -222,6 +238,9 @@ public abstract class AbstractEditableAuthenticationProvider
       identityService.addCopiedIdentityPermission(fromOrganization.getIdentityID(), new IdentityID(newOrg.getName(), newOrgID),
                                                   newOrgID, Identity.ORGANIZATION, replace);
       String fromOrgId = fromOrganization.getId();
+      // another node may have just saved a property that this node has not reloaded yet
+      // (Bug #81618)
+      PropertiesEngine.getInstance().syncOrgScopedProperties(fromOrgId);
       copyScopedProperties(fromOrgId, newOrgID, replace);
       copyDataSpace(fromOrganization, newOrg, replace);
       String newOrgThemeId = copyThemes(fromOrgId, newOrgID, replace);

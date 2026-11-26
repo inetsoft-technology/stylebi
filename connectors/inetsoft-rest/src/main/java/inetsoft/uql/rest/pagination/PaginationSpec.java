@@ -519,7 +519,7 @@ public class PaginationSpec implements Serializable, XMLSerializable, Cloneable 
       private boolean stopOnShortPage = false;
       private String recordCountPath;
       private String hasNextParamValue;
-      private int baseRecordLength = -1;
+      private int baseRecordLength = 0;
       private PaginationParameter totalPagesParam = PaginationParameter.forReadJson();
       private PaginationParameter pageNumberParamToWrite = PaginationParameter.forWrite();
       private PaginationParameter hasNextParam = PaginationParameter.forReadJson();

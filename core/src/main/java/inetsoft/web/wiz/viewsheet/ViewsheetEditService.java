@@ -40,6 +40,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.Catalog;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.dispatch.AssetScriptFailureWarnings;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.composer.vs.event.CopyVSObjectsEvent;
 import inetsoft.web.composer.vs.objects.controller.ClipboardControllerService;
 import inetsoft.web.composer.vs.objects.controller.ComposerGroupService;
@@ -74,6 +75,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
 /**
  * Applies structural edits by delegating to the Composer's own services.
@@ -110,7 +112,7 @@ public class ViewsheetEditService {
       "move", "resize", "resize_title", "add", "remove", "rename", "copy", "cut", "paste",
       "set_z_index", "set_lock", "set_title", "group", "group_as_tab",
       "group_as_selection_container", "add_to_selection_container", "reorder_container_children",
-      "ungroup", "move_from_container", "select_tab", "align", "distribute", "refresh",
+      "ungroup", "move_from_container", "select_tab", "align", "distribute", "resize_to", "refresh",
       "refresh_viewsheet");
 
    /**
@@ -162,7 +164,7 @@ public class ViewsheetEditService {
       case "ungroup" -> ungroup(sessionToken, user, request, linkUri);
       case "select_tab" -> selectTab(sessionToken, user, request, linkUri);
       case "move_from_container" -> moveFromContainer(sessionToken, user, request, linkUri);
-      case "align", "distribute" -> arrange(sessionToken, user, request, linkUri, op);
+      case "align", "distribute", "resize_to" -> arrange(sessionToken, user, request, linkUri, op);
       case "refresh" -> refresh(sessionToken, user, request, linkUri);
       case "refresh_viewsheet" -> refreshWholeSheet(sessionToken, user, linkUri);
       default -> throw new IllegalArgumentException(
@@ -1394,9 +1396,11 @@ public class ViewsheetEditService {
       }
 
       String axis = request.axis() == null ? "" : request.axis().trim().toLowerCase();
-      List<String> valid = "align".equals(op)
-         ? List.of("left", "right", "top", "bottom")
-         : List.of("horizontal", "vertical");
+      List<String> valid = switch(op) {
+         case "align" -> List.of("left", "right", "top", "bottom", "center", "middle");
+         case "resize_to" -> List.of("min_width", "max_width", "min_height", "max_height");
+         default -> List.of("horizontal", "vertical");
+      };
 
       if(!valid.contains(axis)) {
          throw new IllegalArgumentException(
@@ -1457,6 +1461,11 @@ public class ViewsheetEditService {
                targets.size() + " qualify.");
          }
 
+         if("resize_to".equals(op)) {
+            resizeTo(rvs, runtimeId, dispatcher, user, linkUri, unlocked, axis);
+            return;
+         }
+
          MoveVSObjectEvent[] moves = "align".equals(op)
             ? alignMoves(unlocked, axis)
             : distributeMoves(unlocked, axis);
@@ -1474,8 +1483,56 @@ public class ViewsheetEditService {
       });
    }
 
+   /**
+    * Resizes every target to the smallest or largest width/height among them, mirroring
+    * composer-toolbar.component.ts's layoutResize. Each assembly keeps its current position.
+    */
+   private void resizeTo(RuntimeViewsheet rvs, String runtimeId,
+                         CapturingCommandDispatcher dispatcher, Principal user, String linkUri,
+                         List<AssemblyNode> targets, String axis)
+      throws Exception
+   {
+      boolean width = axis.endsWith("width");
+      boolean min = axis.startsWith("min");
+      IntStream sizes = targets.stream().mapToInt(n -> width ? n.width() : n.height());
+      int size = min ? sizes.min().orElseThrow() : sizes.max().orElseThrow();
+
+      for(AssemblyNode node : targets) {
+         requireOwnSize(rvs, node.name());
+         ensureTableDataReady(rvs, node.name());
+      }
+
+      for(AssemblyNode node : targets) {
+         int newWidth = width ? size : node.width();
+         int newHeight = width ? node.height() : size;
+
+         if(newWidth == node.width() && newHeight == node.height()) {
+            continue;
+         }
+
+         ResizeVSObjectEvent event = new ResizeVSObjectEvent();
+         event.setName(node.name());
+         event.setWidth(newWidth);
+         event.setHeight(newHeight);
+         // resizeObject also moves the assembly to the event's offset; seed the current position.
+         event.setxOffset(node.x());
+         event.setyOffset(node.y());
+         objects.resizeObject(runtimeId, event, user, dispatcher, linkUri);
+      }
+   }
+
    private static MoveVSObjectEvent[] alignMoves(List<AssemblyNode> targets, String axis) {
       int edge = switch(axis) {
+         case "center" -> {
+            int lo = targets.stream().mapToInt(AssemblyNode::x).min().orElseThrow();
+            int hi = targets.stream().mapToInt(n -> n.x() + n.width()).max().orElseThrow();
+            yield (lo + hi) / 2;
+         }
+         case "middle" -> {
+            int lo = targets.stream().mapToInt(AssemblyNode::y).min().orElseThrow();
+            int hi = targets.stream().mapToInt(n -> n.y() + n.height()).max().orElseThrow();
+            yield (lo + hi) / 2;
+         }
          case "left" -> targets.stream().mapToInt(AssemblyNode::x).min().orElseThrow();
          case "right" -> targets.stream().mapToInt(n -> n.x() + n.width()).max().orElseThrow();
          case "top" -> targets.stream().mapToInt(AssemblyNode::y).min().orElseThrow();
@@ -1490,11 +1547,13 @@ public class ViewsheetEditService {
                          switch(axis) {
                             case "left" -> edge;
                             case "right" -> edge - node.width();
+                            case "center" -> Math.max(0, edge - node.width() / 2);
                             default -> node.x();
                          },
                          switch(axis) {
                             case "top" -> edge;
                             case "bottom" -> edge - node.height();
+                            case "middle" -> Math.max(0, edge - node.height() / 2);
                             default -> node.y();
                          });
       }

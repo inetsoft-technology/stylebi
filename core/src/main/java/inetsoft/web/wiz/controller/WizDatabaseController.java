@@ -41,6 +41,7 @@ import inetsoft.web.admin.content.database.types.*;
 import inetsoft.web.admin.content.repository.DataSourceSettingsModel;
 import inetsoft.web.admin.content.repository.DatabaseDatasourcesService;
 import inetsoft.web.admin.content.repository.FolderDeleteResult;
+import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.admin.model.NameLabelTuple;
 import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.portal.data.CheckDuplicateResponse;
@@ -195,9 +196,17 @@ public class WizDatabaseController {
    /**
     * Reports the recorded connection state of several data sources at once.
     *
-    * <p>Never re-tests the connections: the underlying service would otherwise open a connection
-    * to every listed data source and write the outcome back to the repository. Browsing a folder
-    * must not have that side effect, so this reads the stored status only.</p>
+    * <p>Does not re-test the connections unless the request asks for it with {@code refresh}: the
+    * underlying service would otherwise open a connection to every listed data source and write
+    * the outcome back to the repository. Browsing a folder must not have that side effect, so the
+    * default reads the stored status only.</p>
+    *
+    * <p>A {@code refresh} is the Portal's "Refresh Status" and has those side effects, so it is
+    * gated like the connection test of a saved data source: WRITE on every listed path (an
+    * additional connection {@code P/add} is judged as {@code P::add}, the name its permission is
+    * stored under), checked up front so a refresh never quietly degrades to stored state, and at
+    * most {@link #MAX_REFRESH_PATHS} paths per call because the service starts one thread and one
+    * outbound connection per path.</p>
     *
     * <p>{@code DataSourceStatusService} performs no permission check of its own, so the requested
     * paths are filtered to those the caller can read before it is handed anything. A path the
@@ -222,13 +231,34 @@ public class WizDatabaseController {
          return List.of();
       }
 
+      boolean refresh = request.refresh();
       List<String> paths = new ArrayList<>();
 
-      for(String path : requested) {
-         if(path != null && securityEngine.checkPermission(
-            principal, ResourceType.DATA_SOURCE, path, ResourceAction.READ))
-         {
+      if(refresh) {
+         if(requested.size() > MAX_REFRESH_PATHS) {
+            throw new ResponseStatusException(
+               HttpStatus.BAD_REQUEST,
+               "At most " + MAX_REFRESH_PATHS + " data sources can be re-tested per call");
+         }
+
+         for(String path : requested) {
+            if(path == null) {
+               continue;
+            }
+
+            requireDataSourcePermission(
+               ResourcePermissionService.getDataSourcePermissionName(path),
+               ResourceAction.WRITE, principal);
             paths.add(path);
+         }
+      }
+      else {
+         for(String path : requested) {
+            if(path != null && securityEngine.checkPermission(
+               principal, ResourceType.DATA_SOURCE, path, ResourceAction.READ))
+            {
+               paths.add(path);
+            }
          }
       }
 
@@ -239,7 +269,7 @@ public class WizDatabaseController {
       DataSourceConnectionStatusRequest statusRequest =
          ImmutableDataSourceConnectionStatusRequest.builder()
             .paths(paths)
-            .updateStatus(false)
+            .updateStatus(refresh)
             .timeZone(TimeZone.getDefault().getID())
             .build();
 
@@ -773,7 +803,7 @@ public class WizDatabaseController {
 
       DatabaseDefinition current = requireJdbcDefinition(database, principal);
       DatabaseDefinition updated = toDatabaseDefinition(definition, lastSegment(database));
-      carryOverUneditedSettings(current, updated);
+      carryOverUneditedSettings(current, updated, definition.unasgn());
 
       ConnectionStatus status;
 
@@ -1563,9 +1593,10 @@ public class WizDatabaseController {
     * {@link WizDatabaseMapper#carryOverCredentialReference}.</p>
     */
    private static void carryOverUneditedSettings(DatabaseDefinition current,
-                                                 DatabaseDefinition updated)
+                                                 DatabaseDefinition updated,
+                                                 Boolean requestedUnasgn)
    {
-      WizDatabaseMapper.carryOverUneditedSettings(current, updated);
+      WizDatabaseMapper.carryOverUneditedSettings(current, updated, requestedUnasgn);
    }
 
    /**
@@ -1624,10 +1655,21 @@ public class WizDatabaseController {
       return mapper.toWizDefinition(definition);
    }
 
+   /**
+    * Base-source conversion: the mapper leaves {@code unasgn} alone (an additional connection never
+    * takes it from the wire), so the caller's own choice is applied here. Null leaves the default,
+    * and the update path then carries the stored value over.
+    */
    private DatabaseDefinition toDatabaseDefinition(WizDatabaseDefinition definition,
                                                    String oldName)
    {
-      return mapper.toDatabaseDefinition(definition, oldName);
+      DatabaseDefinition result = mapper.toDatabaseDefinition(definition, oldName);
+
+      if(definition.unasgn() != null) {
+         result.setUnasgn(definition.unasgn());
+      }
+
+      return result;
    }
 
    private static String requirePath(String path) {
@@ -1734,6 +1776,9 @@ public class WizDatabaseController {
       "Duplicate Folder", "DUPLICATE_FOLDER",
       "Datasource Lost", "DATASOURCE_LOST",
       "Invalid Folder", "INVALID_FOLDER");
+
+   /** Cap on one re-test call: the status service starts a thread and a connection per path. */
+   static final int MAX_REFRESH_PATHS = 20;
 
    private static final Logger LOG = LoggerFactory.getLogger(WizDatabaseController.class);
 

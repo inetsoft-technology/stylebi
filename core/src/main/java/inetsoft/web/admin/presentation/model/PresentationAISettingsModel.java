@@ -35,7 +35,7 @@ public interface PresentationAISettingsModel {
    }
 
    @Nullable
-   String wizPortalUrl();
+   String wizServiceUrl();
 
    @Nullable
    String chatAppServerUrl();

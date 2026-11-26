@@ -181,6 +181,34 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
+    * Get the logical model entities whose rows are all included ("Include all rows" of the
+    * binding), the tables that are outer joined when the data is queried.
+    *
+    * @return the entity names, never null.
+    */
+   public List<String> getAllRows() {
+      return allRows == null ? new ArrayList<>() : new ArrayList<>(allRows);
+   }
+
+   /**
+    * Set the logical model entities whose rows are all included.
+    *
+    * @param allRows the entity names, null or empty for none.
+    *
+    * @return <tt>true</tt> if changed, <tt>false</tt> otherwise.
+    */
+   public boolean setAllRows(List<String> allRows) {
+      List<String> nrows = allRows == null || allRows.isEmpty() ? null : new ArrayList<>(allRows);
+
+      if(Objects.equals(this.allRows, nrows)) {
+         return false;
+      }
+
+      this.allRows = nrows;
+      return true;
+   }
+
+   /**
     * Set the group title value.
     * @param value the specified group title.
     */
@@ -1056,6 +1084,16 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    protected void writeContents(PrintWriter writer) {
       super.writeContents(writer);
 
+      if(allRows != null) {
+         writer.println("<allRows>");
+
+         for(String entity : allRows) {
+            writer.print("<entity><![CDATA[" + entity + "]]></entity>");
+         }
+
+         writer.println("</allRows>");
+      }
+
       if(titleInfo != null) {
          titleInfo.writeXML(writer, getFormatInfo().getFormat(TITLEPATH),
             getViewsheet(), getName());
@@ -1179,6 +1217,18 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
 
       styleValue.setDValue(getContentsStr(elem, "style", null));
       titleInfo.parseXML(elem);
+      Element allRowsNode = Tool.getChildNodeByTagName(elem, "allRows");
+      allRows = null;
+
+      if(allRowsNode != null) {
+         allRows = new ArrayList<>();
+         NodeList entities = Tool.getChildNodesByTagName(allRowsNode, "entity");
+
+         for(int i = 0; i < entities.getLength(); i++) {
+            allRows.add(Tool.getValue(entities.item(i)));
+         }
+      }
+
       Element node = Tool.getChildNodeByTagName(elem, "hyperlinkAttr");
 
       if(node != null) {
@@ -1329,6 +1379,10 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
 
          if(shrinkValue != null) {
             info.shrinkValue = (DynamicValue2) shrinkValue.clone();
+         }
+
+         if(allRows != null) {
+            info.allRows = new ArrayList<>(allRows);
          }
 
          if(enableAdhocValue != null) {
@@ -1521,6 +1575,10 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
          hint |= VSAssembly.INPUT_DATA_CHANGED;
       }
 
+      if(setAllRows(tinfo.allRows)) {
+         hint |= VSAssembly.INPUT_DATA_CHANGED;
+      }
+
       return hint;
    }
 
@@ -1594,6 +1652,9 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       flyoverValue.setRValue(null);
       flyClickValue.setRValue(null);
       tipClickValue.setRValue(null);
+      tipViewValue.setRValue(null);
+      tipOptionValue.setRValue(null);
+      alphaValue.setRValue(null);
       enableAdhocValue.setRValue(null);
       explicitTableWidth.setRValue(null);
       resetSizeInfo();
@@ -1703,6 +1764,7 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    private DynamicValue2 shrinkValue;
    private DynamicValue2 tipOptionValue;
    private DynamicValue2 enableAdhocValue;
+   private List<String> allRows;
    private DynamicValue tipViewValue = new DynamicValue();
    private DynamicValue alphaValue = new DynamicValue();
    private ClazzHolder<String[]> flyoverValue;

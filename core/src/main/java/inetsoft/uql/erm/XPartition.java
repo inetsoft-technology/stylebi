@@ -100,6 +100,19 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
     * Add a child XPartition.
     */
    public void addPartition(XPartition child, boolean isImport) {
+      addPartition(child, isImport, false);
+   }
+
+   /**
+    * Add a child XPartition and throw if it could not be stored.
+    *
+    * @throws inetsoft.uql.service.DataSourceStorageException if the storage failed.
+    */
+   public void addPartitionOrThrow(XPartition child) {
+      addPartition(child, false, true);
+   }
+
+   private void addPartition(XPartition child, boolean isImport, boolean failOnStorage) {
       // Bug #77918: as XDataModel.addLogicalModel
       if(XUtil.isDirectScriptCall(XPartition.class)) {
          throw new java.lang.SecurityException("A script may not add a partition");
@@ -119,7 +132,12 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
          child.setLastModified(System.currentTimeMillis());
       }
 
-      getRegistry().setObject(entry, child);
+      if(failOnStorage) {
+         getRegistry().setObjectOrThrow(entry, child, true);
+      }
+      else {
+         getRegistry().setObject(entry, child);
+      }
    }
 
    /**
@@ -944,6 +962,50 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
    public AutoAlias getAutoAlias(String table) {
       AutoAlias autoAlias = base != null ? base.getAutoAlias(table) : null;
       return autoAlias != null ? autoAlias : autoaliases.get(table);
+   }
+
+   /**
+    * Gets the aliases that replaced a table when auto aliases were applied. The original
+    * table, and any plain alias table reached by an auto alias' outgoing links, is removed from
+    * the applied partition, so it can no longer be bound by name.
+    *
+    * @param applied the result of {@link #applyAutoAliases()} on this partition.
+    * @param table   the name of the table in this (original) partition.
+    *
+    * @return the sorted names of the aliases that replace the table, or an empty list if the
+    *         table is not in this partition or is still in the applied partition.
+    */
+   public List<String> getAutoAliasReplacements(XPartition applied, String table) {
+      if(table == null || getPartitionTable(table) == null ||
+         applied.getPartitionTable(table) != null)
+      {
+         return Collections.emptyList();
+      }
+
+      Set<String> result = new TreeSet<>();
+      Enumeration<PartitionTable> tables = applied.getTables();
+
+      while(tables.hasMoreElements()) {
+         PartitionTable alias = tables.nextElement();
+
+         if(table.equals(alias.getSourceTable())) {
+            result.add(alias.getName());
+         }
+      }
+
+      AutoAlias auto = getAutoAlias(table);
+
+      if(auto != null) {
+         for(int i = 0; i < auto.getIncomingJoinCount(); i++) {
+            String alias = auto.getIncomingJoin(i).getAlias();
+
+            if(alias != null) {
+               result.add(alias);
+            }
+         }
+      }
+
+      return new ArrayList<>(result);
    }
 
    /**

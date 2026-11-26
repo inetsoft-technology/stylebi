@@ -217,6 +217,13 @@ public class VSCalendarService {
          }
       }
 
+      // keep the enclosing group/tab at least as large as the resized calendar (Bug #81702)
+      for(String container : GroupContainerVSAssembly.growContainersToFitLayout(
+         viewsheet, calendarAssembly))
+      {
+         this.coreLifecycleService.refreshVSAssembly(rvs, container, dispatcher);
+      }
+
       if(viewsheet.getViewsheetInfo().isScaleToScreen() && (rvs.isPreview() || rvs.isViewer())) {
          Object scaleSize = rvs.getProperty("viewsheet.appliedScale");
 

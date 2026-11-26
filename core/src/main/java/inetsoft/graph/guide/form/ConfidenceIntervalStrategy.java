@@ -113,8 +113,22 @@ public class ConfidenceIntervalStrategy extends TargetStrategy {
     * and lower bounds
     */
    private static double[] getConfidenceInterval(double[] sample, double confidenceLevel) {
-      if(sample.length < 2 || Double.isNaN(confidenceLevel)) {
-         // No confidence interval can be computed for an empty sample
+      // null cells reach here as the -Double.MAX_VALUE placeholder, ignore them
+      // so that n and the degrees of freedom only count the real values
+      SummaryStatistics s = new SummaryStatistics();
+
+      for(double d : sample) {
+         if(d == -Double.MAX_VALUE) {
+            continue;
+         }
+
+         s.addValue(d);
+      }
+
+      long n = s.getN();
+
+      if(n < 2 || Double.isNaN(confidenceLevel)) {
+         // No confidence interval can be computed for fewer than two values
          // Therefore, returning an empty set of lines is appropriate
          return new double[0];
       }
@@ -133,23 +147,13 @@ public class ConfidenceIntervalStrategy extends TargetStrategy {
 
       // Get t value for sample size and desired confidence level 't'
       double x0 = confidenceLevel + (1 - confidenceLevel) / 2;
-      TDistribution tdist = new TDistribution(sample.length - 1);
+      TDistribution tdist = new TDistribution(n - 1);
       double tvalue = tdist.inverseCumulativeProbability(x0);
 
       // Get sample statistics mean and stdev
-      SummaryStatistics s = new SummaryStatistics();
-
-      for(double d :  sample) {
-         if(d == -Double.MAX_VALUE) {
-            continue;
-         }
-
-         s.addValue(d);
-      }
-
       double sampleStdv = s.getStandardDeviation(); // sample std deviation 's'
       double sampleMean = s.getMean(); // sample mean 'm'
-      double sqrtOfSampleSize = Math.sqrt(sample.length); // sqrt of sample size n
+      double sqrtOfSampleSize = Math.sqrt(n); // sqrt of sample size n
 
       // Get confidence interval as: m +/- t * (s / sqrt(n))
       double intermediateResult = tvalue * (sampleStdv / sqrtOfSampleSize);

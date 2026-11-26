@@ -174,7 +174,7 @@
       "name": "Ad Account Users",
       "paged": true,
       "pageType": "TOTAL_COUNT_AND_OFFSET",
-      "suffix": "/rest/adAccountUsers?&q=account&totals=true&Account={Sponsored Account URN}",
+      "suffix": "/rest/adAccountUsers?q=account&totals=true&Account={Sponsored Account URN}",
       "description": "The users with access to one account and the role each holds. Requires the account URN."
     },
     {

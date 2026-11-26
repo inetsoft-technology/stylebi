@@ -240,10 +240,36 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                    match — so anything comparing column counts has to filter on this rather
     *                    than take the list length, and anything comparing the model against real
     *                    rows has to expect hidden columns to be missing from the data.
+    * @param rangeOptions the Numeric Range dialog's checkboxes, for a numeric range column only;
+    *                     {@code null} (absent from the JSON) for every other column
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record ColumnModel(String name, String type, String alias, String expression,
-                             String description, boolean visible) {}
+                             String description, boolean visible, RangeOptionsModel rangeOptions)
+   {
+      public ColumnModel(String name, String type, String alias, String expression,
+                         String description, boolean visible)
+      {
+         this(name, type, alias, expression, description, visible, null);
+      }
+   }
+
+   /**
+    * A numeric range column's bucket options, as {@code add_numeric_range_column}/
+    * {@code edit_numeric_range_column} take them.
+    *
+    * @param lessThanMin    the "Less Than Min" bucket (below the first boundary) is shown
+    * @param greaterThanMax the "Greater Than Max" bucket (above the last boundary) is shown
+    * @param upperInclusive {@code true} when buckets include their upper bound
+    *                       ({@code InclusiveType.UPPER}); {@code false} for lower-inclusive
+    * @param inclusiveType  the raw {@code InclusiveType} name, present only for {@code "NONE"}
+    *                       (reachable from a saved file, never from the Composer dialog or these
+    *                       tools), where {@code upperInclusive == false} would otherwise be read
+    *                       as lower-inclusive
+    */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public record RangeOptionsModel(boolean lessThanMin, boolean greaterThanMax,
+                                   boolean upperInclusive, String inclusiveType) {}
 
    /**
     * A join predicate between two tables.
@@ -459,11 +485,24 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                     empty/default {@code ChoicesModel}
     * @param hidden       {@code true} for a hidden copy that backs a mirror (see
     *                     {@link MirrorModel}); {@code null} otherwise
+    * @param defaultValueType {@code "value"} or {@code "expression"}; present only when the
+    *                     variable has a default. For {@code "expression"}, {@code defaultValue}
+    *                     is the JavaScript source
+    * @param none         {@code true} when the variable has no default (no value node, or one
+    *                     holding no value -- both are the Composer dialog's "None"); absent
+    *                     otherwise
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record VariableModel(String name, String label, String type, String defaultValue,
                                ChoicesModel choices, Boolean hidden,
-                               boolean primary) {}
+                               boolean primary, String defaultValueType, Boolean none)
+   {
+      public VariableModel(String name, String label, String type, String defaultValue,
+                           ChoicesModel choices, Boolean hidden, boolean primary)
+      {
+         this(name, label, type, defaultValue, choices, hidden, primary, null, null);
+      }
+   }
 
    /**
     * A variable's enumerated "Values" picker, mirroring

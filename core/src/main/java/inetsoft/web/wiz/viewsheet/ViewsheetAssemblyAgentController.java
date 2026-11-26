@@ -237,10 +237,28 @@ public class ViewsheetAssemblyAgentController {
     *                      going through {@link SheetJoinService#join}, so there is no co-occupancy
     *                      computation to report (a freshly-minted runtime cannot yet have another
     *                      session on it).
+    * @param connectionMode {@code "VIEWER"} when the joined runtime is a portal Viewer runtime
+    *                      (the session is read + export only, see {@code ViewerModePolicy}),
+    *                      otherwise {@code "PAIRED"}. Always {@code "PAIRED"} on the responses
+    *                      that open a brand-new design runtime ({@link #openBaseWorksheet},
+    *                      {@link #createViewsheet}). A client that predates the field ignores it.
     */
    public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
                               String sheetType, EditorContext editorContext, String sheetLabel,
-                              Integer concurrentSessionCount) {}
+                              Integer concurrentSessionCount, String connectionMode) {
+      /**
+       * Back-compat constructor predating {@code connectionMode} -- defaults it to
+       * {@code "PAIRED"} (a design session), the only mode there was, so every hand-built
+       * {@code new JoinResponse(...)} that opens a design runtime stays as it was.
+       */
+      public JoinResponse(String sessionToken, String runtimeId, String ownerIdentity,
+                          String sheetType, EditorContext editorContext, String sheetLabel,
+                          Integer concurrentSessionCount)
+      {
+         this(sessionToken, runtimeId, ownerIdentity, sheetType, editorContext, sheetLabel,
+              concurrentSessionCount, JoinSession.ConnectionMode.PAIRED.name());
+      }
+   }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/join")
    public JoinResponse join(@RequestBody JoinRequest body, Principal user) throws PairingException {
@@ -249,7 +267,8 @@ public class ViewsheetAssemblyAgentController {
       JoinSession session = outcome.session();
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
                               session.sheetType().name().toLowerCase(), session.editorContext(),
-                              outcome.sheetLabel(), outcome.concurrentSessionCount());
+                              outcome.sheetLabel(), outcome.concurrentSessionCount(),
+                              session.connectionMode().name());
    }
 
    /** {@code force} closes a worksheet session already held for this identity instead of
@@ -3036,6 +3055,18 @@ public class ViewsheetAssemblyAgentController {
    public record TargetLineDeleteRequest(String assembly, List<Integer> indexes) {}
 
    /**
+    * One request for every kind: the service reads the kind off the existing target and refuses
+    * a field that belongs to another one. Null means "keep the current value".
+    */
+   public record EditTargetRequest(String assembly, Integer index, String measure,
+                                   String lineStyle, String lineColor, String fillAboveColor,
+                                   String fillBelowColor, Boolean entireChart, String value,
+                                   String formula, String label, String from, String to,
+                                   String fromLabel, String toLabel, String fillColor,
+                                   String statistic, String statisticValue, Boolean sample,
+                                   String percentageOf) {}
+
+   /**
     * {@code list_chart_target_lines}. The chart's target (goal) lines, with the index each one is
     * removed by, and what this chart will accept.
     */
@@ -3130,8 +3161,7 @@ public class ViewsheetAssemblyAgentController {
 
    /**
     * {@code remove_chart_target_line}. Removes targets by the indexes
-    * {@code list_chart_target_lines} reports -- including band and statistics targets, which that
-    * listing reports as read-only but still addressable.
+    * {@code list_chart_target_lines} reports -- band and statistics targets as well as lines.
     */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/delete")
    public Map<String, Object> removeChartTargetLine(
@@ -3143,6 +3173,30 @@ public class ViewsheetAssemblyAgentController {
       requireEnabled();
       return chartTargetLineService.remove(sessionToken, user, request.assembly(),
                                            request.indexes(), linkUri);
+   }
+
+   /**
+    * {@code edit_chart_target}. Changes an existing target in place, by the index
+    * {@code list_chart_target_lines} reports -- the Targets tab's Edit button. The target keeps
+    * its position and kind; only the fields in the request change.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/edit")
+   public Map<String, Object> editChartTarget(
+      @PathVariable String sessionToken,
+      @RequestBody EditTargetRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      return chartTargetLineService.edit(
+         sessionToken, user, request.assembly(), request.index(),
+         new ChartTargetLineService.EditFields(
+            request.measure(), request.lineStyle(), request.lineColor(),
+            request.fillAboveColor(), request.fillBelowColor(), request.entireChart(),
+            request.value(), request.formula(), request.label(), request.from(), request.to(),
+            request.fromLabel(), request.toLabel(), request.fillColor(), request.statistic(),
+            request.statisticValue(), request.sample(), request.percentageOf()),
+         linkUri);
    }
 
    /**
@@ -3280,7 +3334,7 @@ public class ViewsheetAssemblyAgentController {
                                   String name, String foreground, String background,
                                   FontRequest fontInfo,
                                   List<ConditionClause> conditions, Boolean applyRow,
-                                  Boolean replace) {
+                                  Boolean replace, String newName, Integer position) {
       AssemblyHighlightService.Region region() {
          return highlightRegion(row, col, colName, axis, text);
       }
@@ -3357,9 +3411,18 @@ public class ViewsheetAssemblyAgentController {
       requireEnabled();
       AssemblyHighlightService.SetResult result = highlightService.set(
          sessionToken, user, request.assembly(), request.region(), request.highlight(),
-         Boolean.TRUE.equals(request.replace()), linkUri);
+         Boolean.TRUE.equals(request.replace()), linkUri, request.newName(), request.position());
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("ok", true);
+
+      // Echo what was applied so a client can tell this server from one that predates rename/move.
+      if(result.appliedName() != null) {
+         out.put("renamedTo", result.appliedName());
+      }
+
+      if(result.appliedPosition() != null) {
+         out.put("position", result.appliedPosition());
+      }
 
       if(!result.warnings().isEmpty()) {
          out.put("warning", String.join(" ", result.warnings()));
@@ -3647,10 +3710,17 @@ public class ViewsheetAssemblyAgentController {
          java.util.Objects.equals(a.getOrgID(), b.getOrgID());
    }
 
+   /**
+    * Counts the other open runtimes of the same asset that hold unsaved edits. The lookup is not
+    * scoped to the agent's own principal: a Composer tab belongs to the browser's principal, which
+    * is a different principal from the agent's even for the same human user, so a principal-scoped
+    * lookup never sees the tab (Redmine #81758 feedback). Copies are matched by owner identity.
+    */
    private int countOtherCopiesWithUnsavedEdits(RuntimeViewsheet rvs, AssetEntry entry,
-                                                Principal user)
+                                                Principal agent)
    {
-      RuntimeViewsheet[] open = viewsheetService.getRuntimeViewsheets(user);
+      Principal owner = rvs.getUser() != null ? rvs.getUser() : agent;
+      RuntimeViewsheet[] open = viewsheetService.getRuntimeViewsheets(null);
       int count = 0;
 
       if(open != null) {
@@ -3658,6 +3728,7 @@ public class ViewsheetAssemblyAgentController {
             if(rs != null && rs.getEntry() != null && rs.getID() != null &&
                !rs.getID().equals(rvs.getID()) &&
                !rs.getID().contains(ViewsheetService.PREVIEW_VIEWSHEET) &&
+               isSameOwner(owner, rs.getUser()) &&
                isSameSavedAsset(entry, rs.getEntry()) && rs.getCurrent() != rs.getSavePoint())
             {
                count++;
@@ -3666,6 +3737,10 @@ public class ViewsheetAssemblyAgentController {
       }
 
       return count;
+   }
+
+   private static boolean isSameOwner(Principal a, Principal b) {
+      return a != null && b != null && a.getName() != null && a.getName().equals(b.getName());
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/save")
@@ -4629,7 +4704,7 @@ public class ViewsheetAssemblyAgentController {
    public ResponseEntity<Map<String, String>> handlePairingException(PairingException e) {
       HttpStatus status = switch(e.getKind()) {
          case SESSION_EXPIRED -> HttpStatus.NOT_FOUND;
-         case USER_MISMATCH, FEATURE_DISABLED -> HttpStatus.FORBIDDEN;
+         case USER_MISMATCH, FEATURE_DISABLED, VIEWER_MODE -> HttpStatus.FORBIDDEN;
          case RATE_LIMITED -> HttpStatus.TOO_MANY_REQUESTS;
          case INTERNAL -> HttpStatus.INTERNAL_SERVER_ERROR;
          default -> HttpStatus.BAD_REQUEST;

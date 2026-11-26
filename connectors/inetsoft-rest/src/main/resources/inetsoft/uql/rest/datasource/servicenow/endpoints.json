@@ -24,7 +24,7 @@
     {
       "paged": "false",
       "name": "Aggregate Statistics",
-      "suffix": "/now/stats/{Table Name}?sysparm_query={Query}&sysparm_group_by={Group By Fields?:priority,state,...}&sysparm_avg={Average Fields?}&sysparm_sum={Sum Fields?}sysparm_min_fields={Min Fields?}&sysparm_max_fields={Max Fields?}&sysparm_count={Count Records?:true|false}&sysparm_display_value={Display Value?:true|false}",
+      "suffix": "/now/stats/{Table Name}?sysparm_query={Query}&sysparm_group_by={Group By Fields?:priority,state,...}&sysparm_avg_fields={Average Fields?}&sysparm_sum_fields={Sum Fields?}&sysparm_min_fields={Min Fields?}&sysparm_max_fields={Max Fields?}&sysparm_count={Count Records?:true|false}&sysparm_display_value={Display Value?:true|false}",
       "description": "COUNTS, SUMS, AVERAGES, MINIMA AND MAXIMA computed server-side over any table, with grouping. Requires the table name; takes a query, the aggregate functions and sysparm_group_by. Far cheaper than paging a table to count it, and the right answer to 'how many incidents by priority' or 'average resolution time by group' -- ServiceNow does the aggregation rather than shipping the rows.",
       "responseSchema": {
         "result": {
@@ -79,7 +79,7 @@
       "paged": "true",
       "pageType": "OFFSET",
       "name": "Attachments",
-      "suffix": "api/now/attachment?sysparm_query={Query}",
+      "suffix": "/now/attachment?sysparm_query={Query}",
       "description": "The file attachments on the instance, filtered by an encoded query -- usually on the table and record they belong to. Metadata; the binary is a separate fetch.",
       "responseSchema": {
         "result": [
@@ -113,7 +113,7 @@
     {
       "paged": "false",
       "name": "Attachment",
-      "suffix": "api/now/attachment/{Attachment ID}",
+      "suffix": "/now/attachment/{Attachment ID}",
       "description": "One attachment's metadata by sys_id.",
       "responseSchema": {
         "result": {
@@ -1085,7 +1085,7 @@
       "paged": "true",
       "pageType": "OFFSET",
       "name": "Change Cls",
-      "suffix": "/sn_chg_rest/change/{Change ID}/ci?association_type={Association Type?:affected|impacted|offering}&sysparm_query={Query}",
+      "suffix": "/sn_chg_rest/change/{Change ID}/ci?association_type={Association Type:affected|impacted|offering}&sysparm_query={Query?}",
       "description": "The configuration items one change affects, by association type. Requires a change id. THE LINK BETWEEN A CHANGE AND WHAT IT TOUCHED -- which is how a change is connected to the incidents that followed it.",
       "responseSchema": {
         "result": [
@@ -1176,7 +1176,7 @@
     {
       "paged": "false",
       "name": "CSM Case",
-      "suffix": "api/sn_customerservice/case/{Case ID}",
+      "suffix": "/sn_customerservice/case/{Case ID}",
       "description": "One customer service case by id.",
       "responseSchema": {
         "result": {
@@ -1402,7 +1402,7 @@
       "paged": "true",
       "pageType": "OFFSET",
       "name": "Metric Time Series",
-      "suffix": "api/now/clotho/table/{Table Name}/{Time Series ID}/{Metric Field Name}?sysparm_start={Start Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_end={End Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_display_value={Display Value?:true|false}",
+      "suffix": "/now/clotho/table/{Table Name}/{Time Series ID}/{Metric Field Name}?sysparm_start={Start Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_end={End Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_display_value={Display Value?:true|false}",
       "description": "The time series of one metric field on one table -- ServiceNow's own performance instrumentation. Requires the table, series and metric field. Numeric history rather than record state.",
       "responseSchema": {
         "result": [
@@ -1604,7 +1604,7 @@
       "paged": "true",
       "pageType": "OFFSET",
       "name": "Service Catalog Items",
-      "suffix": "/sn_sc/servicecatalog/items?sysparm_catalog={Catalog ID?}&sysparm_category={Category ID}sysparm_text={Search Text?}&sysparm_type={Type?:Record Producer|Order Guide}&sysparm_view={View?:desktop|mobile|both}",
+      "suffix": "/sn_sc/servicecatalog/items?sysparm_catalog={Catalog ID?}&sysparm_category={Category ID}&sysparm_text={Search Text?}&sysparm_type={Type?:Record Producer|Order Guide}&sysparm_view={View?:desktop|mobile|both}",
       "description": "The requestable items across the catalogues, with their descriptions, prices and the variables each asks for. What can be requested, as opposed to the requests themselves -- those are rows in the sc_request and sc_req_item tables via Table Records.",
       "responseSchema": {
         "result": [

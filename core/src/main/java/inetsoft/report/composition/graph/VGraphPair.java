@@ -34,6 +34,7 @@ import inetsoft.graph.scale.Scale;
 import inetsoft.graph.visual.PointVO;
 import inetsoft.graph.visual.PolygonVO;
 import inetsoft.report.*;
+import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.execution.DataMap;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.region.*;
@@ -59,6 +60,7 @@ import inetsoft.util.graphics.SVGSupport;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.BindingFieldShelfException;
+import inetsoft.util.script.ScriptException;
 import inetsoft.util.swap.DataUnavailable;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
@@ -268,6 +270,39 @@ public class VGraphPair {
    }
 
    /**
+    * Fold an author's stored resize percent into the unit ratios.
+    */
+   static void applyResizePercent(VSChartInfo info, EGraph egraph, double initialWidthRatio,
+                                  double initialHeightRatio)
+   {
+      // a relation chart's percent is of the initial ratio 1 it reports, so its size holds
+      if(egraph != null && egraph.getElementCount() > 0 &&
+         egraph.getElement(0) instanceof RelationElement)
+      {
+         initialWidthRatio = 1;
+         initialHeightRatio = 1;
+
+         // the slider starts from the stored ratio, so an axis not resized keeps none
+         if(!info.isWidthResized()) {
+            info.setUnitWidthRatio(1);
+         }
+
+         if(!info.isHeightResized()) {
+            info.setUnitHeightRatio(1);
+         }
+      }
+
+      // a percent left behind by Reset Size applies to no axis
+      if(info.isWidthResized() && info.getUnitWidthRatioPercent() >= 1) {
+         info.setUnitWidthRatio(initialWidthRatio * info.getUnitWidthRatioPercent());
+      }
+
+      if(info.isHeightResized() && info.getUnitHeightRatioPercent() >= 1) {
+         info.setUnitHeightRatio(initialHeightRatio * info.getUnitHeightRatioPercent());
+      }
+   }
+
+   /**
     * Intialize visual graphs.
     */
    private void initGraph0(ViewsheetSandbox box, String cname, Dimension maxsize,
@@ -426,6 +461,18 @@ public class VGraphPair {
 
             Throwable scriptError = executeScript(scope, script, cname, true);
             creator.setScriptExecuted(true);
+
+            // an export builds the graph once, and this run ignores the failure; without this the
+            // failure of the chart's own script is lost, and the wiz Console cannot show it
+            // (Bug #82316). It is recorded only when this thread has a list: the wiz console
+            // scope installs one, and so do a few sandbox sites on any thread.
+            if(export && scriptError instanceof ScriptException) {
+               List<Exception> exceptions = WorksheetService.ASSET_EXCEPTIONS.get();
+
+               if(exceptions != null) {
+                  exceptions.add((Exception) scriptError);
+               }
+            }
 
             EGraph oegraph = null;
             DataSet nset = null;
@@ -763,13 +810,7 @@ public class VGraphPair {
          initialHeightRatio = 1;
       }
 
-      if(info.getUnitWidthRatioPercent() >= 1) {
-         info.setUnitWidthRatio(initialWidthRatio * info.getUnitWidthRatioPercent());
-      }
-
-      if(info.getUnitHeightRatioPercent() >= 1) {
-         info.setUnitHeightRatio(initialHeightRatio * info.getUnitHeightRatioPercent());
-      }
+      applyResizePercent(info, vgraph.getEGraph(), initialWidthRatio, initialHeightRatio);
 
       double widthRatio = info.getUnitWidthRatio();
       double heightRatio = info.getUnitHeightRatio();

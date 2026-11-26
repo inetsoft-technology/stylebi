@@ -50,6 +50,10 @@ public class TextLayoutManager {
       vtexts = new ArrayList<>();
       fixed = new ArrayList<>();
       vos = new ArrayList<>();
+      // one random sequence per layout, with a fixed seed, so the same chart is laid out the
+      // same way on every render. it must not be static or shared: renders run concurrently
+      // and in any order. (82196)
+      random = new Random(RANDOM_SEED);
 
       boolean moveUp = true;
       boolean moveRight = true;
@@ -168,6 +172,7 @@ public class TextLayoutManager {
       }
 
       FreeHelper helper = new FreeHelper(text, vgraph);
+      helper.setRandom(random);
       // fixed pos label should not be removed, it's placed there explicitly
       helper.setRemovable(text.isRemovable() && collision != VLabel.MOVE_NONE);
       helper.setCheckVO(vo instanceof TagFormVO);
@@ -666,6 +671,7 @@ public class TextLayoutManager {
    private static final int MAX_OVERLAP = 200;
    // maximum overlapped labels to keep on on chart
    private static final int MAX_LABELS = 500;
+   private static final long RANDOM_SEED = 0;
    private static final Color OVERLAP_BG = new Color(255, 255, 255, 80);
 
    protected VGraph vgraph;
@@ -676,4 +682,5 @@ public class TextLayoutManager {
    private List<LayoutHelper> allvos; // all labels and text, and vos
    private Comparator moveComparator;
    private boolean forceInPlot = true;
+   private Random random; // shared by the free helpers of one layout
 }

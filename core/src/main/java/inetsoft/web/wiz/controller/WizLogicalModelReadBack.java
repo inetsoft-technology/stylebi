@@ -21,6 +21,7 @@ import inetsoft.uql.XConstants;
 import inetsoft.web.wiz.controller.WizLogicalModelWire.*;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -194,6 +195,15 @@ final class WizLogicalModelReadBack {
    }
 
    static Attribute canon(Attribute a) {
+      return canon(a, true);
+   }
+
+   /**
+    * The canonical form of an attribute. With {@code withVisible} false the Visible flag is
+    * left out (always true): the one property of an inherited attribute an extended model may
+    * change, so it must not count as a change when compared with the base model's attribute.
+    */
+   static Attribute canon(Attribute a, boolean withVisible) {
       boolean expression = WizLogicalModelMapper.isExpression(a);
       String format = a.format() == null ? null : text(a.format().format());
       String spec = a.format() == null ? null : text(a.format().formatSpec());
@@ -204,7 +214,8 @@ final class WizLogicalModelReadBack {
                        a.format().durationPadZeros() : null);
 
       return new Attribute(
-         a.name(), null, text(a.description()), a.visible() == null || a.visible(),
+         a.name(), null, text(a.description()),
+         !withVisible || a.visible() == null || a.visible(),
          expression ? WizLogicalModelWire.TYPE_EXPRESSION : WizLogicalModelWire.TYPE_COLUMN,
          expression ? null : a.table(), expression ? null : a.column(),
          expression ? a.expression() : null,
@@ -215,6 +226,18 @@ final class WizLogicalModelReadBack {
          Boolean.TRUE.equals(a.browseData()), text(a.browseQuery()), canonFormat,
          canon(a.drill()), null, null);
    }
+
+   private static final Comparator<String> NULLS_FIRST =
+      Comparator.nullsFirst(Comparator.naturalOrder());
+
+   private static final Comparator<DrillParam> PARAM_ORDER =
+      Comparator.comparing(DrillParam::name, NULLS_FIRST)
+         .thenComparing(DrillParam::field, NULLS_FIRST)
+         .thenComparing(DrillParam::type, NULLS_FIRST);
+
+   private static final Comparator<DrillQueryParam> QUERY_PARAM_ORDER =
+      Comparator.comparing(DrillQueryParam::key, NULLS_FIRST)
+         .thenComparing(DrillQueryParam::value, NULLS_FIRST);
 
    private static Drill canon(Drill drill) {
       if(drill == null || drill.paths() == null || drill.paths().isEmpty()) {
@@ -230,9 +253,17 @@ final class WizLogicalModelReadBack {
             params.add(new DrillParam(param.name(), text(param.field()), text(param.type())));
          }
 
-         DrillQuery query = path.query() == null ? null :
-            new DrillQuery(path.query().entry(), path.query().params() == null ? List.of() :
+         // the server stores the parameters grouped by kind (field sources before constants) and
+         // the query parameters in hash order, so only their set is comparable
+         params.sort(PARAM_ORDER);
+
+         List<DrillQueryParam> queryParams = new ArrayList<>(
+            path.query() == null || path.query().params() == null ? List.of() :
                path.query().params());
+         queryParams.sort(QUERY_PARAM_ORDER);
+
+         DrillQuery query = path.query() == null ? null :
+            new DrillQuery(path.query().entry(), queryParams);
 
          paths.add(new WizLogicalModelWire.DrillPath(
             path.name(),

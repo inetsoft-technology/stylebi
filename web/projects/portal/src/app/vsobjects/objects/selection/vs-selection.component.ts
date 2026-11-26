@@ -923,7 +923,20 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    }
 
    getTitleHeight(): number {
-      return this.model.titleFormat.height;
+      const height = this.model.titleFormat.height;
+
+      // closed standalone dropdown is all header; keep it inside the object's own border
+      if(this.closedStandaloneDropdownWithBottomBorder) {
+         return height - Tool.getMarginSize(this._model.objectFormat.border.top) -
+            Tool.getMarginSize(this._model.objectFormat.border.bottom);
+      }
+
+      return height;
+   }
+
+   private get closedStandaloneDropdownWithBottomBorder(): boolean {
+      return !this.inContainer && !!this.model.dropdown && this.isHidden &&
+         Tool.getMarginSize(this.model.objectFormat?.border?.bottom) > 0;
    }
 
    getTitleWidth(): number {
@@ -945,7 +958,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    }
 
    getTitleCellHeight(): number {
-      const bottomMargin: number = Tool.getMarginSize(this.model.titleFormat.border.bottom);
+      const bottomMargin: number = Tool.getMarginSize(this.headerBorderBottomEffective) || 0;
       const topMargin: number = Tool.getMarginSize(this.model.titleFormat.border.top);
       return this.getTitleHeight() - bottomMargin - topMargin;
    }
@@ -2276,7 +2289,30 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
     * (no stylesheet default), otherwise a title with its border set to none still shows a line.
     */
    get selectedTextBorderBottom(): string {
-      return this.headerBorderBottom || "none";
+      return this.headerBorderBottomEffective || "none";
+   }
+
+   /**
+    * A closed standalone dropdown is all header, so its own bottom border would draw a second
+    * line next to the object's border. The title's default bottom border is always set, so it is
+    * dropped whatever its value.
+    */
+   get headerBorderBottomEffective(): string {
+      return this.closedStandaloneDropdownWithBottomBorder ? "none" : this.headerBorderBottom;
+   }
+
+
+   /**
+    * Header corners that meet the card's corners are at least as round as the card's, or they draw
+    * square over it. A title that sets a rounder corner keeps it. A collapsed dropdown is all
+    * header, so its bottom corners meet the card's too.
+    */
+   get headerBorderRadius(): string {
+      const card = this.model.objectFormat.roundCorner ?? 0;
+      const title = this.model.titleFormat.roundCorner ?? 0;
+      const top = card > 0 ? Math.max(card, title) : title;
+      const bottom = card > 0 && this.model.dropdown && this.isHidden ? Math.max(card, title) : title;
+      return `${top}px ${top}px ${bottom}px ${bottom}px`;
    }
 
    get headerBorderBottom(): string {

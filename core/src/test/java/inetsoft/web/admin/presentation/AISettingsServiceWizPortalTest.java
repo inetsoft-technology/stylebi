@@ -64,7 +64,7 @@ class AISettingsServiceWizPortalTest {
 
    private static PresentationAISettingsModel model(boolean visible, String url) {
       return PresentationAISettingsModel.builder()
-         .aiAssistantVisible(false).wizPortalVisible(visible).wizPortalUrl(url).build();
+         .aiAssistantVisible(false).wizPortalVisible(visible).wizServiceUrl(url).build();
    }
 
    @Test
@@ -72,17 +72,33 @@ class AISettingsServiceWizPortalTest {
       service.setModel(model(true, "  https://wiz.example.com/  "));
 
       assertEquals("true", store.get(WizPortalEntry.WIZ_PORTAL_VISIBLE));
-      assertEquals("https://wiz.example.com/", store.get(WizPortalEntry.WIZ_PORTAL_URL));
+      assertEquals("https://wiz.example.com/", store.get(WizPortalEntry.WIZ_SERVICE_URL));
 
       PresentationAISettingsModel read = service.getModel();
       assertTrue(read.wizPortalVisible());
-      assertEquals("https://wiz.example.com/", read.wizPortalUrl());
+      assertEquals("https://wiz.example.com/", read.wizServiceUrl());
    }
 
    @Test
-   void aRootRelativeUrlIsAccepted() throws Exception {
-      service.setModel(model(true, "/wiz/"));
-      assertEquals("/wiz/", store.get(WizPortalEntry.WIZ_PORTAL_URL));
+   void aRootRelativeUrlIsRejectedAndNothingIsWritten() {
+      for(String relative : new String[] { "/", "/wiz/" }) {
+         assertThrows(MessageException.class, () -> service.setModel(model(true, relative)),
+                      relative);
+      }
+
+      assertTrue(store.isEmpty(), "a rejected save must not change any property: " + store);
+   }
+
+   @Test
+   void aUrlWithAQueryOrFragmentIsRejectedAndNothingIsWritten() {
+      for(String bad : new String[] { "https://wiz.example.com/?a=b#c",
+                                      "https://wiz.example.com/?a=b",
+                                      "https://wiz.example.com/#c" })
+      {
+         assertThrows(MessageException.class, () -> service.setModel(model(true, bad)), bad);
+      }
+
+      assertTrue(store.isEmpty(), "a rejected save must not change any property: " + store);
    }
 
    @Test
@@ -102,16 +118,39 @@ class AISettingsServiceWizPortalTest {
       service.setModel(model(false, "  "));
 
       assertEquals("false", store.get(WizPortalEntry.WIZ_PORTAL_VISIBLE));
-      assertFalse(store.containsKey(WizPortalEntry.WIZ_PORTAL_URL));
+      assertFalse(store.containsKey(WizPortalEntry.WIZ_SERVICE_URL));
    }
 
    @Test
-   void resetRemovesBothProperties() throws Exception {
-      service.setModel(model(true, "https://wiz.example.com/"));
+   void theModelReadsOnlyTheWizServiceUrl() throws Exception {
+      store.put("wiz.portal.url", "https://retired.example.com/");
+      assertNull(service.getModel().wizServiceUrl());
+
+      store.put(WizPortalEntry.WIZ_SERVICE_URL, "https://gateway.example.com/");
+      assertEquals("https://gateway.example.com/", service.getModel().wizServiceUrl());
+
+      service.setModel(model(true, "https://other.example.com/"));
+      assertEquals("https://retired.example.com/", store.get("wiz.portal.url"),
+                   "the retired property is neither read nor written");
+   }
+
+   @Test
+   void resetKeepsTheWizServiceUrlAndResetsTheOtherAiFields() throws Exception {
+      service.setModel(PresentationAISettingsModel.builder()
+                          .aiAssistantVisible(true).wizPortalVisible(true)
+                          .wizServiceUrl("https://wiz.example.com/")
+                          .chatAppServerUrl("https://chat.example.com/")
+                          .chatAppInternalUrl("http://chat.internal/")
+                          .chatAppTitle("Title").chatAppVendorName("Vendor")
+                          .chatAppLogoUrl("portal/logo.png").build());
+
       service.resetSettings();
 
-      assertFalse(store.containsKey(WizPortalEntry.WIZ_PORTAL_VISIBLE));
-      assertFalse(store.containsKey(WizPortalEntry.WIZ_PORTAL_URL));
+      // wiz.service.url is infrastructure config (SSO callback allow-list and Wiz entry address);
+      // the page-wide Presentation reset must not break Wiz SSO
+      assertEquals("https://wiz.example.com/", store.get(WizPortalEntry.WIZ_SERVICE_URL));
+      assertEquals(Map.of(WizPortalEntry.WIZ_SERVICE_URL, "https://wiz.example.com/"), store,
+                   "every other AI Integration property is reset");
    }
 
    @Test
@@ -120,5 +159,6 @@ class AISettingsServiceWizPortalTest {
       assertNull(WizPortalEntry.normalizeUrl(null));
       assertNull(WizPortalEntry.normalizeUrl(""));
       assertNull(WizPortalEntry.normalizeUrl("javascript:alert(1)"));
+      assertNull(WizPortalEntry.normalizeUrl("/wiz/"));
    }
 }

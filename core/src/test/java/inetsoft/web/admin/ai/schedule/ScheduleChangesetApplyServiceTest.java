@@ -85,6 +85,11 @@ class ScheduleChangesetApplyServiceTest {
          .thenAnswer(inv -> {
             String s = inv.getArgument(0);
 
+            // an empty password (an action that has none) is read back as it is
+            if(s.isEmpty()) {
+               return s;
+            }
+
             if(!s.startsWith("TKN:")) {
                throw new IllegalArgumentException("not a token");
             }
@@ -132,7 +137,7 @@ class ScheduleChangesetApplyServiceTest {
       verify(backupService, never()).backup(anyString());
       assertNull(result.rollbackFailures());
       verify(scheduleGateway).addScheduleTask(any(), eq(true), anyBoolean(), anyLong(), anyLong(),
-         any(), any(), any(), any(), any(), any(), any(), eq(user));
+         any(), any(), any(), any(), any(), any(), any(), any(), any(), eq(user));
       verify(scheduleGateway, never()).removeScheduleTask(anyString(), any(), eq(user));
    }
 
@@ -252,7 +257,7 @@ class ScheduleChangesetApplyServiceTest {
                   () -> service.apply(req, user, null));
       verify(scheduleGateway, never())
          .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
-                          any(), any(), any(), any(), any(), eq(user));
+                          any(), any(), any(), any(), any(), any(), any(), eq(user));
    }
 
    @Test void applyThrowsWhenReviewOutcomeMissing() throws Exception {
@@ -285,7 +290,7 @@ class ScheduleChangesetApplyServiceTest {
       assertNotNull(ex.current());
       verify(scheduleGateway, never())
          .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
-                          any(), any(), any(), any(), any(), eq(user));
+                          any(), any(), any(), any(), any(), any(), any(), eq(user));
    }
 
    @Test void rejectsABlankTaskToken() throws Exception {
@@ -320,7 +325,7 @@ class ScheduleChangesetApplyServiceTest {
          () -> service.apply(req, user, null));
       verify(scheduleGateway, never())
          .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
-                          any(), any(), any(), any(), any(), eq(user));
+                          any(), any(), any(), any(), any(), any(), any(), eq(user));
    }
 
    // -------------------------------------------------------------------------
@@ -337,7 +342,7 @@ class ScheduleChangesetApplyServiceTest {
       lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
       doThrow(new IllegalStateException("boom")).when(scheduleGateway)
          .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
-                          any(), any(), any(), any(), any(), eq(user));
+                          any(), any(), any(), any(), any(), any(), any(), eq(user));
 
       ScheduleApplyRequest req = applyRequest("create a task", createChange(spec));
 
@@ -371,7 +376,7 @@ class ScheduleChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       assertNull(result.rollbackFailures());
       verify(scheduleGateway, never()).addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(),
-         anyLong(), any(), any(), any(), any(), any(), any(), any(), any());
+         anyLong(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
    }
 
    @Test void createRefusedBeforeAnyWriteIsRolledBackNotRollbackFailed() throws Exception {
@@ -389,7 +394,7 @@ class ScheduleChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       assertNull(result.rollbackFailures());
       verify(scheduleGateway, never()).addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(),
-         anyLong(), any(), any(), any(), any(), any(), any(), any(), any());
+         anyLong(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
    }
 
    // The before-state capture (the deep copy of the stored task and its permission, bug #78420)
@@ -607,6 +612,208 @@ class ScheduleChangesetApplyServiceTest {
    // helpers
    // -------------------------------------------------------------------------
 
+   // -------------------------------------------------------------------------
+   // Bug #82274: update, and a create in a folder
+   // -------------------------------------------------------------------------
+
+   private static ScheduleChangeRequest updateChange(String taskId, ScheduleTaskPatch patch) {
+      ScheduleChangeRequest change = new ScheduleChangeRequest();
+      change.setVerb(ScheduleChangeRequest.VERB_UPDATE);
+      change.setTaskId(taskId);
+      change.setPatch(patch);
+      return change;
+   }
+
+   private static ScheduleTaskPatch disablePatch() {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setEnabled(false);
+      return patch;
+   }
+
+   private static inetsoft.sree.schedule.ScheduleTask disabledTask() {
+      inetsoft.sree.schedule.ScheduleTask task = sreeTask("t1", "admin");
+      task.setEnabled(false);
+      return task;
+   }
+
+   @Test void appliesAnUpdateAndReportsAppliedWhenTheStoredTaskIsThePlannedOne() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask existing = sreeTask("t1", "admin");
+      ScheduleTaskPatch patch = disablePatch();
+      when(scheduleManager.getScheduleTask("t1"))
+         .thenReturn(existing)         // preview
+         .thenReturn(existing)         // re-resolve inside apply()
+         .thenReturn(existing)         // apply: capture before-state
+         .thenReturn(disabledTask());  // apply: verify
+      when(scheduleGateway.buildUpdatedTask(eq("t1"), eq(patch), any(), eq(user)))
+         .thenAnswer(inv -> disabledTask());
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ApplyResult result = service.apply(applyRequest("disable a task", updateChange("t1", patch)),
+                                         user, null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.rollbackFailures());
+      verify(scheduleGateway).storeUpdatedTask(eq("t1"), any(), eq(user));
+      verify(scheduleGateway, never()).removeScheduleTask(anyString(), any(), any());
+      verify(scheduleGateway, never()).addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(),
+         anyLong(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+   }
+
+   // An update whose stored result is not the planned task is restored from the pre-image captured
+   // during apply, in the folder the task was in.
+   @Test void restoresThePreImageWhenTheStoredTaskIsNotThePlannedOne() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask existing = sreeTask("t1", "admin");
+      ScheduleTaskPatch patch = disablePatch();
+      when(scheduleManager.getScheduleTask("t1"))
+         .thenReturn(existing)   // preview
+         .thenReturn(existing)   // re-resolve inside apply()
+         .thenReturn(existing)   // apply: capture before-state
+         .thenReturn(existing)   // apply: verify, still enabled so not the planned task
+         .thenReturn(existing);  // rollback verify, the pre-image is back
+      when(scheduleGateway.buildUpdatedTask(eq("t1"), eq(patch), any(), eq(user)))
+         .thenAnswer(inv -> disabledTask());
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ApplyResult result = service.apply(applyRequest("disable a task", updateChange("t1", patch)),
+                                         user, null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> restored =
+         ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+      verify(scheduleManager).setScheduleTask(eq("t1"), restored.capture(), any(), eq(user), any());
+      assertTrue(restored.getValue().isEnabled());
+      assertNotSame(existing, restored.getValue());
+   }
+
+   @Test void reportsRollbackFailedWhenTheRestoredTaskIsNotThePreImage() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask existing = sreeTask("t1", "admin");
+      ScheduleTaskPatch patch = disablePatch();
+      when(scheduleManager.getScheduleTask("t1"))
+         .thenReturn(existing)
+         .thenReturn(existing)
+         .thenReturn(existing)
+         .thenReturn(existing)           // verify: not the planned task
+         .thenReturn(disabledTask());    // rollback verify: still not the pre-image
+      when(scheduleGateway.buildUpdatedTask(eq("t1"), eq(patch), any(), eq(user)))
+         .thenAnswer(inv -> disabledTask());
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ApplyResult result = service.apply(applyRequest("disable a task", updateChange("t1", patch)),
+                                         user, null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertFalse(result.rollbackFailures().isEmpty());
+   }
+
+   private static inetsoft.sree.schedule.ScheduleTask zonedTask(String zone, boolean enabled) {
+      inetsoft.sree.schedule.ScheduleTask task = sreeTask("t1", "admin");
+      task.setTimeZone(zone);
+      task.setEnabled(enabled);
+      return task;
+   }
+
+   private void applyZoneUpdate(inetsoft.sree.schedule.ScheduleTask existing,
+                                ScheduleTaskPatch patch, inetsoft.sree.schedule.ScheduleTask planned,
+                                inetsoft.sree.schedule.ScheduleTask readBack, String expectedStatus)
+      throws Exception
+   {
+      lenient().when(scheduleGateway.previewConditionResets(anyList(), eq(user)))
+         .thenReturn(java.util.Collections.singletonList(null));
+      when(scheduleManager.getScheduleTask("t1"))
+         .thenReturn(existing)    // preview
+         .thenReturn(existing)    // re-resolve inside apply()
+         .thenReturn(existing)    // apply: capture before-state
+         .thenReturn(readBack)    // apply: verify
+         .thenReturn(existing);   // rollback verify, when there is one
+      when(scheduleGateway.buildUpdatedTask(eq("t1"), eq(patch), any(), eq(user)))
+         .thenAnswer(inv -> planned);
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ApplyResult result = service.apply(applyRequest("zone", updateChange("t1", patch)), user, null);
+
+      assertEquals(expectedStatus, result.status());
+   }
+
+   private inetsoft.sree.schedule.ScheduleTask storedByUpdate() throws Exception {
+      ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> stored =
+         ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+      verify(scheduleGateway).storeUpdatedTask(eq("t1"), stored.capture(), eq(user));
+      return stored.getValue();
+   }
+
+   @Test void updateSetsTheTaskTimeZoneAndVerifiesItAgainstThePlan() throws Exception {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("Asia/Tokyo");
+
+      applyZoneUpdate(zonedTask(null, true), patch, zonedTask("Asia/Tokyo", true),
+                      zonedTask("Asia/Tokyo", true), AdminChangesetApplyService.STATUS_APPLIED);
+
+      assertEquals("Asia/Tokyo", storedByUpdate().getTimeZone());
+   }
+
+   @Test void updateClearsTheTaskTimeZoneAndVerifiesItAgainstThePlan() throws Exception {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("");
+
+      applyZoneUpdate(zonedTask("Asia/Tokyo", true), patch, zonedTask(null, true),
+                      zonedTask(null, true), AdminChangesetApplyService.STATUS_APPLIED);
+
+      assertNull(storedByUpdate().getTimeZone());
+   }
+
+   // C1: a patch that does not name the zone keeps it, also when it replaces the conditions
+   @Test void updateWithoutATimeZoneKeepsTheStoredZoneAcrossAConditionReplacement() throws Exception {
+      inetsoft.web.api.schedule.TimeCondition time = new inetsoft.web.api.schedule.TimeCondition();
+      time.setHour(5);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setEnabled(false);
+      patch.setConditions(List.of(time));
+
+      applyZoneUpdate(zonedTask("Europe/Paris", true), patch, zonedTask("Europe/Paris", false),
+                      zonedTask("Europe/Paris", false), AdminChangesetApplyService.STATUS_APPLIED);
+
+      assertEquals("Europe/Paris", storedByUpdate().getTimeZone());
+   }
+
+   // the zone is part of the pre-image: a failed verification puts the original zone back
+   @Test void rollbackOfAnUpdateRestoresTheOriginalTaskTimeZone() throws Exception {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("Asia/Tokyo");
+      inetsoft.sree.schedule.ScheduleTask existing = zonedTask("Europe/Paris", true);
+
+      // the store reads back the old zone, so it is not the planned task
+      applyZoneUpdate(existing, patch, zonedTask("Asia/Tokyo", true), existing,
+                      AdminChangesetApplyService.STATUS_ROLLED_BACK);
+
+      ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> restored =
+         ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+      verify(scheduleManager).setScheduleTask(eq("t1"), restored.capture(), any(), eq(user), any());
+      assertEquals("Europe/Paris", restored.getValue().getTimeZone());
+      assertNotSame(existing, restored.getValue());
+   }
+
+   @Test void createsInTheFolderTheChangeNames() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      ScheduleChangeRequest change = createChange(spec);
+      change.setPath("Finance/Reports");
+      inetsoft.uql.asset.AssetEntry folder = new inetsoft.uql.asset.AssetEntry(
+         inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE,
+         inetsoft.uql.asset.AssetEntry.Type.SCHEDULE_TASK_FOLDER, "Finance/Reports", null);
+      when(scheduleGateway.resolveCreateFolder("Finance/Reports", user)).thenReturn(folder);
+      when(scheduleManager.getScheduleTask(taskId))
+         .thenReturn(null)
+         .thenReturn(null)
+         .thenReturn(sreeTask("t1", "admin"));
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+
+      ApplyResult result = service.apply(applyRequest("create in a folder", change), user, null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(scheduleGateway).addScheduleTask(any(), eq(true), anyBoolean(), anyLong(), anyLong(),
+         any(), any(), any(), any(), any(), any(), any(), eq(folder), any(), eq(user));
+   }
+
    private ScheduleApplyRequest applyRequest(String task, ScheduleChangeRequest... changes)
       throws Exception
    {
@@ -680,5 +887,38 @@ class ScheduleChangesetApplyServiceTest {
       task.setOwner(new IdentityID(owner, "host-org"));
       task.setEnabled(true);
       return task;
+   }
+
+   @Test void createPassesTheTaskTimeZoneToTheGateway() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      ScheduleChangeRequest change = createChange(spec);
+      change.setTimeZone("Asia/Tokyo");
+      when(scheduleManager.getScheduleTask(taskId))
+         .thenReturn(null)
+         .thenReturn(null)
+         .thenReturn(sreeTask("t1", "admin"));
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+
+      ApplyResult result = service.apply(applyRequest("create with a zone", change), user, null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(scheduleGateway).addScheduleTask(any(), eq(true), anyBoolean(), anyLong(), anyLong(),
+         any(), any(), any(), any(), any(), any(), any(), any(), eq("Asia/Tokyo"), eq(user));
+   }
+
+   @Test void createWithoutATimeZonePassesNone() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      when(scheduleManager.getScheduleTask(taskId))
+         .thenReturn(null)
+         .thenReturn(null)
+         .thenReturn(sreeTask("t1", "admin"));
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+
+      service.apply(applyRequest("create", createChange(spec)), user, null);
+
+      verify(scheduleGateway).addScheduleTask(any(), eq(true), anyBoolean(), anyLong(), anyLong(),
+         any(), any(), any(), any(), any(), any(), any(), any(), isNull(), eq(user));
    }
 }

@@ -20,6 +20,7 @@ package inetsoft.util.script;
 import inetsoft.test.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -29,7 +30,10 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import javax.imageio.ImageIO;
 import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.nio.file.Path;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -379,10 +383,8 @@ class JavaScriptEngineTest {
                       new Object[] { "a", "b", "c" }), // List input (GraalJS arrays surface as List)
          Arguments.of(new Object[] { 1, 2, 3 }, new Object[] { 1, 2, 3 }), // Java array input
          Arguments.of("a,b,c", new Object[] { "a", "b", "c" }), // String input
-         // A non-array scalar is stringified and comma-split (Tool.split), so a
-         // single number surfaces as its String form. This is the long-standing
-         // JSObject.split behavior (also true under Rhino). (#75423)
-         Arguments.of(42, new Object[] { "42" }) // Single object input
+         // A single value that is not a text is kept, with its type, as the one element. (#81695)
+         Arguments.of(42, new Object[] { 42 }) // Single object input
       );
    }
 
@@ -700,7 +702,7 @@ class JavaScriptEngineTest {
    }
 
    @Test
-   void testGetImages() {
+   void testGetImages(@TempDir Path tempDir) throws Exception {
       // Test with a null input
       Image result = JavaScriptEngine.getImage(null);
       assertNull(result);
@@ -709,9 +711,10 @@ class JavaScriptEngineTest {
       result = JavaScriptEngine.getImage("non-existing-resource");
       assertNull(result);
 
-      //Load an image from a valid url
-      result= JavaScriptEngine.getImage(
-         "https://www.inetsoft.com/images/website/homepage/dataPipeline-1.png");
+      //Load an image from a valid url (a local file: URL, so no network access is needed)
+      Path png = tempDir.resolve("image.png");
+      ImageIO.write(new BufferedImage(4, 4, BufferedImage.TYPE_INT_ARGB), "png", png.toFile());
+      result = JavaScriptEngine.getImage(png.toUri().toString());
       assertNotNull(result);
 
       //Load an image from a valid resource path

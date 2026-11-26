@@ -127,6 +127,7 @@ public class HubSpotQuery extends EndpointJsonQuery<HubSpotEndpoint> {
             .maxResultsPerPage(100)
             .recordCountPath(getRecordCountPath(endpoint))
             .baseRecordLength(0)
+            .zeroBasedPageIndex(true)
             .build();
       }
       else if(endpoint.getPageType() == 3) {

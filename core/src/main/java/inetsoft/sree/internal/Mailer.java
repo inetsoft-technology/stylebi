@@ -202,6 +202,7 @@ public class Mailer {
                   SreeEnv.getProperty("mail.smtp.ssl.protocols"));
             }
 
+            applyTimeouts(prop, prot);
             Session session = Session.getInstance(prop, null);
             send(session, toaddrs, ccaddrs, bccaddrs, from, subject, body,
                  attach, images, mhtml, htmlContent);
@@ -214,6 +215,32 @@ public class Mailer {
 
       if(!sendCompleted) {
          throw new MessagingException(Tool.concat(exArr, '\n'));
+      }
+   }
+
+   /**
+    * Sets the socket timeouts of the SMTP session. Without them a server that accepts the
+    * connection but never answers blocks the send (and the scheduled task) indefinitely.
+    * Each value (milliseconds) can be overridden by the property
+    * <code>mail.smtp.connectiontimeout</code>, <code>mail.smtp.timeout</code> or
+    * <code>mail.smtp.writetimeout</code>.
+    */
+   static void applyTimeouts(Properties prop, String prot) {
+      prop.setProperty("mail." + prot + ".connectiontimeout",
+                       timeout("mail.smtp.connectiontimeout", "30000"));
+      prop.setProperty("mail." + prot + ".timeout", timeout("mail.smtp.timeout", "60000"));
+      prop.setProperty("mail." + prot + ".writetimeout",
+                       timeout("mail.smtp.writetimeout", "60000"));
+   }
+
+   private static String timeout(String name, String def) {
+      String value = SreeEnv.getProperty(name);
+
+      try {
+         return value != null && Long.parseLong(value.trim()) > 0 ? value.trim() : def;
+      }
+      catch(NumberFormatException e) {
+         return def;
       }
    }
 

@@ -36,6 +36,7 @@ import org.w3c.dom.NodeList;
 import java.io.*;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
 
@@ -383,7 +384,7 @@ public class ScheduleTaskAsset extends AbstractXAsset {
          manager.checkScheduleTaskSave(newTask.getTaskId(), newTask, principal);
 
          if(existing != null) {
-            manager.removeScheduleTask(newTask.getTaskId(), principal);
+            manager.removeScheduleTaskForReplace(newTask.getTaskId(), principal);
          }
 
          // Bug #77972, the batch action targets are checked against the removed task's targets
@@ -454,25 +455,34 @@ public class ScheduleTaskAsset extends AbstractXAsset {
    private void importScheduleFolder(AssetEntry folderEntry,
                                      IndexedStorage indexedStorage, IdentityID owner) throws Exception
    {
-      String folderID = folderEntry.toIdentifier();
-      AssetFolder folderAsset = (AssetFolder) indexedStorage.getXMLSerializable(folderID, null);
+      // Bug #81905, the folders are read, changed and written back under the folder lock, so an
+      // import doesn't drop the entries another node added; only storage is used under the lock
+      Lock folderLock = ScheduleFolderLock.acquire(null);
 
-      if(folderAsset == null) {
-         folderAsset = new AssetFolder();
-         folderAsset.setOwner(owner);
+      try {
+         String folderID = folderEntry.toIdentifier();
+         AssetFolder folderAsset = (AssetFolder) indexedStorage.getXMLSerializable(folderID, null);
+
+         if(folderAsset == null) {
+            folderAsset = new AssetFolder();
+            folderAsset.setOwner(owner);
+         }
+
+         AssetEntry parentEntry = folderEntry.getParent();
+
+         if(!indexedStorage.contains(parentEntry.toIdentifier())) {
+            importScheduleFolder(parentEntry, indexedStorage, owner);
+         }
+
+         AssetFolder parentFolder =
+            (AssetFolder) indexedStorage.getXMLSerializable(parentEntry.toIdentifier(), null);
+         parentFolder.addEntry(folderEntry);
+         indexedStorage.putXMLSerializable(parentEntry.toIdentifier(), parentFolder);
+         indexedStorage.putXMLSerializable(folderID, folderAsset);
       }
-
-      AssetEntry parentEntry = folderEntry.getParent();
-
-      if(!indexedStorage.contains(parentEntry.toIdentifier())) {
-         importScheduleFolder(parentEntry, indexedStorage, owner);
+      finally {
+         folderLock.unlock();
       }
-
-      AssetFolder parentFolder =
-         (AssetFolder) indexedStorage.getXMLSerializable(parentEntry.toIdentifier(), null);
-      parentFolder.addEntry(folderEntry);
-      indexedStorage.putXMLSerializable(parentEntry.toIdentifier(), parentFolder);
-      indexedStorage.putXMLSerializable(folderID, folderAsset);
    }
 
    private void moveTask(ScheduleTask task, String parentPath, IndexedStorage indexedStorage,
@@ -485,19 +495,27 @@ public class ScheduleTaskAsset extends AbstractXAsset {
       AssetEntry oEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
                                               AssetEntry.Type.SCHEDULE_TASK_FOLDER, "/", null);
 
-      AssetFolder npfolder =
-         (AssetFolder) indexedStorage.getXMLSerializable(nEntry.toIdentifier(), null);
-      AssetFolder opfolder =
-         (AssetFolder) indexedStorage.getXMLSerializable(oEntry.toIdentifier(), null);
+      // Bug #81905, both folders are changed under the folder lock; the save below is outside it
+      Lock folderLock = ScheduleFolderLock.acquire(null);
 
-      if(npfolder != null) {
-         npfolder.addEntry(taskEntry);
-         indexedStorage.putXMLSerializable(nEntry.toIdentifier(), npfolder);
+      try {
+         AssetFolder npfolder =
+            (AssetFolder) indexedStorage.getXMLSerializable(nEntry.toIdentifier(), null);
+         AssetFolder opfolder =
+            (AssetFolder) indexedStorage.getXMLSerializable(oEntry.toIdentifier(), null);
+
+         if(npfolder != null) {
+            npfolder.addEntry(taskEntry);
+            indexedStorage.putXMLSerializable(nEntry.toIdentifier(), npfolder);
+         }
+
+         if(opfolder != null) {
+            opfolder.removeEntry(taskEntry);
+            indexedStorage.putXMLSerializable(oEntry.toIdentifier(), opfolder);
+         }
       }
-
-      if(opfolder != null) {
-         opfolder.removeEntry(taskEntry);
-         indexedStorage.putXMLSerializable(oEntry.toIdentifier(), opfolder);
+      finally {
+         folderLock.unlock();
       }
 
       manager.setScheduleTask(task.getTaskId(), task, nEntry, principal);

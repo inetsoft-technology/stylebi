@@ -70,9 +70,9 @@ class SheetPropertyServiceTest {
          assertFalse(names.contains(phantom), phantom + " is not a settable viewsheet property");
       }
 
-      // filtersPane and localizationPane are deliberately absent: whole object graphs, read-only,
-      // and aliasing them made every list/get carry the entire localization component tree.
-      // Reading them is what raw:true is for.
+      // filtersPane and localizationPane are deliberately absent: whole object graphs, and
+      // aliasing them made every list/get carry the entire localization component tree. Reading
+      // them is what raw:true is for; their two lists are written by raw path (bug #82317).
       assertFalse(names.contains("filtersPane"));
       assertFalse(names.contains("localizationPane"));
 

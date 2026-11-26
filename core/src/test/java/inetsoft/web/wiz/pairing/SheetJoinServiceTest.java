@@ -111,7 +111,10 @@ class SheetJoinServiceTest {
 
    @BeforeEach
    void setUp() {
-      pairing  = new SheetPairingService(() -> FIXED_NOW);
+      // the minting node sees every viewsheet as a Composer one (the join-side lookup stays null)
+      pairing  = new SheetPairingService(() -> FIXED_NOW, id -> null,
+                                         id -> org.mockito.Mockito.mock(
+                                            inetsoft.report.composition.RuntimeViewsheet.class));
       sessions = new SheetSessionService(() -> FIXED_NOW);
       svc      = new SheetJoinService(pairing, sessions, feature, runtimeAccess, broadcast);
    }

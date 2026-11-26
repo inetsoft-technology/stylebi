@@ -31,6 +31,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
 import inetsoft.web.composer.command.OpenComposerAssetCommand;
@@ -43,6 +44,7 @@ import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.SheetRuntimeAccess;
 import inetsoft.web.wiz.pairing.SheetSessionService;
 import inetsoft.web.wiz.pairing.SheetType;
+import inetsoft.web.wiz.pairing.ViewerModePolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -118,6 +120,10 @@ public class SheetOpenService {
    {
       JoinSession vsSession =
          viewsheetSessions.requireSessionAllowingPaneScope(sessionToken, user);
+
+      // A viewer session (a portal Viewer dashboard) reads and exports; it never opens another
+      // sheet. Same place and reason as the pane-scope guard below: before the runtime is touched.
+      ViewerModePolicy.requireNotViewer(vsSession, runtimeAccess);
 
       // Whole-branch review finding 1 (CRITICAL). This guard must come FIRST -- before the
       // runtime is touched, before the worksheet is opened, before any grant is minted.
@@ -309,6 +315,10 @@ public class SheetOpenService {
             "and run connect_sheet again.");
       }
 
+      // A viewer session never opens another sheet -- without this, open_viewsheet from a
+      // viewer-paired session minted an editable design runtime (spike item 6), a mode escape.
+      ViewerModePolicy.requireNotViewer(actingSession, runtimeAccess);
+
       // Same laundering hazard createViewsheet/createWorksheet guard against: a pane-scoped
       // session is a write handle for ONE script location and must not mint a whole-sheet one.
       if(actingSession.editorContext() != null) {
@@ -385,6 +395,7 @@ public class SheetOpenService {
          }
          else if(isViewsheet) {
             runtimeId = viewsheetService.openViewsheet(entry, browserUser, false);
+            warnings = viewsheetLockWarnings(runtimeId, browserUser);
          }
          else {
             // Loading a worksheet records what it could not do (an outer mirror that cannot be
@@ -490,6 +501,42 @@ public class SheetOpenService {
       }
 
       return best;
+   }
+
+   /**
+    * Reports a lock another user holds on a freshly opened viewsheet, as the Composer's own open
+    * does. The lock is only reported, the open still succeeds (the edit is refused later, at
+    * save). The same user holding the asset in another place is not reported here: that case is
+    * guarded when saving (Redmine #81758).
+    */
+   private List<String> viewsheetLockWarnings(String runtimeId, Principal browserUser) {
+      if(runtimeId == null) {
+         return List.of();
+      }
+
+      RuntimeViewsheet opened;
+
+      try {
+         opened = viewsheetService.getViewsheet(runtimeId, browserUser);
+      }
+      catch(Exception e) {
+         LOG.warn("Unable to read the lock state of the opened viewsheet {}", runtimeId, e);
+         return List.of("Could not check whether this dashboard is locked by another user: " +
+                        e.getMessage());
+      }
+
+      String lockOwner = opened == null ? null : opened.getLockOwner();
+
+      if(lockOwner == null || browserUser == null || browserUser.getName() == null ||
+         IdentityID.getIdentityIDFromKey(lockOwner)
+            .equals(IdentityID.getIdentityIDFromKey(browserUser.getName())))
+      {
+         return List.of();
+      }
+
+      // The same catalog entry the Composer's own lock message uses.
+      return List.of(Catalog.getCatalog().getString(
+         "common.AssetLockBy", IdentityID.getIdentityIDFromKey(lockOwner).getName()));
    }
 
    /**
@@ -654,6 +701,9 @@ public class SheetOpenService {
             "pairing code and run connect_sheet again.");
       }
 
+      // A viewer session never creates a sheet (see openSavedSheet).
+      ViewerModePolicy.requireNotViewer(actingSession, runtimeAccess);
+
       // Same class of bug openBaseWorksheet guards against (see its own guard and comment
       // above): a pane-scoped session is a write handle for ONE script location, and minting a
       // new whole-sheet (editorContext = null) session from it -- as the code below does --
@@ -789,6 +839,9 @@ public class SheetOpenService {
             "Invalid or expired session: " + fromSessionToken + ". Ask the user for a fresh " +
             "pairing code and run connect_sheet again.");
       }
+
+      // A viewer session never creates a sheet (see openSavedSheet).
+      ViewerModePolicy.requireNotViewer(actingSession, runtimeAccess);
 
       // Same class of bug openBaseWorksheet/createViewsheet guard against: a pane-scoped session
       // is a write handle for ONE script location, and minting a new whole-sheet

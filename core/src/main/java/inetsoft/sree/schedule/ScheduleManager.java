@@ -29,7 +29,9 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
+import inetsoft.util.dep.XAsset;
 import inetsoft.web.RecycleUtils;
+import inetsoft.web.admin.deploy.XAssetExportPermission;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.ArrayUtils;
@@ -916,7 +918,7 @@ public class ScheduleManager implements MessageListener {
       // Bug #77549, #77863, every refusal of the save is made before the stored task is
       // removed, so it isn't lost
       checkReplaceScheduleTask(oldTaskId, taskId, task, principal);
-      removeScheduleTask(oldTaskId, principal);
+      removeScheduleTaskForReplace(oldTaskId, principal);
       setScheduleTask(taskId, task, parent, isInternalTask(taskId), principal, ownerChecked,
                       stored);
    }
@@ -1397,6 +1399,108 @@ public class ScheduleManager implements MessageListener {
       // e.g. another user's private sheet of the same organization. Every viewsheet action sheet
       // and batch action query is checked here against the asset READ check that the run uses.
       checkActionSheetRead(task, checkedTask, stored, principal);
+
+      // Bug #82341, a backup action exports its assets as the task owner when it runs
+      checkBackupAssetsExportable(task, checkedTask, stored);
+   }
+
+   /**
+    * Bug #82341, refuses a backup action asset that the task owner may not export, by the same
+    * check the action makes when the task runs ({@link IndividualAssetBackupAction#run}). The
+    * callers check the saving principal, which is the one that decides when a site admin creates
+    * a task for another user, so an asset only the admin may export was saved and then failed on
+    * every run. Has the same shape as {@link #checkActionSheetRead}:
+    * <ul>
+    *    <li>an asset that isn't held by a backup action of the stored task is checked;</li>
+    *    <li>every asset is checked when the owner changes, the execute-as identity is not
+    *    involved because the action always exports as the owner;</li>
+    *    <li>an asset held by the stored task is otherwise not checked, so a stored task whose
+    *    owner can no longer export it can still be changed, renamed or moved, the run still
+    *    refuses it.</li>
+    * </ul>
+    * Nothing is checked without security. An owner principal that can't be built is a refusal.
+    *
+    * @param task        the task as it's saved.
+    * @param checkedTask the task with the owner it's saved with.
+    * @param stored      the task as it's stored before the save, or {@code null} if none.
+    */
+   private void checkBackupAssetsExportable(ScheduleTask task, ScheduleTask checkedTask,
+                                            ScheduleTask stored)
+      throws inetsoft.sree.security.SecurityException
+   {
+      if(!getSecurityEngine().isSecurityEnabled()) {
+         return;
+      }
+
+      Map<String, XAsset> assets = getBackupAssets(task);
+
+      if(assets.isEmpty()) {
+         return;
+      }
+
+      Set<String> storedAssets = getBackupAssets(stored).keySet();
+      IdentityID owner = checkedTask.getOwner();
+      boolean ownerChanged = stored == null || !Objects.equals(owner, stored.getOwner());
+      Principal ownerPrincipal = null;
+      boolean ownerPrincipalBuilt = false;
+
+      for(Map.Entry<String, XAsset> entry : assets.entrySet()) {
+         if(storedAssets.contains(entry.getKey()) && !ownerChanged) {
+            continue;
+         }
+
+         if(!ownerPrincipalBuilt) {
+            ownerPrincipal = getOwnerPrincipal(owner);
+            ownerPrincipalBuilt = true;
+         }
+
+         XAsset asset = entry.getValue();
+         // the same resource path as the task editor and the run use
+         String path = asset.getPath() == null ? null : SUtil.getUnscopedPath(asset.getPath());
+
+         if(!XAssetExportPermission.isPermitted(asset, path, true, ownerPrincipal)) {
+            throw new inetsoft.sree.security.SecurityException(String.format(
+               "Unauthorized access to backup asset \"%s\", it may not be exported by the task " +
+               "owner %s", entry.getKey(), owner == null ? null : owner.convertToKey()));
+         }
+      }
+   }
+
+   /**
+    * Gets the assets that the backup actions of a task export, by their identifiers.
+    */
+   private static Map<String, XAsset> getBackupAssets(ScheduleTask task) {
+      Map<String, XAsset> assets = new LinkedHashMap<>();
+
+      for(int i = 0; task != null && i < task.getActionCount(); i++) {
+         if(task.getAction(i) instanceof IndividualAssetBackupAction backup &&
+            backup.getAssets() != null)
+         {
+            for(XAsset asset : backup.getAssets()) {
+               assets.putIfAbsent(asset.toIdentifier(), asset);
+            }
+         }
+      }
+
+      return assets;
+   }
+
+   /**
+    * Gets the principal that a backup action exports as, see
+    * {@link IndividualAssetBackupAction}, the task owner.
+    */
+   private static Principal getOwnerPrincipal(IdentityID owner) {
+      if(owner == null) {
+         return null;
+      }
+
+      try {
+         return SUtil.getScheduleTaskOwnerPrincipal(owner, null, false);
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to get the owner principal of schedule task owner {}", owner, ex);
+         return null;
+      }
    }
 
    /**
@@ -1729,14 +1833,24 @@ public class ScheduleManager implements MessageListener {
       // a legacy identifier with no embedded org (entry.getOrgID() == null) is not checked here
       // at all -- the stored value is left to the runtime READ check (AbstractAssetEngine.
       // getSheet/checkAssetPermission0) at load time, the same as it was before this fix.
-      if(entry != null && entry.getOrgID() != null &&
-         !Tool.equals(entry.getOrgID(), orgID, false) &&
-         !(Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID(), false) &&
-           SUtil.isDefaultVSGloballyVisible(principal)))
-      {
+      if(entry != null && isForeignOrganization(entry.getOrgID(), orgID, principal)) {
          throw new inetsoft.sree.security.SecurityException(String.format(
             "Unauthorized access to viewsheet \"%s\" by %s", sheet, principal));
       }
+   }
+
+   /**
+    * Checks if an asset organization is another organization than {@code orgID}, ignoring case,
+    * except the default organization where it's globally visible to {@code principal}
+    * ({@link SUtil#isDefaultVSGloballyVisible}). An asset with no organization (a legacy
+    * identifier) is never foreign, it is left to the run-time READ check.
+    */
+   public static boolean isForeignOrganization(String entryOrgID, String orgID,
+                                               Principal principal)
+   {
+      return entryOrgID != null && !Tool.equals(entryOrgID, orgID, false) &&
+         !(Tool.equals(entryOrgID, Organization.getDefaultOrganizationID(), false) &&
+           SUtil.isDefaultVSGloballyVisible(principal));
    }
 
    /**
@@ -1892,9 +2006,9 @@ public class ScheduleManager implements MessageListener {
       }
       else {
          Vector<ScheduleTask> allTasks = getScheduleTasks(principal);
-         boolean dependency = hasDependency(allTasks, taskName);
+         String dependant = findDependant(allTasks, taskName);
 
-         if(!dependency) {
+         if(dependant == null) {
             removeScheduleTask(taskName, principal);
          }
          else {
@@ -1904,7 +2018,7 @@ public class ScheduleManager implements MessageListener {
             }
             else {
                throw new Exception(Catalog.getCatalog().getString(
-                  "em.schedule.task.removeDependency", taskName));
+                  "em.schedule.task.removeDependencyOn", taskName, dependant));
             }
          }
       }
@@ -1915,6 +2029,24 @@ public class ScheduleManager implements MessageListener {
     */
    public synchronized void removeScheduleTask(String taskName,
                                                Principal principal)
+      throws Exception
+   {
+      doRemoveScheduleTask(taskName, principal, false);
+   }
+
+   /**
+    * Removes a schedule task that the caller saves again right away to change it (Bug #81647), as
+    * {@link #replaceScheduleTask} and the import of a task that exists do. A run in progress is
+    * then not the run of a deleted task, so it still writes its status and triggers its
+    * dependants when it completes.
+    */
+   public synchronized void removeScheduleTaskForReplace(String taskName, Principal principal)
+      throws Exception
+   {
+      doRemoveScheduleTask(taskName, principal, true);
+   }
+
+   private void doRemoveScheduleTask(String taskName, Principal principal, boolean replacing)
       throws Exception
    {
       String orgID = getTaskOrgID(taskName);
@@ -2001,7 +2133,13 @@ public class ScheduleManager implements MessageListener {
             getOrgTaskMap(orgID).remove(getTaskIdentifier(taskName, orgID));
          }
 
-         scheduleClient.taskRemoved(taskId);
+         if(replacing) {
+            scheduleClient.taskRemoved(taskId, true);
+         }
+         else {
+            scheduleClient.taskRemoved(taskId);
+         }
+
          ScheduleTaskMessage message = new ScheduleTaskMessage();
          message.setTaskName(taskId);
          // Bug #74338: include the task in the REMOVED message so that
@@ -2234,8 +2372,15 @@ public class ScheduleManager implements MessageListener {
     * Check task dependency for rename &amp; delete action.
     */
    public boolean hasDependency(Vector<ScheduleTask> allTasks, String taskId) {
-      boolean dependency = false;
+      return findDependant(allTasks, taskId) != null;
+   }
 
+   /**
+    * Finds a task that depends on the given task (Bug #81816).
+    *
+    * @return the id of a dependant task, or null if none depends on it.
+    */
+   public String findDependant(Vector<ScheduleTask> allTasks, String taskId) {
       for(Iterator<ScheduleTask> i = allTasks.iterator(); i.hasNext();) {
          ScheduleTask task = i.next();
          String id = task.getTaskId();
@@ -2249,21 +2394,24 @@ public class ScheduleManager implements MessageListener {
       for(ScheduleTask task : allTasks) {
          String id = task.getTaskId();
          task = getScheduleTask(id);
+
+         // the snapshot may be stale: another request can remove the task
+         // between the snapshot and this read, and a removed task cannot
+         // depend on anything
+         if(task == null) {
+            continue;
+         }
+
          Enumeration<String> en = task.getDependency();
 
          while(en.hasMoreElements()) {
             if(taskId.equals(en.nextElement())) {
-               dependency = true;
-               break;
+               return id;
             }
-         }
-
-         if(dependency) {
-            break;
          }
       }
 
-      return dependency;
+      return null;
    }
 
    public List<AssetObject> getDependentTasks(String target, String orgId) {
@@ -2336,6 +2484,7 @@ public class ScheduleManager implements MessageListener {
       }
 
       Set<ScheduleTask> changedTasks = new HashSet<>();
+      List<String> removedTaskIds = new ArrayList<>();
 
       Iterator<ScheduleTask> i = getOrgTaskMap(orgID).values().iterator();
 
@@ -2348,6 +2497,7 @@ public class ScheduleManager implements MessageListener {
 
          if(type == Identity.USER && identityID.equals(task.getOwner())) {
             i.remove();
+            removedTaskIds.add(task.getTaskId());
             continue;
          }
 
@@ -2372,6 +2522,17 @@ public class ScheduleManager implements MessageListener {
       catch(Exception ex) {
          LOG.error("Failed to save schedule task file after " +
                "identity was removed: " + identityID, ex);
+      }
+
+      // Bug #81833, removing the task from the map does not unschedule it: tell the scheduler,
+      // as removeScheduleTask does, or the trigger of a deleted owner's task keeps firing
+      for(String taskId : removedTaskIds) {
+         try {
+            scheduleClient.taskRemoved(taskId);
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to unschedule task {} of removed owner {}", taskId, identityID, ex);
+         }
       }
 
       for(ScheduleExt ext : extensions) {

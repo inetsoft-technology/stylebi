@@ -32,6 +32,11 @@
         _#(data.logicalmodel.attributeNameDuplicate)
       </span>
     }
+    @if (!nameControl.getError('required') && nameControl.hasError('periodInName')) {
+      <span class="invalid-feedback">
+        _#(data.logicalmodel.attributeNamePeriod)
+      </span>
+    }
   </div>
   <div class="form-group form-floating">
     <textarea type="text"

@@ -26,4 +26,6 @@ export interface VSConditionDialogModel {
    // echoing it back on Apply would make the dialog conflict with its own prior Apply. See
    // 2026-08-17-write-coordination-design.md.
    revision?: number;
+   // views of the condition fields that are no longer bound; display only
+   unboundFields?: string[];
 }

@@ -396,7 +396,6 @@ public class DataCycleManager
       task2.setOwner(task.getOwner());
       CycleInfo cycleInfo = task.getCycleInfo();
       task2.setCycleInfo(cycleInfo);
-      task2.addCondition(new CompletionCondition(task.getTaskId()));
 
       for(MVDef def : mvs) {
          if(!cycle.equals(def.getCycle())) {
@@ -416,6 +415,18 @@ public class DataCycleManager
       }
 
       if(task2.getActionCount() > 0) {
+         if(task.getActionCount() == 0) {
+            // No base MV in this cycle, so Stage 1 is never registered and a completion
+            // condition on it could never be met. Fire Stage 2 at the cycle's own time
+            // (Bug #81817).
+            for(int i = 0; i < task.getConditionCount(); i++) {
+               task2.addCondition(task.getCondition(i));
+            }
+         }
+         else {
+            task2.addCondition(new CompletionCondition(task.getTaskId()));
+         }
+
          tasks.add(task2);
       }
    }

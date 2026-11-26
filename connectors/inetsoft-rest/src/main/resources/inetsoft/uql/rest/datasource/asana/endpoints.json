@@ -2819,7 +2819,7 @@
     {
       "name": "Tags",
       "paged": true,
-      "suffix": "/1.0/tags?workspace={Workspace?}&opt_fields={Returned Fields?}",
+      "suffix": "/1.0/tags?workspace={Workspace}&opt_fields={Returned Fields?}",
       "description": "The tags defined across the caller's workspaces, with name and colour. Tags are Asana's cross-project labelling, so they are how work is grouped when projects are the wrong axis.",
       "responseSchema": {
         "data": [

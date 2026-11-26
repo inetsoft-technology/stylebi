@@ -288,8 +288,8 @@ class WizVpmValidatorTest {
       noTarget.remove("target");
       assertEquals("conditions[c].target", first(validate(definition(noTarget))).field());
 
-      assertEquals("TREE_SHAPE_INVALID", first(validate(definition(
-         condition("c", tableTarget(), null)))).code());
+      // a condition may name only its target; the Portal saves one with no clause yet
+      assertTrue(validate(definition(condition("c", tableTarget(), null))).errors().isEmpty());
 
       Map<String, Object> badKind = new LinkedHashMap<>();
       badKind.put("kind", "column");

@@ -200,7 +200,7 @@ describe("DatabasePhysicalModelComponent - onKeyDown - save guard parity [Group 
 
    // Regression-sensitive: Ctrl+S is the keyboard equivalent of the toolbar save action.
    it("should call save, stop propagation, and prevent default for Ctrl+S when saving is allowed", async () => {
-      const { fixture } = await renderPhysical();
+      const { fixture, service } = await renderPhysical();
       const comp = fixture.componentInstance;
       comp.isModified = true;
       comp.joinEditing = false;
@@ -217,7 +217,7 @@ describe("DatabasePhysicalModelComponent - onKeyDown - save guard parity [Group 
    // Regression-sensitive: keyboard path must not bypass the toolbar's [disabled]="!isModified" guard.
    // Risk Point/Contract: unmodified models should not send save requests from any path.
    it("should ignore Ctrl+S when the model is not modified", async () => {
-      const { fixture } = await renderPhysical();
+      const { fixture, service } = await renderPhysical();
       const comp = fixture.componentInstance;
       comp.isModified = false;
       comp.joinEditing = false;
@@ -234,7 +234,7 @@ describe("DatabasePhysicalModelComponent - onKeyDown - save guard parity [Group 
    // Regression-sensitive: join editor hides the toolbar save button, so Ctrl+S must not mutate the model in that mode.
    // Risk Point/Contract: hidden/disabled mouse action and keyboard action must share the same validation guard.
    it("should ignore Ctrl+S while join editing is active", async () => {
-      const { fixture } = await renderPhysical();
+      const { fixture, service } = await renderPhysical();
       const comp = fixture.componentInstance;
       comp.isModified = true;
       comp.joinEditing = true;
@@ -297,7 +297,7 @@ describe("DatabasePhysicalModelComponent - refreshWarnings0 - warning confirmati
 
    // Regression-sensitive: empty runtime IDs occur before model creation; this must remain a no-op.
    it("should no-op when runtimeId is empty", async () => {
-      const { fixture } = await renderPhysical();
+      const { fixture, service } = await renderPhysical();
       const comp = fixture.componentInstance;
       const callback = vi.fn();
 
@@ -310,7 +310,7 @@ describe("DatabasePhysicalModelComponent - refreshWarnings0 - warning confirmati
    // Regression-sensitive: confirmed warnings must leave visible warning state after continuing.
    // Risk Point/Contract: the confirm path must assign this.warning, not compare it.
    it("should call callback and persist warning after user confirms a canContinue warning", async () => {
-      const { fixture } = await renderPhysical();
+      const { fixture, service } = await renderPhysical();
       const comp = fixture.componentInstance;
       const warning = { message: "Join warning", canContinue: true };
       const callback = vi.fn();
@@ -359,5 +359,46 @@ describe("DatabasePhysicalModelComponent - showTreeContextMenu - source event ow
       expect(dropdownService.open).toHaveBeenCalledTimes(1);
       expect(contextmenu["sourceEvent"]).toBe(domEvent);
       expect(contextmenu["actions"].length).toBeGreaterThan(0);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 5 - save: stale-view refusal message [Bug #82212]
+// ---------------------------------------------------------------------------
+
+describe("DatabasePhysicalModelComponent - save - save error message [Group 5, Bug #82212]", () => {
+   async function saveWithPutResponse(response: any) {
+      const { fixture, service } = await renderPhysical();
+      const comp = fixture.componentInstance;
+      const notifications = { danger: vi.fn(), success: vi.fn() };
+      // set after rendering: a model id would render the graph pane, which needs more services
+      service.physicalModel = createPhysicalModel({ id: "rt1" });
+      comp.notifications = notifications as any;
+      comp.editing = true;
+      server.use(
+         http.get("*/api/data/physicalmodel/warnings/*", () => MswHttpResponse.json(null)),
+         http.put("*/api/data/physicalmodel/models", () => response)
+      );
+
+      comp.save();
+
+      await waitFor(() => expect(notifications.danger).toHaveBeenCalledTimes(1));
+      return notifications;
+   }
+
+   it("should show the server's message when the save is refused as a message exception", async () => {
+      const message = "The physical view \"v\" was changed elsewhere since you opened it.";
+      const notifications = await saveWithPutResponse(
+         MswHttpResponse.json({ error: "messageException", message }, { status: 500 }));
+
+      expect(notifications.danger).toHaveBeenCalledWith(message);
+   });
+
+   it("should show the generic message for any other save error", async () => {
+      const notifications = await saveWithPutResponse(
+         new MswHttpResponse("boom", { status: 500 }));
+
+      expect(notifications.danger).toHaveBeenCalledWith(
+         expect.stringContaining("data.physicalmodel.saveModelError"));
    });
 });

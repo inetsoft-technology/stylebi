@@ -132,6 +132,23 @@
           <i class="export-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
           <span class="visually-hidden">_#(Export)</span>
         </button>
+        <!-- ngbDropdown block (menu always rendered), as in composer-toolbar: the component
+             holds the code and the join subscription, which a template dropdown would destroy
+             on close. -->
+        <div *ngIf="isConnectToClaudeVisible()" ngbDropdown #wizConnectDropdown="ngbDropdown"
+             placement="bottom-start" container="body" class="wiz-viewer-connect btn-group">
+          <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1 no-caret wiz-connect-toggle"
+                  title="_#(Connect to Claude)" ngbDropdownToggle
+                  (vsToolbarButton)="onToolbarButtonFocus($event)">
+            <i class="ai-assistant-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
+            <span class="visually-hidden">_#(Connect to Claude)</span>
+          </button>
+          <div ngbDropdownMenu class="wiz-connect-dropdown p-2">
+            <wiz-connect-to-claude [runtimeId]="runtimeId" sheetType="VIEWSHEET"
+                                   [socketConnection]="viewsheetClient" [viewerMode]="true">
+            </wiz-connect-to-claude>
+          </div>
+        </div>
         <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1" (click)="importExcel()"
                 *ngIf="isImportExcelVisible()"
                 title="_#(Import Excel)"

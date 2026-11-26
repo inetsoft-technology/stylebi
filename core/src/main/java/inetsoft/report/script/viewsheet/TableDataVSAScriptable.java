@@ -147,7 +147,15 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          // for all cases. only use lens for AttributeTableLens to narrow the scope
          // of change and reduce the chance of backward compatibility problem.
          // may consider removing this and use lens in the future. (13.5)
-         if(lens instanceof AttributeTableLens) {
+         RuntimeCalcTableLens runtime = lens != null && getInfo() instanceof CalcTableVSAssemblyInfo ?
+            (RuntimeCalcTableLens) Util.getNestedTable(lens, RuntimeCalcTableLens.class) : null;
+
+         // a value the script writes to a freehand table cell must reach the runtime calc
+         // table, or a $name formula reads the bound text of the cell instead (81610)
+         if(runtime != null) {
+            tarr = new TableArray(new CalcWriteTableLens(lens, runtime));
+         }
+         else if(lens instanceof AttributeTableLens) {
             tarr = new TableArray(lens);
          }
          else {
@@ -1049,6 +1057,9 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          else if(state instanceof String) {
             rows = ftable.rows(getRowState((String) state));
          }
+         else {
+            throw new RuntimeException("Unsupported state : " + state);
+         }
 
          return new FormRowArray(convertFormTableRows(rows));
       }
@@ -1322,6 +1333,39 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
    }
 
    /**
+    * The table array of a freehand table. It keeps the attributes a script sets on the cells in
+    * the view table, and also writes the cell values to the runtime calc table, where the
+    * $name references of the formula cells read them.
+    */
+   public static class CalcWriteTableLens extends AttributeTableLens {
+      public CalcWriteTableLens(TableLens table, RuntimeCalcTableLens runtime) {
+         super(table);
+         this.runtime = runtime;
+      }
+
+      @Override
+      public void setObject(int r, int c, Object val) {
+         runtime.setObject(r, c, val);
+         TableLens base = getTable();
+
+         // the view table reads the value from the attribute table below this one
+         if(base instanceof AttributeTableLens) {
+            ((AttributeTableLens) base).setObject(r, c, val);
+         }
+         else {
+            super.setObject(r, c, val);
+         }
+      }
+
+      @Override
+      public void setData(int r, int c, Object val) {
+         setObject(r, c, val);
+      }
+
+      private final RuntimeCalcTableLens runtime;
+   }
+
+   /**
     * Scripts could use the AttributeTableLens API to control cell level
     * settings.expose the explicitly set attributes.
     */
@@ -1449,6 +1493,15 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
       }
 
       /**
+       * Report rowState and rowIndex, which getMember serves but XTableRow.hasMember does
+       * not know, so that GraalJS (which asks hasMember first) can read them. (#81904, #80033)
+       */
+      @Override
+      public boolean hasMember(String name) {
+         return "rowState".equals(name) || "rowIndex".equals(name) || super.hasMember(name);
+      }
+
+      /**
        * Get a property from the object selected by an integral index.
        */
       @Override
@@ -1460,19 +1513,9 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          return null;
       }
 
-      /**
-       * GraalJS gates getMember behind hasMember for a ProxyObject -- without this override,
-       * the inherited XTableRow.hasMember (which only knows "length" and column names) hides
-       * the "rowState"/"rowIndex" branches that getMember already answers, so r.rowIndex and
-       * r.rowState read back undefined to script (Bug #80033).
-       */
       @Override
-      public boolean hasMember(String name) {
-         if(name.equals("rowState") || name.equals("rowIndex")) {
-            return true;
-         }
-
-         return super.hasMember(name);
+      public boolean isIndexValid(long index) {
+         return index >= 0 && index < table.getColCount();
       }
 
       private int rowState;

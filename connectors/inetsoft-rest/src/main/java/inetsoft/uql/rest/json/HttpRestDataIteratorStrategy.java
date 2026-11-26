@@ -119,7 +119,7 @@ public abstract class HttpRestDataIteratorStrategy<Q extends AbstractRestQuery, 
             in = res.getResponseBodyAsStream();
          }
 
-         return in != null ? processResponse(in, res) : null;
+         return in != null ? processResponse(in, res) : processBodylessResponse(res);
       }
    }
 
@@ -140,6 +140,14 @@ public abstract class HttpRestDataIteratorStrategy<Q extends AbstractRestQuery, 
       throws Exception
    {
       return transformer.transform(responseBody);
+   }
+
+   /**
+    * Hook for a response that has no entity at all (for example 204, 205 or a HEAD response), so
+    * {@link #processResponse} is never reached for it. The default produces no data.
+    */
+   protected Object processBodylessResponse(HttpResponse response) throws Exception {
+      return null;
    }
 
    private Object next;

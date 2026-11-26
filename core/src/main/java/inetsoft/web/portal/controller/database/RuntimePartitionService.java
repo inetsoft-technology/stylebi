@@ -120,6 +120,7 @@ public class RuntimePartitionService {
       RuntimeXPartition runtimeXPartition =
          new RuntimeXPartition((XPartition) partition.deepClone(true), generateRuntimeId(name),
             dataModel.getDataSource());
+      runtimeXPartition.setStoredModified(partition.getLastModified());
 
       if(init != null) {
          init.accept(runtimeXPartition);
@@ -438,6 +439,18 @@ public class RuntimePartitionService {
          return version;
       }
 
+      /**
+       * Gets the last-modified time of the stored view this runtime was copied from, or -1 if
+       * the runtime was not opened from a stored view.
+       */
+      public long getStoredModified() {
+         return storedModified;
+      }
+
+      public void setStoredModified(long storedModified) {
+         this.storedModified = storedModified;
+      }
+
       @Override
       protected Object clone() throws CloneNotSupportedException {
          RuntimeXPartition clone = (RuntimeXPartition) super.clone();
@@ -578,6 +591,7 @@ public class RuntimePartitionService {
       private String id;
       private String dataSource;
       private long version;
+      private long storedModified = -1;
       private int graphWidth = PhysicalGraphLayout.DEFAULT_VIEWPORT_WIDTH;
       private int graphHeight = PhysicalGraphLayout.DEFAULT_VIEWPORT_HEIGHT;
       private final Set<String> movedTables = Sets.newConcurrentHashSet();

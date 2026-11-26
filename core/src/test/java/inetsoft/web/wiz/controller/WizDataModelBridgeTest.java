@@ -1047,6 +1047,23 @@ class WizDataModelBridgeTest {
    }
 
    @Test
+   void aStorageFailureIsARetryableFailureAndADatabaseTimeoutIsNot() throws Exception {
+      Failure typed = ok(WizDataModelErrors.run(() -> {
+         throw new inetsoft.uql.service.DataSourceStorageException("not saved; retry the call");
+      }), Failure.class);
+      assertEquals(STORAGE_UNAVAILABLE, typed.reason());
+      assertEquals("not saved; retry the call", typed.message());
+
+      // a timeout of the customer's database is not a storage failure of the server
+      Failure database = ok(WizDataModelErrors.run(() -> {
+         throw new RuntimeException("load failed", new java.net.SocketTimeoutException(
+            "Read timed out jdbc:mysql://u:Sup3rSecret@h/x"));
+      }), Failure.class);
+      assertEquals(UNKNOWN, database.reason());
+      assertFalse(database.message().contains("Sup3rSecret"), database.message());
+   }
+
+   @Test
    void moveThatMovesNothingWritesNothing() throws Exception {
       addFolder("F");
       addLogical("lm", "pv", "F");

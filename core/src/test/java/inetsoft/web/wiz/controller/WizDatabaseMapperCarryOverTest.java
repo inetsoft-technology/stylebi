@@ -222,6 +222,60 @@ class WizDatabaseMapperCarryOverTest {
       });
    }
 
+   @Test
+   void baseUpdateKeepsTheStoredUnasgnWhenTheCallerSentNone() {
+      DatabaseDefinition current = stored(MySQLDatabaseType.TYPE, new MySQLDatabaseType().createDatabaseInfo());
+      current.setUnasgn(true);
+      DatabaseDefinition updated = stored(MySQLDatabaseType.TYPE, new MySQLDatabaseType().createDatabaseInfo());
+
+      WizDatabaseMapper.carryOverUneditedSettings(current, updated, null);
+
+      assertTrue(updated.isUnasgn(), "an absent flag must never reset a security switch");
+   }
+
+   @Test
+   void baseUpdateAppliesTheCallersUnasgnBothWays() {
+      DatabaseDefinition off = stored(MySQLDatabaseType.TYPE, new MySQLDatabaseType().createDatabaseInfo());
+      DatabaseDefinition setOn = stored(MySQLDatabaseType.TYPE, new MySQLDatabaseType().createDatabaseInfo());
+      WizDatabaseMapper.carryOverUneditedSettings(off, setOn, true);
+      assertTrue(setOn.isUnasgn());
+
+      DatabaseDefinition on = stored(MySQLDatabaseType.TYPE, new MySQLDatabaseType().createDatabaseInfo());
+      on.setUnasgn(true);
+      DatabaseDefinition setOff = stored(MySQLDatabaseType.TYPE, new MySQLDatabaseType().createDatabaseInfo());
+      WizDatabaseMapper.carryOverUneditedSettings(on, setOff, false);
+      assertFalse(setOff.isUnasgn(), "an explicit false clears the flag");
+   }
+
+   @Test
+   void additionalConnectionPathStillForcesTheStoredUnasgn() {
+      DatabaseDefinition current = stored(MySQLDatabaseType.TYPE, new MySQLDatabaseType().createDatabaseInfo());
+      current.setUnasgn(true);
+      DatabaseDefinition updated = stored(MySQLDatabaseType.TYPE, new MySQLDatabaseType().createDatabaseInfo());
+      updated.setUnasgn(false);
+
+      WizDatabaseMapper.carryOverUneditedSettings(current, updated);
+
+      assertTrue(updated.isUnasgn(), "the two-argument form is the additional-connection rule");
+   }
+
+   @Test
+   void explicitEmptyPropertiesClearTheStoredOnesAndNullKeepsThem() {
+      MySQLDatabaseType type = new MySQLDatabaseType();
+      MySQLDatabaseInfo storedInfo = type.createDatabaseInfo();
+      storedInfo.setProperties("useSSL=true");
+      DatabaseDefinition current = stored(MySQLDatabaseType.TYPE, storedInfo);
+
+      MySQLDatabaseInfo cleared = type.createDatabaseInfo();
+      cleared.setProperties("");
+      WizDatabaseMapper.carryOverUneditedSettings(current, stored(MySQLDatabaseType.TYPE, cleared));
+      assertEquals("", cleared.getProperties());
+
+      MySQLDatabaseInfo untouched = type.createDatabaseInfo();
+      WizDatabaseMapper.carryOverUneditedSettings(current, stored(MySQLDatabaseType.TYPE, untouched));
+      assertEquals("useSSL=true", untouched.getProperties());
+   }
+
    private static DatabaseDefinition stored(String type, DatabaseInfo info) {
       DatabaseDefinition definition = new DatabaseDefinition();
       definition.setType(type);

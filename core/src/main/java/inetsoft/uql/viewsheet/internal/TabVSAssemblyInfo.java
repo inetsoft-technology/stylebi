@@ -714,6 +714,8 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       selectedValue.setRValue(null);
       // Not cleared: onInit sets bottomTabs once; the run-once guard prevents re-application
       // on refresh. rValue is reset by bookmark load (parseStateContent) or session restart.
+      // Also, setting bottomTabs moves the tab bar and its children (repositionForBottomTabs),
+      // so clearing only the flag would desync it from the positions (Bug #82199).
    }
 
    /**

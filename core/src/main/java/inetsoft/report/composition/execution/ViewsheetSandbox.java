@@ -1244,6 +1244,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // keep Viewsheet.resetWS() off the copy the query runs on (77915)
       ntable.setProperty(Viewsheet.VS_BOUND_TABLE, "true");
       ws.addAssembly(ntable);
+      applyAllRows(ntable, vobj, ws);
       MVManager mgr = MVManager.getManager();
 
       // strip off the prefix VS_
@@ -1277,6 +1278,71 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       return ntable;
+   }
+
+   /**
+    * Apply the "Include all rows" option of a table or crosstab to the logical model table its
+    * query runs on. The base bound table is shared by every assembly bound to the same source,
+    * so the copy of it that carries the option is private to this assembly's query.
+    *
+    * @param ntable the bound copy of the viewsheet table the query of the assembly runs on.
+    * @param vobj   the viewsheet assembly the query is for.
+    * @param ws     the worksheet of the table.
+    */
+   static void applyAllRows(TableAssembly ntable, VSAssembly vobj, Worksheet ws) {
+      if(!(vobj != null && vobj.getVSAssemblyInfo() instanceof TableDataVSAssemblyInfo tinfo) ||
+         !(ntable instanceof MirrorTableAssembly mirror))
+      {
+         return;
+      }
+
+      List<String> allRows = tinfo.getAllRows();
+
+      if(allRows.isEmpty()) {
+         return;
+      }
+
+      // The mirrors and the bound table under this assembly's own copy are shared by every
+      // query on the viewsheet, which change them in place under the worksheet lock
+      // (VSAQuery.getVSTableAssembly, 77867), so the chain is read and copied under it, as
+      // copyBoundTable does.
+      synchronized(ws) {
+         if(BoundTableAssembly.findLogicalModelTable(mirror) == null) {
+            return;
+         }
+
+         // the bound table sits under however many mirrors the viewsheet and the worksheet
+         // wrapped it in, so the whole chain is copied down to the bound table
+         TableAssembly inner = copyWithAllRows(mirror.getTableAssembly(), allRows, ws,
+                                               ntable.getName() + "A");
+         mirror.setTableAssemblies(new TableAssembly[] { inner });
+      }
+   }
+
+   /**
+    * Copy a table and every mirror between it and its logical model bound table, the bound copy
+    * carrying the option. The caller holds the worksheet lock.
+    *
+    * @return the copy of {@code table}, in {@code ws}.
+    */
+   private static TableAssembly copyWithAllRows(TableAssembly table, List<String> allRows,
+                                                Worksheet ws, String name)
+   {
+      TableAssembly copy = (TableAssembly) table.copyAssembly(name);
+
+      if(copy instanceof BoundTableAssembly bound) {
+         bound.setAllRows(allRows);
+      }
+      else {
+         MirrorTableAssembly mirror = (MirrorTableAssembly) copy;
+         mirror.setTableAssemblies(new TableAssembly[] {
+            copyWithAllRows(((MirrorTableAssembly) table).getTableAssembly(), allRows, ws,
+                            name + "A") });
+      }
+
+      copy.setProperty(Viewsheet.VS_BOUND_TABLE, "true");
+      ws.addAssembly(copy);
+      return copy;
    }
 
    /**
@@ -1849,6 +1915,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // not be reused. could check for dependency to be more precise in the future. (61427)
       for(AssemblyEntry dataEntry : clist.getDataList()) {
          resetDataMap(dataEntry.getName());
+         // a script or text expression run in reset before processSelections() cached the
+         // table it read in the assembly's scriptable, drop it so later reads see the data
+         // filtered by the saved selections (82168)
+         clearScriptableCache(dataEntry.getName());
       }
 
       List<AssemblyEntry> processedList = clist.getProcessedList();
@@ -2393,6 +2463,21 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
    }
 
+   /**
+    * Clear the script caches of an assembly, the table array and the data array of a table.
+    */
+   private void clearScriptableCache(String name) {
+      VSAScriptable scriptable = getScope().getVSAScriptable(name);
+
+      if(scriptable != null) {
+         scriptable.clearCache(ALL);
+      }
+
+      if(scriptable instanceof TableDataVSAScriptable) {
+         ((TableDataVSAScriptable) scriptable).clearDataArray();
+      }
+   }
+
    private void clearScriptableDataArrays() {
       Assembly[] arr = vs == null ? null : vs.getAssemblies();
 
@@ -2733,6 +2818,92 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
    private void recordExportScriptError(Exception ex) {
       recordExportScriptError(ex, getSheetName());
+   }
+
+   /**
+    * Start an export on the current thread in which a component script that fails is skipped
+    * instead of failing the export, like the viewer's refresh does ({@code executeView}). The
+    * failure is logged and recorded for {@link #getExportSkippedScript()}, so the exporter can
+    * say so on the document. Every script run through {@link #executeScript(VSAssembly, boolean)}
+    * on this thread while the returned scope is open is covered, including the re-runs of a
+    * table's, time slider's or selection's script from its data read. Other threads, and the
+    * viewer, are not affected. Scopes nest.
+    */
+   public static ExportScriptSkip skipScriptErrorsForExport() {
+      exportScriptSkipDepth.set(exportScriptSkipDepth.get() + 1);
+      return new ExportScriptSkip();
+   }
+
+   /**
+    * Scope of {@link #skipScriptErrorsForExport()}; close it when the export ends.
+    */
+   public static final class ExportScriptSkip implements AutoCloseable {
+      private boolean closed;
+
+      @Override
+      public void close() {
+         if(!closed) {
+            closed = true;
+            int depth = exportScriptSkipDepth.get() - 1;
+
+            if(depth <= 0) {
+               exportScriptSkipDepth.remove();
+            }
+            else {
+               exportScriptSkipDepth.set(depth);
+            }
+         }
+      }
+   }
+
+   /**
+    * Skip a component script failure if this thread is exporting. A stop (timeout or cancel)
+    * and a failed table load are never skipped: they fail the export, as everywhere else an
+    * ordinary script error is tolerated. (#81796)
+    *
+    * @return true if the failure was skipped, false if the caller must rethrow it.
+    */
+   private boolean skipExportScriptError(VSAssembly assembly, ScriptException ex) {
+      if(exportScriptSkipDepth.get() <= 0) {
+         return false;
+      }
+
+      ScriptTimeoutGuard.rethrowStop(ex);
+      TableLoadException.rethrow(ex);
+
+      if(root.exportSkippedScript == null) {
+         root.exportSkippedScript = ex;
+      }
+
+      // inside an export of this sandbox, also name the assembly on the document and don't run
+      // its script again when its data is read (#76765)
+      if(exportDepth.get() > 0) {
+         synchronized(exportFailedAssemblies) {
+            exportFailedAssemblies.add(assembly.getAbsoluteName());
+         }
+      }
+
+      Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+      LOG.warn("Skipped the failing script of \"{}\" in the export of \"{}\": {}",
+               assembly.getAbsoluteName(), getSheetName(), cause.getMessage());
+      LOG.debug("Script failure skipped in export", ex);
+      return true;
+   }
+
+   /**
+    * The first component script failure that an export skipped, or {@code null} if none was.
+    * Unlike {@link #getExportScriptError()} it is not reset by {@link #prepareForExport()}
+    * (a preview export runs scripts before that), but by {@link #clearExportSkippedScript()}.
+    */
+   public Exception getExportSkippedScript() {
+      return root.exportSkippedScript;
+   }
+
+   /**
+    * Forget the skipped script failure, when the export that skipped it has ended.
+    */
+   public void clearExportSkippedScript() {
+      root.exportSkippedScript = null;
    }
 
    /**
@@ -6291,6 +6462,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          //getScope().execute(script, vinfo.getName());
       }
+      catch(ScriptException ex) {
+         // only inside an export (see skipScriptErrorsForExport()); anywhere else rethrown as is
+         if(!skipExportScriptError(assembly, ex)) {
+            throw ex;
+         }
+      }
       finally {
          execAssemblies.remove(assembly.getAbsoluteName());
       }
@@ -9820,6 +9997,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private static final String NULL = "__null__";
    private static final ThreadLocal<Boolean> schanged = new ThreadLocal<>();
    private static final ThreadLocal<Boolean> execDValues = new ThreadLocal<>();
+   private static final ThreadLocal<Integer> exportScriptSkipDepth =
+      ThreadLocal.withInitial(() -> 0);
    private static final ThreadLocal<Set<String>> execAssemblies =
            ThreadLocal.withInitial(HashSet::new);
    private static final Logger LOG = LoggerFactory.getLogger(ViewsheetSandbox.class);
@@ -9918,6 +10097,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private VSBookmarkInfo openedBookmark; // the current opened bookmark
    private boolean onLoadExeced = false;
    private Exception exportScriptError; // onLoad failure from prepareForExport()
+   private volatile Exception exportSkippedScript; // component script failure an export skipped
    private TableLoadException exportLoadFailure; // onLoad load failure from prepareForExport()
    private final Set<String> exportFailedAssemblies = new LinkedHashSet<>();
    private boolean parametersApplied = false;

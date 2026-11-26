@@ -63,6 +63,7 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
          // TODO: Might need to switch this to a streaming based implementation.
          jsonReader = Json.createReader(connReader);
          JsonObject jObj = jsonReader.readObject();
+         checkRowsJsonShape(jObj);
          table = new DatagovTable(jObj, query0.getMaxRows(), query);
       }
       catch(Exception ex) {
@@ -78,6 +79,23 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
       }
 
       return table;
+   }
+
+   /**
+    * Rejects a JSON object that is not in the rows.json shape, so the caller gets the shape
+    * message instead of a NullPointerException from the table parser (Bug #82405).
+    */
+   private static void checkRowsJsonShape(JsonObject json) {
+      JsonObject meta = json.containsKey("meta") && !json.isNull("meta") ?
+         json.getJsonObject("meta") : null;
+      JsonObject view = meta != null && meta.containsKey("view") && !meta.isNull("view") ?
+         meta.getJsonObject("view") : null;
+
+      if(view == null || !(view.get("columns") instanceof JsonArray) ||
+         !(json.get("data") instanceof JsonArray))
+      {
+         throw new JsonException("not in the rows.json shape");
+      }
    }
 
    /**
@@ -114,8 +132,18 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
    public void testDataSource(TabularDataSource ds0,
                               VariableTable params) throws Exception
    {
-      URL url = new URL(((DatagovDataSource) ds0).getURL());
-      url.openConnection();
+      URL url = new URL(((DatagovDataSource) ds0).getURL().trim());
+      URLConnection conn = url.openConnection();
+
+      // openConnection() only creates the connection object; connect() resolves the host and
+      // opens the socket so an unreachable host is reported
+      conn.setConnectTimeout(TEST_TIMEOUT);
+      conn.setReadTimeout(TEST_TIMEOUT);
+      conn.connect();
+
+      if(conn instanceof HttpURLConnection) {
+         ((HttpURLConnection) conn).disconnect();
+      }
    }
 
    /**
@@ -332,5 +360,6 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
    /** Tries per Discovery page before the listing gives up (see {@link #getDiscoveryMetadata}). */
    private static final int DISCOVERY_ATTEMPTS = 3;
 
+   private static final int TEST_TIMEOUT = 10000;
    private static final Logger LOG = LoggerFactory.getLogger(DatagovRuntime.class.getName());
 }

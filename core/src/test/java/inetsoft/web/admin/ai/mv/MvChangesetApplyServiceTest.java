@@ -22,6 +22,7 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.ai.AdminBackupService;
+import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.ApplyResult;
 import inetsoft.web.admin.ai.TaskAuditToken;
@@ -153,7 +154,7 @@ class MvChangesetApplyServiceTest {
          }
 
          return null;
-      }).when(mvGateway).setDataCycle(anyList(), any(), anyString(), anyString());
+      }).when(mvGateway).setDataCycle(anyList(), any(), any(), anyString());
    }
 
    /**
@@ -282,9 +283,10 @@ class MvChangesetApplyServiceTest {
    // applySetCycle's own first statement, mirroring applyCreate)
    // -------------------------------------------------------------------------
 
-   @Test void setCyclePreMutationThrowDoesNotForceRollbackFailedWhenRollbackIsClean() throws Exception {
+   @Test void setCyclePreMutationThrowDoesNotForceRollbackFailedWhenRollbackIsClean() throws Throwable {
       mvCycles.put("MV1", "cycle-old");
       mvCycles.put("MV2", "cycle-old");
+      existingMvs.addAll(List.of("MV1", "MV2"));
       AtomicInteger a1Calls = new AtomicInteger();
       AtomicInteger a2Calls = new AtomicInteger();
       lenient().when(mvGateway.getAnalysisResult(eq("A1"), any()))
@@ -293,6 +295,7 @@ class MvChangesetApplyServiceTest {
       // strictly before mvGateway.setDataCycle is ever called for MV2.
       lenient().when(mvGateway.getAnalysisResult(eq("A2"), any()))
          .thenAnswer(inv -> analysisResultFor(a2Calls.incrementAndGet(), 3, "MV2"));
+      wireCreateAndDispose();
       wireSetDataCycle();
 
       MvChangeRequest c1 = setCycleChange("A1", "MV1", "cycle-new");
@@ -310,7 +313,66 @@ class MvChangesetApplyServiceTest {
       assertNull(result.rollbackFailures());
       assertEquals("cycle-old", mvCycles.get("MV1"));
       assertEquals("cycle-old", mvCycles.get("MV2"));
-      verify(mvGateway, never()).setDataCycle(eq(List.of("MV2")), any(), anyString(), anyString());
+      verify(mvGateway, never()).setDataCycle(eq(List.of("MV2")), any(), any(), anyString());
+   }
+
+   // Bug #82222: clearing a cycle leaves a null definition cycle; the read-back used
+   // map(getCycle).findFirst(), which throws NullPointerException on a null element.
+   @Test void setCycleClearingCycleIsAppliedAndVerified() throws Throwable {
+      mvCycles.put("MV1", "cycle-old");
+      existingMvs.add("MV1");
+      AtomicInteger a1Calls = new AtomicInteger();
+      lenient().when(mvGateway.getAnalysisResult(eq("A1"), any()))
+         .thenAnswer(inv -> analysisResultFor(a1Calls.incrementAndGet(), 0, "MV1"));
+      wireCreateAndDispose();
+      wireSetDataCycle();
+
+      MvChangeRequest c1 = setCycleChange("A1", "MV1", null);
+      String hash = planService.resolve(request(c1), user).planHash();
+      MvApplyRequest req = applyRequest("task", hash, "looks good", null, c1);
+
+      ApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.rollbackFailures());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, result.results().get(0).status());
+      assertEquals("cycle-old", result.results().get(0).before());
+      assertNull(result.results().get(0).after());
+      assertNull(mvCycles.get("MV1"));
+   }
+
+   // Bug #82222 (rollback site): restoring a null old cycle must verify, not report a failure.
+   @Test void rollbackRestoringNullCycleVerifies() throws Throwable {
+      mvCycles.put("MV1", null);
+      mvCycles.put("MV2", "cycle-old");
+      existingMvs.addAll(List.of("MV1", "MV2"));
+      AtomicInteger a1Calls = new AtomicInteger();
+      AtomicInteger a2Calls = new AtomicInteger();
+      lenient().when(mvGateway.getAnalysisResult(eq("A1"), any()))
+         .thenAnswer(inv -> analysisResultFor(a1Calls.incrementAndGet(), 0, "MV1"));
+      lenient().when(mvGateway.getAnalysisResult(eq("A2"), any()))
+         .thenAnswer(inv -> analysisResultFor(a2Calls.incrementAndGet(), 3, "MV2"));
+      wireCreateAndDispose();
+      wireSetDataCycle();
+
+      MvChangeRequest c1 = setCycleChange("A1", "MV1", "cycle-new");
+      MvChangeRequest c2 = setCycleChange("A2", "MV2", "cycle-new");
+      String hash = planService.resolve(request(c1, c2), user).planHash();
+      MvApplyRequest req = applyRequest("task", hash, "looks good", null, c1, c2);
+
+      ApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      assertNull(mvCycles.get("MV1"));
    }
 
    // -------------------------------------------------------------------------

@@ -153,7 +153,7 @@
     {
       "name": "Report Suites",
       "paged": false,
-      "suffix": "/collections/suites?expansion={Additional Fields?}&rsids={RSIDs?}&rsidContains{RSID Contains?}",
+      "suffix": "/collections/suites?expansion={Additional Fields?}&rsids={RSIDs?}&rsidContains={RSID Contains?}",
       "description": "The report suites the account can reach, each with its id, name, timezone, currency and calendar type. A report suite is the container all Adobe Analytics data belongs to, and every metadata endpoint here needs an RSID -- so this is the first request. The TIMEZONE and CALENDAR TYPE matter for any period comparison, since suites can be configured on a retail rather than a Gregorian calendar."
     },
     {

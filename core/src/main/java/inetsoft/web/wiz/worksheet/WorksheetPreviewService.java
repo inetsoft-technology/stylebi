@@ -606,7 +606,8 @@ public class WorksheetPreviewService {
 
    /**
     * Convert a cell value to a JSON-safe type.  Primitive wrappers, Strings, and
-    * null pass through unchanged.  Anything else (e.g. PostgreSQL PGobject for
+    * null pass through unchanged, except a Long, BigInteger or BigDecimal that a double cannot
+    * hold exactly, which becomes its decimal String (Bug #82291).  Anything else (e.g. PostgreSQL PGobject for
     * tsvector/enum, byte arrays, custom JDBC types) is converted to its String
     * representation so Jackson can always serialize the response without breaking
     * gzip or JSON encoding.
@@ -614,6 +615,24 @@ public class WorksheetPreviewService {
    private static Object toJsonSafe(Object value) {
       if(value == null) {
          return null;
+      }
+
+      // an integral or decimal the JSON reader's double cannot hold exactly (a Long above 2^53, a
+      // BigInteger, a long BigDecimal) goes out as its decimal text, so the digits survive
+      if(value instanceof Long || value instanceof java.math.BigInteger) {
+         java.math.BigInteger big = value instanceof Long ?
+            java.math.BigInteger.valueOf((Long) value) : (java.math.BigInteger) value;
+         return big.abs().compareTo(java.math.BigInteger.ONE.shiftLeft(53)) > 0 ?
+            big.toString() : value;
+      }
+
+      if(value instanceof java.math.BigDecimal) {
+         java.math.BigDecimal dec = (java.math.BigDecimal) value;
+         double d = dec.doubleValue();
+         // BigDecimal.valueOf uses the shortest text of the double, which is what a JSON reader
+         // prints back, so 12.34 stays a number and only digits a double drops become text
+         return Double.isInfinite(d) || java.math.BigDecimal.valueOf(d).compareTo(dec) != 0 ?
+            dec.toPlainString() : value;
       }
 
       if(value instanceof String || value instanceof Number || value instanceof Boolean) {

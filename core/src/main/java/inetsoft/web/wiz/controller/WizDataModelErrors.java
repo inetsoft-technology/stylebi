@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.controller;
 
+import inetsoft.uql.service.DataSourceStorageException;
 import inetsoft.util.MessageException;
 import org.apache.commons.io.FileExistsException;
 
@@ -58,6 +59,11 @@ final class WizDataModelErrors {
       catch(FileExistsException e) {
          return WizDataModelWire.Failure.of(WizDataModelWire.DUPLICATE_NAME, e.getMessage());
       }
+      catch(DataSourceStorageException e) {
+         // the message is written by the server (the object path and plain text), not by a driver
+         LOG.error("A data model operation could not be saved", e);
+         return WizDataModelWire.Failure.of(WizDataModelWire.STORAGE_UNAVAILABLE, e.getMessage());
+      }
       catch(MessageException e) {
          return WizDataModelWire.Failure.of(WizDataModelWire.UNKNOWN, e.getMessage());
       }
@@ -71,6 +77,7 @@ final class WizDataModelErrors {
          // any other exception is a server failure whose text can carry a credential (a driver
          // or storage message with a URL password): never returned as a business message
          LOG.error("A data model operation failed", e);
+
          return WizDataModelWire.Failure.of(
             WizDataModelWire.UNKNOWN, "the data model operation failed on the server; " +
             "see the server log");

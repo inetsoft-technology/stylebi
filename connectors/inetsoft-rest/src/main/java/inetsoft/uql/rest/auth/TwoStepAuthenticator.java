@@ -129,6 +129,10 @@ public class TwoStepAuthenticator implements RestAuthenticator {
    }
 
    private String getTokenFromResponseBody(String responseBody) {
+      if(config.tokenExtractor() != null) {
+         return config.tokenExtractor().apply(responseBody);
+      }
+
       final Pattern pattern = Pattern.compile(config.tokenPattern());
       final Matcher matcher = pattern.matcher(responseBody);
 

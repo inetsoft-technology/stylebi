@@ -19,8 +19,6 @@ package inetsoft.uql.rest.xml;
 
 import inetsoft.uql.rest.*;
 import inetsoft.uql.rest.json.RestDataIteratorStrategyFactory;
-import inetsoft.uql.rest.pagination.HttpResponseParameterParser;
-import inetsoft.uql.rest.pagination.PagedIterationIteratorStrategy;
 
 import static inetsoft.uql.rest.AbstractRestRuntime.isHttpUrl;
 
@@ -69,9 +67,10 @@ public class XMLRestDataIteratorStrategyFactory implements RestDataIteratorStrat
                    httpHandler, errorHandler);
                 break;
             case ITERATION:
-                final XMLIterationStreamTransformer transformer = new XMLIterationStreamTransformer(query);
-                final HttpResponseParameterParser parser = new HttpResponseParameterParser(transformer);
-                strategy = new PagedIterationIteratorStrategy<>(query, transformer, httpHandler, errorHandler, parser);
+                // XML transformers cannot answer the generic parameter parser (transform(Object,
+                // String) is unsupported), so the XML-specific strategy must be used
+                strategy = new XMLPagedIterationIteratorStrategy(query,
+                   new XMLIterationStreamTransformer(query), httpHandler, errorHandler);
                 break;
             default:
                 throw new IllegalStateException("Unexpected value: " + query.getPaginationType());

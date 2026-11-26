@@ -294,9 +294,15 @@ public class ExportControllerService {
                      createdBoxes.add(exportBox);
                      exportBox.prepareMVCreation();
 
-                     for(int i = 0; exportBox != null && i < assemblies.length; i++) {
-                        VSAssembly assembly = (VSAssembly) assemblies[i];
-                        exportBox.executeScript(assembly);
+                     // a failing script is skipped, logged and marked on the document by the
+                     // exporter; the skip is forgotten when its export ends (Bug #81796)
+                     try(ViewsheetSandbox.ExportScriptSkip skip =
+                            ViewsheetSandbox.skipScriptErrorsForExport())
+                     {
+                        for(int i = 0; i < assemblies.length; i++) {
+                           VSAssembly assembly = (VSAssembly) assemblies[i];
+                           exportBox.executeScript(assembly);
+                        }
                      }
 
                      final AssetQuerySandbox assetQuerySandbox = exportBox.getAssetQuerySandbox();

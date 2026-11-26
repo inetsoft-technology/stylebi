@@ -324,6 +324,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    }
 
    ngOnDestroy() {
+      clearTimeout(this.errorTimeout);
       this.cancelPendingOpen();
       this.dialogService.ngOnDestroy();
       this.clearServerUpdateInterval();

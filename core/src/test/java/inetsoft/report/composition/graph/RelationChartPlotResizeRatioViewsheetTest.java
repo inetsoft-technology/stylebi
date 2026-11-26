@@ -50,10 +50,13 @@ class RelationChartPlotResizeRatioViewsheetTest {
    void treeKeepsUnitRatioEqualToPercentAcrossLayouts() throws Exception {
       ViewsheetSandbox box = vsResource.getRuntimeViewsheet().getViewsheetSandbox().orElseThrow();
       VSChartInfo info = addChart(box, "Tree1", true);
+      // as an author's resize leaves it: a percent applies only to a resized axis (#82154)
       info.setUnitWidthRatio(2);
       info.setUnitWidthRatioPercent(2);
+      info.setWidthResized(true);
       info.setUnitHeightRatio(2);
       info.setUnitHeightRatioPercent(2);
+      info.setHeightResized(true);
 
       for(int i = 0; i < 3; i++) {
          box.getVGraphPair("Tree1", true, null);
@@ -70,6 +73,7 @@ class RelationChartPlotResizeRatioViewsheetTest {
       VSChartInfo info = addChart(box, "Bar1", false);
       info.setUnitWidthRatio(2);
       info.setUnitWidthRatioPercent(2);
+      info.setWidthResized(true);
 
       box.getVGraphPair("Bar1", true, null);
       assertEquals(info.getInitialWidthRatio() * 2, info.getUnitWidthRatio(), 1E-9,

@@ -40,6 +40,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
+import inetsoft.util.log.LogLevel;
 import inetsoft.util.swap.XSwapUtil;
 import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
@@ -1595,6 +1596,13 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
                aref = aggr.createAggregateRef(null);
             }
 
+            if(aref == null || aref.getDataRef() == null) {
+               throw new MessageException(
+                  Catalog.getCatalog().getString(
+                     "mv.vs.aggregate.unresolved", aggr.getName(), assembly.getName()),
+                  LogLevel.ERROR);
+            }
+
             boolean aggc = VSUtil.isAggregateCalc(aref.getDataRef());
 
             if(aggc && aggr.getDataRef() instanceof CalculateRef &&
@@ -2923,6 +2931,21 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
          if(LOG.isDebugEnabled()) {
             LOG.debug("Failed to remove MV worksheet, it does not exist: " + getWorksheetPath());
          }
+      }
+      catch(IOException e) {
+         LOG.warn("Failed to remove MV worksheet", e);
+      }
+   }
+
+   /**
+    * Remove the ws file from the specified organization's storage.
+    */
+   public void removeWorksheet(String orgID) {
+      try {
+         MVWorksheetStorage.getInstance().removeWorksheet(getWorksheetPath(), orgID);
+      }
+      catch(FileNotFoundException ignore) {
+         // already removed
       }
       catch(IOException e) {
          LOG.warn("Failed to remove MV worksheet", e);

@@ -110,6 +110,30 @@ class GraalJavaScriptEngineGlobalsTest {
       assertEquals(type, result);
    }
 
+   // Bug #75524: chart scripts that build their own graph failed with "AxisSpec is not defined".
+   @Test
+   void axisSpecIsDefinedAndConstructable() throws Exception {
+      assertEquals("function", eval("typeof AxisSpec"));
+      assertInstanceOf(inetsoft.graph.AxisSpec.class, eval("new AxisSpec()"));
+   }
+
+   // Bug #75524: every class the script editor lists for a chart script must be defined in the engine
+   // (the editor offers the names; an undefined one is a ReferenceError for the author).
+   @Test
+   void everyChartClassOfTheEditorIsDefined() throws Exception {
+      java.util.List<String> undefined = new java.util.ArrayList<>();
+
+      for(String name : inetsoft.web.binding.VSScriptableController.CHART_CLASSES) {
+         Object type = eval("typeof " + name);
+
+         if(!"function".equals(type) && !"object".equals(type)) {
+            undefined.add(name + " (" + type + ")");
+         }
+      }
+
+      assertEquals(java.util.List.of(), undefined);
+   }
+
    // Bug: chart scripts construct these aesthetic classes, e.g.
    // elem.setLineFrame(new StaticLineFrame(new GLine(3))). GLine/GTexture/SVGShape
    // are Java classes with both public constructors and public static final

@@ -2329,7 +2329,7 @@
     {
       "paged": "true",
       "name": "Project Commit Discussion Items",
-      "suffix": "/v4/projects/{Project ID}/commits/{Commit ID}/discussions",
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit ID}/discussions",
       "description": "The comments on one commit grouped into threads. Requires the project id and commit id. The threaded view of Commit Comments.",
       "responseSchema": [
         {
@@ -2407,7 +2407,7 @@
     {
       "paged": "false",
       "name": "Project Commit Discussion Item",
-      "suffix": "/v4/projects/{Project ID}/commits/{Commit ID}/discussions/{Discussion ID}",
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit ID}/discussions/{Discussion ID}",
       "description": "A single discussion thread on a commit. Requires the discussion id as well.",
       "responseSchema": {
         "id": "string",

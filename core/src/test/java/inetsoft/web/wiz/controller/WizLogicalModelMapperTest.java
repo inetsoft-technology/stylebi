@@ -112,9 +112,11 @@ class WizLogicalModelMapperTest extends WizLogicalModelTestBase {
    @Test
    void theSentinelCoversEveryComponentOfEveryRecord() throws Exception {
       // a wire field added later but not given a sentinel would make the test above vacuous
+      // DrillQuery.attach is the request-only {path, scope} form of the entry; the validator
+      // resolves it to the identifier, so a stored or read model never carries it
       assertAllSet(sentinel(), "Definition",
                    List.of("Definition.parent", "Entity.errorMessage", "Attribute.errorMessage",
-                           "DrillPath.queryFields"));
+                           "DrillPath.queryFields", "DrillQuery.attach"));
    }
 
    @Test

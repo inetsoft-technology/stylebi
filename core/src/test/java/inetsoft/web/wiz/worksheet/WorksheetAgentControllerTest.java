@@ -22,6 +22,7 @@ import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.HttpServletResponse;
 import inetsoft.web.WebConfig;
+import inetsoft.report.composition.QueryTreeModel;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
@@ -268,6 +269,7 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           mock(inetsoft.report.composition.execution.AssetDataCache.class),
                                           mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          mock(inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy.class),
                                           mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
@@ -295,6 +297,7 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           mock(inetsoft.report.composition.execution.AssetDataCache.class),
                                           mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          mock(inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy.class),
                                           mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
@@ -323,6 +326,7 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           assetDataCache,
                                           mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          mock(inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy.class),
                                           mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
@@ -350,6 +354,7 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           mock(inetsoft.report.composition.execution.AssetDataCache.class),
                                           mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          mock(inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy.class),
                                           mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
@@ -377,6 +382,7 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           mock(inetsoft.report.composition.execution.AssetDataCache.class),
                                           mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          mock(inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy.class),
                                           rawDataService);
    }
 
@@ -390,6 +396,21 @@ class WorksheetAgentControllerTest {
                                                        WorksheetEditService edit,
                                                        WorksheetService ws,
                                                        inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy dialogServiceProxy)
+   {
+      return controller(feature, join, sessions, read, edit, ws, dialogServiceProxy,
+                        mock(inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy.class));
+   }
+
+   /** Like the date-ranges overload, but lets a {@code query-plan} test control the
+    *  {@link inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy}. */
+   private static WorksheetAgentController controller(SheetAgentFeature feature,
+                                                       SheetJoinService join,
+                                                       SheetSessionService sessions,
+                                                       WorksheetReadService read,
+                                                       WorksheetEditService edit,
+                                                       WorksheetService ws,
+                                                       inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy dialogServiceProxy,
+                                                       inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy showPlanServiceProxy)
    {
       return new WorksheetAgentController(feature, join, sessions, read, edit, ws,
                                           mock(WorksheetPreviewService.class),
@@ -405,6 +426,7 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           mock(inetsoft.report.composition.execution.AssetDataCache.class),
                                           dialogServiceProxy,
+                                          showPlanServiceProxy,
                                           mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
@@ -443,6 +465,7 @@ class WorksheetAgentControllerTest {
          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
          mock(inetsoft.report.composition.execution.AssetDataCache.class),
          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+         mock(inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy.class),
          mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
@@ -2998,6 +3021,127 @@ class WorksheetAgentControllerTest {
 
       assertSame(expected, result);
       verify(dialogServiceProxy).getDateRanges("RUNTIME-DR-1", agent);
+   }
+
+   // ---------------------------------------------------------------------------
+   // query-plan (Bug #82346)
+   // ---------------------------------------------------------------------------
+
+   /** A controller whose edit service resolves {@code token} to a runtime holding {@code ws}. */
+   private static WorksheetAgentController queryPlanController(
+      String token, Principal agent, Worksheet ws,
+      inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy showPlan) throws Exception
+   {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolveWithSession(eq(token), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "RUNTIME-QP-1"));
+      return controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+         showPlan);
+   }
+
+   /**
+    * Bug #82346: query-plan returns the runtime plan from the same service the Composer's Show
+    * Plan uses, for a table that is not SQL-bound, and still answers {@code sql: ""} for it.
+    */
+   @Test
+   void queryPlanReturnsRuntimePlanForNonSqlTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new BoundTableAssembly(ws, "PRODUCTS"));
+
+      QueryTreeModel.QueryNode plan = mock(QueryTreeModel.QueryNode.class);
+      inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy showPlan =
+         mock(inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy.class);
+      when(showPlan.showPlan(eq("RUNTIME-QP-1"), eq("PRODUCTS"), eq(agent))).thenReturn(plan);
+
+      Map<String, Object> result =
+         queryPlanController("TOK-QP", agent, ws, showPlan).getQueryPlan("TOK-QP", "PRODUCTS", agent);
+
+      assertSame(plan, result.get("plan"));
+      assertEquals("", result.get("sql"));
+      assertEquals("PRODUCTS", result.get("table"));
+      assertFalse(result.containsKey("message"));
+   }
+
+   /**
+    * Bug #82346: a SQL-bound table keeps its stored {@code sql} (the preview-failure hint reads
+    * it) next to the runtime plan.
+    */
+   @Test
+   void queryPlanKeepsStoredSqlAlongsidePlanForSqlTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "W4Query");
+      UniformSQL sql = new UniformSQL();
+      sql.setSQLString("SELECT PRICE FROM SA.PRODUCTS WHERE PRICE > 100", false);
+      JDBCQuery q = mock(JDBCQuery.class);
+      when(q.getSQLDefinition()).thenReturn(sql);
+      ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(q);
+      ws.addAssembly(sqlt);
+
+      QueryTreeModel.QueryNode plan = mock(QueryTreeModel.QueryNode.class);
+      inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy showPlan =
+         mock(inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy.class);
+      when(showPlan.showPlan(eq("RUNTIME-QP-1"), eq("W4Query"), eq(agent))).thenReturn(plan);
+
+      Map<String, Object> result =
+         queryPlanController("TOK-QP", agent, ws, showPlan).getQueryPlan("TOK-QP", "W4Query", agent);
+
+      assertEquals("SELECT PRICE FROM SA.PRODUCTS WHERE PRICE > 100", result.get("sql"));
+      assertSame(plan, result.get("plan"));
+   }
+
+   /** Bug #82346: an existing table with no plan answers {@code plan: null} plus a message. */
+   @Test
+   void queryPlanReportsAMessageWhenTheTableHasNoPlan() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new BoundTableAssembly(ws, "PRODUCTS"));
+      inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy showPlan =
+         mock(inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy.class);
+
+      Map<String, Object> result =
+         queryPlanController("TOK-QP", agent, ws, showPlan).getQueryPlan("TOK-QP", "PRODUCTS", agent);
+
+      assertNull(result.get("plan"));
+      assertNotNull(result.get("message"));
+   }
+
+   /** Bug #82346: a plan that cannot be built must not fail the request or drop the stored sql. */
+   @Test
+   void queryPlanSurvivesAPlanBuildFailure() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new BoundTableAssembly(ws, "PRODUCTS"));
+      inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy showPlan =
+         mock(inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy.class);
+      when(showPlan.showPlan(any(), any(), any())).thenThrow(new RuntimeException("boom"));
+
+      Map<String, Object> result =
+         queryPlanController("TOK-QP", agent, ws, showPlan).getQueryPlan("TOK-QP", "PRODUCTS", agent);
+
+      assertNull(result.get("plan"));
+      assertEquals("boom", result.get("planError"));
+      assertEquals("", result.get("sql"));
+   }
+
+   /** Bug #82346: an unknown table is a clear 404, not "Not a SQL-bound table". */
+   @Test
+   void queryPlanRejectsAnUnknownTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy showPlan =
+         mock(inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy.class);
+      WorksheetAgentController ctrl = queryPlanController("TOK-QP", agent, new Worksheet(), showPlan);
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.getQueryPlan("TOK-QP", "Nope", agent));
+      assertEquals(404, ex.getStatusCode().value());
+      verifyNoInteractions(showPlan);
    }
 
    // ---------------------------------------------------------------------------
@@ -7751,6 +7895,154 @@ class WorksheetAgentControllerTest {
       assertNotNull(ws.getAssembly("dVar"));
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug #82399: variable default as an expression / None, on both create paths and edit
+   // ---------------------------------------------------------------------------
+
+   /** Parsed the way Spring parses the real request body, so the wire field names are covered. */
+   private static EditRequest variableEditRequest(String json) throws Exception {
+      return new inetsoft.web.WebConfig().objectMapper().readValue(json, EditRequest.class);
+   }
+
+   private static AssetVariable storedVariable(Worksheet ws, String name) {
+      return ((DefaultVariableAssembly) ws.getAssembly(name)).getVariable();
+   }
+
+   @Test
+   void addVariableStoresAnExpressionDefaultOnADateVariable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = strictVariableController(
+         ws, mock(AssetQuerySandbox.class), "TOK-82399A");
+
+      ResponseEntity<EditResponse> response = ctrl.edit("TOK-82399A", variableEditRequest("""
+         {"op": "add_variable", "name": "d", "type": "date",
+          "defaultValue": "=new Date()", "defaultValueType": "expression"}
+         """), agent);
+
+      ExpressionValue ev = assertInstanceOf(ExpressionValue.class,
+         storedVariable(ws, "d").getValueNode().getValue());
+      assertEquals("new Date()", ev.getExpression());
+      assertEquals(XSchema.DATE, storedVariable(ws, "d").getValueNode().getType());
+      assertEquals(204, response.getStatusCode().value(), "no warning: still the empty 204");
+   }
+
+   @Test
+   void addVariableNoneStoresNoDefault() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = strictVariableController(
+         ws, mock(AssetQuerySandbox.class), "TOK-82399B");
+
+      ctrl.edit("TOK-82399B", variableEditRequest("""
+         {"op": "add_variable", "name": "n", "type": "integer", "none": true}
+         """), agent);
+
+      assertNull(storedVariable(ws, "n").getValueNode());
+      assertEquals("integer", storedVariable(ws, "n").getTypeNode().getType());
+   }
+
+   @Test
+   void addVariableRefusesNoneTogetherWithADefaultValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = strictVariableController(
+         ws, mock(AssetQuerySandbox.class), "TOK-82399C");
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit(
+         "TOK-82399C", variableEditRequest("""
+            {"op": "add_variable", "name": "n", "type": "integer",
+             "defaultValue": "3", "none": true}
+            """), agent));
+      assertTrue(ex.getMessage().contains("none") && ex.getMessage().contains("defaultValue"),
+                 ex.getMessage());
+      assertNull(ws.getAssembly("n"), "a refused add leaves nothing behind");
+   }
+
+   @Test
+   void addVariableStringDefaultStartingWithEqualsIsALiteralWithAWarningInTheNote()
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = strictVariableController(
+         ws, mock(AssetQuerySandbox.class), "TOK-82399D");
+
+      ResponseEntity<EditResponse> response = ctrl.edit("TOK-82399D", variableEditRequest("""
+         {"op": "add_variable", "name": "u", "type": "string", "defaultValue": "=user"}
+         """), agent);
+
+      assertEquals("=user", storedVariable(ws, "u").getValueNode().getValue());
+      assertEquals(200, response.getStatusCode().value());
+      assertNotNull(response.getBody());
+      assertTrue(response.getBody().note().contains("literal text default"),
+                 response.getBody().note());
+      assertTrue(response.getBody().note().contains("defaultValueType:'expression'"),
+                 response.getBody().note());
+   }
+
+   @Test
+   void postVariableEndpointTakesTheSameDefaultFieldsAndReportsTheWarning() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = strictVariableController(
+         ws, mock(AssetQuerySandbox.class), "TOK-82399E");
+      com.fasterxml.jackson.databind.ObjectMapper mapper =
+         new inetsoft.web.WebConfig().objectMapper();
+
+      ResponseEntity<EditResponse> expression = ctrl.addVariable("TOK-82399E", mapper.readValue("""
+         {"name": "d", "type": "date", "defaultValue": "=new Date()",
+          "defaultValueType": "expression"}
+         """, WorksheetAgentController.VariableRequest.class), agent);
+      ResponseEntity<EditResponse> none = ctrl.addVariable("TOK-82399E", mapper.readValue("""
+         {"name": "n", "type": "integer", "none": true}
+         """, WorksheetAgentController.VariableRequest.class), agent);
+      ResponseEntity<EditResponse> literal = ctrl.addVariable("TOK-82399E", mapper.readValue("""
+         {"name": "u", "type": "string", "defaultValue": "=user"}
+         """, WorksheetAgentController.VariableRequest.class), agent);
+
+      assertEquals("new Date()", ((ExpressionValue) storedVariable(ws, "d").getValueNode()
+         .getValue()).getExpression());
+      assertNull(storedVariable(ws, "n").getValueNode());
+      assertEquals("=user", storedVariable(ws, "u").getValueNode().getValue());
+      assertEquals(204, expression.getStatusCode().value());
+      assertEquals(204, none.getStatusCode().value());
+      assertEquals(200, literal.getStatusCode().value());
+      assertTrue(literal.getBody().note().contains("literal text default"));
+   }
+
+   @Test
+   void editVariableThroughTheControllerReportsTheStringEqualsWarningAndStoresExpressions()
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      variableAssemblyForValues(ws, "u", "string");
+      variableAssemblyForValues(ws, "d", "date");
+      WorksheetAgentController ctrl = strictVariableController(
+         ws, mock(AssetQuerySandbox.class), "TOK-82399F");
+
+      ResponseEntity<EditResponse> literal = ctrl.edit("TOK-82399F", variableEditRequest("""
+         {"op": "edit_variable", "name": "u", "defaultValue": "=user"}
+         """), agent);
+      ResponseEntity<EditResponse> expression = ctrl.edit("TOK-82399F", variableEditRequest("""
+         {"op": "edit_variable", "name": "d", "defaultValue": "new Date()",
+          "defaultValueType": "expression"}
+         """), agent);
+
+      assertEquals(200, literal.getStatusCode().value());
+      assertTrue(literal.getBody().note().contains("literal text default"));
+      assertEquals("=user", storedVariable(ws, "u").getValueNode().getValue());
+      assertEquals(204, expression.getStatusCode().value());
+      assertEquals("new Date()", ((ExpressionValue) storedVariable(ws, "d").getValueNode()
+         .getValue()).getExpression());
+
+      ctrl.edit("TOK-82399F", variableEditRequest("""
+         {"op": "edit_variable", "name": "d", "none": true}
+         """), agent);
+      assertNull(storedVariable(ws, "d").getValueNode());
+   }
+
    private static DefaultVariableAssembly variableAssemblyForValues(
       Worksheet ws, String name, String type)
    {
@@ -7912,6 +8204,38 @@ class WorksheetAgentControllerTest {
       assertEquals(2, resp.rows());
       assertEquals(2, resp.columns());
       assertNotNull(ws.getAssembly("Imported"));
+   }
+
+   /**
+    * Bug #81983 (BUG-77): the imported table's canvas size is the default node size, not a height
+    * derived from its row count, so a large import does not push every later assembly far down
+    * the worksheet canvas.
+    */
+   @Test
+   void importCsvGivesALargeTableTheDefaultCanvasSize() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-CSV-BIG");
+
+      StringBuilder csv = new StringBuilder("a,b\n");
+
+      for(int i = 0; i < 500; i++) {
+         csv.append(i).append(",x\n");
+      }
+
+      ctrl.importCsv("TOK-CSV-BIG",
+         new WorksheetAgentController.ImportCsvRequest("Big", csv.toString()), agent);
+      ctrl.importCsv("TOK-CSV-BIG",
+         new WorksheetAgentController.ImportCsvRequest("After", "a,b\n1,x\n2,y"), agent);
+
+      java.awt.Dimension expected =
+         new EmbeddedTableAssembly(new Worksheet(), "probe").getPixelSize();
+      EmbeddedTableAssembly big = importedTable(ws, "Big");
+      EmbeddedTableAssembly after = importedTable(ws, "After");
+
+      assertEquals(inetsoft.uql.asset.internal.AssetUtil.defw, big.getPixelSize().width);
+      assertEquals(expected.height, big.getPixelSize().height);
+      assertEquals(big.getPixelOffset().y + expected.height + 10, after.getPixelOffset().y);
    }
 
    /**
@@ -9532,6 +9856,7 @@ class WorksheetAgentControllerTest {
          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
          mock(inetsoft.report.composition.execution.AssetDataCache.class),
          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+         mock(inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy.class),
          mock(inetsoft.web.wiz.service.RawDataService.class));
 
       ctrl.detach("TOK-D", agent);
@@ -9572,6 +9897,7 @@ class WorksheetAgentControllerTest {
          openService,
          mock(inetsoft.report.composition.execution.AssetDataCache.class),
          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+         mock(inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy.class),
          mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 

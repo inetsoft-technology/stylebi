@@ -22,10 +22,28 @@ package inetsoft.web.wiz.pairing;
  *
  * @param editorContext the script/formula location this session is scoped to, or {@code null}
  *                      for a whole-sheet ("Connect to Claude" toolbar) grant
+ * @param runtimeKind   what the minting node saw the runtime to be (Redmine #80547), derived
+ *                      server-side at mint and never from a client field; {@code null} when the
+ *                      runtime could not be resolved there. Defence in depth: lets the join gate a
+ *                      session whose runtime it cannot resolve itself.
  */
 public record PairingGrant(String code, String runtimeId, String ownerIdentity,
                            String socketSessionId, String socketUserName,
                            long createdAt, long ttlMillis,
-                           SheetType sheetType, EditorContext editorContext) {
+                           SheetType sheetType, EditorContext editorContext,
+                           RuntimeKind runtimeKind) {
+   /** What the runtime was when the code was minted. */
+   public enum RuntimeKind { VIEWER, DESIGN }
+
+   /** A grant that recorded nothing about its runtime (runtimeKind null). */
+   public PairingGrant(String code, String runtimeId, String ownerIdentity,
+                       String socketSessionId, String socketUserName,
+                       long createdAt, long ttlMillis,
+                       SheetType sheetType, EditorContext editorContext)
+   {
+      this(code, runtimeId, ownerIdentity, socketSessionId, socketUserName, createdAt, ttlMillis,
+           sheetType, editorContext, null);
+   }
+
    public boolean isExpired(long now) { return now - createdAt > ttlMillis; }
 }

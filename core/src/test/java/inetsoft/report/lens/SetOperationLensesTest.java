@@ -30,7 +30,6 @@ import inetsoft.test.SwapperTestConfiguration;
 import inetsoft.uql.XTable;
 import inetsoft.uql.erm.DataRef;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -311,8 +310,6 @@ class SetOperationLensesTest {
     * loaded rows minus one. A union counts the rows it can show, which are the rows of the
     * first table and those of the second without its header.
     */
-   @Disabled("Bug #80538: a non-distinct union counts one row too many while loading; "
-             + "fixed in 13.8, not in StyleBI yet")
    @Test
    void unionRowCountWhileLoadingFollowsTheConvention() {
       LoadingTable left = new LoadingTable(3, 3, "a", "b");

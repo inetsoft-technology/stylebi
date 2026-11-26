@@ -244,7 +244,10 @@ class WizPhysicalViewMapperTest {
 
       assertFalse(json.contains("RUNTIMEID"), json);
       assertFalse(json.contains("\"id\""), json);
-      assertFalse(json.contains("bounds"), json);
+      // the position is stored layout, not server state: it is read in stored units
+      assertTrue(json.contains("\"bounds\":{\"x\":1,\"y\":2,\"width\":3,\"height\":4}"), json);
+      assertFalse(new ObjectMapper().writeValueAsString(WizPhysicalViewMapper.toRevisionForm(view))
+                     .contains("bounds"));
       assertFalse(json.contains("cols"), json);
       assertFalse(json.contains("path"), json);
       assertFalse(json.contains("autoAlias"), json);
@@ -278,5 +281,89 @@ class WizPhysicalViewMapperTest {
          .get("joins")).get(0);
 
       assertFalse(wireJoin.containsKey("cardinality"));
+   }
+
+   // -- auto aliases ---------------------------------------------------------------------------
+
+   @Test
+   void autoAliasesAreParsedPerTableAndAbsentIsNotEmpty() {
+      Map<String, Object> entry = new LinkedHashMap<>();
+      entry.put("from", "T2");
+      entry.put("alias", "t2a");
+      entry.put("keepOutgoing", true);
+      entry.put("prefix", "p_");
+      Map<String, Object> with = new LinkedHashMap<>(Map.of("name", "T1"));
+      with.put("autoAliases", new ArrayList<>(List.of(entry)));
+      Map<String, Object> cleared = new LinkedHashMap<>(Map.of("name", "T3"));
+      cleared.put("autoAliases", new ArrayList<>());
+      Map<String, Object> absent = new LinkedHashMap<>(Map.of("name", "T4"));
+      Map<String, Object> definition = new LinkedHashMap<>();
+      definition.put("name", "v");
+      definition.put("tables", new ArrayList<>(List.of(with, cleared, absent)));
+      List<TableDef> tables = WizPhysicalViewMapper.parse(definition).view().tables();
+
+      assertEquals(List.of(new AutoAliasDef("T2", "t2a", true, "p_")), tables.get(0).autoAliases());
+      assertEquals(List.of(), tables.get(1).autoAliases());
+      assertNull(tables.get(2).autoAliases());
+   }
+
+   @Test
+   void anAutoAliasNamesEveryProblemAndTheWireFormCarriesIt() {
+      Map<String, Object> entry = new LinkedHashMap<>();
+      entry.put("alias", "t2a");
+      entry.put("keepOutgoing", true);
+      entry.put("colour", "red");
+      Map<String, Object> table = new LinkedHashMap<>(Map.of("name", "T1"));
+      table.put("autoAliases", new ArrayList<>(List.of(entry)));
+      Map<String, Object> definition = new LinkedHashMap<>();
+      definition.put("name", "v");
+      definition.put("tables", new ArrayList<>(List.of(table)));
+      DmFailure failure = assertThrows(DmFailure.class,
+                                       () -> WizPhysicalViewMapper.parse(definition));
+      List<String> fields = failure.toBody().errors().stream().map(e -> e.field()).toList();
+
+      assertTrue(fields.contains("tables[T1].autoAliases[0].colour"), fields.toString());
+      assertTrue(fields.contains("tables[T1].autoAliases[0].from"), fields.toString());
+      assertTrue(fields.contains("tables[T1].autoAliases[0].prefix"), fields.toString());
+
+      View view = new View("v", null, null, null, null, List.of(
+         new TableDef("T1", Kind.PLAIN, null, null, null, null, null, false, List.of(
+            new AutoAliasDef("T2", "t2a", true, "p_"), new AutoAliasDef("T3", "t3a", false, null))),
+         new TableDef("T2", Kind.PLAIN, null, null, null, null, null, false, List.of())),
+         List.of());
+      Map<String, Object> wire = WizPhysicalViewMapper.toWire(view);
+      List<?> tables = (List<?>) wire.get("tables");
+
+      assertEquals(List.of(
+         Map.of("from", "T2", "alias", "t2a", "keepOutgoing", true, "prefix", "p_"),
+         Map.of("from", "T3", "alias", "t3a", "keepOutgoing", false)),
+                   ((Map<?, ?>) tables.get(0)).get("autoAliases"));
+      assertFalse(((Map<?, ?>) tables.get(1)).containsKey("autoAliases"));
+   }
+
+   @Test
+   void onlyTheSelectedRowsOfThePortalListAreAutoAliases() {
+      PhysicalTableModel table = new PhysicalTableModel();
+      table.setName("T1");
+      table.setQualifiedName("T1");
+      table.setType(TableType.PHYSICAL);
+      table.setJoins(new ArrayList<>());
+      AutoAliasJoinModel selected = new AutoAliasJoinModel();
+      selected.setForeignTable("T2");
+      selected.setAlias("t2a");
+      selected.setKeepOutgoing(false);
+      selected.setPrefix("stale");
+      selected.setSelected(true);
+      AutoAliasJoinModel candidate = new AutoAliasJoinModel();
+      candidate.setForeignTable("T3");
+      table.setAutoAliases(new ArrayList<>(List.of(candidate, selected)));
+      table.setAutoAliasesEnabled(true);
+      PhysicalModelDefinition dto = new PhysicalModelDefinition();
+      dto.setName("v");
+      dto.setTables(new ArrayList<>(List.of(table)));
+      View view = WizPhysicalViewMapper.fromDto(dto, null, null);
+
+      assertEquals(List.of(new AutoAliasDef("T2", "t2a", false, null)),
+                   view.tables().get(0).autoAliases());
    }
 }

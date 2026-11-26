@@ -880,6 +880,15 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
                   name = new UniformSQL(quoted != null ? quoted : (String) name, false);
                }
+               else if(Tool.getAttribute(namenode, "quotedSegments") == null) {
+                  // older versions stored a derived table as its sql wrapped in double
+                  // quotes with issql=false, convert it to a derived table (Bug #82116)
+                  String legacySql = getLegacyQuotedSubQuery((String) name);
+
+                  if(legacySql != null) {
+                     name = new UniformSQL(legacySql, false);
+                  }
+               }
             }
             else if(sqlNameNode != null) {
                UniformSQL sqlName = new UniformSQL();
@@ -1738,6 +1747,21 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       if(index >= 0) {
          tables.removeElementAt(index);
       }
+   }
+
+   /**
+    * Get the sql of a derived table stored by older versions as a table name, the sql
+    * wrapped in one pair of double quotes, e.g. "select ... from ...".
+    *
+    * @return the sql between the quotes, or null if the name is not such a sub-query.
+    */
+   private static String getLegacyQuotedSubQuery(String name) {
+      if(name == null || name.length() < 2 || !name.startsWith("\"") || !name.endsWith("\"")) {
+         return null;
+      }
+
+      String inner = name.substring(1, name.length() - 1);
+      return XUtil.isSubQuery(inner) ? inner : null;
    }
 
    /**

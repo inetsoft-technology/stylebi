@@ -240,10 +240,9 @@ public class ImportTaskController {
                ScheduleImportPasswordChecker.clearUnboundPasswords(task, oldTask);
 
             updateTaskInfo(task, linkURI);
-            // Bug #78740, an overwritten task is filed in the folder of the xml. When it is moved
-            // below, the save keeps the stored folder (null parent) so the move starts from it;
-            // otherwise an existing task must go to the root folder explicitly, a null parent
-            // keeps the stored folder and would leave the task in a folder the xml doesn't name
+            // Bug #78740, an overwritten task is filed in the folder of the xml. An existing task
+            // that is not moved below goes to the root folder explicitly, a null parent keeps the
+            // stored folder and would leave the task in a folder the xml doesn't name
             if(taskExists && !move) {
                scheduleManager.setScheduleTask(
                   taskId, task,
@@ -252,7 +251,16 @@ public class ImportTaskController {
                   principal);
             }
             else {
-               scheduleManager.setScheduleTask(taskId, task, principal);
+               // Bug #81903, a task that is moved below is saved in the folder it is stored in,
+               // so the move starts from it and leaves it listed in one folder only
+               AssetEntry storedFolder = getStoredFolder(oldTask);
+
+               if(storedFolder == null) {
+                  scheduleManager.setScheduleTask(taskId, task, principal);
+               }
+               else {
+                  scheduleManager.setScheduleTask(taskId, task, storedFolder, principal);
+               }
             }
 
             // Bug #77950, tell the user that the saved task needs its passwords re-entered
@@ -386,6 +394,25 @@ public class ImportTaskController {
    private static boolean isInternal(ScheduleTask task) {
       return task.getType() == ScheduleTask.Type.INTERNAL_TASK ||
          ScheduleManager.isInternalTask(task.getTaskId());
+   }
+
+   /**
+    * Gets the entry of the folder a stored task is in, or null for a new task or one in the root
+    * folder.
+    */
+   private static AssetEntry getStoredFolder(ScheduleTask oldTask) {
+      if(oldTask == null) {
+         return null;
+      }
+
+      String stored = ScheduleTaskFolderService.getTaskFolderPath(oldTask);
+
+      if("/".equals(stored)) {
+         return null;
+      }
+
+      return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                            stored, null);
    }
 
    private void moveTask(ScheduleTask task, String path, Principal principal) throws Exception {

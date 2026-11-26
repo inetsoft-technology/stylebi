@@ -180,6 +180,123 @@ class AssemblyHighlightServiceTest {
                     "the replaced one is the rebuilt highlight, in its original position");
    }
 
+   private static HighlightModel existingRow(String name) {
+      HighlightModel highlight = existing(name);
+      highlight.setApplyRow(true);
+      return highlight;
+   }
+
+   private static String[] names(HighlightDialogModel posted) {
+      return Arrays.stream(posted.getHighlights()).map(HighlightModel::getName)
+         .toArray(String[]::new);
+   }
+
+   /** Bug #82309: rename keeps the slot, the lookup is by the old name. */
+   @Test
+   void renamesInPlaceKeepingTheSlot() throws Exception {
+      Harness h = harness(model(existing("A"), existing("B"), existing("C")));
+
+      AssemblyHighlightService.SetResult result = h.service.set(
+         "tok", principal(), "Table1", null, highlight("B"), true, "", "B2", null);
+
+      assertArrayEquals(new String[]{ "A", "B2", "C" }, names(capture(h.highlights)));
+      assertEquals("B2", result.appliedName());
+      assertNull(result.appliedPosition());
+   }
+
+   @Test
+   void movesToTheFrontAndTheEnd() throws Exception {
+      Harness h = harness(model(existing("A"), existing("B"), existing("C")));
+
+      AssemblyHighlightService.SetResult first = h.service.set(
+         "tok", principal(), "Table1", null, highlight("C"), true, "", null, 0);
+      assertArrayEquals(new String[]{ "C", "A", "B" }, names(capture(h.highlights)));
+      assertEquals(0, first.appliedPosition());
+      assertNull(first.appliedName());
+
+      Harness h2 = harness(model(existing("A"), existing("B"), existing("C")));
+      AssemblyHighlightService.SetResult last = h2.service.set(
+         "tok", principal(), "Table1", null, highlight("A"), true, "", null,
+         AssemblyHighlightService.LAST);
+      assertArrayEquals(new String[]{ "B", "C", "A" }, names(capture(h2.highlights)));
+      assertEquals(2, last.appliedPosition());
+   }
+
+   @Test
+   void renamesAndMovesInOneWrite() throws Exception {
+      Harness h = harness(model(existing("A"), existing("B")));
+
+      h.service.set("tok", principal(), "Table1", null, highlight("A"), true, "", "A2", 1);
+
+      assertArrayEquals(new String[]{ "B", "A2" }, names(capture(h.highlights)));
+      verify(h.highlights, times(1)).setHighlightDialogModel(
+         anyString(), anyString(), any(), anyString(), any(Principal.class), any());
+   }
+
+   /** Position counts within the highlight's own kind; the other kind's entries stay put. */
+   @Test
+   void positionIsAnIndexAmongTheSameKind() throws Exception {
+      HighlightDialogModel rowModel = model(existing("A"), existing("B"), existingRow("R1"),
+                                            existingRow("R2"));
+      rowModel.setShowRow(true);
+      Harness h = harness(rowModel);
+
+      h.service.set("tok", principal(), "Table1", null, highlightApplyRow("R2"), true, "", null,
+                    0);
+
+      assertArrayEquals(new String[]{ "A", "B", "R2", "R1" }, names(capture(h.highlights)));
+   }
+
+   @Test
+   void refusesAPositionPastTheEndOfItsKind() {
+      Harness h = harness(model(existing("A"), existing("B"), existingRow("R1")));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Table1", null, highlight("A"), true, "", null,
+                             2));
+
+      assertTrue(thrown.getMessage().contains("0..1"), thrown.getMessage());
+   }
+
+   @Test
+   void refusesARenameOntoAnotherHighlightsNameAcrossKindsIgnoringCase() {
+      Harness h = harness(model(existing("A"), existingRow("Row")));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Table1", null, highlight("A"), true, "", "row",
+                             null));
+
+      assertTrue(thrown.getMessage().contains("'row'"), thrown.getMessage());
+   }
+
+   @Test
+   void allowsACaseOnlyRenameOfItself() throws Exception {
+      Harness h = harness(model(existing("High")));
+
+      h.service.set("tok", principal(), "Table1", null, highlight("High"), true, "", "HIGH", null);
+
+      assertArrayEquals(new String[]{ "HIGH" }, names(capture(h.highlights)));
+   }
+
+   @Test
+   void refusesNewNameOrPositionWithoutReplace() {
+      Harness h = harness(model(existing("A")));
+
+      Exception rename = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Table1", null, highlight("A"), false, "", "B",
+                             null));
+      Exception move = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Table1", null, highlight("A"), false, "", null,
+                             0));
+
+      assertTrue(rename.getMessage().contains("newName"), rename.getMessage());
+      assertTrue(move.getMessage().contains("position"), move.getMessage());
+   }
+
    /**
     * replace:true on a name that matches nothing used to append a new highlight -- leaving the
     * intended one unchanged, stacking a second next to it, and reporting "Updated".
@@ -1778,5 +1895,82 @@ class AssemblyHighlightServiceTest {
 
    private static Principal principal() {
       return () -> "admin";
+   }
+
+   // ── font-only highlight (Bug #82159) ──────────────────────────────────────
+
+   private static AssemblyHighlightService.Highlight fontOnly(String name, String family) {
+      inetsoft.web.adhoc.model.FontInfo font = new inetsoft.web.adhoc.model.FontInfo();
+      font.setFontFamily(family);
+      return new AssemblyHighlightService.Highlight(
+         name, null, null, font,
+         List.of(new ConditionVocabulary.Clause("Revenue", ">", List.of(1000), null, false, false, 0)),
+         false);
+   }
+
+   @Test
+   void acceptsAFontOnlyHighlightOnATable() throws Exception {
+      Harness h = harness(model());
+
+      h.service.set("tok", principal(), "Table1", null, fontOnly("Bold", "Arial"), false, "");
+
+      assertEquals(1, capture(h.highlights).getHighlights().length);
+   }
+
+   @Test
+   void acceptsAFontOnlyHighlightOnAText() throws Exception {
+      Harness h = harness(model());
+      TextVSAssembly text = mock(TextVSAssembly.class);
+      when(text.getVSAssemblyInfo()).thenReturn(mock(TextVSAssemblyInfo.class));
+      when(h.rvs.getViewsheet().getAssembly("Text1")).thenReturn(text);
+
+      h.service.set("tok", principal(), "Text1", null, fontOnly("Bold", "Arial"), false, "");
+
+      assertEquals(1, capture(h.highlights).getHighlights().length);
+   }
+
+   @Test
+   void refusesAFontOnlyHighlightWithoutAFontFamily() {
+      Harness h = harness(model());
+
+      for(String family : new String[]{ null, "", "  " }) {
+         Exception thrown = assertThrows(
+            Exception.class,
+            () -> h.service.set("tok", principal(), "Table1", null, fontOnly("Bold", family),
+                                false, ""));
+         assertTrue(thrown.getMessage().contains("colour"), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void refusesAFontOnlyHighlightOnAnImage() {
+      Harness h = harness(model());
+      ImageVSAssembly image = mock(ImageVSAssembly.class);
+      when(image.getVSAssemblyInfo()).thenReturn(mock(ImageVSAssemblyInfo.class));
+      when(h.rvs.getViewsheet().getAssembly("Image1")).thenReturn(image);
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Image1", null, fontOnly("Bold", "Arial"),
+                             false, ""));
+
+      assertTrue(thrown.getMessage().contains("foreground tint or a background"),
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("font alone paints nothing"), thrown.getMessage());
+   }
+
+   @Test
+   void refusesAFontOnlyHighlightOnAChartMarkButAcceptsItOnTheLabelRegions() throws Exception {
+      Harness h = chartHarness();
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Chart1", null, fontOnly("Bold", "Arial"), false,
+                             ""));
+      assertTrue(thrown.getMessage().contains("mark"), thrown.getMessage());
+
+      h.service.set("tok", principal(), "Chart1", axis("Region"), fontOnly("Bold", "Arial"),
+                    false, "");
+      assertEquals(1, capture(h.highlights).getHighlights().length);
    }
 }

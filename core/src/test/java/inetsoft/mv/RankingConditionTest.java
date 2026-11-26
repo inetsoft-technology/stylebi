@@ -18,18 +18,26 @@
 package inetsoft.mv;
 
 import inetsoft.mv.data.MVQuery;
+import inetsoft.mv.data.MVStorage;
+import inetsoft.mv.fs.internal.BlockFileStorage;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.MVInfo;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.storage.BlobStorageManager;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
+import inetsoft.web.admin.content.repository.MVSupportService;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.Tag;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -42,15 +50,41 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 /**
  * Test cases that test parameterized ranking conditions in materialized views.
  */
-// ignite error: CacheInvalidStateException: Failed to execute the cache operation (all partition owners have left the grid, partition data has been lost)
-@Disabled("Ignite causing problems")
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class,
+                                 RankingConditionTest.MVConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "RankingConditionTest.zip", materialize = RankingConditionTest.ASSET_ID)
 @Tag("core")
 @Tag("integration")
 public class RankingConditionTest {
+   /** The MV services that {@code @SreeHome(materialize)} analyzes and creates the MVs with. */
+   @Configuration
+   static class MVConfiguration {
+      @Bean
+      MVSupportService mvSupportService(MVManager mvManager, SecurityEngine securityEngine,
+                                        ScheduleManager scheduleManager, Cluster cluster)
+      {
+         return new MVSupportService(mvManager, securityEngine, scheduleManager, cluster);
+      }
+
+      @Bean
+      MVWorksheetStorage mvWorksheetStorage(BlobStorageManager manager) {
+         return new MVWorksheetStorage(manager);
+      }
+
+      @Bean
+      MVStorage mvStorage(BlobStorageManager manager) {
+         return new MVStorage(manager);
+      }
+
+      @Bean
+      BlockFileStorage blockFileStorage(BlobStorageManager manager) {
+         return new BlockFileStorage(manager);
+      }
+   }
+
    @Test
    public void testOneGroupTopN() throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();

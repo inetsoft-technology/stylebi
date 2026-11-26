@@ -58,6 +58,8 @@ public final class WizDataModelWire {
    public static final String BASE_ELEMENT_READ_ONLY = "BASE_ELEMENT_READ_ONLY";
    public static final String READ_BACK_FAILED = "READ_BACK_FAILED";
    public static final String METADATA_UNAVAILABLE = "METADATA_UNAVAILABLE";
+   /** The storage failed or timed out; the same call can be retried. */
+   public static final String STORAGE_UNAVAILABLE = "STORAGE_UNAVAILABLE";
    public static final String UNKNOWN = "UNKNOWN";
 
    /** A reference to a model, view, VPM or folder; {@code parent} names the base of an extended one. */
@@ -113,8 +115,14 @@ public final class WizDataModelWire {
    public record PhysicalTable(String name, List<PhysicalColumn> columns) {
    }
 
+   /**
+    * @param unresolved the view's physical tables the database metadata did not resolve, so
+    *                   they are missing from {@code tables}; empty when all resolved
+    * @param note       says why when {@code unresolved} is not empty, else null
+    */
    public record PhysicalTablesResponse(String database, String view,
-                                        List<PhysicalTable> tables)
+                                        List<PhysicalTable> tables, List<String> unresolved,
+                                        String note)
    {
    }
 

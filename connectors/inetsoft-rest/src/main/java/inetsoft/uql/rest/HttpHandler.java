@@ -38,6 +38,7 @@ import java.io.*;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
@@ -69,7 +70,7 @@ public class HttpHandler implements IHttpHandler {
       final HttpRequestBase request = createRequest(query, url, context, restAuthenticator);
 
       try {
-         return executeMethod(request, context);
+         return executeMethod(query, request, context);
       }
       catch(RestResponseException e) {
          if(e.getResponse() == null || e.getResponse().getResponseStatusCode() != 401 ||
@@ -82,7 +83,7 @@ public class HttpHandler implements IHttpHandler {
          LOG.debug("Request for {} was unauthorized, retrying with new credentials", url);
          final HttpClientContext retryContext = HttpClientContext.create();
          return executeMethod(
-            createRequest(query, url, retryContext, restAuthenticator), retryContext);
+            query, createRequest(query, url, retryContext, restAuthenticator), retryContext);
       }
    }
 
@@ -155,7 +156,8 @@ public class HttpHandler implements IHttpHandler {
       return post;
    }
 
-   private HttpResponse executeMethod(HttpRequestBase request, HttpClientContext context)
+   private HttpResponse executeMethod(AbstractRestQuery query, HttpRequestBase request,
+                                      HttpClientContext context)
       throws IOException, InterruptedException, TimeoutException
    {
       try {
@@ -171,9 +173,11 @@ public class HttpHandler implements IHttpHandler {
 
          if(response.getStatusLine().getStatusCode() < 200 || response.getStatusLine().getStatusCode() >= 300)
          {
+            final List<String> secrets = RestSecretMasker.secretValues(query.getDataSource());
             String msg = String.format(
                   "Http request for resource %s was not successful: %d %s",
-                  request.getURI(), response.getStatusLine().getStatusCode(),
+                  RestSecretMasker.mask(String.valueOf(request.getURI()), secrets),
+                  response.getStatusLine().getStatusCode(),
                   response.getStatusLine().getReasonPhrase());
             final HttpEntity entity = response.getEntity();
 
@@ -181,7 +185,8 @@ public class HttpHandler implements IHttpHandler {
                try {
                   BufferedReader reader = new BufferedReader(
                      new InputStreamReader(entity.getContent()));
-                  msg += "\n" + reader.lines().collect(Collectors.joining("\n"));
+                  msg += "\n" + RestSecretMasker.mask(
+                     reader.lines().collect(Collectors.joining("\n")), secrets);
                }
                catch(Exception ex) {
                   // ignore
@@ -266,7 +271,8 @@ public class HttpHandler implements IHttpHandler {
                LOG.debug(
                   "\nHTTP request: {} {}\nRequest headers: {}\nHTTP response: {}" +
                      "\nResponse headers: {}\nResponse body: {}",
-                  request.getMethod(), request.getURI(), requestHeaders, response.getStatusLine(),
+                  request.getMethod(), RestSecretMasker.mask(String.valueOf(request.getURI()), null),
+                  requestHeaders, response.getStatusLine(),
                   responseHeaders, body);
                return;
             }
@@ -277,7 +283,8 @@ public class HttpHandler implements IHttpHandler {
 
          LOG.debug(
             "\nHTTP request: {} {}\nRequest headers: {}\nHTTP response: {}\nResponse headers: {}",
-            request.getMethod(), request.getURI(), requestHeaders, response.getStatusLine(),
+            request.getMethod(), RestSecretMasker.mask(String.valueOf(request.getURI()), null),
+            requestHeaders, response.getStatusLine(),
             responseHeaders);
       }
    }

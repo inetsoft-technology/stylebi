@@ -70,6 +70,20 @@ public class SheetSessionService {
     */
    private final ConcurrentHashMap<PaneKey, PaneState> paneStates;
 
+   /**
+    * Tombstones for {@link JoinSession.ConnectionMode#VIEWER} sessions that ended because their
+    * page went away (socket closed, or the page re-opened its dashboard in a new runtime):
+    * {@code sessionToken -> epoch millis it ended}. Lets the agent's next call be answered with
+    * "the dashboard page was closed or reloaded, ask for a new code" instead of the generic
+    * "invalid or expired session". In-memory like every other pairing map; swept by
+    * {@link #evictExpired} once older than the session TTL (after which no token could have
+    * resolved anyway).
+    */
+   private final ConcurrentHashMap<String, Long> viewerTombstones;
+
+   /** What {@link #endedReason} answers for a viewer session that ended with its page. */
+   public static final String VIEWER_CLOSED = "viewer-closed";
+
    private record PaneKey(String socketSessionId, String runtimeId, EditorContext editorContext) {}
 
    /** Non-null wrapper around a possibly-null {@code editorContext} -- see {@link #focusStacks}. */
@@ -103,6 +117,7 @@ public class SheetSessionService {
       this.sessions = new ConcurrentHashMap<>();
       this.focusStacks = new ConcurrentHashMap<>();
       this.paneStates = new ConcurrentHashMap<>();
+      this.viewerTombstones = new ConcurrentHashMap<>();
    }
 
    /**
@@ -124,6 +139,7 @@ public class SheetSessionService {
       this.sessions = new ConcurrentHashMap<>();
       this.focusStacks = new ConcurrentHashMap<>();
       this.paneStates = new ConcurrentHashMap<>();
+      this.viewerTombstones = new ConcurrentHashMap<>();
    }
 
    /** Test-only constructor: exercises the {@link #broadcast} call sites without needing the
@@ -135,6 +151,7 @@ public class SheetSessionService {
       this.sessions = new ConcurrentHashMap<>();
       this.focusStacks = new ConcurrentHashMap<>();
       this.paneStates = new ConcurrentHashMap<>();
+      this.viewerTombstones = new ConcurrentHashMap<>();
    }
 
    /** Test constructor: shares the sessions map (and focus stacks) of an existing service with a
@@ -146,15 +163,31 @@ public class SheetSessionService {
       this.sessions = source.sessions;
       this.focusStacks = source.focusStacks;
       this.paneStates = source.paneStates;
+      this.viewerTombstones = source.viewerTombstones;
    }
 
    public JoinSession open(String runtimeId, String ownerIdentity, SheetType sheetType,
                            String socketSessionId, String socketUserName,
                            EditorContext editorContext)
    {
+      return open(runtimeId, ownerIdentity, sheetType, socketSessionId, socketUserName,
+                  editorContext, JoinSession.ConnectionMode.PAIRED);
+   }
+
+   /**
+    * Opens a session in an explicit {@link JoinSession.ConnectionMode}. Only
+    * {@link SheetJoinService#join} passes {@code VIEWER}, and it derives that from the runtime
+    * itself -- never from anything a client sent. The 6-arg overload above stays {@code PAIRED}
+    * so every opener that mints a design session behaves exactly as before.
+    */
+   public JoinSession open(String runtimeId, String ownerIdentity, SheetType sheetType,
+                           String socketSessionId, String socketUserName,
+                           EditorContext editorContext, JoinSession.ConnectionMode mode)
+   {
       String token = newToken();
       JoinSession s = new JoinSession(token, runtimeId, ownerIdentity, sheetType,
-                                      clock.getAsLong(), TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+                                      clock.getAsLong(), TTL_MILLIS,
+                                      mode == null ? JoinSession.ConnectionMode.PAIRED : mode,
                                       socketSessionId, socketUserName, editorContext);
       sessions.put(token, s);
       return s;
@@ -223,16 +256,73 @@ public class SheetSessionService {
     * blips and reconnects just re-pairs -- cheap, one click -- versus leaving a live write
     * handle open for an unknown gap, which is the exact hole this task exists to close.
     *
-    * <p>Whole-sheet (editorContext == null) sessions are deliberately left untouched here --
-    * they keep today's TTL-only lifetime so a toolbar-paired user does not lose their session
-    * to a transient socket blip. This is the regression this method must never cause.
+    * <p>Whole-sheet (editorContext == null) <b>design</b> sessions are deliberately left
+    * untouched here -- they keep today's TTL-only lifetime so a toolbar-paired user does not lose
+    * their session to a transient socket blip. This is the regression this method must never
+    * cause.
+    *
+    * <p>The one exception is a whole-sheet {@link JoinSession.ConnectionMode#VIEWER} session: it
+    * is bound to a portal Viewer page, and a viewer reload opens a NEW runtime, so the old
+    * session would otherwise keep reading (and keep-alive-ing) a runtime the user no longer sees.
+    * It ends with its socket and leaves a tombstone ({@link #endedReason}) so the agent's next
+    * call is told why. A page that reconnects re-points its sessions first
+    * ({@link #rebindSocket}), so a blip the page recovers from does not reach this branch.
     */
    public void socketClosed(String socketSessionId) {
       if(socketSessionId == null) return;
       paneStates.keySet().removeIf(k -> socketSessionId.equals(k.socketSessionId()));
       List<JoinSession> ended = removeSessionsIf(
-         s -> s.editorContext() != null && socketSessionId.equals(s.socketSessionId()));
+         s -> socketSessionId.equals(s.socketSessionId()) &&
+              (s.editorContext() != null || isViewerSession(s)));
+      tombstoneViewerSessions(ended);
       notifyAgentInactive(ended);
+   }
+
+   /**
+    * Ends every {@link JoinSession.ConnectionMode#VIEWER} session bound to BOTH
+    * {@code socketSessionId} and {@code runtimeId} -- the browser's own "this runtime is no longer
+    * what I am showing" message (the same page re-opened its dashboard in a new runtime on the
+    * same socket, so the socket never closed). {@code socketSessionId} is the caller's own, from
+    * the STOMP accessor, never from a payload: a page can only end sessions that were minted
+    * from its own connection. Design ({@code PAIRED}) sessions are never touched.
+    *
+    * @return the sessions that ended, empty when none matched
+    */
+   public List<JoinSession> endViewerSessions(String socketSessionId, String runtimeId) {
+      if(socketSessionId == null || runtimeId == null) {
+         return List.of();
+      }
+
+      List<JoinSession> ended = removeSessionsIf(
+         s -> isViewerSession(s) && socketSessionId.equals(s.socketSessionId()) &&
+              runtimeId.equals(s.runtimeId()));
+      tombstoneViewerSessions(ended);
+      notifyAgentInactive(ended);
+      return ended;
+   }
+
+   /**
+    * Why {@code token} no longer resolves, when it is known: {@link #VIEWER_CLOSED} for a viewer
+    * session that ended with its page, otherwise {@code null} (unknown, expired, or closed
+    * through the ordinary detach). Not an authorization check and it reveals only the reason
+    * text, never anything about the sheet; the token is a 24-character random secret.
+    */
+   public String endedReason(String token) {
+      return token == null || !viewerTombstones.containsKey(token) ? null : VIEWER_CLOSED;
+   }
+
+   private static boolean isViewerSession(JoinSession s) {
+      return s.connectionMode() == JoinSession.ConnectionMode.VIEWER;
+   }
+
+   private void tombstoneViewerSessions(List<JoinSession> ended) {
+      long now = clock.getAsLong();
+
+      for(JoinSession s : ended) {
+         if(isViewerSession(s)) {
+            viewerTombstones.put(s.sessionToken(), now);
+         }
+      }
    }
 
    /**
@@ -654,6 +744,7 @@ public class SheetSessionService {
    void evictExpired() {
       long now = clock.getAsLong();
       List<JoinSession> ended = removeSessionsIf(s -> s.isExpired(now));
+      viewerTombstones.values().removeIf(endedAt -> now - endedAt > TTL_MILLIS);
       notifyAgentInactive(ended);
    }
 

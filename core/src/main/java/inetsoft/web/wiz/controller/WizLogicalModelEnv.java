@@ -17,8 +17,10 @@
  */
 package inetsoft.web.wiz.controller;
 
+import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XNode;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.uql.jdbc.JDBCDataSource;
@@ -38,9 +40,47 @@ import java.util.Map;
  */
 final class WizLogicalModelEnv implements WizLogicalModelValidator.Env {
    WizLogicalModelEnv(String database, XDataModel dataModel, DataSourceService dataSourceService) {
+      this(database, dataModel, dataSourceService, link -> link, null);
+   }
+
+   /**
+    * @param viewsheets resolves a viewsheet drill link to its asset identifier, {@code null} when
+    *                   no readable viewsheet is named
+    */
+   WizLogicalModelEnv(String database, XDataModel dataModel, DataSourceService dataSourceService,
+                      java.util.function.UnaryOperator<String> viewsheets)
+   {
+      this(database, dataModel, dataSourceService, viewsheets, null);
+   }
+
+   /**
+    * @param worksheets the repository's answers for the worksheet of a drill query, {@code null}
+    *                   to accept any named worksheet and no user-scope reference
+    */
+   WizLogicalModelEnv(String database, XDataModel dataModel, DataSourceService dataSourceService,
+                      java.util.function.UnaryOperator<String> viewsheets,
+                      WizDrillLinks.Worksheets worksheets)
+   {
+      this.worksheets = worksheets;
       this.database = database;
       this.dataModel = dataModel;
       this.dataSourceService = dataSourceService;
+      this.viewsheets = viewsheets;
+   }
+
+   @Override
+   public IdentityID caller() {
+      return worksheets == null ? null : worksheets.caller();
+   }
+
+   @Override
+   public boolean worksheetReadable(AssetEntry entry) {
+      return worksheets == null || worksheets.readable(entry);
+   }
+
+   @Override
+   public String resolveViewsheet(String link) {
+      return viewsheets.apply(link);
    }
 
    @Override
@@ -124,4 +164,6 @@ final class WizLogicalModelEnv implements WizLogicalModelValidator.Env {
    private final String database;
    private final XDataModel dataModel;
    private final DataSourceService dataSourceService;
+   private final java.util.function.UnaryOperator<String> viewsheets;
+   private final WizDrillLinks.Worksheets worksheets;
 }

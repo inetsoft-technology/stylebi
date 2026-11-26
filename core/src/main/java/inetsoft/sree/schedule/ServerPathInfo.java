@@ -231,6 +231,11 @@ public class ServerPathInfo implements Cloneable, Serializable, HttpXMLSerializa
    }
 
    @Override
+   public int hashCode() {
+      return java.util.Objects.hash(useCredential, useCredential ? secretId : null, path, username, password);
+   }
+
+   @Override
    public int compareTo(Object val) {
       if(!(val instanceof ServerPathInfo)) {
          return -1;

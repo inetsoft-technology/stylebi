@@ -130,13 +130,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    private static final String DECLARE_FN = "__inetsoft_declare__";
    // Bug #81047: the helper a rewritten table formula calls (see FormulaCalleeRewriter)
    private static final String CALLEE_FN = FormulaCalleeRewriter.CALLEE_FN;
+   // Bug #81930: the helper a rewritten plain function calls for its `this`
+   // (see PlainFunctionThisRewriter)
+   private static final String THIS_FN = PlainFunctionThisRewriter.THIS_FN;
    // Names the #77181 reset never emits, whatever the runtime set says: the
    // engine's own wrapper globals (resetting __scope__ breaks every later script).
    private static final Set<String> NEVER_RESET = Set.of(
       "__scope__", HOST_GLOBALS_VAR, RESULT_VAR, VALUE_VAR, HOIST_ERR_VAR,
       BindingRootProxy.LOCALS_MEMBER, BindingRootProxy.OWN_LOCALS_MEMBER, NO_LOCALS_VAR,
       BindingRootProxy.DECLARED_VARS_MEMBER,
-      DECLARE_FN, CALLEE_FN,
+      DECLARE_FN, CALLEE_FN, THIS_FN,
       "globalThis", "undefined", "NaN", "Infinity", "eval", "arguments");
 
    // Bug #75625: matches the `this` keyword as an identifier token. Used to decide
@@ -385,6 +388,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       installGlobalFunctions();
       installGlobalScope();
       installCalleeHelper();
+      installThisHelper();
 
       // Bind the __scope__ proxy before installing library functions: their
       // bodies are wrapped in with(__scope__){...} so unqualified names resolve
@@ -425,6 +429,32 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          Object builtin = calc == null ? null : calc.getMember(name);
          return builtin == null ? value : ScriptValueConverter.toGuest(builtin);
       });
+   }
+
+   /**
+    * Bug #81930: install {@link PlainFunctionThisRewriter#THIS_FN}{@code (receiver)}: the
+    * receiver itself, unless it is the global object or undefined (a plain call), when it is a
+    * stand-in for the scope the script runs on. The stand-in reads and writes the members of
+    * {@code __scope__} (the proxy of the executing scope, resolved at call time), and for a
+    * name the scope does not have it reads the real global object, so a function that takes
+    * the global object from {@code this} ({@code this.Math}, {@code this.eval(...)}) still
+    * finds the builtins. A write always goes to the scope. Installed before the host globals
+    * snapshot and listed in {@link #NEVER_RESET}. Not a member of the proxy, so
+    * {@code Object.keys} of the stand-in is empty.
+    */
+   private void installThisHelper() {
+      Value helper = context.eval("js",
+         "(function(g){" +
+         "var S=function(){return g.__scope__;};" +
+         "var p=new Proxy({},{" +
+         "get:function(t,k){if(typeof k==='string'){var s=S();if(k in s){return s[k];}}return g[k];}," +
+         "set:function(t,k,v){S()[k]=v;return true;}," +
+         "has:function(t,k){return typeof k==='string'&&(k in S()||k in g);}," +
+         "deleteProperty:function(t,k){return delete S()[k];}" +
+         "});" +
+         "return function(t){return (t===g||t===undefined)?p:t;};" +
+         "})(globalThis)");
+      context.getBindings("js").putMember(THIS_FN, helper);
    }
 
    /**
@@ -743,8 +773,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          // scripts (Rhino put it on the scope) instead of being confined to
          // the with-block. Bug #77322: no line break after the opening brace, so
          // an error reports the function source's own line number.
-         String wrapped = rewriteTopLevelLexicalDeclarations(
-            stripStrictDirectives(rewriteJavaLengthCalls(source)));
+         String wrapped = rewriteTopLevelLexicalDeclarations(PlainFunctionThisRewriter.rewrite(
+            stripStrictDirectives(rewriteJavaLengthCalls(source))));
          context.eval(Source.newBuilder(
             "js", "with(__scope__){" + wrapped + "\n}", "<lib:" + name + ">")
                          .buildLiteral());
@@ -1071,6 +1101,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // the body to strict eval, changing assignment/scope semantics — so remove
       // it to preserve the prior behavior.
       String body = stripStrictDirectives(rewriteJavaLengthCalls(cmd));
+
+      // Bug #81930: a plain-called function gets the scope as its `this`, as on Rhino
+      body = PlainFunctionThisRewriter.rewrite(body);
 
       if(calleeFallback) {
          body = FormulaCalleeRewriter.rewrite(body);
