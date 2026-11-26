@@ -70,6 +70,13 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
                   continue;
                }
 
+               if(isEmptyExpandedPath(data)) {
+                  // an element on the expanded path is empty (e.g. <Blobs/>), which the parser
+                  // yields as ValueNode(null) rather than an empty list, so the table would
+                  // otherwise build one all-null row from the rest of the response.
+                  continue;
+               }
+
                if(query instanceof EndpointQuery) {
                   doLookups((EndpointQuery) query, strategy, table);
                }
@@ -115,6 +122,42 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
     private boolean isUnmatchedRoot(Object data) {
         return data instanceof ValueNode && ((ValueNode) data).unwrap() == null;
     }
+
+   /**
+    * True when the query expands along an expanded path and an element before the last path
+    * segment is empty. An absent key, a list or a single element is not empty, and neither is a
+    * null at the final segment, which may be one real element with empty text. An absent key is
+    * deliberately not treated as empty so a mistyped path keeps its current behaviour.
+    */
+   private boolean isEmptyExpandedPath(Object data) {
+      final String path = query.getExpandedPath();
+
+      if(!query.isExpanded() || query.isExpandTop() || path == null || path.isBlank() ||
+         !(data instanceof MapNode))
+      {
+         return false;
+      }
+
+      final String[] segments = path.split("\\.");
+      Object current = data;
+
+      for(int i = 0; i < segments.length; i++) {
+         if(!(current instanceof MapNode)) {
+            return false;
+         }
+
+         current = ((MapNode) current).get(segments[i]);
+
+         if(i < segments.length - 1 && current instanceof ValueNode &&
+            ((ValueNode) current).unwrap() == null)
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
 
    /**
     * @param mainTable the table of the top-level query, used to stop the lookups at the row
