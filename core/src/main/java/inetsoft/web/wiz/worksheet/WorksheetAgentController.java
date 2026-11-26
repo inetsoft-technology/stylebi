@@ -6463,7 +6463,8 @@ public class WorksheetAgentController {
    // ---------------------------------------------------------------------------
 
    /**
-    * Reorders the subtables of a {@link ConcatenatedTableAssembly} (UNION/INTERSECT/MINUS).
+    * Reorders the subtables of a {@link ConcatenatedTableAssembly} (UNION/INTERSECT/MINUS) or of a
+    * join table ({@link AbstractJoinTableAssembly}, not a merge join).
     *
     * <p>Operators are carried over by position inside {@code reorderTableAssemblies}. Do not
     * re-apply them here: writing them back adds the new adjacent pairs without removing the ones
@@ -6490,8 +6491,22 @@ public class WorksheetAgentController {
          Worksheet ws = rws.getWorksheet();
          Assembly a = ws.getAssembly(req.table());
 
+         if(a instanceof AbstractJoinTableAssembly join) {
+            // Same effect as Composer's "Reorder Tables" on a join (ReorderSubtableService).
+            JoinReorderSupport.reorder(ws, join, req.subtables());
+            InFlightTableRefresh.awaitOrRetry(rws, req.table(), InFlightTableRefresh.Policy.JOIN_SAME_DEFINITION, () -> {
+               WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+               WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+               return null;
+            }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
+               (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000),
+               RenderNotReadyException.Subject.TABLE, null);
+            return null;
+         }
+
          if(!(a instanceof ConcatenatedTableAssembly table)) {
-            throw new PairingException("Not a concatenated table assembly: " + req.table());
+            throw new PairingException(
+               "Not a concatenated or join table assembly: " + req.table());
          }
 
          TableAssembly[] reordered =

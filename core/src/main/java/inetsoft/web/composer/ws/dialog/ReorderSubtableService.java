@@ -128,7 +128,11 @@ public class ReorderSubtableService extends WorksheetControllerService {
       return null;
    }
 
-   private void updateOperators(CompositeTableAssembly ctable, String[] subtables) {
+   /**
+    * Rewrites a join's operators for a new subtable order: each operator's sides follow the new
+    * order, flipped when the pair now runs the other way. Shared with the wiz agent's join reorder.
+    */
+   public static void updateOperators(CompositeTableAssembly ctable, String[] subtables) {
       final List<String> subtablesList = Arrays.asList(subtables);
       final Enumeration tbls = ctable.getOperatorTables();
       final Map<String, SchemaTableInfo> oldSchemaTableInfos = new HashMap<>(
