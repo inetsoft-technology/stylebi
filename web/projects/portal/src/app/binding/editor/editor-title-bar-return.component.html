@@ -1,0 +1,69 @@
+<!--
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<div class="composer-header object-wizard-toolbar editor-tool-bar">
+  <div class="title-bar btn-toolbar editor-title-band" role="toolbar">
+    <div class="title">
+      <!-- the way back to the sheet this editor covers, then where we are: sheet > object > source -->
+      <button type="button" class="btn btn-default editor-back-button" (click)="back()"
+        title="_#(Return to the dashboard)">
+        <i class="chevron-left-icon icon-size-small" aria-hidden="true"></i>
+        <span>_#(Back)</span>
+      </button>
+      @if (sheetName) {
+        <span class="editor-sheet-name" [title]="sheetName">{{sheetName}}</span>
+        <span class="editor-crumb-sep" aria-hidden="true">&rsaquo;</span>
+      }
+      @if (sourceName || elementName) {
+        <h4>{{elementName}}</h4>
+        @if (sourceName) {
+          <span class="editor-crumb-sep" aria-hidden="true">&rsaquo;</span>
+          <span class="editor-source" [title]="sourceName">
+            <i class="database-icon icon-size-small" aria-hidden="true"></i>{{sourceName}}
+          </span>
+        }
+      }
+    </div>
+
+    <div class="editor-actions">
+      @if (goToWizardVisible) {
+        <button type="button" class="btn btn-default wizard-button" title="_#(Go To Wizard)"
+          (click)="onOpenWizardPane.emit()">_#(To Wizard)</button>
+      }
+      @if (backToReportWizardVisible) {
+        <button type="button" class="btn btn-default wizard-button" title="_#(Back To Wizard)"
+          (click)="onOpenReportWizard.emit()">_#(To Wizard)</button>
+      }
+      <div class="editor-exit-buttons">
+        <button type="button" class="btn btn-default close-button" (click)="cancel()"
+          title="_#(Cancel)">_#(Cancel)</button>
+        <button type="button" class="btn btn-primary finish-button" (click)="done()"
+          title="_#(Finish Editing)">_#(Done)</button>
+      </div>
+      <div class="editor-help">
+        @if (aiAssistantDialogService.aiAssistantVisible) {
+          <button type="button" class="btn-toolbar btn ai-assistant-icon"
+            (click)="openAiAssistantDialog()">
+          </button>
+        }
+        <button type="button" class="btn-toolbar btn help-button"
+          [helpLink]="helpLink">
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
