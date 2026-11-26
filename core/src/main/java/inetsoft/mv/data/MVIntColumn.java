@@ -285,7 +285,8 @@ public class MVIntColumn extends DictDimIndex implements MVMeasureColumn {
    @Override
    public BitSet getLikeOpRows(String op, long val, boolean not) {
       BitSet set = new BitSet();
-      long lval = (long) Double.longBitsToDouble(val);
+      double dval = Double.longBitsToDouble(val);
+      long lval = (long) dval;
 
       if(val == Tool.NULL_LONG) {
          return set;
@@ -311,8 +312,15 @@ public class MVIntColumn extends DictDimIndex implements MVMeasureColumn {
             }
             break;
          case "CONTAINS":
-         case "LIKE": // number contains no wildcard so is same as contains
             if(srval.contains(slval)) {
+               found = !found;
+            }
+            break;
+         case "LIKE":
+            // Bug #82376: the value has already been converted to a number, so it has no
+            // wildcard, and a LIKE without a wildcard matches the whole value (as without MV),
+            // not every value containing it.
+            if(rval == dval) {
                found = !found;
             }
             break;

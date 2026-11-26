@@ -308,6 +308,7 @@ public abstract class AbstractMeasureColumn extends XDimIndex implements MVMeasu
       }
 
       String sdval = Tool.toString(dval);
+      double likeval = getLikeComparisonValue(dval);
       boolean found = false;
 
       for(int fidx = 0, i = 0; i < rcnt; fidx++) {
@@ -331,8 +332,15 @@ public abstract class AbstractMeasureColumn extends XDimIndex implements MVMeasu
                }
                break;
             case "CONTAINS":
-            case "LIKE": // number contains no wildcard so is same as contains
                if(srval.contains(sdval)) {
+                  found = !found;
+               }
+               break;
+            case "LIKE":
+               // Bug #82376: the value has already been converted to a number, so it has no
+               // wildcard, and a LIKE without a wildcard matches the whole value (as without
+               // MV), not every value containing it. Compare as the '=' condition does.
+               if(rval == likeval) {
                   found = !found;
                }
                break;
@@ -365,6 +373,15 @@ public abstract class AbstractMeasureColumn extends XDimIndex implements MVMeasu
     */
    protected double getComparisonValue(double val) {
       return val;
+   }
+
+   /**
+    * Get the value to compare with the column array values (as returned by getFragment())
+    * for a LIKE condition, which matches the whole value.
+    * @param val the condition value.
+    */
+   protected double getLikeComparisonValue(double val) {
+      return getComparisonValue(val);
    }
 
    /**
