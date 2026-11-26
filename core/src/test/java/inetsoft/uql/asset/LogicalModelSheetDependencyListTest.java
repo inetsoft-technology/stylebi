@@ -137,6 +137,17 @@ class LogicalModelSheetDependencyListTest {
       assertListed(moved.getPath());
    }
 
+   /**
+    * The wiz plugin builds the viewsheet base entry without the "mainType" property that the
+    * Composer tree sets; the model dependency must still be recorded.
+    */
+   @Test
+   void viewsheetWithoutMainTypeOnItsBaseEntryIsListed() throws Exception {
+      AssetEntry dash = sheet(AssetEntry.Type.VIEWSHEET, prefix + "dash");
+      save(dash, viewsheet(NAME, false));
+      assertListed(dash.getPath());
+   }
+
    @Test
    void renamedAndDeletedWorksheetIsListedUnderItsNewPathAndThenRemoved() throws Exception {
       AssetEntry ws = sheet(AssetEntry.Type.WORKSHEET, prefix + "ws1");
@@ -312,12 +323,18 @@ class LogicalModelSheetDependencyListTest {
    }
 
    private static Viewsheet viewsheet(String attribute) {
+      return viewsheet(attribute, true);
+   }
+
+   private static Viewsheet viewsheet(String attribute, boolean mainType) {
       Viewsheet vs = new Viewsheet();
       AssetEntry base = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
                                        DATA_SOURCE + "/" + MODEL, null);
       base.setProperty("prefix", DATA_SOURCE);
       base.setProperty("source", MODEL);
-      base.setProperty("mainType", ObjectInfo.LOGICAL_MODEL);
+      if(mainType) {
+         base.setProperty("mainType", ObjectInfo.LOGICAL_MODEL);
+      }
       vs.setBaseEntry(base);
       TableVSAssembly table = new TableVSAssembly(vs, "Table1");
       table.setColumnSelection(columns(attribute));

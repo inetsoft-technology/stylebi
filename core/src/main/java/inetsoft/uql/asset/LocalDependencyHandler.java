@@ -968,6 +968,16 @@ public class LocalDependencyHandler implements DependencyHandler {
       }
    }
 
+   /**
+    * Whether the viewsheet base entry is a logical model. Entries built by the Composer tree carry
+    * the "mainType" property, entries built by other callers (e.g. the wiz plugin) only carry the
+    * entry type, so both are accepted.
+    */
+   private static boolean isLogicalModelBase(AssetEntry base) {
+      return base.getType() == AssetEntry.Type.LOGIC_MODEL ||
+         ObjectInfo.LOGICAL_MODEL.equals(base.getProperty("mainType"));
+   }
+
    private void collectOuterDependencySources(Viewsheet vs, Map<String, Set<String>> models,
                                               Set<String> dataSources)
    {
@@ -981,8 +991,7 @@ public class LocalDependencyHandler implements DependencyHandler {
       if(base.getType() == AssetEntry.Type.PHYSICAL_TABLE) {
          dataSources.add(prefix);
       }
-      else if(ObjectInfo.LOGICAL_MODEL.equals(base.getProperty("mainType")) &&
-         base.getProperty("source") != null)
+      else if(isLogicalModelBase(base) && base.getProperty("source") != null)
       {
          models.computeIfAbsent(prefix, k -> new LinkedHashSet<>())
             .add(base.getProperty("source"));
@@ -1314,7 +1323,7 @@ public class LocalDependencyHandler implements DependencyHandler {
       }
 
       // worksheet dependencies have already be done in AbstractAssetEngine.
-      if(!ObjectInfo.LOGICAL_MODEL.equals(base.getProperty("mainType"))) {
+      if(!isLogicalModelBase(base) || base.getProperty("prefix") == null) {
          return;
       }
 
