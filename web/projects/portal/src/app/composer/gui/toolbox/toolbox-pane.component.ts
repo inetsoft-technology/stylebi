@@ -15,10 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { NgClass } from "@angular/common";
 import {
    ChangeDetectorRef,
    Component,
    HostBinding,
+   inject,
    Input,
    NgZone,
    OnChanges,
@@ -27,7 +29,8 @@ import {
    Optional,
    SimpleChanges
 } from "@angular/core";
-import { DragEvent } from "../../../common/data/drag-event";
+import { Tool } from "../../../../../../shared/util/tool";
+import { DragService } from "../../../widget/services/drag.service";
 import { DataRef } from "../../../common/data/data-ref";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { DomService } from "../../../widget/dom-service/dom.service";
@@ -38,14 +41,14 @@ import { map } from "rxjs/operators";
 import { Subscription } from "rxjs";
 import { TreeTool } from "../../../common/util/tree-tool";
 import { VirtualScrollTreeDatasource } from "../../../widget/tree/virtual-scroll-tree-datasource";
-import { TreeComponent } from "../../../widget/tree/tree.component";
 import { ComposerBindingTree } from "./composer-binding-tree.component";
 import { BindingTreeService } from "../../../binding/widget/binding-tree/binding-tree.service";
 
 @Component({
     selector: "composer-toolbox-pane",
     templateUrl: "toolbox-pane.component.html",
-    imports: [ComposerBindingTree, TreeComponent]
+    styleUrls: ["toolbox-pane.component.scss"],
+    imports: [ComposerBindingTree, NgClass]
 })
 export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
    @HostBinding("hidden")
@@ -64,6 +67,10 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
    virtualBot = 0;
    virtualMid = 0;
    virtualScrollTreeDatasource: VirtualScrollTreeDatasource = new VirtualScrollTreeDatasource();
+   // whether the pinned components section is folded to its header; remembered per browser
+   componentsCollapsed = false;
+   private readonly dragService = inject(DragService);
+   private static readonly COLLAPSED_KEY = "inetsoft.composer.toolbox.componentsCollapsed";
 
    constructor(private cd: ChangeDetectorRef,
                private zone: NgZone,
@@ -80,6 +87,13 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
       }
 
       TreeTool.expandAllNodes(this.toolbox);
+
+      try {
+         this.componentsCollapsed = localStorage.getItem(ToolboxPane.COLLAPSED_KEY) === "true";
+      }
+      catch(e) {
+         // storage can be blocked; the section then starts open
+      }
 
       // Consume the (replaying) binding tree here rather than via the child's output, so that
       // useVirtualScroll is settled before this view is first checked (avoids NG0100).
@@ -114,15 +128,45 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
       this.bindingTreeSubscription.unsubscribe();
    }
 
-   nodeDrag(event: DragEvent): void {
-      const textData = event.dataTransfer.getData("text");
+   /**
+    * The component groups to show as tiles: the toolbox's groups (Data View, Filter, ...), or, for
+    * the deployed toolbox, which has no groups, its components in one unlabelled row.
+    */
+   get componentGroups(): { label: string, items: TreeNodeModel[] }[] {
+      const children = this.toolbox?.children || [];
 
-      if(textData) {
-         const jsonData = JSON.parse(textData);
-         const labels = jsonData.dragName.map(n => this.findLabel(n));
-         const elem = GuiTool.createDragImage(labels, jsonData.dragName);
-         GuiTool.setDragImage(event, elem, this.zone, this.domService);
+      if(children.every(c => c.leaf)) {
+         return [{ label: null, items: children }];
       }
+
+      return children.map(g => ({ label: g.label, items: g.children || [] }));
+   }
+
+   toggleComponents(): void {
+      this.componentsCollapsed = !this.componentsCollapsed;
+
+      try {
+         localStorage.setItem(ToolboxPane.COLLAPSED_KEY, String(this.componentsCollapsed));
+      }
+      catch(e) {
+         // storage can be blocked; the choice then lasts until reload
+      }
+   }
+
+   /**
+    * Start dragging a component tile, with the same transfer data the toolbox tree set for its leaf
+    * nodes, so the canvas drops it as before.
+    */
+   tileDragStarted(event: any, item: TreeNodeModel): void {
+      this.dragService.reset();
+      const dragData = [item.dragData || item.data];
+      const data: any = { dragName: [item.dragName] };
+      data[item.dragName] = dragData;
+      Tool.setTransferData(event.dataTransfer, data);
+      this.dragService.put(item.dragName, JSON.stringify(dragData));
+
+      const elem = GuiTool.createDragImage([item.label], [item.dragName]);
+      GuiTool.setDragImage(event, elem, this.zone, this.domService);
    }
 
    expandNode(node: TreeNodeModel) {
@@ -146,33 +190,10 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
          this.doNotShowNodes.push(bindingRoot);
       }
 
-      combinationTree.children.push(this.toolbox);
+      // the components are tiles above the tree now, not rows of it
       this.combinationTreeRoot = combinationTree;
       this.useVirtualScroll = TreeTool.needUseVirtualScroll(this.combinationTreeRoot);
       this.virtualScrollTreeDatasource.refreshByRoot(this.combinationTreeRoot, undefined, this.doNotShowNodes);
-   }
-
-   private findLabel(dragName: string): string {
-      const label = this.findLabel0(this.toolbox, dragName);
-      return label ? label : dragName;
-   }
-
-   private findLabel0(root: TreeNodeModel, dragName: string): string {
-      if(root.dragName == dragName) {
-         return root.label;
-      }
-
-      if(root.children) {
-         for(let child of root.children) {
-            const label = this.findLabel0(child, dragName);
-
-            if(label) {
-               return label;
-            }
-         }
-      }
-
-      return null;
    }
 
    private subscribeVScroll(): void {

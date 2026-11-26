@@ -1,0 +1,95 @@
+/*!
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+// The host is a block so the pinned components can stick to the top of the sidebar's scroll area.
+:host {
+  display: block;
+}
+
+// The components stay at the top while the data fields scroll under them. The virtual scroll of the
+// field tree is unchanged: the section is above the tree, and what it covers when stuck is the part
+// of the tree the scroll offset already renders (it starts a row above the first visible row).
+.toolbox-components {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-bottom: var(--inet-space-2, 4px);
+  background-color: var(--inet-composer-side-panel-bg-color, var(--inet-shell-surface-default));
+  border-bottom: 1px solid var(--inet-default-border-color);
+}
+
+.toolbox-components__head {
+  display: flex;
+  align-items: center;
+  gap: var(--inet-space-2, 4px);
+  width: 100%;
+  padding: var(--inet-space-2, 4px) var(--inet-space-3, 8px);
+  color: var(--inet-text-secondary-color, inherit);
+  background: transparent;
+  border: 0;
+  font-weight: 600;
+  text-align: left;
+}
+
+.toolbox-components__title {
+  font-size: var(--inet-font-size-sm, 0.85em);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.toolbox-components__group {
+  display: grid;
+  grid-template-columns: 4.5em 1fr;
+  align-items: center;
+  padding: 1px var(--inet-space-3, 8px) 1px var(--inet-space-4, 12px);
+}
+
+.toolbox-components__label {
+  font-size: var(--inet-font-size-sm, 0.85em);
+  color: var(--inet-text-secondary-color, inherit);
+}
+
+.toolbox-components__tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+// a group without a label (the deployed toolbox) uses the whole row
+.toolbox-components__group:not(:has(.toolbox-components__label)) {
+  grid-template-columns: 1fr;
+}
+
+.toolbox-components__tile {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  cursor: grab;
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-sm, 4px);
+  background-color: var(--inet-shell-surface-default);
+
+  &:hover {
+    background-color: var(--inet-overlay-subtle-bg-color, rgba(0, 0, 0, 0.06));
+    border-color: var(--inet-primary-color);
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
+}

@@ -15,17 +15,38 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
+<!-- The components are pinned above the data tree and stay in view while the fields scroll -->
+<div class="toolbox-components">
+  <button type="button" class="toolbox-components__head" (click)="toggleComponents()"
+    [attr.aria-expanded]="!componentsCollapsed">
+    <i class="icon-size-small" aria-hidden="true"
+      [class.chevron-down-icon]="!componentsCollapsed" [class.chevron-right-icon]="componentsCollapsed"></i>
+    <span class="toolbox-components__title">_#(Toolbox)</span>
+  </button>
+  @if (!componentsCollapsed) {
+    @for (group of componentGroups; track $index) {
+      <div class="toolbox-components__group" role="group" [attr.aria-label]="group.label">
+        @if (group.label) {
+          <span class="toolbox-components__label">{{group.label}}</span>
+        }
+        <span class="toolbox-components__tiles">
+          @for (item of group.items; track item.dragName) {
+            <span class="toolbox-components__tile" role="button" draggable="true"
+              [title]="item.label" [attr.aria-label]="item.label"
+              (dragstart)="tileDragStarted($event, item)">
+              <i class="icon-size-medium" [ngClass]="item.icon" aria-hidden="true"></i>
+            </span>
+          }
+        </span>
+      </div>
+    }
+  }
+</div>
 <div [style.height.px]="virtualTop"></div>
 <div [style.height.px]="useVirtualScroll ? virtualMid : ''">
   <composer-binding-tree [viewsheet]="focusedViewsheet" [useVirtualScroll]="useVirtualScroll"
                          [grayedOutFields]="grayedOutFields" [virtualScrollTreeDatasource]="virtualScrollTreeDatasource"
                          (nodeCollapsed)="collapseNode($event)" (nodeExpanded)="expandNode($event)">
   </composer-binding-tree>
-  <tree [nodeSelectable]="false" [draggable]="true" [root]="toolbox"
-        [dataSource]="virtualScrollTreeDatasource"
-        (nodeDrag)="nodeDrag($event)"
-        [showRoot]="true" [initExpanded]="true" [useVirtualScroll]="useVirtualScroll"
-        [outerScrollContainer]="true" (nodeExpanded)="expandNode($event)"
-        (nodeCollapsed)="expandNode($event)"></tree>
 </div>
 <div [style.height.px]="virtualBot"></div>
