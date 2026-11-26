@@ -824,6 +824,13 @@ public class LogicalModelService {
       }
 
       XPartition aliasedPartition = partition.applyAutoAliases();
+      List<String> replacements =
+         partition.getAutoAliasReplacements(aliasedPartition, attr.getTable());
+
+      if(!replacements.isEmpty()) {
+         return catalog.getString("designer.qb.dataModel.replacedByAlias", attr.getTable(),
+                                  partitionName, String.join(", ", replacements));
+      }
 
       if(!aliasedPartition.containsTable(attr.getTable())) {
          return catalog.getString(

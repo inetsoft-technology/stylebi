@@ -30,6 +30,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.sync.DependencyTool;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.RecycleUtils;
@@ -451,6 +452,10 @@ public class ViewsheetChangePlanService {
 
       boolean force = Boolean.TRUE.equals(change.getForce());
       AssetEntry entry = AssetEntry.createAssetEntry(assetId);
+      // Bug #82281: the server's own delete refuses a dashboard a scheduled task uses, and
+      // force cannot bypass it. Ask that question first (before the force gate, so the no-force
+      // message never points at a flag that cannot help) and refuse at preview.
+      requireNoScheduledTaskUse(label, entry);
       AssetEntry[] dependencies = findDependencies(entry, user);
       requireForceIfDependent(
          label, ViewsheetChangeRequest.UNIT_VIEWSHEET, assetId, dependencies, force);
@@ -778,6 +783,28 @@ public class ViewsheetChangePlanService {
          .filter(AssetEntry.class::isInstance)
          .map(AssetEntry.class::cast)
          .toArray(AssetEntry[]::new);
+   }
+
+   /**
+    * Bug #82281: refuses a viewsheet delete when a scheduled task uses the dashboard, by calling
+    * the exact predicate the server's {@code ViewsheetService.deleteViewsheet} refuses on
+    * ({@link RecycleUtils#checkScheduledTasks}), so the two cannot drift. That guard throws before
+    * anything is removed and {@code force} is not an input to it. The {@code MessageException} is
+    * converted to an {@code IllegalArgumentException} because the admin controller answers only
+    * that one with a 400 (an unconverted one is a 500 the plugin classifies as a server error).
+    * Package-visible so apply re-checks before entering the mutating call: a refusal after that
+    * point is reported as rollback-failed although nothing was written.
+    */
+   static void requireNoScheduledTaskUse(String label, AssetEntry entry) {
+      try {
+         RecycleUtils.checkScheduledTasks(entry);
+      }
+      catch(MessageException e) {
+         throw new IllegalArgumentException(
+            label + ".assetId: " + e.getMessage() + " -- force: true does not bypass this guard; " +
+            "remove the dashboard from the scheduled task's action(s) first (preview/apply a " +
+            "schedule task change), then delete the dashboard");
+      }
    }
 
    /** Package-visible for the same apply-time re-check reason as {@link #findDependencies}. */
