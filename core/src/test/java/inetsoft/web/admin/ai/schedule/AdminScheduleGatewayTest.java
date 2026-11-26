@@ -2488,4 +2488,16 @@ class AdminScheduleGatewayTest {
          assertNull(pdfPath(candidate).getPassword());
       }
    }
+
+   @Test
+   void addScheduleTask_refusesAnEntryWithoutAnActionIndex() throws Exception {
+      EmailZipPasswordSpec entry = zipSpec(0, ZIP_PW, null, null);
+      entry.setActionIndex(null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         createWithZip(List.of(zipped("a@x.com")), List.of(entry)));
+
+      assertTrue(ex.getMessage().contains("actionIndex is required"), ex.getMessage());
+      assertFalse(ex.getMessage().contains(ZIP_PW));
+   }
 }

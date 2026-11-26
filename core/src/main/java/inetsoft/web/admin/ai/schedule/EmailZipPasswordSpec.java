@@ -32,8 +32,9 @@ import inetsoft.report.internal.Util;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class EmailZipPasswordSpec {
-   public int getActionIndex() { return actionIndex; }
-   public void setActionIndex(int v) { this.actionIndex = v; }
+   /** {@code null} when the caller did not send it, which the plan refuses by name. */
+   public Integer getActionIndex() { return actionIndex; }
+   public void setActionIndex(Integer v) { this.actionIndex = v; }
 
    public String getPassword() { return password; }
    public void setPassword(String v) { this.password = v; }
@@ -73,7 +74,7 @@ public class EmailZipPasswordSpec {
          ", useCredential=" + usesCredential() + ", secretId=" + secretId + "}";
    }
 
-   private int actionIndex;
+   private Integer actionIndex;
    private String password;
    private Boolean useCredential;
    private String secretId;

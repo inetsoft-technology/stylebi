@@ -134,7 +134,7 @@ class ScheduleTaskPathJsonTest {
 
       EmailZipPasswordSpec spec = mapper.readValue(wire, EmailZipPasswordSpec.class);
 
-      assertEquals(1, spec.getActionIndex());
+      assertEquals(Integer.valueOf(1), spec.getActionIndex());
       assertEquals("PW-PLACEHOLDER-ZIP-1", spec.getPassword());
       assertFalse(spec.toString().contains("PW-PLACEHOLDER-ZIP-1"));
    }

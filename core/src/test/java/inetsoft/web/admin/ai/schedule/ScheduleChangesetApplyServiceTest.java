@@ -1030,4 +1030,41 @@ class ScheduleChangesetApplyServiceTest {
       assertTrue(captor.getAllValues().stream().allMatch(p -> p.getEmailZipPasswords() != null &&
          p.getEmailZipPasswords().get(0).getActionIndex() == 0));
    }
+
+   private static inetsoft.sree.schedule.ScheduleTask zippedStored(String password) {
+      inetsoft.sree.schedule.ScheduleTask task = sreeTask("t1", "admin");
+      inetsoft.sree.schedule.ViewsheetAction action = new inetsoft.sree.schedule.ViewsheetAction();
+      action.setViewsheet("1^128^__NULL__^Examples/Census^host-org");
+      action.setEmails("qa@example.com");
+      action.setFileFormat("PDF");
+      action.setCompressFile(true);
+      action.setPassword(password);
+      task.addAction(action, "http://host:8080/sree/");
+      task.addCondition(inetsoft.sree.schedule.TimeCondition.at(1, 30, 0));
+      return task;
+   }
+
+   // review r1 F1: replacing a zip password is planned and the post-write check still passes
+   @Test void rotatingAZipPasswordIsPlannedAndVerifiedAfterTheWrite() throws Exception {
+      when(scheduleManager.getScheduleTask("t1"))
+         .thenReturn(zippedStored("PW-PLACEHOLDER-ZIP-1"))   // preview
+         .thenReturn(zippedStored("PW-PLACEHOLDER-ZIP-1"))   // re-resolve inside apply()
+         .thenReturn(zippedStored("PW-PLACEHOLDER-ZIP-1"))   // apply: capture before-state
+         // apply: verify, read back from the store
+         .thenReturn(ScheduleChangesetApplyService.deepCopy(zippedStored("PW-PLACEHOLDER-ZIP-2")));
+      lenient().when(scheduleGateway.viewsheetExists(anyString())).thenReturn(true);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setActions(List.of(zippedAction(true)));
+      patch.setEmailZipPasswords(List.of(zipSpec(0, "PW-PLACEHOLDER-ZIP-2")));
+      when(scheduleGateway.buildUpdatedTask(eq("t1"), eq(patch), any(), eq(user)))
+         .thenAnswer(inv -> zippedStored("PW-PLACEHOLDER-ZIP-2"));
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ApplyResult result = service.apply(applyRequest("rotate zip password",
+                                                      updateChange("t1", patch)), user, null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(scheduleGateway).storeUpdatedTask(eq("t1"), any(), eq(user));
+      assertFalse(result.toString().contains("PW-PLACEHOLDER-ZIP"));
+   }
 }

@@ -252,7 +252,7 @@ public class ScheduleChangePlanService {
       }
 
       if(change.getEmailZipPasswords() != null && !change.getEmailZipPasswords().isEmpty()) {
-         proposed += ";emailZipPasswords=" + projectEmailZipPasswords(change.getEmailZipPasswords());
+         proposed += ZIP_PASSWORD_TOKEN + projectEmailZipPasswords(change.getEmailZipPasswords());
       }
 
       return new PlanChange(taskId, spec.getOwner().getOrgID(), null, proposed,
@@ -381,9 +381,18 @@ public class ScheduleChangePlanService {
       String current = ScheduleXmlProjection.projectAsStored(existing);
       String proposed = ScheduleXmlProjection.projectAsStored(candidate);
 
-      if(current.equals(proposed)) {
+      // the projection only says a password is set, so a new password is no change to it; the
+      // plan shows it as a trailing token instead, which apply strips before it compares
+      List<EmailZipPasswordSpec> newPasswords = patch.getEmailZipPasswords() == null ? List.of() :
+         patch.getEmailZipPasswords().stream().filter(EmailZipPasswordSpec::setsPassword).toList();
+
+      if(current.equals(proposed) && newPasswords.isEmpty()) {
          throw new IllegalArgumentException(
             label + ".patch: every field already has the requested value, nothing to update");
+      }
+
+      if(!newPasswords.isEmpty()) {
+         proposed += ZIP_PASSWORD_TOKEN + projectEmailZipPasswords(newPasswords);
       }
 
       if(rollbackProvablyRecreates(taskId, existing, user)) {
@@ -681,6 +690,10 @@ public class ScheduleChangePlanService {
             throw new IllegalArgumentException(at + ": must be an object");
          }
 
+         if(spec.getActionIndex() == null) {
+            throw new IllegalArgumentException(at + ".actionIndex: required");
+         }
+
          int index = spec.getActionIndex();
 
          if(actions == null || index < 0 || index >= actions.size() ||
@@ -728,6 +741,19 @@ public class ScheduleChangePlanService {
                " cannot be set while the server is in FIPS mode, as in the portal");
          }
       }
+   }
+
+   /** Introduces the zip password entries in a plan text, see {@link #withoutZipPasswordToken}. */
+   static final String ZIP_PASSWORD_TOKEN = ";emailZipPasswords=";
+
+   /**
+    * The planned task text without the trailing zip password token of an update plan, the form the
+    * stored task is compared with after the write.
+    */
+   static String withoutZipPasswordToken(String planned) {
+      int at = planned == null ? -1 : planned.lastIndexOf(ZIP_PASSWORD_TOKEN);
+      return at >= 0 && planned.indexOf('\n', at) < 0 && planned.endsWith("]") ?
+         planned.substring(0, at) : planned;
    }
 
    /** The zip password entries as the plan text shows them, never with a password value. */

@@ -523,6 +523,10 @@ public class AdminScheduleGateway {
       }
 
       for(EmailZipPasswordSpec spec : specs) {
+         if(spec.getActionIndex() == null) {
+            throw new IllegalArgumentException("emailZipPasswords: actionIndex is required");
+         }
+
          int index = spec.getActionIndex();
 
          if(index < 0 || index >= candidate.getActionCount() ||

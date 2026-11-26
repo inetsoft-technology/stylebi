@@ -66,6 +66,10 @@ class ScheduleChangePlanServiceTest {
       service = new ScheduleChangePlanService(scheduleGateway, scheduleManager);
       tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
+      tool.when(() -> Tool.decryptPassword(anyString())).thenAnswer(inv -> {
+         String value = inv.getArgument(0);
+         return value.startsWith("TKN:") ? value.substring(4) : value;
+      });
       tool.when(() -> Tool.encryptPassword(anyString()))
          .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
       orgStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
@@ -1883,5 +1887,90 @@ class ScheduleChangePlanServiceTest {
          assertFalse(shownFtpPlaceholder("ftp://host/reports/daily", "someoneelse")
                         .contains("password="));
       }
+   }
+
+   // -------------------------------------------------------------------------
+   // rotating an existing zip password, and a missing actionIndex (Bug #82325, review r1)
+   // -------------------------------------------------------------------------
+
+   private static inetsoft.sree.schedule.ScheduleTask storedZippedTask(String password) {
+      inetsoft.sree.schedule.ScheduleTask task = sreeTask("t1", "admin");
+      inetsoft.sree.schedule.ViewsheetAction action = new inetsoft.sree.schedule.ViewsheetAction();
+      action.setViewsheet("1^128^__NULL__^Examples/Census^host-org");
+      action.setEmails("qa@example.com");
+      action.setFileFormat("PDF");
+      action.setCompressFile(true);
+      action.setPassword(password);
+      task.addAction(action, "http://host:8080/sree/");
+      task.addCondition(inetsoft.sree.schedule.TimeCondition.at(1, 30, 0));
+      return task;
+   }
+
+   private ResolvedPlan resolveZipUpdate(String storedPassword, String candidatePassword,
+                                         EmailZipPasswordSpec... entries)
+      throws Exception
+   {
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(storedZippedTask(storedPassword));
+      lenient().when(scheduleGateway.viewsheetExists(anyString())).thenReturn(true);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setActions(List.of(zippedAction(true)));
+      patch.setEmailZipPasswords(entries.length == 0 ? null : List.of(entries));
+      when(scheduleGateway.buildUpdatedTask("t1", patch, null, user))
+         .thenReturn(storedZippedTask(candidatePassword));
+      return service.resolve(request("task", List.of(updateChange("t1", patch))), user);
+   }
+
+   // F1: both projections only say "a password is set", so the new password is a trailing token
+   @Test void replacingAnExistingZipPasswordIsPlannedNotRefusedAsNothingToUpdate()
+      throws Exception
+   {
+      ResolvedPlan plan = resolveZipUpdate(ZIP_PW, "PW-PLACEHOLDER-ZIP-2",
+                                           zipSpec(0, "PW-PLACEHOLDER-ZIP-2", null, null));
+
+      PlanChange change = plan.changes().get(0);
+      assertTrue(change.proposedValue().endsWith(";emailZipPasswords=[0:set]"),
+                 change.proposedValue());
+      assertFalse(change.currentValue().contains("emailZipPasswords"));
+      assertFalse(plan.toString().contains(ZIP_PW));
+      assertFalse(plan.toString().contains("PW-PLACEHOLDER-ZIP-2"));
+      // apply compares the stored task with the plan without that token
+      assertEquals(ScheduleXmlProjection.projectAsStored(storedZippedTask("PW-PLACEHOLDER-ZIP-2")),
+         ScheduleChangePlanService.withoutZipPasswordToken(change.proposedValue()));
+   }
+
+   @Test void aKeepOrOmittedZipPasswordEntryIsStillNothingToUpdate() throws Exception {
+      for(EmailZipPasswordSpec[] entries : new EmailZipPasswordSpec[][]{
+         {}, {zipSpec(0, inetsoft.report.internal.Util.PLACEHOLDER_PASSWORD, null, null)}})
+      {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> resolveZipUpdate(ZIP_PW, ZIP_PW, entries));
+
+         assertTrue(ex.getMessage().contains("nothing to update"), ex.getMessage());
+      }
+   }
+
+   @Test void clearingAnExistingZipPasswordIsPlannedAsAChange() throws Exception {
+      ResolvedPlan plan = resolveZipUpdate(ZIP_PW, null, zipSpec(0, "", null, null));
+
+      PlanChange change = plan.changes().get(0);
+      assertNotEquals(change.currentValue(), change.proposedValue());
+      assertFalse(change.proposedValue().contains("emailZipPasswords"));
+   }
+
+   @Test void noTokenIsAddedWhenNoPasswordIsSet() throws Exception {
+      ResolvedPlan plan = resolveZipUpdate(ZIP_PW, null, zipSpec(0, "", null, null));
+
+      assertEquals(plan.changes().get(0).proposedValue(),
+         ScheduleChangePlanService.withoutZipPasswordToken(plan.changes().get(0).proposedValue()));
+   }
+
+   @Test void aZipPasswordEntryWithoutActionIndexIsRefusedByName() {
+      EmailZipPasswordSpec entry = zipSpec(0, ZIP_PW, null, null);
+      entry.setActionIndex(null);
+
+      String message = zipRefusal(List.of(zippedAction(true)), entry);
+
+      assertTrue(message.contains("emailZipPasswords[0].actionIndex"), message);
+      assertTrue(message.contains("required"), message);
    }
 }
