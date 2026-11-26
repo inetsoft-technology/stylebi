@@ -32,6 +32,7 @@ import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionSet;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -202,6 +203,91 @@ class SelectionListMixedTypeTest {
       meta.addValue(23);
       assertEquals(0, meta.getValueIndex(false));
       assertEquals(1, meta.getValueIndex(23));
+      // a selected value arrives as its string
+      assertEquals(1, meta.getValueIndex("23"));
+      assertEquals(0, meta.getValueIndex("false"));
+
+      // a value added later, and a copy, are found by their string too
+      meta.addValue(0.5);
+      assertEquals(2, meta.getValueIndex("0.5"));
+      ColumnMetaData copy = (ColumnMetaData) meta.clone();
+      copy.addValue(YEAR);
+      assertEquals(3, copy.getValueIndex(YEAR_STR));
+      assertEquals(3, meta.getValueCount());
+   }
+
+   @Test
+   void selectionOnAMixedColumnFindsItsOwnRows() throws Exception {
+      // a list on the rotated (declared string) column passes its selected values to the
+      // other assemblies as strings (SelectionListVSAssembly.getSelectedObjects0)
+      Object[][] booleanFirst = {
+         { "k", "PAID", "S1", "DISCOUNT", "YEAR" },
+         { "X", false, 6, 0.15, YEAR },
+         { "Y", "y-paid", "y-s1", "y-disc", "y-year" } };
+      Object[][] dateFirst = {
+         { "k", "YEAR", "DISCOUNT", "PAID", "S1" },
+         { "X", YEAR, 0.15, false, 6 },
+         { "Y", "y-year", "y-disc", "y-paid", "y-s1" } };
+      Map<String, String> expected = Map.of(
+         "0.15", "y-disc", "6", "y-s1", YEAR_STR, "y-year", "false", "y-paid");
+
+      for(Object[][] data : List.of(booleanFirst, dateFirst)) {
+         Worksheet ws = rotate(data);
+         TableLens rotated = sandbox(ws).getTableLens("R", AssetQuerySandbox.RUNTIME_MODE,
+                                                      new VariableTable());
+         rotated.moreRows(TableLens.EOT);
+         RealtimeTableMetaData meta = new RealtimeTableMetaData("R");
+         meta.process(rotated, new String[] { COL, "Y" }, new ArrayList<>());
+         DataRef[] refs = { new AttributeRef(null, "Y") };
+
+         for(Map.Entry<String, String> entry : expected.entrySet()) {
+            Map<String, Collection<Object>> selections = new HashMap<>();
+            selections.put(COL, new HashSet<>(Set.of(entry.getKey())));
+            SelectionSet associated = meta.getAssociatedValues(
+               "Y", selections, refs, null, new SelectionMeasureAggregation(false));
+
+            assertEquals(Set.of(entry.getValue()), new HashSet<>(associated),
+                         "first " + data[1][1] + ", selected " + entry.getKey());
+            assertEquals(List.of(entry.getValue()), associatedGrouped(data, entry.getKey()),
+                         "grouped, first " + data[1][1] + ", selected " + entry.getKey());
+         }
+      }
+   }
+
+   /**
+    * The associated values the way MVTableMetaData.getAssociatedValues gets them: a group on
+    * the column with the selection as a condition (VSUtil.createConditionList).
+    */
+   private static List<Object> associatedGrouped(Object[][] data, String selected)
+      throws Exception
+   {
+      Worksheet ws = rotate(data);
+      MirrorTableAssembly mirror =
+         new MirrorTableAssembly(ws, "M", (WSAssembly) ws.getAssembly("R"));
+      ws.addAssembly(mirror);
+      AssetQuerySandbox wbox = sandbox(ws);
+      wbox.refreshColumnSelection("M", true);
+      ColumnRef x = (ColumnRef) mirror.getColumnSelection(false).getAttribute(COL);
+      ColumnRef y = (ColumnRef) mirror.getColumnSelection(false).getAttribute("Y");
+      AggregateInfo ainfo = new AggregateInfo();
+      ainfo.addGroup(new GroupRef(y));
+      ColumnSelection columns = new ColumnSelection();
+      columns.addAttribute(y);
+      columns.addAttribute(x);
+      mirror.setColumnSelection(columns);
+      mirror.setAggregateInfo(ainfo);
+      mirror.setPreRuntimeConditionList(VSUtil.createConditionList(x, List.of(selected)));
+      mirror.resetColumnSelection();
+
+      TableLens lens = wbox.getTableLens("M", AssetQuerySandbox.RUNTIME_MODE,
+                                         new VariableTable());
+      List<Object> result = new ArrayList<>();
+
+      for(int r = 1; lens.moreRows(r); r++) {
+         result.add(lens.getObject(r, 0));
+      }
+
+      return result;
    }
 
    private static void assertValues(List<Object> expected, Object... added) {

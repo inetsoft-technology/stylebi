@@ -25,8 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * This class holds a unique list of items of a column, and maintain the
@@ -142,6 +141,7 @@ class ColumnMetaData implements Cloneable, Serializable {
          idx = items.size();
          infomap.put(val, idx);
          items.add(val);
+         strmap = null;
       }
 
       if(fval == null && val != null) {
@@ -192,6 +192,7 @@ class ColumnMetaData implements Cloneable, Serializable {
       }
 
       infomap = ninfomap;
+      strmap = null;
    }
 
    /**
@@ -199,8 +200,16 @@ class ColumnMetaData implements Cloneable, Serializable {
     */
    public int getValueIndex(Object val) {
       // a mixed type column keeps the values unconverted
-      if(mixedType) {
+      if(mixedType && val != null) {
          Integer info = infomap.get(val);
+
+         if(info != null) {
+            return info;
+         }
+
+         // a selected value usually arrives as its string (the selection list value), which
+         // converting to the first value's type would miss or turn into another value
+         info = getStringIndexMap().get(Tool.getDataString(val));
 
          if(info != null) {
             return info;
@@ -216,11 +225,35 @@ class ColumnMetaData implements Cloneable, Serializable {
    }
 
    /**
+    * Get the map from the string of each value (as the selection list shows it) to its index.
+    */
+   private Map<String, Integer> getStringIndexMap() {
+      Map<String, Integer> map = strmap;
+
+      if(map == null) {
+         map = new HashMap<>();
+
+         for(int i = 0; i < items.size(); i++) {
+            Object item = items.get(i);
+
+            if(item != null) {
+               map.putIfAbsent(Tool.getDataString(item), i);
+            }
+         }
+
+         strmap = map;
+      }
+
+      return map;
+   }
+
+   /**
     * Dispose the column metadata.
     */
    public void dispose() {
       items.clear();
       infomap.clear();
+      strmap = null;
    }
 
    /**
@@ -233,6 +266,7 @@ class ColumnMetaData implements Cloneable, Serializable {
 
          obj.items = (ArrayList<Object>) items.clone();
          obj.infomap = (SelectionMap) infomap.clone();
+         obj.strmap = null;
 
          return obj;
       }
@@ -252,6 +286,8 @@ class ColumnMetaData implements Cloneable, Serializable {
    private transient Object pval = null; // previous value
    private transient int pidx = 0; // previous value index
    private transient boolean mixedType = false;
+   // value string -> index, built on use for a mixed type column, reset when the items change
+   private transient volatile Map<String, Integer> strmap = null;
 
    private static final Logger LOG = LoggerFactory.getLogger(ColumnMetaData.class);
 }
