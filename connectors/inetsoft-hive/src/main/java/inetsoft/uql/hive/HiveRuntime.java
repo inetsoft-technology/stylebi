@@ -84,6 +84,7 @@ public class HiveRuntime extends TabularRuntime implements TabularCatalogProvide
    @Override
    public void testDataSource(TabularDataSource ds, VariableTable params)
       throws Exception {
+      requireDbName((HiveDataSource) ds);
       Connection conn = getConnection((HiveDataSource) ds);
 
       try {
@@ -122,7 +123,8 @@ public class HiveRuntime extends TabularRuntime implements TabularCatalogProvide
     * @return JDBC url
     */
    private String constructUrl(HiveDataSource ds) {
-      return "jdbc:hive2://" + ds.getHost() + ":" + ds.getPort() + "/" + ds.getDbName();
+      return "jdbc:hive2://" + ds.getHost() + ":" + ds.getPort() + "/" +
+         (ds.getDbName() == null ? "" : ds.getDbName());
    }
 
    /**
@@ -171,7 +173,7 @@ public class HiveRuntime extends TabularRuntime implements TabularCatalogProvide
    private static void requireDbName(HiveDataSource ds) throws Exception {
       if(ds.getDbName() == null || ds.getDbName().isBlank()) {
          throw new Exception("Data source '" + ds.getName() +
-            "' has no database configured; cannot enumerate its tables.");
+            "' has no database configured.");
       }
    }
 

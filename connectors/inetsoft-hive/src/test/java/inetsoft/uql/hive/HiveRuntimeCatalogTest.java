@@ -86,6 +86,49 @@ class HiveRuntimeCatalogTest {
    }
 
    @Test
+   void testDataSource_nullDbName_failsFastNamingMissingDatabase() {
+      HiveDataSource ds = new HiveDataSource();
+      ds.setName("hive1");
+      ds.setHost(UNROUTABLE_HOST);
+      ds.setDbName(null);
+      HiveRuntime runtime = new HiveRuntime();
+
+      Exception ex = assertTimeout(Duration.ofSeconds(2),
+         () -> assertThrows(Exception.class, () -> runtime.testDataSource(ds, null)));
+
+      assertTrue(ex.getMessage().contains("no database configured"));
+      assertFalse(ex.getMessage().contains("null"));
+   }
+
+   @Test
+   void testDataSource_blankDbName_failsFastNamingMissingDatabase() {
+      HiveDataSource ds = new HiveDataSource();
+      ds.setHost(UNROUTABLE_HOST);
+      ds.setDbName("  ");
+      HiveRuntime runtime = new HiveRuntime();
+
+      Exception ex = assertTimeout(Duration.ofSeconds(2),
+         () -> assertThrows(Exception.class, () -> runtime.testDataSource(ds, null)));
+
+      assertTrue(ex.getMessage().contains("no database configured"));
+   }
+
+   @Test
+   void constructUrl_nullDbName_doesNotRenderNull() throws Exception {
+      HiveDataSource ds = new HiveDataSource();
+      ds.setHost("h");
+      ds.setDbName(null);
+      Method constructUrl = HiveRuntime.class.getDeclaredMethod("constructUrl",
+         HiveDataSource.class);
+      constructUrl.setAccessible(true);
+
+      String url = (String) constructUrl.invoke(new HiveRuntime(), ds);
+
+      assertTrue(url.endsWith("/"), url);
+      assertFalse(url.contains("null"), url);
+   }
+
+   @Test
    void normalizedDbName_mixedCaseConfiguredName_lowercased() throws Exception {
       // normalizedDbName is a private static, pure-string method reached via reflection --
       // setAccessible(true) changes no source and violates no gate (P4 verifier follow-up).
