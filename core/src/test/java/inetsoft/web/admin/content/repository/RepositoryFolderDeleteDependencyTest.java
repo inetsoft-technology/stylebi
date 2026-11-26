@@ -283,6 +283,146 @@ class RepositoryFolderDeleteDependencyTest {
       assertFalse(registry().isFolder(n));
    }
 
+   // ---- Bug #82449, a permanent delete must not leave a recycle bin row ----
+
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void permanentDeleteOfRepositoryFolderLeavesNoBinRow() throws Exception {
+      String n = "F82449a";
+      addReportFolders(n, n + "/G");
+      AssetEntry child = saveViewsheet(vs(n + "/G/Child"));
+      RecycleBin bin = mock(RecycleBin.class);
+      RepositoryObjectService service = emService(bin);
+      TreeNodeInfo[] nodes = { TreeNodeInfo.builder().label(n).path(n)
+                                  .type(RepositoryEntry.FOLDER).build() };
+
+      allowAllResult(() -> service.deleteNodes(nodes, admin(), true, true));
+
+      assertFalse(registry().isFolder(n));
+      assertFalse(registry().isFolder(n + "/G"));
+      assertFalse(repo.containsEntry(child));
+      verifyNoBinRow(bin);
+   }
+
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void permanentDeleteOfMyDashboardsFolderLeavesNoBinRow() throws Exception {
+      String n = "P82449b";
+      IdentityID owner = new IdentityID("u82449", orgId);
+      RepletRegistry userRegistry = RepletRegistryManager.getInstance().getRegistry(owner);
+      ThreadContext.setContextPrincipal(new SRPrincipal(
+         owner, new IdentityID[0], new String[0], orgId, 2L));
+      allowAll(() -> {
+         userRegistry.addFolder(MY_DASHBOARDS + "/" + n);
+         userRegistry.addFolder(MY_DASHBOARDS + "/" + n + "/G");
+         userRegistry.save();
+      });
+      AssetEntry child = saveViewsheet(
+         new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, n + "/G/Child",
+                        owner, orgId));
+      RecycleBin bin = mock(RecycleBin.class);
+      RepositoryObjectService service = emService(bin);
+      TreeNodeInfo[] nodes = { TreeNodeInfo.builder().label(n).path(MY_DASHBOARDS + "/" + n)
+                                  .owner(owner).type(RepositoryEntry.FOLDER).build() };
+
+      allowAllResult(() -> service.deleteNodes(nodes, admin(), true, true));
+
+      RepletRegistry after = RepletRegistryManager.getInstance().getRegistry(owner);
+      assertFalse(after.isFolder(MY_DASHBOARDS + "/" + n));
+      assertFalse(after.isFolder(MY_DASHBOARDS + "/" + n + "/G"));
+      assertFalse(repo.containsEntry(child));
+      verifyNoBinRow(bin);
+   }
+
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void permanentUnforcedDeleteOfRepositoryFolderWithDependencyAsksToConfirm() throws Exception {
+      String n = "F82449c";
+      addReportFolders(n, n + "/G");
+      AssetEntry inner = saveViewsheet(vs(n + "/G/Inner"));
+      saveOuter(vs("Outer82449c"), inner);
+      RecycleBin bin = mock(RecycleBin.class);
+      RepositoryObjectService service = emService(bin);
+      TreeNodeInfo[] nodes = { TreeNodeInfo.builder().label(n).path(n)
+                                  .type(RepositoryEntry.FOLDER).build() };
+
+      ConnectionStatus first =
+         allowAllResult(() -> service.deleteNodes(nodes, admin(), false, true));
+
+      assertNotNull(first);
+      assertTrue(first.getStatus().contains("Outer82449c"), first.getStatus());
+      assertTrue(registry().isFolder(n));
+      assertTrue(repo.containsEntry(inner));
+
+      allowAllResult(() -> service.deleteNodes(nodes, admin(), true, true));
+
+      assertFalse(registry().isFolder(n));
+      verifyNoBinRow(bin);
+   }
+
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void nonPermanentDeleteOfRepositoryFolderStillMovesToBin() throws Exception {
+      String n = "F82449d";
+      addReportFolders(n, n + "/G");
+      RecycleBin bin = mock(RecycleBin.class);
+      RepositoryObjectService service = emService(bin);
+      TreeNodeInfo[] nodes = { TreeNodeInfo.builder().label(n).path(n)
+                                  .type(RepositoryEntry.FOLDER).build() };
+
+      allowAllResult(() -> service.deleteNodes(nodes, admin(), true, false));
+
+      assertFalse(registry().isFolder(n));
+      verify(bin, times(1)).addEntry(anyString(), eq(n), any(), any(), anyInt(), anyInt(), any());
+   }
+
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void permanentDeleteOfWorksheetFolderLeavesNoBinRow() throws Exception {
+      String n = "W82449e";
+      AssetEntry folder = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, n, null, orgId);
+      allowAll(() -> repo.addFolder(folder, admin()));
+      assertTrue(repo.containsEntry(folder));
+      RecycleBin bin = mock(RecycleBin.class);
+      RepositoryObjectService service = emService(bin);
+      TreeNodeInfo[] nodes = { TreeNodeInfo.builder().label(n).path(n)
+                                  .type(RepositoryEntry.WORKSHEET_FOLDER).build() };
+
+      allowAllResult(() -> service.deleteNodes(nodes, admin(), true, true));
+
+      assertFalse(repo.containsEntry(folder));
+      verifyNoBinRow(bin);
+   }
+
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void permanentDeleteOfOwnedWorksheetFolderLeavesNoBinRow() throws Exception {
+      // the name contains "Worksheets" on purpose, the in-bin path logic would mangle it
+      String n = "Archive Worksheets82449f";
+      IdentityID owner = new IdentityID("u82449f", orgId);
+      AssetEntry folder = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.FOLDER, n, owner, orgId);
+      ThreadContext.setContextPrincipal(new SRPrincipal(
+         owner, new IdentityID[0], new String[0], orgId, 2L));
+      allowAll(() -> repo.addFolder(folder, admin()));
+      assertTrue(repo.containsEntry(folder));
+      RecycleBin bin = mock(RecycleBin.class);
+      RepositoryObjectService service = emService(bin);
+      TreeNodeInfo[] nodes = { TreeNodeInfo.builder().label(n).path(n).owner(owner)
+                                  .type(RepositoryEntry.WORKSHEET_FOLDER).build() };
+
+      allowAllResult(() -> service.deleteNodes(nodes, admin(), true, true));
+
+      assertFalse(repo.containsEntry(folder));
+      verifyNoBinRow(bin);
+   }
+
+   private static void verifyNoBinRow(RecycleBin bin) {
+      verify(bin, never()).addEntry(anyString(), anyString(), any(), any(), anyInt(), anyInt(),
+                                    any());
+   }
+
    // ---- helpers ----
 
    private static final String MY_DASHBOARDS = Tool.MY_DASHBOARD;
@@ -363,16 +503,22 @@ class RepositoryFolderDeleteDependencyTest {
    }
 
    private static RepositoryObjectService emService() {
+      return emService(mock(RecycleBin.class));
+   }
+
+   private static RepositoryObjectService emService(RecycleBin bin) {
+      ContentRepositoryTreeService treeService = mock(ContentRepositoryTreeService.class);
+      when(treeService.getUnscopedPath(anyString())).thenAnswer(inv -> inv.getArgument(0));
       ResourcePermissionService rps = mock(ResourcePermissionService.class);
       when(rps.getRepositoryResourceType(anyInt(), anyString()))
          .thenAnswer(inv -> new Resource(ResourceType.REPORT, inv.getArgument(1)));
       RepletRegistryService registryService = new RepletRegistryService(
          SecurityEngine.getSecurity(), null, mock(DependencyHandler.class),
          mock(RenameTransformHandler.class), RepletRegistryManager.getInstance());
-      return new RepositoryObjectService(registryService, mock(ContentRepositoryTreeService.class),
+      return new RepositoryObjectService(registryService, treeService,
          mock(SecurityProvider.class), rps, mock(XRepository.class),
          mock(RepositoryDashboardService.class), mock(DataModelFolderManagerService.class),
-         mock(DataSourceRegistry.class), mock(LibManagerProvider.class), mock(RecycleBin.class),
+         mock(DataSourceRegistry.class), mock(LibManagerProvider.class), bin,
          mock(DependencyHandler.class), mock(RenameTransformHandler.class),
          RepletRegistryManager.getInstance(), mock(DashboardRegistryManager.class));
    }
