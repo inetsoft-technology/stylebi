@@ -356,10 +356,10 @@
     {
       "name": "Account",
       "paged": false,
+      "excludeJsonPaths": ["$.auth_token"],
       "suffix": "/2010-04-01/Accounts/{Account ID}.json",
       "description": "One account or subaccount by its SID.",
       "responseSchema": {
-        "auth_token": "string",
         "date_created": "timeInstant",
         "date_updated": "timeInstant",
         "friendly_name": "string",
@@ -376,6 +376,7 @@
     {
       "name": "Accounts",
       "paged": true,
+      "excludeJsonPaths": ["$.accounts[*].auth_token"],
       "suffix": "/2010-04-01/Accounts.json?FriendlyName={Account Name?}&Status={Status?:closed|suspended|active}",
       "lookups": [
         {
@@ -391,7 +392,7 @@
           "parameterName": "Account ID"
         }
       ],
-      "description": "The account and its subaccounts, with the friendly name, status (active, suspended or closed), type, and the auth token. SUBACCOUNTS ARE HOW MOST PLATFORMS SEPARATE THEIR CUSTOMERS, and every other endpoint here takes an Account ID -- so on a multi-tenant account this list is the first request, and a figure taken against the parent account alone excludes all of the subaccount activity.",
+      "description": "The account and its subaccounts, with the friendly name, status (active, suspended or closed) and type. The auth tokens Twilio returns with them are not exposed. SUBACCOUNTS ARE HOW MOST PLATFORMS SEPARATE THEIR CUSTOMERS, and every other endpoint here takes an Account ID -- so on a multi-tenant account this list is the first request, and a figure taken against the parent account alone excludes all of the subaccount activity.",
       "responseSchema": {
         "end": "double",
         "first_page_uri": "string",
@@ -403,7 +404,6 @@
         "uri": "string",
         "accounts": [
           {
-            "auth_token": "string",
             "date_created": "timeInstant",
             "date_updated": "timeInstant",
             "friendly_name": "string",
