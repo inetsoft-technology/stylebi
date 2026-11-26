@@ -116,4 +116,39 @@ public class RuntimeCalcTableLensTest {
 
       Assertions.assertEquals(2, copy.getRow(0));
    }
+
+   private static RuntimeCalcTableLens.IndexMap mapWithAnInsertedRow() {
+      RuntimeCalcTableLens.IndexMap map = new RuntimeCalcTableLens.IndexMap(3);
+      map.insert(1, 0, new CalcCellContext());
+      return map;
+   }
+
+   @Test
+   public void indexMapInsertAndRemoveShiftTheLaterIndexes() {
+      RuntimeCalcTableLens.IndexMap map = mapWithAnInsertedRow();
+
+      Assertions.assertEquals(4, map.size());
+      Assertions.assertArrayEquals(new int[] { 0, 0, 1, 2 }, map.getMapArray());
+      // the first runtime row that shows layout row 0, and all of them
+      Assertions.assertEquals(0, map.getReverse(0));
+      Assertions.assertArrayEquals(new int[] { 0, 1 }, map.getReverseIndexs(0));
+
+      map.remove(0);
+
+      Assertions.assertEquals(3, map.size());
+      Assertions.assertArrayEquals(new int[] { 0, 1, 2 }, map.getMapArray());
+   }
+
+   @Test
+   public void indexMapReverseSearchWithAStartAndAnIncrementWalksBothWays() {
+      RuntimeCalcTableLens.IndexMap map = mapWithAnInsertedRow();
+
+      // the start index itself is searched too
+      Assertions.assertEquals(0, map.getReverse(0, 0, 1), "forward from 0");
+      Assertions.assertEquals(1, map.getReverse(0, 1, 1), "forward from 1");
+      Assertions.assertEquals(1, map.getReverse(0, 3, -1), "backward from 3 finds the last match");
+      Assertions.assertEquals(-1, map.getReverse(2, 0, -1), "nothing before the start");
+      Assertions.assertEquals(-1, map.getReverse(0, 4, 1), "start past the end");
+      Assertions.assertEquals(-1, map.getReverse(0, -1, 1), "negative start");
+   }
 }
