@@ -55,6 +55,7 @@ import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.command.AddLayoutObjectCommand;
+import inetsoft.web.composer.vs.dialog.PresenterPropertySupport;
 import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
@@ -1357,7 +1358,14 @@ public class FormatPainterService {
          presenter = model.getPresenterLabel();
       }
 
-      if(!Tool.equals(presenter, opresenter) || reset) {
+      Map<String, Object> presenterProperties = model.getPresenterProperties();
+      boolean hasProperties = !reset && presenterProperties != null &&
+         !presenterProperties.isEmpty();
+
+      if(hasProperties) {
+         setPresenterProperties(userFormat, presenter, presenterProperties);
+      }
+      else if(!Tool.equals(presenter, opresenter) || reset) {
          if(presenter == null || presenter.isEmpty()) {
             userFormat.setPresenterValue(null, !reset);
          }
@@ -1403,6 +1411,49 @@ public class FormatPainterService {
       }
 
       format.setUserDefinedFormat(userFormat);
+   }
+
+   /**
+    * Store presenter properties the way the Presenter Properties dialog does, on the presenter
+    * reference of the format. The stored reference is kept (so properties set earlier survive)
+    * when {@code presenter} names the same presenter class or is not given; naming a different
+    * class starts a new reference, as choosing another presenter in the Format pane does.
+    *
+    * @param presenter  the presenter class from the request, or null to keep the stored one.
+    * @param properties the properties to set, by name.
+    *
+    * @throws IllegalArgumentException if there is no presenter to set the properties on, or a
+    *                                  property is unknown or has a value of the wrong type.
+    */
+   private void setPresenterProperties(VSFormat userFormat, String presenter,
+                                       Map<String, Object> properties)
+   {
+      PresenterRef stored = userFormat.getPresenterValue();
+
+      if(presenter != null && presenter.isEmpty()) {
+         throw new IllegalArgumentException(
+            "presenterProperties cannot be set together with an empty presenter.");
+      }
+
+      if(presenter == null && stored == null) {
+         throw new IllegalArgumentException(
+            "presenterProperties needs a presenter class: none is set on this format, " +
+            "so name one with presenter.");
+      }
+
+      PresenterRef ref;
+
+      if(stored != null &&
+         (presenter == null || PresenterPropertySupport.samePresenter(stored.getName(), presenter)))
+      {
+         ref = (PresenterRef) stored.clone();
+      }
+      else {
+         ref = new PresenterRef(presenter);
+      }
+
+      PresenterPropertySupport.apply(ref, properties);
+      userFormat.setPresenterValue(ref, true);
    }
 
    /**
