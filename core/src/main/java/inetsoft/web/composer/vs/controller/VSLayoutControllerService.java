@@ -626,31 +626,13 @@ public class VSLayoutControllerService {
             ImageAdvancedPaneModel imageAdvancedPaneModel = value.imageAdvancedPaneModel();
             ImageScalePaneModel imageScalePaneModel = imageAdvancedPaneModel.imageScalePaneModel();
 
-            if(imagePreviewPaneModel.selectedImage() != null) {
-               imageAssemblyInfo.setImageValue(imagePreviewPaneModel.selectedImage());
-               imageAssemblyInfo.setImageAlphaValue(Integer.toString(imagePreviewPaneModel.alpha()));
-
-               if(imagePreviewPaneModel.selectedImage().startsWith(ImageVSAssemblyInfo.SKIN_IMAGE))
-               {
-                  imageAssemblyInfo.setMaintainAspectRatioValue(false);
-                  imageAssemblyInfo.setScale9Value(new Insets(1, 1, 1, 1));
-               }
-            }
-
-            imageAssemblyInfo.setScaleImageValue(imageScalePaneModel.scaleImageChecked());
-            imageAssemblyInfo.setTileValue(imageScalePaneModel.tile());
-
-            if(imageScalePaneModel.scaleImageChecked()) {
-               imageAssemblyInfo.setMaintainAspectRatioValue(
-                  imageScalePaneModel.maintainAspectRatio());
-
-               if(!imageScalePaneModel.maintainAspectRatio()) {
-                  Insets insets = new Insets(
-                     imageScalePaneModel.top(), imageScalePaneModel.left(),
-                     imageScalePaneModel.bottom(), imageScalePaneModel.right());
-                  imageAssemblyInfo.setScale9Value(insets);
-               }
-            }
+            Insets insets = new Insets(
+               imageScalePaneModel.top(), imageScalePaneModel.left(),
+               imageScalePaneModel.bottom(), imageScalePaneModel.right());
+            VSLayoutService.applyLayoutImageOptions(
+               imageAssemblyInfo, imagePreviewPaneModel.selectedImage(),
+               imagePreviewPaneModel.alpha(), imageScalePaneModel.scaleImageChecked(),
+               imageScalePaneModel.maintainAspectRatio(), imageScalePaneModel.tile(), insets);
          });
 
       assemblyLayout

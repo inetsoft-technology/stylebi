@@ -45,10 +45,15 @@ package inetsoft.web.wiz.viewsheet.model;
  *
  * <p>{@code text} is the content of a layout-only text object (one that exists only inside this
  * layout, such as a header/footer caption) -- {@code null} for every other object.
+ *
+ * <p>{@code type} is {@code "assembly"} for an object that is a real assembly of the viewsheet and
+ * {@code "text"}, {@code "image"} or {@code "pagebreak"} for a layout-only object; {@code image}
+ * carries the picture and options of a layout-only image object ({@code null} for every other
+ * object).
  */
 public record LayoutObjectModel(String name, int layoutX, int layoutY, int layoutWidth,
                                 int layoutHeight, int viewsheetX, int viewsheetY,
                                 int viewsheetWidth, int viewsheetHeight,
                                 boolean supportsTableLayout, int tableLayout, Integer pageIndex,
-                                String text) {
+                                String text, String type, LayoutImageModel image) {
 }

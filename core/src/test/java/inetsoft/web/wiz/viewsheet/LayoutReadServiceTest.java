@@ -23,6 +23,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.Catalog;
@@ -35,6 +36,7 @@ import inetsoft.web.wiz.pairing.TestPrincipals;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.viewsheet.model.DeviceCatalogEntry;
 import inetsoft.web.wiz.viewsheet.model.LayoutModel;
+import inetsoft.web.wiz.viewsheet.model.LayoutImageModel;
 import inetsoft.web.wiz.viewsheet.model.LayoutObjectModel;
 import inetsoft.web.wiz.viewsheet.model.PrintLayoutSettingsModel;
 import org.junit.jupiter.api.Test;
@@ -232,6 +234,61 @@ class LayoutReadServiceTest {
       assertNull(footer.pageIndex(), "a header/footer band has no pages");
       assertEquals(2, model.objects().size(), "the body list is unchanged");
       assertNull(model.objects().get(0).text(), "a master assembly carries no layout-only text");
+   }
+
+   @Test
+   void getReportsTheTypeAndTheImageOfALayoutOnlyImage() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      PrintLayout print = fx.masterVs.getLayoutInfo().getPrintLayout();
+      ImageVSAssemblyInfo image = new ImageVSAssemblyInfo();
+      image.setImageValue("^UPLOADED^logo.png");
+      image.setImageAlphaValue("40");
+      image.setScaleImageValue(true);
+      image.setMaintainAspectRatioValue(false);
+      image.setTileValue(true);
+      image.setScale9Value(new java.awt.Insets(1, 2, 3, 4));
+      TextVSAssemblyInfo text = new TextVSAssemblyInfo();
+      text.setTextValue("Caption");
+      print.setHeaderLayouts(new ArrayList<>(List.of(
+         new VSEditableAssemblyLayout(image, "Logo", new Point(5, 2), new Dimension(100, 20)),
+         new VSEditableAssemblyLayout(text, "Title", new Point(5, 30), new Dimension(100, 20)))));
+
+      LayoutModel model = fx.service.get("tok1", AGENT, PRINT_LAYOUT);
+
+      LayoutObjectModel logo = model.headerObjects().get(0);
+      assertEquals("image", logo.type());
+      assertNull(logo.text());
+      LayoutImageModel shown = logo.image();
+      assertEquals("^UPLOADED^logo.png", shown.image());
+      assertEquals(40, shown.alpha());
+      assertTrue(shown.scaleImage());
+      assertFalse(shown.maintainAspectRatio());
+      assertTrue(shown.tile());
+      assertEquals(Map.of("top", 1, "left", 2, "bottom", 3, "right", 4), shown.insets());
+
+      LayoutObjectModel title = model.headerObjects().get(1);
+      assertEquals("text", title.type());
+      assertEquals("Caption", title.text());
+      assertNull(title.image());
+
+      assertEquals("assembly", model.objects().get(0).type());
+      assertNull(model.objects().get(0).image());
+   }
+
+   @Test
+   void aLayoutOnlyImageWithoutAPictureReportsNullImage() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      PrintLayout print = fx.masterVs.getLayoutInfo().getPrintLayout();
+      print.setFooterLayouts(new ArrayList<>(List.of(new VSEditableAssemblyLayout(
+         new ImageVSAssemblyInfo(), "Empty", new Point(5, 2), new Dimension(100, 20)))));
+
+      LayoutObjectModel empty = fx.service.get("tok1", AGENT, PRINT_LAYOUT).footerObjects().get(0);
+
+      assertEquals("image", empty.type());
+      assertNull(empty.image().image(), "no picture set: it prints as an empty box");
+      assertEquals(100, empty.image().alpha());
    }
 
    @Test

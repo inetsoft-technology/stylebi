@@ -196,6 +196,46 @@ public class VSLayoutService {
       return layout;
    }
 
+   /**
+    * Write the options of a layout-only image object's dialog onto its assembly info. Shared by
+    * the Composer's print-layout image dialog and the {@code edit_layout_objects} agent path so the
+    * two cannot drift.
+    *
+    * @param info          the image info held by the layout-only entry.
+    * @param selectedImage the image to show, or {@code null} to leave the image (and its alpha)
+    *                      unchanged.
+    * @param alpha         the opacity percentage, written only together with {@code selectedImage}.
+    * @param insets        the scale-9 insets, written only when scaling without keeping the aspect
+    *                      ratio.
+    */
+   public static void applyLayoutImageOptions(ImageVSAssemblyInfo info, String selectedImage,
+                                              int alpha, boolean scaleImage,
+                                              boolean maintainAspectRatio, boolean tile,
+                                              Insets insets)
+   {
+      if(selectedImage != null) {
+         info.setImageValue(selectedImage);
+         info.setImageAlphaValue(Integer.toString(alpha));
+
+         // a skin image is always stretched with 1px insets
+         if(selectedImage.startsWith(ImageVSAssemblyInfo.SKIN_IMAGE)) {
+            info.setMaintainAspectRatioValue(false);
+            info.setScale9Value(new Insets(1, 1, 1, 1));
+         }
+      }
+
+      info.setScaleImageValue(scaleImage);
+      info.setTileValue(tile);
+
+      if(scaleImage) {
+         info.setMaintainAspectRatioValue(maintainAspectRatio);
+
+         if(!maintainAspectRatio) {
+            info.setScale9Value(insets);
+         }
+      }
+   }
+
    private Dimension getVSTabSize(Viewsheet vs, VSAssembly object) {
       TabVSAssemblyInfo tinfo = (TabVSAssemblyInfo) object.getVSAssemblyInfo();
       String[] paneNames = tinfo.getAssemblies();
