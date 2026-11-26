@@ -198,6 +198,16 @@ class PreConditionFloatValueTest {
       clearCaches();
    }
 
+   @AfterAll
+   static void dropDatabase() {
+      try {
+         DriverManager.getConnection("jdbc:derby:" + DB + ";drop=true").close();
+      }
+      catch(SQLException ignore) {
+         // Derby reports a successful drop as SQLState 08006
+      }
+   }
+
    /** label, operator, equal flag, variable values, expected order ids */
    static Stream<Arguments> cases() {
       return Stream.of(
@@ -217,12 +227,64 @@ class PreConditionFloatValueTest {
                            List<Integer> expected) throws Exception
    {
       assertEquals(expected, ids(true, op, equal, XSchema.FLOAT, values),
-                   label + "; sql " + lastSql() + " bound " + BOUND);
+                   label + "; sql " + lastSql() + " bound " + boundText());
       assertTrue(lastSql().contains("where"), "the condition must be merged into the SQL: " +
                  lastSql());
+      assertBoundDecimals();
+   }
+
+   // one of with one multi-value variable: its value is a single array of Floats
+   @Test
+   void multiValueFloatVariableInSql() throws Exception {
+      assertEquals(List.of(2, 3, 4), ids(true, XCondition.ONE_OF, false, XSchema.FLOAT,
+                                         new String[] { "0.15", "0.2" }, true),
+                   "sql " + lastSql() + " bound " + boundText());
+      assertTrue(lastSql().contains("where"), "the condition must be merged into the SQL: " +
+                 lastSql());
+      assertEquals(1, BOUND.size(), "bound " + boundText());
+      assertInstanceOf(Object[].class, BOUND.get(0), "bound " + boundText());
+      assertEquals(2, ((Object[]) BOUND.get(0)).length, "bound " + boundText());
+      assertBoundDecimals();
+   }
+
+   @Test
+   void multiValueFloatVariableInMemory() throws Exception {
+      assertEquals(List.of(2, 3, 4), ids(false, XCondition.ONE_OF, false, XSchema.FLOAT,
+                                         new String[] { "0.15", "0.2" }, true));
+   }
+
+   @Test
+   void multiValueDoubleVariable() throws Exception {
+      String[] values = { "0.15", "0.2" };
+      assertEquals(List.of(2, 3, 4), ids(true, XCondition.ONE_OF, false, XSchema.DOUBLE,
+                                         values, true), "sql");
+      assertEquals(List.of(2, 3, 4), ids(false, XCondition.ONE_OF, false, XSchema.DOUBLE,
+                                         values, true), "memory");
+   }
+
+   // every bound condition value, and every element of a bound array, is a BigDecimal
+   private static void assertBoundDecimals() {
       assertFalse(BOUND.isEmpty(), "no bound condition value");
-      new ArrayList<>(BOUND).forEach(
-         v -> assertInstanceOf(BigDecimal.class, v, "bound " + BOUND));
+
+      for(Object v : new ArrayList<>(BOUND)) {
+         for(Object e : v instanceof Object[] arr ? arr : new Object[] { v }) {
+            assertInstanceOf(BigDecimal.class, e, "bound " + boundText());
+         }
+      }
+   }
+
+   private static String boundText() {
+      return BOUND.stream()
+         .map(v -> v instanceof Object[] arr ? Arrays.deepToString(typed(arr)) : typed(v))
+         .toList().toString();
+   }
+
+   private static Object[] typed(Object[] arr) {
+      return Arrays.stream(arr).map(PreConditionFloatValueTest::typed).toArray();
+   }
+
+   private static String typed(Object v) {
+      return v + (v == null ? "" : "(" + v.getClass().getSimpleName() + ")");
    }
 
    @ParameterizedTest(name = "{0}")
@@ -264,6 +326,16 @@ class PreConditionFloatValueTest {
    private List<Integer> ids(boolean sql, int op, boolean equal, String varType, String[] values)
       throws Exception
    {
+      return ids(sql, op, equal, varType, values, false);
+   }
+
+   /**
+    * @param multi true to pass all values in one multi-value variable $(v0), whose value is an
+    *              array, instead of one variable per value.
+    */
+   private List<Integer> ids(boolean sql, int op, boolean equal, String varType, String[] values,
+                             boolean multi) throws Exception
+   {
       clearCaches();
       SENT.clear();
       BOUND.clear();
@@ -275,9 +347,21 @@ class PreConditionFloatValueTest {
       cond.setType(XSchema.DOUBLE);
       AssetQuerySandbox box = new AssetQuerySandbox(ws);
 
-      for(int i = 0; i < values.length; i++) {
-         cond.addValue(new UserVariable("v" + i));
-         box.getVariableTable().put("v" + i, CoreTool.getData(varType, values[i], true));
+      if(multi) {
+         Object[] arr = new Object[values.length];
+
+         for(int i = 0; i < values.length; i++) {
+            arr[i] = CoreTool.getData(varType, values[i], true);
+         }
+
+         cond.addValue(new UserVariable("v0"));
+         box.getVariableTable().put("v0", arr);
+      }
+      else {
+         for(int i = 0; i < values.length; i++) {
+            cond.addValue(new UserVariable("v" + i));
+            box.getVariableTable().put("v" + i, CoreTool.getData(varType, values[i], true));
+         }
       }
 
       ConditionList list = new ConditionList();

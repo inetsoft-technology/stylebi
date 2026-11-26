@@ -68,6 +68,28 @@ class ConditionListHandlerFloatValueTest {
       }
    }
 
+   // one of with a multi-value variable: the value is one array; the condition's own array
+   // must not change (and a Float[] can't hold a BigDecimal)
+   @Test
+   void floatArrayIsConvertedIntoANewArray() {
+      Float[] value = { 0.15f, 3f, 0.2f };
+      Object result = ConditionListHandler.toDecimalValue(field(Types.NUMERIC), value);
+
+      assertNotSame(value, result);
+      assertArrayEquals(new Object[] { new BigDecimal("0.15"), 3f, new BigDecimal("0.2") },
+                        (Object[]) result);
+      assertArrayEquals(new Float[] { 0.15f, 3f, 0.2f }, value);
+   }
+
+   @Test
+   void arrayWithoutConvertibleFloatIsUnchanged() {
+      Object[] value = { 0.15d, 3f, "0.2" };
+      assertSame(value, ConditionListHandler.toDecimalValue(field(Types.DECIMAL), value));
+
+      Object[] floats = { 0.15f, 0.2f };
+      assertSame(floats, ConditionListHandler.toDecimalValue(field(Types.REAL), floats));
+   }
+
    private static XExpression field(int sqlType) {
       XExpression field = new XExpression("discount", XExpression.FIELD);
       field.setSqlType(sqlType);

@@ -91,6 +91,16 @@ class ConditionFloatValueTest {
       assertFalse(condition(XCondition.ONE_OF, false, 0.1f, 0.2f).evaluate(column));
    }
 
+   // a multi-value variable gives one of a single array value
+   @ParameterizedTest(name = "{0}")
+   @MethodSource("columnValues")
+   void oneOfArrayValue(String label, Object column) {
+      assertTrue(condition(XCondition.ONE_OF, false, (Object) new Object[] { 0.1f, 0.15f })
+                    .evaluate(column));
+      assertFalse(condition(XCondition.ONE_OF, false, (Object) new Object[] { 0.1f, 0.2f })
+                     .evaluate(column));
+   }
+
    // the one of list is cached across rows; it must stay right when the rows mix number types
    @Test
    void oneOfAcrossRowsOfMixedNumberTypes() {
