@@ -102,9 +102,9 @@ public class GradientColorFrame extends RGBCubeColorFrame {
          a = (int) (alpha * 255);
       }
 
-      int rgb = a << 24 | r << 16 | g << 8 | b;
-
-      return process(new Color(rgb), getBrightness());
+      // new Color(int rgb) ignores the alpha bits, so pass the alpha explicitly
+      return process(new Color(clampChannel(r), clampChannel(g), clampChannel(b),
+                               clampChannel(a)), getBrightness());
    }
 
    /**

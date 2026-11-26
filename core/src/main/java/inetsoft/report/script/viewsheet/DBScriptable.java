@@ -84,12 +84,20 @@ public class DBScriptable implements ScriptScope {
          jdbcSrc.setPassword(passwd);
       }
 
+      // Bug #81679, createConnection calls init on every call after the first, so release the
+      // connection being replaced instead of leaking it (never returned to the pool)
+      Connection old = conn;
+
       try {
          conn =
             JDBCHandler.getConnectionPool(jdbcSrc, principal).getConnection();
       }
       catch(SQLException e) {
          throw new RuntimeException("Failed to open database connection", e);
+      }
+
+      if(old != null && old != conn) {
+         Tool.closeQuietly(old);
       }
 
       addFunctions();
@@ -230,10 +238,8 @@ public class DBScriptable implements ScriptScope {
     * Close connection.
     */
    public void close() throws Throwable {
-      if(scriptOver) {
-         return;
-      }
-
+      // Bug #81679, not skipped under scriptOver: a connection opened while the flag is set
+      // would never be returned to the pool. commit/rollback/update stay no-ops there.
       Tool.closeQuietly(conn);
       conn = null;
    }

@@ -64,10 +64,11 @@ public class RGBCubeColorFrame extends LinearColorFrame {
       int alpha = (int) (getAlpha(ratio) * 255);
       ratio = getMinRatio() + ratio * (getMaxRatio() - getMinRatio());
 
-      if(ratio >= 1) {
-         int r = (int) (colors[n][0] * 255);
-         int g = (int) (colors[n][1] * 255);
-         int b = (int) (colors[n][2] * 255);
+      // a single-color path has nothing to interpolate to
+      if(ratio >= 1 || n == 0) {
+         int r = Math.max(0, Math.min(255, (int) (colors[n][0] * 255)));
+         int g = Math.max(0, Math.min(255, (int) (colors[n][1] * 255)));
+         int b = Math.max(0, Math.min(255, (int) (colors[n][2] * 255)));
          return process(new Color(r, g, b, alpha), getBrightness());
       }
 

@@ -122,13 +122,13 @@ public class CalcStat {
       if(!cummulative) {
          return CalcMath.combin(trials, number_s) *
             Math.pow(probability_s, number_s) *
-            Math.pow(probability_s, (trials - number_s));
+            Math.pow(1 - probability_s, (trials - number_s));
       }
       else {
          for(int y = 0; y <= number_s; y++) {
             binomdist += CalcMath.combin(trials, y) *
                CalcUtil.intPow(probability_s, y) *
-               Math.pow(probability_s, (trials - y));
+               Math.pow(1 - probability_s, (trials - y));
          }
       }
 
@@ -264,9 +264,7 @@ public class CalcStat {
       int blanks = 0;
 
       for(int i = 0; i < array.length; i++) {
-         if(array[i] == null ||
-            (array[i] == null && "".equals(array[i].toString())))
-         {
+         if(array[i] == null || "".equals(array[i].toString())) {
             blanks++;
          }
       }

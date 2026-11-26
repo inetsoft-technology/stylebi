@@ -707,6 +707,48 @@ public final class ScriptHostAccess {
                                      b -> b != null,
                                      ScriptFunction::toStringValue,
                                      HostAccess.TargetMappingPrecedence.LOWEST)
+                  // Rhino parity: a script value bound to a boolean parameter was
+                  // coerced via ScriptRuntime.toBoolean (JS truthiness), so scripts
+                  // pass 1/0, a string or an object where a boolean is declared --
+                  // e.g. table.setActionVisible('Edit', 1). GraalJS accepts only a
+                  // JS boolean for a boolean parameter (primitive or Boolean
+                  // wrapper alike). ScriptFunction.coerce restores this for our own
+                  // scriptable dispatch, but a raw host object, host constructor and
+                  // HostBeanProxy setter go through GraalJS interop, so the same
+                  // coercion is declared here and shares
+                  // ScriptFunction.toBooleanValue. Rhino truthiness applies, so the
+                  // string 'false' is true. (Bug #81683)
+                  //
+                  // NON-null sources only, all at LOWEST (the last pass of overload
+                  // selection). Never LOW: that is the loose tier where the default
+                  // Object conversion lives, so a LOW mapping would re-target
+                  // foo(Object) calls to foo(boolean). There is deliberately no null
+                  // mapping either: it would turn a null/undefined bound to a Boolean
+                  // wrapper (null = "unset", e.g. IntervalElement.setVisualStacked)
+                  // into false. So null/undefined bound to a primitive boolean on
+                  // this path still throws, as before; the omitted-argument-is-false
+                  // behaviour (#75525) stays specific to ScriptFunction.
+                  //
+                  // Accepted consequence, same as the Double -> Integer mapping
+                  // below: a numeric argument to a type declaring both a boolean and
+                  // a String (or int, for a fractional number) overload of the same
+                  // arity now reports "Multiple applicable overloads" instead of
+                  // quietly binding to the String/int one, because the mappings
+                  // land on this same final tier and neither is more specific.
+                  .targetTypeMapping(Number.class, Boolean.class,
+                                     n -> n != null,
+                                     ScriptFunction::toBooleanValue,
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(String.class, Boolean.class,
+                                     str -> str != null,
+                                     ScriptFunction::toBooleanValue,
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  // objects, arrays, dates and host values: always truthy
+                  .targetTypeMapping(Value.class, Boolean.class,
+                                     v -> v != null && !v.isNull() && !v.isBoolean()
+                                        && !v.isNumber() && !v.isString(),
+                                     v -> Boolean.TRUE,
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
                   // Rhino parity: Rhino narrowed a JS number to whatever primitive
                   // the selected overload declared, so a script could build a Java
                   // object from a computed, non-integral value. GraalJS refuses
@@ -785,7 +827,121 @@ public final class ScriptHostAccess {
                   .targetTypeMapping(Double.class, Long.class,
                                      ScriptHostAccess::isFractional,
                                      Double::longValue,
-                                     HostAccess.TargetMappingPrecedence.LOWEST);
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  // Rhino parity: a script string bound to a numeric parameter was
+                  // coerced via ScriptRuntime.toNumber (Math.pow('2','3') == 8), an
+                  // array or plain object bound to a String parameter via
+                  // ScriptRuntime.toString, and an array bound to a Collection
+                  // parameter converted to a list. GraalJS refuses all of these on
+                  // the raw host path (host object, Java.type static, constructor),
+                  // which ScriptFunction.coerce does not cover. Shares
+                  // JavaClassProxy.toNumber and ScriptFunction.toStringValue. (Bug #81889)
+                  //
+                  // All at LOWEST except Collection, so an exact or wider overload
+                  // (o(String) / o(int) / o(Object)) still wins. A string converts
+                  // only when it matches the numeric-literal grammar of
+                  // JavaClassProxy.toNumber (#75807: hex or decimal; blank, 'abc',
+                  // NaN/Infinity and Java-only forms like '12f' stay refused, one
+                  // rule for constructors and methods), and to int/long only when
+                  // also a finite integral value in range, so a
+                  // fractional or non-numeric string still prefers a double overload
+                  // and otherwise stays refused rather than truncating or clamping.
+                  // Short and Byte follow the int/long rule (whole number in range).
+                  // Float converts only a string whose parsed double value a float
+                  // holds unchanged: any string would make the float overload the more
+                  // specific one and hijack Math.abs('-3.7') and the
+                  // Color(int,int,int) vs Color(float,float,float) choice. Even so,
+                  // for an exactly representable string such as '1.5' the float
+                  // overload of a float/double pair wins (Math.ulp('1.5') equals
+                  // Math.ulp(1.5), the same as the number path); an inexact string
+                  // ('0.1') stays refused for a float-only parameter, which Rhino
+                  // rounded.
+                  //
+                  // Accepted consequence, same as the Number -> Boolean mapping
+                  // above: a numeric-looking string argument to a type declaring
+                  // both a boolean and an int/long (or a whole-number float)
+                  // overload of the same arity now reports "Multiple applicable
+                  // overloads" instead of binding the boolean one, because both
+                  // land on this final tier.
+                  //
+                  // #82093: Short, Byte and Float strings stay LOWEST too. A higher
+                  // tier would let them beat an Object overload (String.valueOf('1.50')
+                  // would bind valueOf(float) and return "1.5"). Consequence, the same
+                  // as boolean|int above: m(boolean|short)('5') and
+                  // m(boolean|float)('1.5') report "Multiple applicable overloads"
+                  // (Rhino bound short / float, main bound boolean).
+                  .targetTypeMapping(String.class, Double.class,
+                                     str -> str != null
+                                        && JavaClassProxy.toNumber(str) != null,
+                                     str -> JavaClassProxy.toNumber(str).doubleValue(),
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(String.class, Integer.class,
+                                     str -> str != null
+                                        && integralString(str, Integer.MIN_VALUE,
+                                                          Integer.MAX_VALUE),
+                                     str -> JavaClassProxy.toNumber(str).intValue(),
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(String.class, Long.class,
+                                     str -> str != null
+                                        && integralString(str, -0x1p53, 0x1p53),
+                                     str -> JavaClassProxy.toNumber(str).longValue(),
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(String.class, Short.class,
+                                     str -> str != null
+                                        && integralString(str, Short.MIN_VALUE,
+                                                          Short.MAX_VALUE),
+                                     str -> JavaClassProxy.toNumber(str).shortValue(),
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(String.class, Byte.class,
+                                     str -> str != null
+                                        && integralString(str, Byte.MIN_VALUE,
+                                                          Byte.MAX_VALUE),
+                                     str -> JavaClassProxy.toNumber(str).byteValue(),
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(String.class, Float.class,
+                                     str -> str != null && exactFloatString(str),
+                                     str -> JavaClassProxy.toNumber(str).floatValue(),
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  // #82139: a number or a string is deliberately NOT converted to a
+                  // java.util.Date parameter; pass new Date(n) or a JS Date. GraalJS
+                  // host instanceof shares the conversion path, so a Number -> Date
+                  // mapping would make 0 instanceof java.util.Date true. 13.8 returned
+                  // 0 for new TimeScale(date, 45000), which appears to be the same
+                  // String... fields fallback (not verified on Rhino); use new Date(45000).
+                  //
+                  // a JS or host Date has the JS toString text (Rhino did the same);
+                  // only a String parameter, Object/Date/Instant overloads still win.
+                  // LOWEST, not LOW: the Date -> Instant conversion sits on the LOW
+                  // tier, so at LOW a (String|Instant) pair would turn ambiguous.
+                  // The cost is the boolean collision above: a Date given to a
+                  // (boolean|String) pair, e.g. Boolean.valueOf(new Date(0)), now
+                  // reports "Multiple applicable overloads" (main bound the boolean
+                  // one, Rhino the String one).
+                  .targetTypeMapping(Value.class, String.class,
+                                     v -> v != null && v.isDate()
+                                        && v.hasMember("toString"),
+                                     v -> v.getMember("toString").execute().asString(),
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(Value.class, String.class,
+                                     v -> v != null && v.hasArrayElements() && !v.isHostObject(),
+                                     ScriptHostAccess::joinArray,
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  // only a plain JS object: a Date, RegExp, Map, host object,
+                  // function or proxy has its own string form and stays refused
+                  .targetTypeMapping(Value.class, String.class,
+                                     v -> v != null && !v.isNull() && v.hasMembers()
+                                        && !v.hasArrayElements() && !v.isHostObject()
+                                        && !v.isProxyObject() && !v.canExecute()
+                                        && !v.isDate() && !v.isException()
+                                        && v.getMetaObject() != null
+                                        && "Object".equals(
+                                           v.getMetaObject().getMetaSimpleName()),
+                                     v -> "[object Object]",
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(Value.class, Collection.class,
+                                     v -> v != null && v.hasArrayElements(),
+                                     v -> v.as(List.class),
+                                     HostAccess.TargetMappingPrecedence.LOW);
 
                // Bug #77521: classFilter() is consulted only when a script looks a
                // class up by name. A Class value an allowed API returns (or an
@@ -1353,6 +1509,69 @@ public final class ScriptHostAccess {
     */
    private static boolean fitsInInt(double d) {
       return d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE;
+   }
+
+   /**
+    * Whether a string is a finite whole number inside [min, max] under Rhino
+    * ToNumber (blank is 0), so narrowing to int/long loses nothing. (#81889)
+    */
+   private static boolean integralString(String str, double min, double max) {
+      Number n = JavaClassProxy.toNumber(str);
+
+      if(n == null) {
+         return false;
+      }
+
+      double d = n.doubleValue();
+      return !Double.isNaN(d) && !Double.isInfinite(d) && d == Math.rint(d)
+         && d >= min && d <= max;
+   }
+
+   /** Whether a numeric string parses to a finite double that a float holds unchanged. */
+   private static boolean exactFloatString(String str) {
+      Number n = JavaClassProxy.toNumber(str);
+
+      if(n == null) {
+         return false;
+      }
+
+      double d = n.doubleValue();
+      return !Double.isNaN(d) && !Double.isInfinite(d) && d == (double) (float) d;
+   }
+
+   /**
+    * Rhino Array.prototype.toString: elements joined with commas, null/undefined
+    * empty, nested arrays flattened the same way. (#81889)
+    */
+   private static String joinArray(Value arr) {
+      StringBuilder sb = new StringBuilder();
+
+      for(long i = 0; i < arr.getArraySize(); i++) {
+         if(i > 0) {
+            sb.append(',');
+         }
+
+         Value e = arr.getArrayElement(i);
+
+         if(e.isNull()) {
+            continue;
+         }
+
+         if(e.hasArrayElements()) {
+            sb.append(joinArray(e));
+         }
+         else if(e.isString()) {
+            sb.append(e.asString());
+         }
+         else if(e.isNumber()) {
+            sb.append(ScriptFunction.toStringValue(e.as(Number.class)));
+         }
+         else {
+            sb.append(e.toString());
+         }
+      }
+
+      return sb.toString();
    }
 
    /**

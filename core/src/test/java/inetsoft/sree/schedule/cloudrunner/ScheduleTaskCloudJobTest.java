@@ -17,13 +17,34 @@
  */
 package inetsoft.sree.schedule.cloudrunner;
 
+import inetsoft.sree.PropertiesEngine;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.DistributedMap;
+import inetsoft.sree.internal.cluster.MessageEvent;
+import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.schedule.*;
 import inetsoft.test.schedule.FakeCloudJobFactory;
+import inetsoft.util.ConfigurationContext;
+import inetsoft.util.config.ClusterConfig;
+import inetsoft.util.config.CloudRunnerConfig;
+import inetsoft.util.config.InetsoftConfig;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.quartz.JobBuilder;
+import org.quartz.JobDetail;
+import org.quartz.JobExecutionContext;
+import org.quartz.JobExecutionException;
+import org.springframework.context.ApplicationContext;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -70,7 +91,11 @@ import static org.mockito.Mockito.*;
 @Tag("core")
 class ScheduleTaskCloudJobTest {
 
+   private static final String CLOUD_TASK = "org~;admin:T";
+
    private SchedulerTestHarness harness;
+   private final List<MessageListener> listeners = new CopyOnWriteArrayList<>();
+   private Cluster cluster;
 
    @BeforeEach
    void setUp() throws Exception {
@@ -168,6 +193,63 @@ class ScheduleTaskCloudJobTest {
    }
 
    // -----------------------------------------------------------------------
+   // execute(): effective schedule.task.timeout
+   // -----------------------------------------------------------------------
+
+   @ParameterizedTest(name = "schedule.task.timeout [{0}] is clamped to the default")
+   @ValueSource(strings = { "0", "-1" })
+   void executeClampsNonPositiveTimeoutToTheDefault(String timeoutProperty) throws Exception {
+      ScheduleTaskCloudJob job = executeWithResultDeliveredAtOnce(timeoutProperty);
+
+      assertEquals(ScheduleTask.DEFAULT_TASK_TIMEOUT, timeoutOf(job),
+                   "a cloud job must never wait without a bound");
+   }
+
+   @Test
+   void executeUsesConfiguredPositiveTimeout() throws Exception {
+      ScheduleTaskCloudJob job = executeWithResultDeliveredAtOnce("1500");
+
+      assertEquals(1500L, timeoutOf(job));
+   }
+
+   @ParameterizedTest(name = "unusable schedule.task.timeout [{0}] falls back to the default")
+   @NullSource
+   @ValueSource(strings = { "abc" })
+   void executeFallsBackToTheDefaultWhenTimeoutIsMissingOrInvalid(String timeoutProperty)
+      throws Exception
+   {
+      ScheduleTaskCloudJob job = executeWithResultDeliveredAtOnce(timeoutProperty);
+
+      assertEquals(ScheduleTask.DEFAULT_TASK_TIMEOUT, timeoutOf(job));
+   }
+
+   @Test
+   void executeStopsTheCloudJobAndFailsWhenNoResultArrivesWithinTheTimeout() throws Exception {
+      installCloudFixture("200");
+      ScheduleTaskCloudJobAttributionTest.AttributionJobFactory.STARTED.clear();
+      ScheduleTaskCloudJob job = new ScheduleTaskCloudJob();
+
+      JobExecutionException error =
+         assertThrows(JobExecutionException.class, () -> job.execute(jobContext()));
+
+      // execute() wraps the timeout error it throws inside its own catch-all, so the
+      // "timed out" text is on the cause rather than on the outer exception
+      Throwable cause = error;
+      boolean timedOut = false;
+
+      while(cause != null && !timedOut) {
+         timedOut = cause.getMessage() != null && cause.getMessage().contains("timed out");
+         cause = cause.getCause();
+      }
+
+      assertTrue(timedOut, "the failure must say the task timed out: " + error);
+      ScheduleTaskCloudJobAttributionTest.AttributionJob started =
+         ScheduleTaskCloudJobAttributionTest.AttributionJobFactory.STARTED.poll(1, TimeUnit.SECONDS);
+      assertNotNull(started, "the cloud job must have been started");
+      assertTrue(started.stopped, "a timed-out cloud job must be stopped");
+   }
+
+   // -----------------------------------------------------------------------
    // Factory contract
    // -----------------------------------------------------------------------
 
@@ -180,6 +262,100 @@ class ScheduleTaskCloudJobTest {
    // -----------------------------------------------------------------------
    // Helpers
    // -----------------------------------------------------------------------
+
+   /**
+    * Replaces the application context of the harness with one that offers a mock cluster, the
+    * cloud runner configuration of the test runner type and the given timeout property. The
+    * harness restores the original context when it is closed.
+    */
+   @SuppressWarnings("unchecked")
+   private void installCloudFixture(String timeoutProperty) throws Exception {
+      listeners.clear();
+      cluster = mock(Cluster.class);
+      doAnswer(inv -> listeners.add(inv.getArgument(0)))
+         .when(cluster).addMessageListener(any(MessageListener.class));
+      doAnswer(inv -> listeners.remove(inv.<MessageListener>getArgument(0)))
+         .when(cluster).removeMessageListener(any(MessageListener.class));
+
+      InetsoftConfig runnerConfig = new InetsoftConfig();
+      runnerConfig.setCluster(new ClusterConfig());
+      DistributedMap<String, InetsoftConfig> configMap = mock(DistributedMap.class);
+      when(configMap.containsKey("config")).thenReturn(true);
+      when(configMap.get("config")).thenReturn(runnerConfig);
+      when(cluster.getLock(anyString())).thenReturn(new ReentrantLock());
+      when(cluster.<String, InetsoftConfig>getMap("cloud.runner.config")).thenReturn(configMap);
+      when(cluster.getClusterAddresses()).thenReturn(List.of());
+
+      InetsoftConfig config = new InetsoftConfig();
+      config.setCluster(new ClusterConfig());
+      CloudRunnerConfig cloudRunner = new CloudRunnerConfig();
+      cloudRunner.setType(ScheduleTaskCloudJobAttributionTest.AttributionJobFactory.TYPE);
+      config.setCloudRunner(cloudRunner);
+
+      PropertiesEngine properties = mock(PropertiesEngine.class);
+      when(properties.getProperty(eq("schedule.task.timeout"), anyBoolean()))
+         .thenReturn(timeoutProperty);
+
+      ApplicationContext appContext = mock(ApplicationContext.class);
+      when(appContext.getBean(Cluster.class)).thenReturn(cluster);
+      when(appContext.getBean(InetsoftConfig.class)).thenReturn(config);
+      when(appContext.getBean(PropertiesEngine.class)).thenReturn(properties);
+      ConfigurationContext.getContext().setApplicationContext(appContext);
+   }
+
+   private JobExecutionContext jobContext() {
+      JobDetail detail = JobBuilder.newJob(ScheduleTaskCloudJob.class)
+         .withIdentity(CLOUD_TASK, "test")
+         .build();
+      detail.getJobDataMap().put(ScheduleTask.class.getName(), new ScheduleTask(CLOUD_TASK));
+      JobExecutionContext context = mock(JobExecutionContext.class);
+      when(context.getJobDetail()).thenReturn(detail);
+      return context;
+   }
+
+   /** Runs execute() on the test thread; a helper thread answers as the finished container. */
+   private ScheduleTaskCloudJob executeWithResultDeliveredAtOnce(String timeoutProperty)
+      throws Exception
+   {
+      installCloudFixture(timeoutProperty);
+      ScheduleTaskCloudJobAttributionTest.AttributionJobFactory.STARTED.clear();
+      ScheduleTaskCloudJob job = new ScheduleTaskCloudJob();
+      Thread container = new Thread(() -> {
+         try {
+            ScheduleTaskCloudJobAttributionTest.AttributionJob started =
+               ScheduleTaskCloudJobAttributionTest.AttributionJobFactory.STARTED
+                  .poll(5, TimeUnit.SECONDS);
+
+            if(started != null) {
+               for(MessageListener listener : listeners) {
+                  listener.messageReceived(new MessageEvent(
+                     cluster, "container", false,
+                     new CloudJobResult(CLOUD_TASK, true, "ok", started.executionId)));
+               }
+            }
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+         }
+      });
+      container.setDaemon(true);
+      container.start();
+
+      try {
+         job.execute(jobContext());
+      }
+      finally {
+         container.join(5000);
+      }
+
+      return job;
+   }
+
+   private static long timeoutOf(ScheduleTaskCloudJob job) throws Exception {
+      java.lang.reflect.Field field = ScheduleTaskCloudJob.class.getDeclaredField("timeout");
+      field.setAccessible(true);
+      return field.getLong(job);
+   }
 
    private ScheduleTask buildTask(String name) {
       ScheduleTask task = new ScheduleTask(name);

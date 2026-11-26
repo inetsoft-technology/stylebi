@@ -199,6 +199,54 @@ class DataSourceRegistryConnectionTestQueryTest {
                  "the renamed data source shows a deleted data source's test query");
    }
 
+   // Bug #82097, removing a JDBC data source must release its connection pools on every node
+   @Test
+   void removeOfAJdbcDataSourceNotifiesTheNodesToCloseItsConnectionPools() {
+      addSource("ds");
+      doNothing().when(registry).fireConnectionChangeEvent();
+
+      registry.removeDataSource("ds");
+
+      verify(registry, times(1)).fireConnectionChangeEvent();
+   }
+
+   // Bug #82097, the node that removes the data source does not wait for the cluster message
+   @Test
+   void removeOfAJdbcDataSourceClosesTheLocalPoolsAtOnce() {
+      addSource("ds");
+      doNothing().when(registry).fireConnectionChangeEvent();
+      doNothing().when(registry).closeConnectionPoolsOfRemovedSource();
+
+      registry.removeDataSource("ds");
+
+      verify(registry, times(1)).closeConnectionPoolsOfRemovedSource();
+   }
+
+   // Bug #82097, a failure of a later removal step must not keep the pools open
+   @Test
+   void removeStillClosesThePoolsWhenALaterStepFails() {
+      addSource("ds");
+      doNothing().when(registry).fireConnectionChangeEvent();
+      doNothing().when(registry).closeConnectionPoolsOfRemovedSource();
+      doThrow(new RuntimeException("boom")).when(registry).removeObjects(any(AssetEntry[].class));
+
+      registry.removeDataSource("ds");
+
+      verify(registry, times(1)).closeConnectionPoolsOfRemovedSource();
+      verify(registry, times(1)).fireConnectionChangeEvent();
+   }
+
+   @Test
+   void removeOfAMissingDataSourceClosesNoPools() {
+      doNothing().when(registry).fireConnectionChangeEvent();
+      doNothing().when(registry).closeConnectionPoolsOfRemovedSource();
+
+      registry.removeDataSource("ds");
+
+      verify(registry, never()).closeConnectionPoolsOfRemovedSource();
+      verify(registry, never()).fireConnectionChangeEvent();
+   }
+
    @Test
    void removeRemovesTheKeyAndTheAdditionalConnectionKeys() {
       asOrg("orga");

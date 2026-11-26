@@ -453,11 +453,11 @@ public class SelectionTreeVSAQuery2 extends SelectionTreeVSAQuery {
    }
 
    /**
-    * Refresh the view selection value.
+    * Sort the selection values and apply the cell format to each of them.
     */
    @Override
-   protected void refreshViewSelectionValue0() throws Exception {
-      super.refreshViewSelectionValue0();
+   protected void refreshViewSortAndFormat() throws Exception {
+      super.refreshViewSortAndFormat();
 
       SelectionTreeVSAssembly assembly =
          (SelectionTreeVSAssembly) getAssembly();

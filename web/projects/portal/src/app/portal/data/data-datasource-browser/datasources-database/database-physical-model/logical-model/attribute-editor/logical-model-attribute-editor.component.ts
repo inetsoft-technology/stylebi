@@ -25,7 +25,7 @@ import {
    Output,
    ViewChild
 } from "@angular/core";
-import { UntypedFormGroup, AbstractControl, UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { UntypedFormGroup, AbstractControl, UntypedFormControl, ValidationErrors, ValidatorFn, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { AttributeModel } from "../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
 import { Tool } from "../../../../../../../../../../shared/util/tool";
 import { FormulaEditorService } from "../../../../../../../widget/formula-editor/formula-editor.service";
@@ -250,6 +250,19 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
    }
 
    /**
+    * A new attribute name cannot contain a period. The name the attribute was loaded with is
+    * accepted, so that a model that already has such a name can still be saved.
+    */
+   private periodInNewName(): ValidatorFn {
+      return (control: AbstractControl): ValidationErrors | null => {
+         const value = control.value;
+
+         return typeof value === "string" && value.includes(".") &&
+            value !== this.attribute?.oldName ? { periodInName: true } : null;
+      };
+   }
+
+   /**
     * Initialize the form controls.
     */
    private resetFormControl() {
@@ -263,7 +276,8 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
       this.form.removeControl("refType");
       this.form.addControl("name",
          new UntypedFormControl(this.attribute.name, [
-            Validators.required, FormValidators.exists(this.existNames)
+            Validators.required, FormValidators.exists(this.existNames),
+            this.periodInNewName()
          ]));
 
       this.form.addControl("dataType",

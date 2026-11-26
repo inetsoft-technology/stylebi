@@ -51,6 +51,7 @@ import java.awt.*;
 import java.io.*;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -1648,6 +1649,17 @@ public class FormulaTableLens extends AbstractTableLens
          {
             Object nresult = Tool.getData(types[col], result);
 
+            // a narrowing cast (e.g. 5.0E9 to Integer) never returns null, it saturates or
+            // wraps instead, so treat an out of range number as data lost too
+            if(nresult != null && isOutOfRange(types[col], result)) {
+               nresult = null;
+            }
+
+            // text that is neither a boolean nor a number would silently become false
+            if(nresult != null && isUnconvertibleBoolean(types[col], result)) {
+               nresult = null;
+            }
+
             // if type conversion causes data lost, don't force it (unless spark which causes error)
             if(nresult != null || forceType) {
                result = nresult;
@@ -2072,6 +2084,109 @@ public class FormulaTableLens extends AbstractTableLens
       }
 
       return nrows - 1;
+   }
+
+   /**
+    * Check if a text result declared Boolean is neither a boolean nor a number, so the
+    * conversion would turn it into false and lose the text.
+    *
+    * @param type the declared type of the column.
+    * @param val  the script result.
+    *
+    * @return true if the text should be kept as is.
+    */
+   static boolean isUnconvertibleBoolean(Class<?> type, Object val) {
+      if(!Boolean.class.equals(type) || !(val instanceof String)) {
+         return false;
+      }
+
+      String str = (String) val;
+
+      if(str.isEmpty() || "true".equalsIgnoreCase(str) || "false".equalsIgnoreCase(str)) {
+         return false;
+      }
+
+      try {
+         NumberParserWrapper.getDouble(str);
+         return false;
+      }
+      catch(Exception ex) {
+         return true;
+      }
+   }
+
+   /**
+    * Check if converting a number to an integer type loses the value. The conversion cuts the
+    * fraction, which is the normal conversion, so only a number out of the range of the type,
+    * NaN or an infinity counts.
+    *
+    * @param type the declared integer type of the column.
+    * @param val  the script result.
+    *
+    * @return true if the conversion saturates or wraps, false for other types and values.
+    */
+   static boolean isOutOfRange(Class<?> type, Object val) {
+      if(!(val instanceof Number)) {
+         return false;
+      }
+
+      long min;
+      long max;
+
+      if(Long.class.equals(type)) {
+         min = Long.MIN_VALUE;
+         max = Long.MAX_VALUE;
+      }
+      else if(Integer.class.equals(type)) {
+         min = Integer.MIN_VALUE;
+         max = Integer.MAX_VALUE;
+      }
+      else if(Short.class.equals(type)) {
+         min = Short.MIN_VALUE;
+         max = Short.MAX_VALUE;
+      }
+      else if(Byte.class.equals(type)) {
+         min = Byte.MIN_VALUE;
+         max = Byte.MAX_VALUE;
+      }
+      else {
+         return false;
+      }
+
+      Number number = (Number) val;
+
+      if(number instanceof Long || number instanceof Integer || number instanceof Short ||
+         number instanceof Byte)
+      {
+         // compare as long, a double rounds Long.MAX_VALUE up out of the range
+         long num = number.longValue();
+         return num < min || num > max;
+      }
+
+      if(number instanceof Double || number instanceof Float) {
+         double num = number.doubleValue();
+
+         if(Long.class.equals(type)) {
+            // the bounds are exact doubles, 2^63 is the first value above the range
+            return !(num >= -0x1p63 && num < 0x1p63);
+         }
+
+         // cutting the fraction of a number between min - 1 and max + 1 gives a value in range
+         return !(num > min - 1 && num < max + 1);
+      }
+
+      BigDecimal num;
+
+      try {
+         num = number instanceof BigDecimal ?
+            (BigDecimal) number : new BigDecimal(number.toString());
+      }
+      catch(NumberFormatException ex) {
+         return false;
+      }
+
+      return num.compareTo(BigDecimal.valueOf(min).subtract(BigDecimal.ONE)) <= 0 ||
+         num.compareTo(BigDecimal.valueOf(max).add(BigDecimal.ONE)) >= 0;
    }
 
    /**

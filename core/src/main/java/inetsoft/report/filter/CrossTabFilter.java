@@ -3000,6 +3000,10 @@ public class CrossTabFilter extends AbstractTableLens
       for(int i = table.getHeaderRowCount(); table.moreRows(i); i++) {
          boolean dcExtendDataRow = isDcExtendDataRow(table, i);
 
+         // a source row is applied completely or not at all, so that the shown cells
+         // and totals always agree when the max rows limit cuts the result
+         checkMaxRows(rset_, i);
+
          // for each data column
          for(int j = 0; j < dcol.length; j++) {
             // prepare row/column group total & detailed total pair
@@ -4604,18 +4608,87 @@ public class CrossTabFilter extends AbstractTableLens
    }
 
    /**
+    * Throw MaxRowsException, before anything of source row i is applied, if the row tuples
+    * that row would add to the row set exceed the runtime max rows. The tuples counted are
+    * the ones genTuples inserts for the row (same suppress conditions), totals included.
+    * This is the only place the max rows limit is enforced in genTuples.
+    */
+   private void checkMaxRows(Set<Tuple> rset_, int i) {
+      int maxRows = getRuntimeMaxRowsCached();
+
+      if(maxRows <= 0 || dcol.length == 0) {
+         return;
+      }
+
+      Set<Tuple> added = new HashSet<>();
+
+      for(int ir = 0; ir < rcount; ir++) {
+         int[] arr = new int[ir + 1];
+         System.arraycopy(rowh, 0, arr, 0, arr.length);
+         Tuple rtuple = new Tuple(this, i, arr, ROW);
+
+         // detail/group cells (prc)
+         for(int ic = 0; ic < ccount; ic++) {
+            if(!isSuppressColumnGroupTotal(ic) && !isSuppressRowGroupTotal(ir)) {
+               added.add(rtuple);
+            }
+         }
+
+         // row totals (prtotal)
+         if(!isSuppressColumnGrandTotal() && !isSuppressRowGroupTotal(ir)) {
+            added.add(rtuple);
+         }
+      }
+
+      // column totals (pctotal)
+      for(int ic = 0; ic < ccount; ic++) {
+         if(!isSuppressRowGrandTotal() && !isSuppressColumnGroupTotal(ic)) {
+            added.add(emptyTuple);
+         }
+      }
+
+      // column subtotals (prsubtotal)
+      if(!isSuppressColumnSubtotal() && ccount > 1) {
+         added.add(new Tuple(this, i, rowh, ROW));
+         added.add(emptyTuple);
+      }
+
+      // row subtotals (pcsubtotal)
+      if(!isSuppressRowSubtotal() && rcount > 1) {
+         int[] arr = new int[rcount];
+
+         for(int k = 0; k < arr.length; k++) {
+            arr[k] = (k == 0) ? -1 : rowh[k];
+         }
+
+         added.add(new Tuple(this, i, arr, ROW));
+      }
+
+      // grand total (ptotal)
+      if(!isSuppressColumnGrandTotal() && !isSuppressRowGrandTotal()) {
+         added.add(emptyTuple);
+      }
+
+      int size = rset_.size();
+
+      for(Tuple tuple : added) {
+         if(!rset_.contains(tuple)) {
+            size++;
+         }
+      }
+
+      if(size > maxRows) {
+         appliedMaxRows = maxRows;
+         throw new MaxRowsException();
+      }
+   }
+
+   /**
     * Insert a pair into row set and column set.
     */
    private void insertPair(Set<Tuple> r, Set<Tuple> c, Pair p) {
       r.add((Tuple) p.value1);
       c.add((Tuple) p.value2);
-
-      int maxRows = getRuntimeMaxRowsCached();
-
-      if(maxRows > 0 && r.size() > maxRows) {
-         appliedMaxRows = maxRows;
-         throw new MaxRowsException();
-      }
    }
 
    /**

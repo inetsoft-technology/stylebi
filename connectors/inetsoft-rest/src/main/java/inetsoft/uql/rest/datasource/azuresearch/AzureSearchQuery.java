@@ -108,7 +108,7 @@ public class AzureSearchQuery extends EndpointJsonQuery<AzureSearchEndpoint> {
       if(endpoint.isPaged()) {
          paginationSpec = PaginationSpec.builder()
             .type(PaginationType.LINK_ITERATION)
-            .linkParam(PaginationParamType.JSON_PATH, "$['@odata.nexLink']")
+            .linkParam(PaginationParamType.JSON_PATH, "$['@odata.nextLink']")
             .build();
       }
       else {

@@ -406,7 +406,9 @@ public abstract class GShape implements Cloneable, Serializable {
     */
    @TernMethod
    public String getLegendId() {
-      return getClass().getName();
+      // match equals, which compares fill (not outline): a hollow and a filled shape of the
+      // same kind are different legend items (82048)
+      return getClass().getName() + (fill ? ":fill" : "");
    }
 
    /**

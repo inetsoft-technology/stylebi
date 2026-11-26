@@ -150,6 +150,42 @@ class SchedulerNoNextRunWarnTest {
       assertTrue(warnings().isEmpty(), warnings().toString());
    }
 
+   @Test
+   void triggersOfAddedTasksUseTheFireOnceNowMisfireInstruction() throws Exception {
+      TimeCondition hourly = TimeCondition.atHours(new int[] { 1, 2, 3, 4, 5, 6, 7 }, 0, 0, 0);
+      hourly.setHourlyInterval(1f);
+      hourly.setHourEnd(23);
+      hourly.setMinuteEnd(59);
+      hourly.setSecondEnd(59);
+      hourly.setTimeZone(TimeZone.getTimeZone("UTC"));
+      ScheduleTask timeTask = task("misfire-instruction-time", hourly);
+      ScheduleTask balancerTask = new ScheduleTask("misfire-instruction-balancer");
+      balancerTask.setOwner(SchedulerTestHarness.TEST_OWNER);
+      balancerTask.addCondition(new TaskBalancerCondition());
+
+      org.quartz.Scheduler quartz = quartzMock();
+      addTask(timeTask, false);
+      addTask(balancerTask, false);
+
+      @SuppressWarnings("unchecked")
+      org.mockito.ArgumentCaptor<Set<? extends org.quartz.Trigger>> triggers =
+         org.mockito.ArgumentCaptor.forClass(Set.class);
+      verify(quartz, times(2)).scheduleJob(any(org.quartz.JobDetail.class), triggers.capture(),
+                                           eq(true));
+
+      for(Set<? extends org.quartz.Trigger> set : triggers.getAllValues()) {
+         assertEquals(1, set.size(), "one trigger per condition expected: " + set);
+         assertEquals(inetsoft.sree.schedule.quartz.ConditionTrigger.MISFIRE_INSTRUCTION_FIRE_ONCE_NOW,
+                      set.iterator().next().getMisfireInstruction());
+      }
+   }
+
+   private org.quartz.Scheduler quartzMock() throws Exception {
+      Field quartz = Scheduler.class.getDeclaredField("scheduler");
+      quartz.setAccessible(true);
+      return (org.quartz.Scheduler) quartz.get(scheduler);
+   }
+
    private ScheduleTask task(String name, TimeCondition condition) {
       ScheduleTask task = new ScheduleTask(name);
       task.setOwner(SchedulerTestHarness.TEST_OWNER);

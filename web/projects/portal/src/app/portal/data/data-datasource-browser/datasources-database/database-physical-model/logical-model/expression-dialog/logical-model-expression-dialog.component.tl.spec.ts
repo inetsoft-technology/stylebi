@@ -552,4 +552,12 @@ describe("LogicalModelExpressionDialog — form validation", () => {
       comp.form.get("name")!.setValue("myAttr");
       expect(comp.form.valid).toBe(true);
    });
+
+   // Bug #82096: an expression attribute is always new, so a period is never allowed
+   it("form should be invalid when name contains a period", async () => {
+      const { comp } = await renderComp();
+      comp.form.get("name")!.setValue("a.b");
+      expect(comp.form.valid).toBe(false);
+      expect(comp.nameControl.hasError("illegalStr")).toBe(true);
+   });
 });

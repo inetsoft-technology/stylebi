@@ -69,13 +69,15 @@ public class TouchAssetService {
 
          // check if the runtime sheet is unlocked
          String lowner = rs.getLockOwner();
-         String newOwner = worksheetService.getLockOwner(rs.getEntry());
          AssetEntry entry = rs.getEntry();
          boolean saved = false;
 
+         // the lock owner is looked up last because it asks the other nodes of the cluster, and
+         // this runs for every sheet on every heartbeat while only the sheets that have been
+         // locked out need it
          if(!rs.isRuntime() && !rs.isPreview() && !rs.isLockProcessed() &&
             !rs.isEditable() && lowner != null &&
-            !Tool.equals(newOwner, lowner))
+            !Tool.equals(worksheetService.getLockOwner(entry), lowner))
          {
             MessageCommand command = new MessageCommand();
             command.setMessage(Catalog.getCatalog().getString(

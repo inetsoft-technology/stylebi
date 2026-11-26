@@ -29,6 +29,8 @@ import org.springframework.stereotype.Service;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.*;
 
 /**
@@ -41,11 +43,15 @@ public class ScheduleStatusDao implements AutoCloseable {
    @Autowired
    public ScheduleStatusDao(Cluster cluster) {
       storage = KeyValueStorage.newInstance("scheduleStatus", cluster);
+      claimStorage = KeyValueStorage.newInstance("scheduleDependantClaim", cluster);
    }
 
    // test seam: accepts storage directly instead of constructing via cluster
-   ScheduleStatusDao(KeyValueStorage<Status> storage) {
+   ScheduleStatusDao(KeyValueStorage<Status> storage,
+                     KeyValueStorage<HashMap<String, Long>> claimStorage)
+   {
       this.storage = storage;
+      this.claimStorage = claimStorage;
    }
 
    public static ScheduleStatusDao getInstance() {
@@ -56,6 +62,7 @@ public class ScheduleStatusDao implements AutoCloseable {
    @PreDestroy
    public void close() throws Exception {
       storage.close();
+      claimStorage.close();
    }
 
    /**
@@ -112,6 +119,38 @@ public class ScheduleStatusDao implements AutoCloseable {
    }
 
    /**
+    * Gets the end times of the parent tasks that the last trigger of a dependant task consumed
+    * (Bug #81706). It is kept apart from {@link Status}, which is replaced on every run start and
+    * end of the dependant.
+    *
+    * @param taskName the name of the dependant task.
+    * @return the end time by parent task name, or <tt>null</tt> if none was claimed.
+    */
+   public Map<String, Long> getDependantClaim(String taskName) {
+      return claimStorage.get(encodeTaskName(taskName));
+   }
+
+   /**
+    * Records the parent end times consumed by the trigger of a dependant task.
+    *
+    * @param taskName   the name of the dependant task.
+    * @param parentEnds the end time by parent task name.
+    */
+   public void setDependantClaim(String taskName, Map<String, Long> parentEnds) {
+      try {
+         claimStorage.put(encodeTaskName(taskName), new HashMap<>(parentEnds))
+            .get(10L, TimeUnit.SECONDS);
+      }
+      catch(InterruptedException ex) {
+         Thread.currentThread().interrupt();
+         LOG.error("Failed to put dependant claim for {}", taskName, ex);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to put dependant claim for {}", taskName, ex);
+      }
+   }
+
+   /**
     * Removes the status entry for the specified task.
     *
     * @param taskName the task name.
@@ -122,6 +161,8 @@ public class ScheduleStatusDao implements AutoCloseable {
 
       try {
          storage.remove(encodedTaskName).get(10L, TimeUnit.SECONDS);
+         // Bug #81706, the claim follows the status lifecycle, a recreated task starts unclaimed
+         claimStorage.remove(encodedTaskName).get(10L, TimeUnit.SECONDS);
       }
       catch(InterruptedException e) {
          Thread.currentThread().interrupt();
@@ -157,6 +198,7 @@ public class ScheduleStatusDao implements AutoCloseable {
    private static final String ENCODE_SEPARATOR = ":";
    private static final String RESERVED_PATTERN = "^__.*__$";
    private final KeyValueStorage<Status> storage;
+   private final KeyValueStorage<HashMap<String, Long>> claimStorage;
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleStatusDao.class);
 
    public static final class Status implements Serializable {

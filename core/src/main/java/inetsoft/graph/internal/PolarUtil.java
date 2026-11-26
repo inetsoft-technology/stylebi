@@ -138,10 +138,7 @@ public class PolarUtil {
                      Math.PI / 180.0;
                }
 
-               double r2 = getPieRadius(w, h, texts[j], angle);
-               r2 = r2 * get3DPieRadiusRatio(angle* Math.PI / 180.0);
-
-               r = Math.min(r, r2);
+               r = Math.min(r, get3DPieRadius(w, h, texts[j], angle));
             }
          }
       }
@@ -149,6 +146,29 @@ public class PolarUtil {
       r = Math.max(r, Math.min(MIN_RADIUS, Math.min(w / 4, h / 4)));
 
       return r;
+   }
+
+   /**
+    * Get the largest 3D pie radius that keeps a label inside the plot.
+    * ArcVOText.layout anchors the label at (cos(angle) * r, sin(angle) * r / 2),
+    * since the 3D pie is drawn at half height, and moves labels below the pie
+    * down by the pie depth (Pie3DVO.layoutText), so each direction is bounded
+    * separately.
+    * @param w pie plot width.
+    * @param h pie plot height.
+    * @param label visual text displayed on pie.
+    * @param angle the label angle of the Arc2D shape, in radians. A positive
+    *              sine puts the label below the pie.
+    */
+   private static double get3DPieRadius(double w, double h, VLabel label, double angle) {
+      double pw = label == null ? 0 : label.getPreferredWidth();
+      double ph = label == null ? 0 : label.getPreferredHeight();
+      double sin = Math.sin(angle);
+      double r1 = (w / 2 - pw) / Math.abs(Math.cos(angle));
+      double r2 = (h / 2 - ph) /
+         (Math.abs(sin) * PIE3D_Y_RATIO + (sin > 0 ? PIE3D_DEPTH_RATIO : 0));
+
+      return Math.min(r1, r2);
    }
 
    /**
@@ -497,4 +517,9 @@ public class PolarUtil {
    // glyph spacing of text drawn on an arc
    private static final double ARC_SCALE_X = 1.1;
    private static final String ELLIPSIS = "…";
+   // vertical radius of a 3D pie as a ratio of its radius (PolarCoord.getRatioY)
+   private static final double PIE3D_Y_RATIO = 0.5;
+   // 3D pie depth as a ratio of its radius: Pie3DVO uses GHEIGHT / 2 scaled by
+   // radius * 2 / GHEIGHT, divided by Pie3DVO.MULTIPLE (12)
+   private static final double PIE3D_DEPTH_RATIO = 1.0 / 12;
 }

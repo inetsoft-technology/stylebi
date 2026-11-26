@@ -725,10 +725,14 @@ export class LogicalModelPropertyPane implements OnInit, OnDestroy {
 
          let duplicateName: number = 1;
          const originalName: string = value.name;
+         // an attribute name cannot contain a period, so a name taken from a physical column
+         // gets "_" in its place; the column mapping below keeps the real column name
+         const baseName: string = originalName?.replace(/\./g, "_");
+         value.name = baseName;
 
          for(let i = 0; i < entity.attributes.length; i++) {
             if(value.name === entity.attributes[i].name) {
-               value.name = originalName + duplicateName;
+               value.name = baseName + duplicateName;
                duplicateName++;
                i = 0;
             }

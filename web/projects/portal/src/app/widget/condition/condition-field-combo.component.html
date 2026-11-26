@@ -19,7 +19,7 @@
   <div #conditionFieldToggle class="condition-field-combo-toggle form-control no-caret"
     [class.opacity-0]="showSearch"
     [class.is-open]="dropdownOpen"
-    [ngClass]="{disabled: !enabled}" [fixedDropdown]="dropdownMenu"
+    [ngClass]="{disabled: !enabled, 'is-invalid': unbound}" [fixedDropdown]="dropdownMenu"
     (openChange)="dropDownOpenChange($event)"
     dropdownPlacement="bottom" [autoClose]="false">
     <div class="condition-field-combo-text ps-1" [attr.title]="getTooltip(field)">

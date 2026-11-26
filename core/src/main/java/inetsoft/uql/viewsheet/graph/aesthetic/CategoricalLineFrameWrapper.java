@@ -112,14 +112,27 @@ public class CategoricalLineFrameWrapper extends LineFrameWrapper {
       if(linesNode != null) {
          NodeList list = Tool.getChildNodesByTagName(linesNode, "line");
 
-         for(int i = 0; i < list.getLength(); i++) {
+         if(list.getLength() == 0) {
+            return;
+         }
+
+         // keep the saved length: a palette saved with more entries than the default (31 before
+         // the duplicate default entry was removed) must not wrap onto the first ones (82047)
+         GLine[] lines = new GLine[list.getLength()];
+
+         for(int i = 0; i < lines.length; i++) {
             Element node = (Element) list.item(i);
             String val = node.getAttribute("value");
 
-            if(val != null) {
-               frame.setLine(i, new GLine(Integer.parseInt(val)));
+            try {
+               lines[i] = new GLine(Integer.parseInt(val));
+            }
+            catch(NumberFormatException ex) {
+               lines[i] = i < frame.getLineCount() ? frame.getLine(i) : GLine.THIN_LINE;
             }
          }
+
+         frame.setLines(lines);
       }
    }
 }

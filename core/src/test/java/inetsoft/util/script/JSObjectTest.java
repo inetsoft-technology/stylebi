@@ -48,6 +48,17 @@ class JSObjectTest {
    }
 
    @Test
+   void convertBooleanFollowsJavaScriptRuleForNumbers() {
+      assertEquals(Boolean.TRUE, JSObject.convert(1.0, boolean.class));
+      assertEquals(Boolean.TRUE, JSObject.convert(1, Boolean.class));
+      assertEquals(Boolean.TRUE, JSObject.convert(-2.5, boolean.class));
+      assertEquals(Boolean.FALSE, JSObject.convert(0.0, boolean.class));
+      assertEquals(Boolean.FALSE, JSObject.convert(0, Boolean.class));
+      assertEquals(Boolean.TRUE, JSObject.convert("true", boolean.class));
+      assertEquals(Boolean.FALSE, JSObject.convert("false", boolean.class));
+   }
+
+   @Test
    @Disabled("Task 5.3: JSObject is now a Rhino-free static-utility class; the " +
       "instance constructor JSObject(scope, obj, type) and the instance get(name, scope) " +
       "method that enforced the getClass/getClassLoader prohibition were removed. Member " +
@@ -334,6 +345,17 @@ class JSObjectTest {
       assertArrayEquals(new Object[]{ "1", "2", "3" }, result);
    }
 
+   /** A single non-text value stays one element with its type, as in 13.8. (#81695) */
+   @Test
+   void testSplitSingleNonTextValue() {
+      Date date = new Date(1709614800000L);
+      assertArrayEquals(new Object[]{ date }, JSObject.split(date));
+      assertArrayEquals(new Object[]{ 5.0 }, JSObject.split(5.0));
+      assertArrayEquals(new Object[]{ Boolean.TRUE }, JSObject.split(true));
+      assertArrayEquals(new Object[0], JSObject.split(null));
+      assertArrayEquals(new Object[]{ "a", "b" }, JSObject.split("a,b"));
+   }
+
    @Test
    void testSplitN() {
       // Test with a Java array
@@ -384,5 +406,56 @@ class JSObjectTest {
       VariableTable vars = new VariableTable();
       result = JSObject.convertToVariableTable(invalidArray, vars, true);
       assertEquals(0, vars.size()); // No valid key-value pairs added
+   }
+
+   // Bug #81922: the conversion failure text is for the script author
+   @Test
+   void convertFailureMessageNamesValueAndTypeInScriptTerms() {
+      RuntimeException ex = assertThrows(RuntimeException.class,
+         () -> JSObject.convert(new Object[] { 100.0 }, Dimension.class));
+      assertEquals(RuntimeException.class, ex.getClass());
+      assertEquals("Failed to convert [100] to a size (two numbers: width and height, " +
+                      "e.g. [100, 50])", ex.getMessage());
+      assertInstanceOf(ArrayIndexOutOfBoundsException.class, ex.getCause());
+
+      ex = assertThrows(RuntimeException.class, () -> JSObject.convert("abc", int.class));
+      assertEquals("Failed to convert 'abc' to an integer number", ex.getMessage());
+   }
+
+   @Test
+   void toScriptTextNeverShowsIdentityAndIsCapped() {
+      assertEquals("null", JSObject.toScriptText(null));
+      assertEquals("[1, 2.5, 'a', true, null]",
+                   JSObject.toScriptText(new Object[] { 1.0, 2.5, "a", true, null }));
+      assertEquals("[1, 2]", JSObject.toScriptText(new int[] { 1, 2 }));
+      assertEquals("[[[[...]]]]", JSObject.toScriptText(
+         new Object[] { new Object[] { new Object[] { new Object[] { 1.0 } } } }));
+      assertEquals("{a: 1}", JSObject.toScriptText(Collections.singletonMap("a", 1.0)));
+      assertEquals("0xFF0000", JSObject.toScriptText(Color.RED));
+      assertEquals("an object", JSObject.toScriptText(new Object()));
+      assertEquals("[an object]", JSObject.toScriptText(java.util.List.of(new Object())));
+
+      Object[] many = new Object[100];
+      Arrays.fill(many, 1.0);
+      assertEquals("[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ...]", JSObject.toScriptText(many));
+
+      String text = JSObject.toScriptText("x".repeat(1000));
+      assertTrue(text.length() < 100, text);
+      assertTrue(text.endsWith("...'"), text);
+
+      // a self-referencing list stops at the depth limit
+      java.util.List<Object> self = new ArrayList<>();
+      self.add(self);
+      assertEquals("[[[[...]]]]", JSObject.toScriptText(self));
+   }
+
+   @Test
+   void describeTypeUsesWordsAndFallsBackToSimpleName() {
+      assertEquals("a date", JSObject.describeType(java.sql.Timestamp.class));
+      assertEquals("an integer number", JSObject.describeType(int.class));
+      assertEquals("true or false", JSObject.describeType(boolean.class));
+      assertTrue(JSObject.describeType(Point.class).contains("x and y"));
+      assertTrue(JSObject.describeType(Insets.class).contains("top, left, bottom and right"));
+      assertEquals("VariableTable", JSObject.describeType(VariableTable.class));
    }
 }

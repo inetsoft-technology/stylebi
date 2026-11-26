@@ -934,7 +934,10 @@ public class MVCreatorUtil {
             result = Util.getColType(table, index, result, 1000);
          }
          else if(Tool.isNumberClass(result)) {
-            Class originalCls = Util.getColType(table, index, result, 1000);
+            // numbers of different types are not a mixed type column, use the type that holds
+            // them all, otherwise a value out of the declared type is converted back to it by
+            // the dictionary and saturated, e.g. 7.0E9 declared Integer (Bug #81572)
+            Class originalCls = Util.getColType(table, index, result, 1000, true);
 
             // Bug #57217, use original number type to avoid lost precision
             // e.g. if result is integer but originalCls is double then use double

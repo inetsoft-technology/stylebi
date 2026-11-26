@@ -76,6 +76,9 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          curOrg = Organization.getDefaultOrganizationID();
       }
 
+      // Bug #81785, read before anything is loaded so that a write that lands while this call is
+      // loading is noticed when the loaded task is about to be cached
+      long epoch = writeEpoch.get();
       long ts = indexedStorage.lastModified(identifier, curOrg);
       TaskWrapper wrapper = cache.get(identifier);
 
@@ -92,7 +95,13 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
                task.setLegacyOwnerOrganization(curOrg);
             }
 
-            cache.put(identifier, new TaskWrapper(task, ts));
+            TaskWrapper loaded = new TaskWrapper(task, ts);
+
+            // Bug #81785, a put or remove of the task that ran while it was loaded evicted the
+            // cache entry; caching the older task here would bring it back, and when the write
+            // has the same millisecond as the one loaded, the timestamp can't tell them apart.
+            // The check and the store are atomic with the eviction (same key in the map).
+            cache.compute(identifier, (k, current) -> writeEpoch.get() == epoch ? loaded : current);
          }
       }
       catch(Exception e) {
@@ -100,6 +109,17 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
       }
 
       return task;
+   }
+
+   /**
+    * Removes the cached task and records the write, so that a reader that loaded the task before
+    * the write doesn't put the older task back in the cache (see {@link #get(Object)}).
+    */
+   private void evict(String identifier) {
+      cache.compute(identifier, (k, v) -> {
+         writeEpoch.incrementAndGet();
+         return null;
+      });
    }
 
    public void clearCache() {
@@ -147,6 +167,10 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          parent = getRootEntry();
       }
 
+      // Bug #81905, the parent folder is read, changed and written back as a whole; the lock is
+      // taken before the read so the read is fresh and no other node's entry is overwritten
+      Lock folderLock = ScheduleFolderLock.acquire(orgID);
+
       try {
          AssetFolder parentFolder = (AssetFolder)
             indexedStorage.getXMLSerializable(parent.toIdentifier(), null, parent.getOrgID());
@@ -190,7 +214,8 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          // which doesn't change when the new task is written in the same millisecond as the old
          // one, so don't keep the old task cached. Also evicted after a failed write, since the
          // task may or may not have been written.
-         cache.remove(key);
+         evict(key);
+         folderLock.unlock();
          indexedStorage.close();
       }
 
@@ -199,16 +224,19 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
 
    @Override
    public ScheduleTask remove(Object key) {
-      ScheduleTask task = get(key);
       String identifier = (String) key;
+      Lock folderLock = ScheduleFolderLock.acquire(orgID);
 
       try {
-         AssetFolder root = getRoot();
+         ScheduleTask task = get(key);
+         // Bug #81905, read the root under the lock instead of the cached one, which is only
+         // validated by the last-modified time and is shared with the readers
+         AssetFolder root = readRoot();
          AssetEntry entry = AssetEntry.createAssetEntry(identifier);
          root.removeEntry(entry);
          indexedStorage.putXMLSerializable(getRootIdentifier(orgID), root);
          indexedStorage.remove(identifier);
-         cache.remove(identifier);
+         evict(identifier);
 
          // should remove the task from folder when delete a task.
          if(task != null && !StringUtils.isEmpty(task.getPath())) {
@@ -225,22 +253,25 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          else if(task == null) {
             removeEntryFromFolders(entry, root);
          }
+
+         return task;
       }
       catch(Exception e) {
          throw new RuntimeException(
             "Failed to delete schedule task: " + identifier, e);
       }
       finally {
+         folderLock.unlock();
          indexedStorage.close();
       }
-
-      return task;
    }
 
    @Override
    public void clear() {
+      Lock folderLock = ScheduleFolderLock.acquire(orgID);
+
       try {
-         AssetFolder root = getRoot();
+         AssetFolder root = readRoot();
 
          for(AssetEntry entry : root.getEntries()) {
             indexedStorage.remove(entry.toIdentifier());
@@ -253,6 +284,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          throw new RuntimeException("Failed to clear schedule tasks", e);
       }
       finally {
+         folderLock.unlock();
          indexedStorage.close();
       }
    }
@@ -336,8 +368,19 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
                return rootFolder;
             }
 
+            Lock folderLock = ScheduleFolderLock.acquire(orgID);
+
             try {
-               indexedStorage.putXMLSerializable(rootId, rootFolder);
+               // Bug #81905, another node may have created the root since it was read
+               AssetFolder current = (AssetFolder)
+                  indexedStorage.getXMLSerializable(rootId, null, orgID);
+
+               if(current != null) {
+                  rootFolder = current;
+               }
+               else {
+                  indexedStorage.putXMLSerializable(rootId, rootFolder);
+               }
             }
             catch(OrgIdChangeGuard.OrganizationChangingException e) {
                // bug #81319, the id of the organization is being changed or was just changed, so
@@ -348,6 +391,9 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
                          orgID, e.getMessage());
                return rootFolder;
             }
+            finally {
+               folderLock.unlock();
+            }
 
             ts = indexedStorage.lastModified(rootId, orgID);
          }
@@ -357,6 +403,16 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
       }
 
       return rootFolder;
+   }
+
+   /**
+    * Reads the root folder from the storage, bypassing the cache. Used by the writers, which must
+    * not change the cached folder and must see the writes of the other nodes.
+    */
+   private AssetFolder readRoot() throws Exception {
+      AssetFolder root =
+         (AssetFolder) indexedStorage.getXMLSerializable(getRootIdentifier(orgID), null, orgID);
+      return root == null ? new AssetFolder() : root;
    }
 
    /**
@@ -388,6 +444,8 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
     * schedule tasks.
     */
    private void initRoot() throws Exception {
+      Lock folderLock = ScheduleFolderLock.acquire(orgID);
+
       try {
          if(!indexedStorage.contains(getRootIdentifier(this.orgID))) {
             indexedStorage.putXMLSerializable(
@@ -395,6 +453,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          }
       }
       finally {
+         folderLock.unlock();
          indexedStorage.close();
       }
    }
@@ -660,6 +719,8 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    private final IndexedStorage indexedStorage;
    private final String orgID;
    private final Map<String, TaskWrapper> cache = new ConcurrentHashMap<>();
+   private final java.util.concurrent.atomic.AtomicLong writeEpoch =
+      new java.util.concurrent.atomic.AtomicLong();
    private final Map<String, Long> rootTS = new ConcurrentHashMap<>();
    private Map<String, AssetFolder> rootFolders = new ConcurrentHashMap<>();
    private static final Logger LOG =

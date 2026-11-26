@@ -127,14 +127,19 @@ public class AxisLine extends Visualizable {
       Scale scale = axis.getScale();
 
       if(axis.isTickVisible()) {
-         paintTicks(g, axis.getTicks(), true, pos1, pos2);
+         double[] majors = axis.getTicks();
+         // read the hidden end values first, getTickLocations() changes the array in place
+         double hiddenMin = !axis.isMinTickVisible() && majors.length > 0 ? majors[0] : Double.NaN;
+         double hiddenMax = !axis.isMaxTickVisible() && majors.length > 0 ?
+            majors[majors.length - 1] : Double.NaN;
+         paintTicks(g, majors, true, pos1, pos2, Double.NaN, Double.NaN);
 
          if(scale instanceof LinearScale) {
             LinearScale lscale = (LinearScale) scale;
             double[] minor = lscale.getMinorTicks();
 
             if(minor != null) {
-               paintTicks(g, minor, false, pos1, pos2);
+               paintTicks(g, minor, false, pos1, pos2, hiddenMin, hiddenMax);
             }
          }
       }
@@ -144,12 +149,19 @@ public class AxisLine extends Visualizable {
 
    /**
     * Paint ticks.
+    * @param hiddenMin the value of the hidden first major tick, or NaN. A minor tick
+    *                  at this value is not painted.
+    * @param hiddenMax the value of the hidden last major tick, or NaN. A minor tick
+    *                  at this value is not painted.
     */
    private void paintTicks(Graphics2D g2, double[] ticks, boolean major,
-      Point2D axisPos1, Point2D axisPos2)
+      Point2D axisPos1, Point2D axisPos2, double hiddenMin, double hiddenMax)
    {
       int tickWidth = major ? MAJOR_TICK_LENGTH : MINOR_TICK_LENGTH;
       Scale scale = axis.getScale();
+      // getTickLocations() changes the array in place, keep the values
+      double[] values = ticks.clone();
+      double eps = Math.abs(scale.getMax() - scale.getMin()) * 1e-9;
       double[] tlocs = ((DefaultAxis) axis).getTickLocations(ticks);
 
       // @by ChrisSpagnoli feature1379102629417 2015-1-15
@@ -219,6 +231,14 @@ public class AxisLine extends Visualizable {
 
          if(!axis.isMaxTickVisible() && i == ticks.length - 1 && major) {
             break;
+         }
+
+         // a minor tick at a hidden end major tick would paint the hidden tick (82028)
+         if(!major && (Math.abs(values[i] - hiddenMin) <= eps ||
+            Math.abs(values[i] - hiddenMax) <= eps))
+         {
+            i += inc;
+            continue;
          }
 
          double y = axis.isTickDown() ? -tickWidth : tickWidth;

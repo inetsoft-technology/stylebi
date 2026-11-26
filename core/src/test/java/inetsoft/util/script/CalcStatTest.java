@@ -44,7 +44,7 @@ class CalcStatTest {
       assertEquals(5, CalcStat.countDistinct(inputArray));
       assertEquals(3, CalcStat.countn(inputArray));
       assertEquals(6, CalcStat.counta(inputArray));
-      assertEquals(1, CalcStat.countblank(inputArray));//Counts null elements
+      assertEquals(2, CalcStat.countblank(inputArray));//Counts null and empty string elements
       assertEquals(1, CalcStat.countif(inputArray, ">1"));
    }
 
@@ -496,6 +496,18 @@ class CalcStatTest {
 
       // Test case: Edge case with number_s = trials
       assertEquals(0.03125, CalcStat.binomdist(5, 5, 0.5, false), 0.0001);
+   }
+
+   @Test
+   void testBinomdistAsymmetricProbability() {
+      // C(5,2) * 0.3^2 * 0.7^3
+      assertEquals(0.3087, CalcStat.binomdist(2, 5, 0.3, false), 1e-9);
+      assertEquals(0.83692, CalcStat.binomdist(2, 5, 0.3, true), 1e-9);
+   }
+
+   @Test
+   void testCountblankEmptyString() {
+      assertEquals(2, CalcStat.countblank(new Object[] {1, null, "", 3}));
    }
 
    @Test

@@ -22,6 +22,9 @@ import inetsoft.report.*;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
@@ -445,9 +448,9 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): a used failing calc field " +
-      "gives the sample row 999 and an 'expression failed' message")
-   void pin_usedFailingCalcGivesTheSampleRow() throws Exception {
+   @DisplayName("A used failing calc field gives the design sample row (999) and an " +
+      "'expression failed' message (Bug #71861)")
+   void usedFailingCalcGivesTheSampleRow() throws Exception {
       TableAssembly used = prunedTable("bad", BAD, OK);
       Tool.clearUserMessage();
       assertEquals(Arrays.asList(999), run(used));
@@ -538,8 +541,8 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): a zero or 0 / 0 ratio is empty")
-   void pin_divideByZeroIsEmpty() throws Exception {
+   @DisplayName("A zero or 0 / 0 ratio is empty (#80953 Q3c)")
+   void divideByZeroIsEmpty() throws Exception {
       init(new String[] { XSchema.STRING, XSchema.INTEGER, XSchema.INTEGER },
            new Object[][] { { "city", "a", "b" }, { "A", 3, 0 }, { "A", 6, 0 }, { "B", 1, 1 },
                             { "C", 0, 0 } });
@@ -551,7 +554,6 @@ class VSCalcFieldQueryTest {
       assertEquals(Arrays.asList(null, 1.0, null), numbers(column(rows, 3)));
    }
 
-   @Disabled("Not filed (fixture only): a chain of detail calcs in a freehand table adds the numbers instead of concatenating strings")
    @Test
    @DisplayName("A detail calc field that refers to a hidden one")
    void chainOfDetailCalcs() throws Exception {
@@ -591,7 +593,6 @@ class VSCalcFieldQueryTest {
       assertEquals(Arrays.asList(18.0, 20.0, 8.0), numbers(column(body(lens, 1), 0)));
    }
 
-   @Disabled("Not filed (fixture only): an unused failing detail calc in a freehand table must not replace the result with the sample row")
    @Test
    @DisplayName("An unused failing calc field is not executed in a freehand table")
    void unusedFailingCalcInFreehand() throws Exception {
@@ -604,7 +605,78 @@ class VSCalcFieldQueryTest {
       assertNull(Tool.getUserMessage());
    }
 
-   @Disabled("Not filed (fixture only): a detail calc declared Integer returns a number in a freehand cell")
+   @Test
+   @DisplayName("Bug #81627: an unused failing calc field is not executed when another " +
+      "calc field reads a field by a name built at run time")
+   void unusedFailingCalcWithDynamicFieldName() throws Exception {
+      init(new String[] { XSchema.INTEGER, XSchema.INTEGER },
+           new Object[][] { { "a", "b" }, { 1, 2 }, { 5, 6 } });
+      addCalc("bad", true, "field['a'].foo()", XSchema.INTEGER);
+      addCalc("ok", true, "5", XSchema.INTEGER);
+      addCalc("dyn", true, "field['o' + 'k'] + 1", XSchema.INTEGER);
+      Tool.clearUserMessage();
+      TableLens lens = freehand(detailCell("dyn"));
+      assertEquals(Arrays.asList(6.0, 6.0), numbers(column(body(lens, 1), 0)));
+      assertNull(Tool.getUserMessage());
+   }
+
+   @Test
+   @DisplayName("Bug #81627: an unused failing calc field is not executed when the freehand " +
+      "table groups a column and summarizes another")
+   void unusedFailingCalcWithGroupAndSummary() throws Exception {
+      initCityAb();
+      addCalc("bad", true, "field['city'].foo()", XSchema.INTEGER);
+      Tool.clearUserMessage();
+      TableLens lens = freehand(groupCell("city"), summaryCell("a", "Sum"));
+      List<List<Object>> rows = body(lens, 2);
+      assertEquals(Arrays.asList("A", "B"), column(rows, 0));
+      assertEquals(Arrays.asList(9.0, 1.0), numbers(column(rows, 1)));
+      assertNull(Tool.getUserMessage());
+   }
+
+   @Test
+   @DisplayName("Bug #81627: a detail calc field used by a group or summary cell is kept " +
+      "next to an unused failing one")
+   void usedCalcKeptWithGroupAndSummary() throws Exception {
+      initCityAb();
+      addCalc("bad", true, "field['city'].foo()", XSchema.INTEGER);
+      addCalc("g", true, "field['city'] + 'x'", XSchema.STRING);
+      addCalc("d", true, "field['a'] * 2", XSchema.INTEGER);
+      Tool.clearUserMessage();
+      TableLens lens = freehand(groupCell("g"), summaryCell("d", "Sum"));
+      List<List<Object>> rows = body(lens, 2);
+      assertEquals(Arrays.asList("Ax", "Bx"), column(rows, 0));
+      assertEquals(Arrays.asList(18.0, 2.0), numbers(column(rows, 1)));
+      assertNull(Tool.getUserMessage());
+   }
+
+   @Test
+   @DisplayName("Bug #81627: a detail calc field used only by the table condition is kept " +
+      "next to an unused failing one, so the filter still applies")
+   void calcUsedOnlyByConditionIsKept() throws Exception {
+      initCityAb();
+      addCalc("d1", true, "field['a'] * 2", XSchema.INTEGER);
+      addCalc("bad", true, "field['city'].foo()", XSchema.INTEGER);
+      AssetCondition condition = new AssetCondition();
+      condition.setOperation(XCondition.EQUAL_TO);
+      condition.setType(XSchema.INTEGER);
+      condition.addValue(2);
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(new ColumnRef(new AttributeRef(null, "d1")), condition, 0));
+      CalcTableVSAssembly calc = new CalcTableVSAssembly(vs, "Calc1");
+      calc.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "D"));
+      calc.setPreConditionList(list);
+      calc.getTableLayout().setCellBinding(1, 0, detailCell("city"));
+      vs.addAssembly(calc);
+      start();
+      Tool.clearUserMessage();
+      TableLens lens = new CalcTableVSAQuery(box, "Calc1", false).getTableLens();
+      lens.moreRows(TableLens.EOT);
+      List<List<Object>> rows = body(lens, 1);
+      assertEquals(1, rows.size(), String.valueOf(rows));
+      assertNull(Tool.getUserMessage());
+   }
+
    @Test
    @DisplayName("A detail calc field declared Integer is an Integer in a freehand cell")
    void declaredTypeOfDetailCalc() throws Exception {
@@ -615,9 +687,9 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): the declared type of an " +
-      "aggregate calc field is ignored in a freehand cell")
-   void pin_aggregateCalcDeclaredType() throws Exception {
+   @DisplayName("Bug #81668: the declared type of an " +
+      "aggregate calc field is applied in a freehand cell")
+   void aggregateCalcDeclaredType() throws Exception {
       for(String type : new String[] { XSchema.INTEGER, XSchema.STRING }) {
          tearDown();
          initCityAb();
@@ -625,7 +697,10 @@ class VSCalcFieldQueryTest {
          TableLens lens = freehand(groupCell("city"), summaryCell("a", "Sum"),
                                    summaryCell("b", "Sum"), summaryCell("ratio", "None"));
          List<Object> ratios = column(body(lens, 4), 3);
-         assertEquals(Arrays.asList(1.5, 1.0), ratios, type);
+         // Integer cuts the fraction, String keeps the text of the number
+         List<Object> expected = XSchema.INTEGER.equals(type) ?
+            Arrays.asList(1.0, 1.0) : Arrays.asList("1.5", "1");
+         assertEquals(expected, ratios, type);
       }
    }
 
@@ -661,9 +736,24 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): the declared type of an " +
-      "aggregate calc field is ignored in a crosstab")
-   void pin_declaredTypeIgnored() throws Exception {
+   @DisplayName("Bug #81668: an aggregate calc field with no declared type keeps its Double result")
+   void undeclaredTypeKeepsDouble() throws Exception {
+      initCityAb();
+      CalculateRef calc = new CalculateRef(false);
+      ExpressionRef expr = new ExpressionRef(null, "ratio");
+      expr.setExpression("field['Sum([a])'] / field['Sum([b])']");
+      calc.setDataRef(expr);
+      vs.addCalcField("D", calc);
+      List<Object> values = crosstab(aggregate("a", "Sum", XSchema.INTEGER),
+                                     aggregate("b", "Sum", XSchema.INTEGER),
+                                     aggregate("ratio", "None", XSchema.DOUBLE));
+      assertEquals(Arrays.asList(9.0, 6.0, 1.5, 1.0, 1.0, 1.0), values);
+   }
+
+   @Test
+   @DisplayName("Bug #81668: the declared type of an " +
+      "aggregate calc field is applied in a crosstab")
+   void declaredTypeAppliedInCrosstab() throws Exception {
       for(String type : new String[] { XSchema.INTEGER, XSchema.DOUBLE, XSchema.STRING }) {
          tearDown();
          initCityAb();
@@ -672,7 +762,11 @@ class VSCalcFieldQueryTest {
                                         aggregate("b", "Sum", XSchema.INTEGER),
                                         aggregate("ratio", "None", type));
          // A: Sum(a) 9, Sum(b) 6, ratio 1.5; B: 1, 1, 1
-         assertEquals(Arrays.asList(9.0, 6.0, 1.5, 1.0, 1.0, 1.0), values, type);
+         List<Object> expected = XSchema.INTEGER.equals(type) ?
+            Arrays.asList(9.0, 6.0, 1, 1.0, 1.0, 1) :
+            XSchema.DOUBLE.equals(type) ? Arrays.asList(9.0, 6.0, 1.5, 1.0, 1.0, 1.0) :
+            Arrays.asList(9.0, 6.0, "1.5", 1.0, 1.0, "1");
+         assertEquals(expected, values, type);
       }
    }
 
@@ -693,9 +787,9 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN(current behavior, pending dev #80953): a date aggregate calc field " +
-      "stays a Timestamp and a comparison stays a Boolean, whatever type is declared")
-   void pin_dateAndBooleanDeclaredTypes() throws Exception {
+   @DisplayName("Bug #81668: a date aggregate calc field " +
+      "and a comparison follow the declared type")
+   void dateAndBooleanDeclaredTypes() throws Exception {
       for(String type : new String[] { XSchema.DATE, XSchema.TIME_INSTANT, XSchema.STRING }) {
          tearDown();
          init(new String[] { XSchema.STRING, XSchema.TIME_INSTANT },
@@ -706,10 +800,15 @@ class VSCalcFieldQueryTest {
          addCalc("mx", false, "field['Max([d])']", type);
          VSAggregateRef max = aggregate("d", "Max", XSchema.TIME_INSTANT);
          List<Object> values = crosstab(max, aggregate("mx", "None", type));
-         assertEquals(Arrays.asList(Timestamp.valueOf("2020-12-01 00:00:00"),
-                                    Timestamp.valueOf("2020-12-01 00:00:00"),
-                                    Timestamp.valueOf("2021-05-05 00:00:00"),
-                                    Timestamp.valueOf("2021-05-05 00:00:00")), values, type);
+         Timestamp t1 = Timestamp.valueOf("2020-12-01 00:00:00");
+         Timestamp t2 = Timestamp.valueOf("2021-05-05 00:00:00");
+         List<Object> expected = XSchema.DATE.equals(type) ?
+            Arrays.asList(t1, java.sql.Date.valueOf("2020-12-01"), t2,
+                          java.sql.Date.valueOf("2021-05-05")) :
+            XSchema.STRING.equals(type) ?
+            Arrays.asList(t1, t1.toString(), t2, t2.toString()) :
+            Arrays.asList(t1, t1, t2, t2);
+         assertEquals(expected, values, type);
       }
 
       for(String type : new String[] { XSchema.BOOLEAN, XSchema.STRING, XSchema.INTEGER }) {
@@ -718,7 +817,10 @@ class VSCalcFieldQueryTest {
          addCalc("gt", false, "field['Sum([a])'] > 5", type);
          List<Object> values = crosstab(aggregate("a", "Sum", XSchema.INTEGER),
                                         aggregate("gt", "None", type));
-         assertEquals(Arrays.asList(9.0, true, 1.0, false), values, type);
+         // a Boolean that the declared type cannot hold stays a Boolean
+         List<Object> expected = XSchema.STRING.equals(type) ?
+            Arrays.asList(9.0, "true", 1.0, "false") : Arrays.asList(9.0, true, 1.0, false);
+         assertEquals(expected, values, type);
       }
    }
 

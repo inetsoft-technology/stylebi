@@ -367,7 +367,6 @@ class ConditionVariableOperatorTest {
          assertTrue(cond.evaluate("TITLE"));
       }
 
-      @Disabled("mismatch C18 #81118")
       @DisplayName("C18 numeric equality keeps long precision")
       @ParameterizedTest(name = "[{index}] {0}")
       @ValueSource(strings = { XSchema.LONG, XSchema.INTEGER })

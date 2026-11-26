@@ -50,6 +50,19 @@ class ScriptFunctionTest {
          this.count = count;
       }
 
+      public long big = -1L;
+      public short small = -1;
+
+      public void setBig(long big) {
+         this.called = true;
+         this.big = big;
+      }
+
+      public void setSmall(short small) {
+         this.called = true;
+         this.small = small;
+      }
+
       public void setRatio(double ratio) {
          this.called = true;
          this.ratio = ratio;
@@ -236,6 +249,28 @@ class ScriptFunctionTest {
    }
 
    @Test
+   void arrayArgIsJoinedForStringParam() {
+      // Bug #81781: a JS array bound to a String parameter must be joined with
+      // commas like JS ToString ("1,2"), not the Java identity text
+      // "[Ljava.lang.Object;@<hash>".
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setLabel", new ScriptFunction(t, Target.class, "setLabel", String.class));
+
+      ctx.eval("js", "setLabel([1, 2])");
+      assertEquals("1,2", t.label);
+
+      ctx.eval("js", "setLabel(['a', 'b'])");
+      assertEquals("a,b", t.label);
+
+      ctx.eval("js", "setLabel([1, [2, 3], null, 'x'])");
+      assertEquals("1,2,3,,x", t.label);
+
+      ctx.eval("js", "setLabel([])");
+      assertEquals("", t.label);
+   }
+
+   @Test
    void fractionalNumberArgIsCoercedToString() {
       // A fractional JS number bound to a String parameter keeps its decimal
       // form ("3.5"), exercising the String.valueOf branch of toStringValue.
@@ -300,5 +335,155 @@ class ScriptFunctionTest {
       ScriptFunction fn = new ScriptFunction(new Target(), Target.class, "ok");
 
       assertEquals("fine", fn.execute());
+   }
+
+   /** Boolean-parameter targets for Bug #81683. */
+   public static final class BoolTarget {
+      public Boolean prim;
+      public Boolean wrapper = Boolean.TRUE; // non-default
+      public boolean called;
+
+      public void setPrim(boolean b) {
+         called = true;
+         prim = b;
+      }
+
+      public void setWrapper(Boolean b) {
+         called = true;
+         wrapper = b;
+      }
+   }
+
+   private BoolTarget callBool(String method, Class<?> ptype, String arg) throws Exception {
+      BoolTarget t = new BoolTarget();
+      ctx.getBindings("js").putMember(
+         "f", new ScriptFunction(t, BoolTarget.class, method, ptype));
+      ctx.eval("js", "f(" + arg + ")");
+      return t;
+   }
+
+   @Test
+   void booleanParamUsesJsTruthiness() throws Exception {
+      // Bug #81683: Table1.setActionVisible('Edit', 1) failed with "argument type
+      // mismatch"; Rhino coerced via ScriptRuntime.toBoolean. Note 'false' is true.
+      String[] truthy = {"1", "2.5", "-1", "'true'", "'false'", "'abc'", "{}", "[]",
+                         "new Date()", "true"};
+      String[] falsy = {"0", "''", "false", "NaN", "null", "undefined"};
+
+      for(String arg : truthy) {
+         assertTrue(callBool("setPrim", boolean.class, arg).prim, "primitive " + arg);
+         assertTrue(callBool("setWrapper", Boolean.class, arg).wrapper, "wrapper " + arg);
+      }
+
+      for(String arg : falsy) {
+         assertFalse(callBool("setPrim", boolean.class, arg).prim, "primitive " + arg);
+      }
+
+      for(String arg : new String[] {"0", "''", "false"}) {
+         assertFalse(callBool("setWrapper", Boolean.class, arg).wrapper, "wrapper " + arg);
+      }
+   }
+
+   @Test
+   void booleanWrapperNullStaysNull() throws Exception {
+      // unchanged: a Boolean wrapper receiving null/undefined keeps null
+      // ("unset"); only the primitive defaults to false (#75525)
+      assertNull(callBool("setWrapper", Boolean.class, "null").wrapper);
+      assertNull(callBool("setWrapper", Boolean.class, "undefined").wrapper);
+   }
+
+   @Test
+   void numericBooleanArgOnActionVisibleShape() {
+      // the reported call shape: (String, boolean) with a number
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setActionVisible",
+         new ScriptFunction(t, Target.class, "setActionVisible", String.class, boolean.class));
+
+      ctx.eval("js", "setActionVisible('Edit', 1)");
+      assertTrue(t.visible);
+      ctx.eval("js", "setActionVisible('Edit', 0)");
+      assertFalse(t.visible);
+   }
+
+   @Test
+   void nanAndInfinityReachNumberParameter() {
+      // Bug #81780: NaN/Infinity must reach a number parameter unchanged (as Rhino's
+      // FunctionObject did), not be turned into null and then the default 0.
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setRatio", new ScriptFunction(t, Target.class, "setRatio", double.class));
+
+      ctx.eval("js", "setRatio(NaN)");
+      assertTrue(Double.isNaN(t.ratio));
+
+      ctx.eval("js", "setRatio(Infinity)");
+      assertEquals(Double.POSITIVE_INFINITY, t.ratio);
+
+      ctx.eval("js", "setRatio(-Infinity)");
+      assertEquals(Double.NEGATIVE_INFINITY, t.ratio);
+
+      ctx.eval("js", "setRatio(1/0)");
+      assertEquals(Double.POSITIVE_INFINITY, t.ratio);
+   }
+
+   @Test
+   void nanAndInfinityBecomeZeroForIntParameter() {
+      // Bug #81780: JavaScript ToInt32 maps NaN/+-Infinity to 0; Number.intValue()
+      // would saturate the infinities to Integer.MAX/MIN_VALUE.
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setCount", new ScriptFunction(t, Target.class, "setCount", int.class));
+
+      for(String arg : new String[] { "NaN", "Infinity", "-Infinity", "1/0", "-1/0" }) {
+         t.count = -1;
+         ctx.eval("js", "setCount(" + arg + ")");
+         assertEquals(0, t.count, arg);
+      }
+
+      ctx.eval("js", "setCount(7)");
+      assertEquals(7, t.count);
+   }
+
+   @Test
+   void nanAndInfinityBecomeZeroForLongShortAndCharParameters() {
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setBig", new ScriptFunction(t, Target.class, "setBig", long.class));
+      ctx.getBindings("js").putMember(
+         "setSmall", new ScriptFunction(t, Target.class, "setSmall", short.class));
+      ctx.getBindings("js").putMember(
+         "setChar", new ScriptFunction(t, Target.class, "setChar", char.class));
+
+      for(String arg : new String[] { "NaN", "Infinity", "-Infinity" }) {
+         t.big = -1L;
+         t.small = -1;
+         t.ch = 'X';
+         ctx.eval("js", "setBig(" + arg + ")");
+         ctx.eval("js", "setSmall(" + arg + ")");
+         ctx.eval("js", "setChar(" + arg + ")");
+         assertEquals(0L, t.big, arg);
+         assertEquals(0, t.small, arg);
+         assertEquals('\0', t.ch, arg);
+      }
+
+      ctx.eval("js", "setBig(5000000000)");
+      assertEquals(5000000000L, t.big);
+   }
+
+   @Test
+   void nanAndInfinityReachTextParameterAsJavaScriptText() {
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setLabel", new ScriptFunction(t, Target.class, "setLabel", String.class));
+
+      ctx.eval("js", "setLabel(NaN)");
+      assertEquals("NaN", t.label);
+
+      ctx.eval("js", "setLabel(Infinity)");
+      assertEquals("Infinity", t.label);
+
+      ctx.eval("js", "setLabel(-Infinity)");
+      assertEquals("-Infinity", t.label);
    }
 }

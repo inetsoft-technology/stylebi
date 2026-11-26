@@ -66,6 +66,8 @@ import static inetsoft.util.AbstractPasswordEncryption.MASTER_PREFIX;
 })
 public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource> {
    static final String TYPE = "Rest.ZohoCRM";
+   // Zoho access tokens live for one hour, used when the token response has no usable expires_in
+   static final long DEFAULT_EXPIRES_IN = 3600L;
 
    public ZohoCRMDataSource() {
       super(TYPE, ZohoCRMDataSource.class);
@@ -285,7 +287,7 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
             String content = EntityUtils.toString(response.getEntity());
             JsonNode json = new ObjectMapper().readTree(content);
 
-            if(json.has("access_token") && json.has("api_domain")) {
+            if(json.path("access_token").isTextual() && json.path("api_domain").isTextual()) {
                setAccessToken(json.get("access_token").asText());
                setURL(json.get("api_domain").asText());
 
@@ -293,7 +295,14 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
                   setRefreshToken(json.get("refresh_token").asText());
                }
 
-               Duration duration = Duration.of(json.get("expires_in").asLong(), ChronoUnit.SECONDS);
+               // Bug #81960, expires_in is only recommended by RFC 6749, so it may be missing
+               long expiresIn = json.path("expires_in").asLong(DEFAULT_EXPIRES_IN);
+
+               if(expiresIn <= 0L) {
+                  expiresIn = DEFAULT_EXPIRES_IN;
+               }
+
+               Duration duration = Duration.of(expiresIn, ChronoUnit.SECONDS);
                Instant instant = Instant.now().plus(duration);
                tokenExpiration = instant.toEpochMilli();
                return true;
@@ -367,7 +376,10 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
       }
 
       ZohoCRMDataSource that = (ZohoCRMDataSource) o;
-      return tokenExpiration == that.tokenExpiration;
+      // Bug #81962, the account domain selects the Zoho data center the tokens belong to, and
+      // the credential's equals does not compare it
+      return tokenExpiration == that.tokenExpiration &&
+         Objects.equals(getAccountDomain(), that.getAccountDomain());
    }
 
    @Override

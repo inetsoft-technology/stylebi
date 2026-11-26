@@ -21,12 +21,12 @@ import inetsoft.uql.rest.json.OAuthEndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.util.CoreTool;
+import inetsoft.util.Tool;
 import inetsoft.util.credential.CredentialType;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 @View(vertical = true, value = {
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
@@ -81,7 +81,12 @@ public class AdobeAnalyticsDataSource extends OAuthEndpointJsonDataSource<AdobeA
    @Override
    public void updateTokens(Tokens tokens) {
       super.updateTokens(tokens);
-      setTokenExpiration(tokens.issued() + TimeUnit.MILLISECONDS.convert(24L, TimeUnit.HOURS));
+
+      // without an issue time the expiration of the service (set by super) is kept, and if there
+      // is none either the token is counted from now
+      if(tokens.issued() > 0 || tokens.expiration() <= 0) {
+         setTokenExpiration(expirationFromIssued(tokens));
+      }
    }
 
    @Override
@@ -134,8 +139,15 @@ public class AdobeAnalyticsDataSource extends OAuthEndpointJsonDataSource<AdobeA
    @Override
    public void writeContents(PrintWriter writer) {
       super.writeContents(writer);
-      writer.format("<globalCompanyId>%s</globalCompanyId>\n", globalCompanyId);
-      writer.format("<apiKey>%s</apiKey>\n", apiKey);
+
+      if(globalCompanyId != null) {
+         writer.format("<globalCompanyId><![CDATA[%s]]></globalCompanyId>\n",
+                       Tool.cdataText(globalCompanyId));
+      }
+
+      if(apiKey != null) {
+         writer.format("<apiKey><![CDATA[%s]]></apiKey>\n", Tool.cdataText(apiKey));
+      }
    }
 
    @Override
@@ -161,7 +173,8 @@ public class AdobeAnalyticsDataSource extends OAuthEndpointJsonDataSource<AdobeA
 
       AdobeAnalyticsDataSource that = (AdobeAnalyticsDataSource) o;
 
-      return globalCompanyId.equals(that.globalCompanyId) && apiKey.equals(that.apiKey);
+      return Objects.equals(globalCompanyId, that.globalCompanyId) &&
+         Objects.equals(apiKey, that.apiKey);
    }
 
    @Override

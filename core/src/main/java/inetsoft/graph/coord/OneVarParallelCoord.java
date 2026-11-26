@@ -134,11 +134,9 @@ public class OneVarParallelCoord extends AbstractParallelCoord {
          super.init(data);
          Map<Object, LinearScale> scales = new HashMap<>();
 
+         // one scale per label value, including a null label kept under NO_NULL (a lone
+         // null group or script-set values), so labels and parallel scales stay 1:1
          for(Object dimVal : getValues()) {
-            if(dimVal == null && (getScaleOption() & Scale.NO_NULL) != 0) {
-               continue;
-            }
-
             Scale scale = varScale instanceof LinearScale
                ? ((LinearScale) varScale).copyLinearScale() : new LinearScale(var);
             scales.put(dimVal, (LinearScale) scale);

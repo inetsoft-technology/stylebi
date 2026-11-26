@@ -60,7 +60,7 @@
         },
         {
           "endpoint": "Inventory Changes",
-          "jsonPath": "$.objects[*]",
+          "jsonPath": "$.objects[*].item_data.variations[*]",
           "key": "id",
           "parameterName": "Catalog Object ID"
         }
@@ -198,7 +198,7 @@
     {
       "name": "Cash Drawer Shift Events",
       "paged": true,
-      "suffix": "/v2/cash-drawers/shifts/{Shift ID}?/events?location_id={Location ID}"
+      "suffix": "/v2/cash-drawers/shifts/{Shift ID}/events?location_id={Location ID}"
     },
     {
       "name": "Bank Accounts",

@@ -123,8 +123,9 @@ public class ClusterStatusController implements MessageListener {
 
             if(datasource != null) {
                ((XEngine) repository).removeMetaDataFiles(dataMessage.getOrgId(), datasource);
-               // Also clear the DefaultMetaDataProvider cache so logical model sees updated tables
-               dataSourceService.clearAllPartitionMetaDataCache(datasource);
+               // Also drop this node's DefaultMetaDataProvider(s) of the data source, as the
+               // refreshing node does, so the cached table metadata is re-read
+               dataSourceService.removeDefaultMetaDataProviderCache(datasource);
             }
             else {
                // Use clearLocalMetaDataCache() instead of refreshMetaData() to avoid
@@ -166,8 +167,9 @@ public class ClusterStatusController implements MessageListener {
 
             if(datasource != null) {
                ((XEngine) repository).removeMetaCache(datasource, dataMessage.getOrgId());
-               // Also clear the DefaultMetaDataProvider cache so logical model sees updated tables
-               dataSourceService.clearAllPartitionMetaDataCache(datasource);
+               // Also drop this node's DefaultMetaDataProvider(s) of the data source, as the
+               // refreshing node does, so the cached table metadata is re-read
+               dataSourceService.removeDefaultMetaDataProviderCache(datasource);
             }
          }
 

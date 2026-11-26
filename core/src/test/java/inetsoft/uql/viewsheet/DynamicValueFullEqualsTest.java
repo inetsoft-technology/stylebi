@@ -93,7 +93,10 @@ class DynamicValueFullEqualsTest {
 
    @Test
    void numbersBeyondDoublePrecisionKeepContract() {
-      assertContract((1L << 53) + 1, 1L << 53);
+      // integral values compare exactly, so these are no longer equal
+      assertFalse(withRValue((1L << 53) + 1).fullEquals(withRValue(1L << 53)));
+      assertContract((1L << 53) + 1, (1L << 53) + 1);
+      assertContract((1L << 53) + 1, Long.valueOf((1L << 53) + 1));
    }
 
    @Test

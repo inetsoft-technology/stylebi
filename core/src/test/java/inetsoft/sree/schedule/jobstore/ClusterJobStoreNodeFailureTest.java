@@ -52,6 +52,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -327,6 +328,263 @@ class ClusterJobStoreNodeFailureTest {
       assertSurvivorsAgree();
    }
 
+   // ---- a survivor takes over what the failed node had in triggersFired ----
+   // The failed node's trigger is committed as fired (BLOCKED, with the run record, and its next
+   // fire time advanced) or rolled back (still ACQUIRED, with its old fire time). A survivor's
+   // acquire pass has to release that hold and fire the trigger once. The pass uses a window that
+   // reaches the stored next fire time, as a scheduler running at that time would.
+
+   @Test
+   @Timeout(180)
+   void survivorTakesOverTheFailedNodesTrigger_firesItOnceAndNotAgain() throws Exception {
+      NodeCluster clusterA = new NodeCluster(a);
+      ClusterJobStore storeA = createStore(clusterA);
+      JobDetail job = createJob(true);
+      OperableTrigger trigger = createTrigger(job, primaryTriggerKey(b));
+      storeA.storeJobAndTrigger(job, trigger);
+      List<OperableTrigger> acquired =
+         storeA.acquireNextTriggers(System.currentTimeMillis() + 60_000, 1, 0L);
+      assertEquals(1, acquired.size(), "the trigger was not acquired");
+
+      failWhileCommitting(() -> storeA.triggersFired(acquired));
+      assertExchangeCompletes();
+      assertSurvivorsAgree();
+      TriggerWrapper failed = storedOnB(trigger.getKey());
+      assertEquals(clusterA.getLocalNodeId(), failed.getOwnerNode(), "held by the failed node");
+      long fireTime = failed.trigger.getNextFireTime().getTime();
+
+      ClusterJobStore storeB = createStore(new NodeCluster(b));
+      List<OperableTrigger> taken = storeB.acquireNextTriggers(fireTime + 1000, 1, 0L);
+      assertEquals(1, taken.size(), "the survivor did not acquire the trigger");
+      assertEquals(fireTime, taken.get(0).getNextFireTime().getTime());
+      List<TriggerFiredResult> fired = storeB.triggersFired(taken);
+
+      assertEquals(1, fired.size());
+      assertNotNull(fired.get(0).getTriggerFiredBundle(), "the trigger was not fired");
+      assertEquals(fireTime,
+                   fired.get(0).getTriggerFiredBundle().getTrigger().getPreviousFireTime()
+                      .getTime());
+      assertTrue(storeB.acquireNextTriggers(fireTime + 1000, 1, 0L).isEmpty(),
+                 "the trigger would fire a second time");
+      assertSurvivorsAgree();
+   }
+
+   @Test
+   @Timeout(180)
+   void fireConsumedByTheFailedNodeIsNotRunAgain_holdIsReleasedAtTheNextFireAndFiresOnce()
+      throws Exception
+   {
+      NodeCluster clusterA = new NodeCluster(a);
+      ClusterJobStore storeA = createStore(clusterA);
+      JobDetail job = createJob(true);
+      OperableTrigger trigger = createTrigger(job, primaryTriggerKey(b));
+      long consumedFire = trigger.getNextFireTime().getTime();
+      storeA.storeJobAndTrigger(job, trigger);
+      List<OperableTrigger> acquired =
+         storeA.acquireNextTriggers(System.currentTimeMillis() + 60_000, 1, 0L);
+      failWhileCommitting(() -> storeA.triggersFired(acquired));
+      assertExchangeCompletes();
+      TriggerWrapper failed = storedOnB(trigger.getKey());
+      long nextFire = failed.trigger.getNextFireTime().getTime();
+      ClusterJobStore storeB = createStore(new NodeCluster(b));
+
+      if(failed.getState() == TriggerState.BLOCKED) {
+         // committed as fired: the fire time was advanced by the interval and the job never ran;
+         // a pass that reaches only the consumed fire time does not run it again
+         assertEquals(consumedFire + TimeUnit.HOURS.toMillis(1), nextFire);
+         assertTrue(storeB.acquireNextTriggers(consumedFire + 1000, 1, 0L).isEmpty(),
+                    "the consumed fire must not be run again");
+      }
+
+      List<OperableTrigger> taken = storeB.acquireNextTriggers(nextFire + 1000, 1, 0L);
+      assertEquals(1, taken.size(), "the hold was not released when the trigger came due");
+      List<TriggerFiredResult> fired = storeB.triggersFired(taken);
+
+      assertNotNull(fired.get(0).getTriggerFiredBundle(), "the trigger was not fired");
+      assertEquals(nextFire,
+                   fired.get(0).getTriggerFiredBundle().getTrigger().getPreviousFireTime()
+                      .getTime());
+      assertTrue(storeB.acquireNextTriggers(nextFire + 1000, 1, 0L).isEmpty(),
+                 "the trigger would fire a second time");
+   }
+
+   @Test
+   @Timeout(180)
+   void survivorsAcquirePassReleasesTheFailedNodesHold() throws Exception {
+      NodeCluster clusterA = new NodeCluster(a);
+      ClusterJobStore storeA = createStore(clusterA);
+      JobDetail job = createJob(true);
+      OperableTrigger trigger = createTrigger(job, primaryTriggerKey(b));
+      storeA.storeJobAndTrigger(job, trigger);
+      List<OperableTrigger> acquired =
+         storeA.acquireNextTriggers(System.currentTimeMillis() + 60_000, 1, 0L);
+      failWhileCommitting(() -> storeA.triggersFired(acquired));
+      assertExchangeCompletes();
+      TriggerWrapper failed = storedOnB(trigger.getKey());
+      assertEquals(clusterA.getLocalNodeId(), failed.getOwnerNode(), "held by the failed node");
+
+      NodeCluster clusterB = new NodeCluster(b);
+      ClusterJobStore storeB = createStore(clusterB);
+      storeB.acquireNextTriggers(failed.trigger.getNextFireTime().getTime() + 1000, 1, 0L);
+
+      TriggerWrapper after = storedOnB(trigger.getKey());
+      assertNotEquals(clusterA.getLocalNodeId(), after.getOwnerNode(),
+                      "the failed node still holds the trigger: " + after);
+      assertEquals(TriggerState.ACQUIRED, after.getState());
+      assertEquals(clusterB.getLocalNodeId(), after.getOwnerNode());
+   }
+
+   @Test
+   @Timeout(180)
+   void batchOfThreeTriggersOnAFailingNode_everyTriggerIsAllOrNothing_survivorsAgree()
+      throws Exception
+   {
+      NodeCluster clusterA = new NodeCluster(a);
+      ClusterJobStore storeA = createStore(clusterA);
+      List<JobDetail> jobs = new ArrayList<>();
+      List<OperableTrigger> triggers = new ArrayList<>();
+
+      for(TriggerKey key : primaryTriggerKeys(b, 3)) {
+         JobDetail job = createJob("job-" + key.getName(), true);
+         OperableTrigger trigger = createTrigger(job, key);
+         storeA.storeJobAndTrigger(job, trigger);
+         jobs.add(job);
+         triggers.add(trigger);
+      }
+
+      List<OperableTrigger> acquired =
+         storeA.acquireNextTriggers(System.currentTimeMillis() + 60_000, 3, 0L);
+      assertEquals(3, acquired.size(), "not every trigger was acquired");
+
+      failWhileCommitting(() -> storeA.triggersFired(acquired));
+      assertExchangeCompletes();
+      assertSurvivorsAgree();
+
+      for(int i = 0; i < 3; i++) {
+         TriggerWrapper tw = storedOnB(triggers.get(i).getKey());
+         Object run = b.cache(RUNNING).localPeek(jobs.get(i).getKey());
+
+         if(tw.getState() == TriggerState.BLOCKED) {
+            assertNotNull(run, "trigger " + i + " committed without its run record");
+         }
+         else {
+            assertEquals(TriggerState.ACQUIRED, tw.getState(), "trigger " + i);
+            assertNull(run, "trigger " + i + " has a run record without being fired");
+         }
+      }
+   }
+
+   @Test
+   @Timeout(180)
+   void batchOfThreeTriggersOnAFailingNode_survivorFiresEachTriggerOnce_noneStaysHeld()
+      throws Exception
+   {
+      NodeCluster clusterA = new NodeCluster(a);
+      ClusterJobStore storeA = createStore(clusterA);
+      List<OperableTrigger> triggers = new ArrayList<>();
+
+      for(TriggerKey key : primaryTriggerKeys(b, 3)) {
+         JobDetail job = createJob("job-" + key.getName(), true);
+         OperableTrigger trigger = createTrigger(job, key);
+         storeA.storeJobAndTrigger(job, trigger);
+         triggers.add(trigger);
+      }
+
+      List<OperableTrigger> acquired =
+         storeA.acquireNextTriggers(System.currentTimeMillis() + 60_000, 3, 0L);
+      failWhileCommitting(() -> storeA.triggersFired(acquired));
+      assertExchangeCompletes();
+      long due = 0;
+
+      for(OperableTrigger trigger : triggers) {
+         due = Math.max(due, storedOnB(trigger.getKey()).trigger.getNextFireTime().getTime());
+      }
+
+      due += 1000;
+      NodeCluster clusterB = new NodeCluster(b);
+      ClusterJobStore storeB = createStore(clusterB);
+      List<OperableTrigger> taken = storeB.acquireNextTriggers(due, 10, 0L);
+      assertEquals(3, taken.size(), "the survivor did not acquire every trigger");
+      List<TriggerFiredResult> fired = storeB.triggersFired(taken);
+
+      assertEquals(3, fired.size());
+      Set<TriggerKey> firedKeys = new HashSet<>();
+
+      for(TriggerFiredResult result : fired) {
+         assertNotNull(result.getTriggerFiredBundle(), "a trigger was not fired");
+         firedKeys.add(result.getTriggerFiredBundle().getTrigger().getKey());
+      }
+
+      assertEquals(triggers.stream().map(Trigger::getKey).collect(Collectors.toSet()),
+                   firedKeys, "each trigger must fire exactly once");
+
+      for(OperableTrigger trigger : triggers) {
+         TriggerWrapper tw = storedOnB(trigger.getKey());
+         assertEquals(clusterB.getLocalNodeId(), tw.getOwnerNode(), "held by " + tw);
+      }
+
+      assertTrue(storeB.acquireNextTriggers(due, 10, 0L).isEmpty(),
+                 "a trigger would fire a second time");
+      assertSurvivorsAgree();
+   }
+
+   @Test
+   @Timeout(180)
+   void twoSurvivorsAcquireInTurn_theFailedNodesTriggerIsAcquiredByExactlyOne() throws Exception {
+      NodeCluster clusterA = new NodeCluster(a);
+      ClusterJobStore storeA = createStore(clusterA);
+      JobDetail job = createJob(true);
+      OperableTrigger trigger = createTrigger(job, primaryTriggerKey(b));
+      storeA.storeJobAndTrigger(job, trigger);
+      List<OperableTrigger> acquired =
+         storeA.acquireNextTriggers(System.currentTimeMillis() + 60_000, 1, 0L);
+      failWhileCommitting(() -> storeA.triggersFired(acquired));
+      assertExchangeCompletes();
+      long due = storedOnB(trigger.getKey()).trigger.getNextFireTime().getTime() + 1000;
+
+      // both survivors are in the cluster, the failed node is not
+      NodeCluster clusterB = new NodeCluster(b);
+      NodeCluster clusterC = new NodeCluster(c);
+      Set<String> live = Set.of(clusterB.getLocalNodeId(), clusterC.getLocalNodeId());
+      clusterB.liveNodes = live;
+      clusterC.liveNodes = live;
+      ClusterJobStore storeB = createStore(clusterB);
+      ClusterJobStore storeC = createStore(clusterC);
+
+      // the context is global, so it is reinstalled before every call of a store
+      installContext(clusterB);
+      List<OperableTrigger> byB = storeB.acquireNextTriggers(due, 1, 0L);
+      installContext(clusterC);
+      List<OperableTrigger> byC = storeC.acquireNextTriggers(due, 1, 0L);
+      installContext(clusterB);
+      List<TriggerFiredResult> fired = storeB.triggersFired(byB);
+      installContext(clusterC);
+      List<OperableTrigger> byCAgain = storeC.acquireNextTriggers(due, 1, 0L);
+
+      assertEquals(1, byB.size() + byC.size(), "the trigger must be acquired by exactly one node");
+      assertEquals(1, byB.size());
+      assertNotNull(fired.get(0).getTriggerFiredBundle(), "the trigger was not fired");
+      assertTrue(byCAgain.isEmpty(), "the other survivor would fire the trigger a second time");
+   }
+
+   private TriggerWrapper storedOnB(TriggerKey key) {
+      return (TriggerWrapper) b.cache(TRIGGERS).localPeek(key);
+   }
+
+   private List<TriggerKey> primaryTriggerKeys(Ignite node, int count) {
+      List<TriggerKey> keys = new ArrayList<>();
+
+      for(int i = 0; keys.size() < count; i++) {
+         TriggerKey key = TriggerKey.triggerKey("MT_" + i, "ClusterJobStoreNodeFailureTest");
+
+         if(node.affinity(TRIGGERS).isPrimary(node.cluster().localNode(), key)) {
+            keys.add(key);
+         }
+      }
+
+      return keys;
+   }
+
    /**
     * Runs an action on A, and fails A while B's prepare request to the backup C is held.
     */
@@ -424,7 +682,11 @@ class ClusterJobStoreNodeFailureTest {
    }
 
    private ClusterJobStore createStore(Ignite node) throws Exception {
-      installContext(new NodeCluster(node));
+      return createStore(new NodeCluster(node));
+   }
+
+   private ClusterJobStore createStore(NodeCluster cluster) throws Exception {
+      installContext(cluster);
       ClusterJobStore store = new ClusterJobStore();
       store.initialize(null, mock(SchedulerSignaler.class));
       store.schedulerStarted();
@@ -442,8 +704,12 @@ class ClusterJobStoreNodeFailureTest {
    }
 
    private static JobDetail createJob(boolean nonConcurrent) {
+      return createJob("job", nonConcurrent);
+   }
+
+   private static JobDetail createJob(String name, boolean nonConcurrent) {
       return JobBuilder.newJob(nonConcurrent ? NonConcurrentJob.class : ConcurrentJob.class)
-         .withIdentity("job", "ClusterJobStoreNodeFailureTest")
+         .withIdentity(name, "ClusterJobStoreNodeFailureTest")
          .storeDurably()
          .build();
    }
@@ -553,6 +819,12 @@ class ClusterJobStoreNodeFailureTest {
          return node.name();
       }
 
+      /** The ids of the nodes this cluster sees, or only its own id when not set. */
+      @Override
+      public Set<String> getClusterNodeIds() {
+         return liveNodes != null ? liveNodes : super.getClusterNodeIds();
+      }
+
       @Override
       public <T, E extends Exception> T runInTransaction(long timeout, TimeUnit unit,
                                                           TransactionalAction<T, E> action)
@@ -562,6 +834,7 @@ class ClusterJobStoreNodeFailureTest {
       }
 
       private final Ignite node;
+      volatile Set<String> liveNodes;
    }
 
    /**

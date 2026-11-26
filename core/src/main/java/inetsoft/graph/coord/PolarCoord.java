@@ -332,8 +332,17 @@ public class PolarCoord extends Coordinate {
    }
 
    private double getR(double y) {
-      double maxr = GHEIGHT / 2;
-      return (type != PLUS) ? y : ((y / GHEIGHT) * (1 - holeRatio) + holeRatio) * maxr;
+      switch(type) {
+      case PLUS:
+         return ((y / GHEIGHT) * (1 - holeRatio) + holeRatio) * (GHEIGHT / 2);
+      case RHO:
+      case THETA_RHO:
+         // same radius as transformPoint0() so a horizontal line (e.g. a grid line) is
+         // transformed into an arc through the points at the same y.
+         return y * (Math.min(GWIDTH, GHEIGHT) / 2) / GHEIGHT;
+      default:
+         return y;
+      }
    }
 
    // the radius a data point at y is drawn at
@@ -882,7 +891,7 @@ public class PolarCoord extends Coordinate {
          atrans.preConcatenate(c2);
          yaxis.setLength(axislen);
 
-         layoutGridLines(plotd, yaxis);
+         layoutGridLines(yaxis);
 
          yaxis.layout(outerBounds);
          // axis inside the plot area could be completely covered by vo,
@@ -946,16 +955,11 @@ public class PolarCoord extends Coordinate {
    }
 
    // fit grid lines in the polar grid.
-   private void layoutGridLines(double plotd, DefaultAxis yaxis) {
-      AffineTransform scale = AffineTransform.getScaleInstance(plotd / GWIDTH, plotd / GHEIGHT);
-
-      // the grid line transform already scales a modern web's rings
-      if(!modernWeb) {
-         for(int k = 0; k < yaxis.getGridLineCount(); k++) {
-            GridLine gridLine = yaxis.getGridLine(k);
-            gridLine.setShape(scale.createTransformedShape(gridLine.getShape()));
-         }
-      }
+   private void layoutGridLines(DefaultAxis yaxis) {
+      // the grid line shapes are in the polar coord space, and are scaled to the plot
+      // size by the grid line transform (set in fit()). they must not be scaled here too,
+      // otherwise the grid lines don't line up with the data and axis ticks. (this also
+      // covers the modern web's rings, which the epic previously exempted by modernWeb.)
 
       // top grid line is at outer edge of polar coord, should be ignored.
       yaxis.removeGridLine(yaxis.getGridLineCount() - 1);

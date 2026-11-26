@@ -8,7 +8,7 @@
     {
       "paged": "false", 
       "name": "Aggregate Statistics", 
-      "suffix": "/now/stats/{Table Name}?sysparm_query={Query}&sysparm_group_by={Group By Fields?:priority,state,...}&sysparm_avg={Average Fields?}&sysparm_sum={Sum Fields?}sysparm_min_fields={Min Fields?}&sysparm_max_fields={Max Fields?}&sysparm_count={Count Records?:true|false}&sysparm_display_value={Display Value?:true|false}"
+      "suffix": "/now/stats/{Table Name}?sysparm_query={Query}&sysparm_group_by={Group By Fields?:priority,state,...}&sysparm_avg={Average Fields?}&sysparm_sum={Sum Fields?}&sysparm_min_fields={Min Fields?}&sysparm_max_fields={Max Fields?}&sysparm_count={Count Records?:true|false}&sysparm_display_value={Display Value?:true|false}"
     }, 
     {
       "paged": "false", 
@@ -285,7 +285,7 @@
       "paged": "true",
       "pageType": "OFFSET", 
       "name": "Service Catalog Items", 
-      "suffix": "/sn_sc/servicecatalog/items?sysparm_catalog={Catalog ID?}&sysparm_category={Category ID}sysparm_text={Search Text?}&sysparm_type={Type?:Record Producer|Order Guide}&sysparm_view={View?:desktop|mobile|both}"
+      "suffix": "/sn_sc/servicecatalog/items?sysparm_catalog={Catalog ID?}&sysparm_category={Category ID}&sysparm_text={Search Text?}&sysparm_type={Type?:Record Producer|Order Guide}&sysparm_view={View?:desktop|mobile|both}"
     }, 
     {
       "paged": "false", 

@@ -201,11 +201,11 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       if(this.url) {
          const tree = this.router.parseUrl(this.url);
          const result = EMBED_CHART_URL_MATCHER(tree.root?.children?.primary?.segments);
-         this.assetId = result.posParams?.assetId?.path;
-         this.assemblyName = result.posParams?.assemblyName?.path;
+         this.assetId = result?.posParams?.assetId?.path;
+         this.assemblyName = result?.posParams?.assemblyName?.path;
          this.queryParams = tree.queryParams;
 
-         (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
+         this.subscriptions.add((window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
             if(!this.connected && connected) {
                this.connected = true;
 
@@ -225,7 +225,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
                   this.cdRef.detectChanges();
                }, 1000);
             }
-         });
+         }));
       }
       else {
          if(document.body.className.indexOf("app-loaded") == -1) {
@@ -264,6 +264,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    }
 
    ngOnDestroy() {
+      clearTimeout(this.errorTimeout);
       this.cancelPendingOpen();
       this.dialogService.ngOnDestroy();
       this.clearServerUpdateInterval();

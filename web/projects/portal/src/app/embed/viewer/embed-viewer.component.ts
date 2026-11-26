@@ -161,7 +161,7 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
       if(this.url) {
          const tree = this.router.parseUrl(this.url);
          const result = EMBED_VIEWER_URL_MATCHER(tree.root?.children?.primary?.segments);
-         this.assetId = result.posParams?.assetId?.path;
+         this.assetId = result?.posParams?.assetId?.path;
          this.queryParams = new Map();
          this.queryParams.set("disableParameterSheet", ["true"]);
 
@@ -179,7 +179,7 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
             }
          });
 
-         (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
+         this.subscriptions.add((window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
             if(!this.connected && connected) {
                this.connected = true;
 
@@ -198,7 +198,7 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
                   this.cdRef.detectChanges();
                }, 2000);
             }
-         });
+         }));
       }
 
       this.createOverlayContainer();
@@ -214,6 +214,7 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    ngOnDestroy() {
+      clearTimeout(this.errorTimeout);
       this.dialogService.ngOnDestroy();
 
       if(!!this.subscriptions) {

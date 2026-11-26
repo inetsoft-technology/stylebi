@@ -69,8 +69,12 @@ public class DefaultDataSet extends AbstractDataSet {
          ColInfo info = new ColInfo();
          info.setIndex(i);
 
-         if(data[i].length > 0 && data[i][0] instanceof Number) {
-            info.setMeasure(true);
+         // use the first non-null value, same as getType0() (82042)
+         for(Object val : data[i]) {
+            if(val != null) {
+               info.setMeasure(val instanceof Number);
+               break;
+            }
          }
 
          colmap.put(headers[i], info);
@@ -160,7 +164,10 @@ public class DefaultDataSet extends AbstractDataSet {
     */
    public void setComparator(String col, Comparator comp) {
       ColInfo info = colmap.get(col);
-      info.setComparator(comp);
+
+      if(info != null) {
+         info.setComparator(comp);
+      }
    }
 
    /**

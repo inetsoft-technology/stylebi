@@ -18,6 +18,7 @@
 package inetsoft.uql.rest.datasource.nicereply;
 
 import inetsoft.test.EndpointsSource;
+import inetsoft.test.EndpointsSpringContext;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
@@ -28,6 +29,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@EndpointsSpringContext
 @SreeHome
 class NicereplyQueryTest {
 

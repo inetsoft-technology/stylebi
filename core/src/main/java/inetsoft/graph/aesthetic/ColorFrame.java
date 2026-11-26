@@ -106,9 +106,10 @@ public abstract class ColorFrame extends VisualFrame {
       int g = c.getGreen();
       int b = c.getBlue();
 
-      r = (int) (r * bright);
-      g = (int) (g * bright);
-      b = (int) (b * bright);
+      // a brightness above 1 (or below 0) could push a channel out of 0..255
+      r = clampChannel((int) (r * bright));
+      g = clampChannel((int) (g * bright));
+      b = clampChannel((int) (b * bright));
 
       if(grayscale) {
          double y = 0.3 * r + 0.59 * g + 0.11 * b;
@@ -116,6 +117,13 @@ public abstract class ColorFrame extends VisualFrame {
       }
 
       return new Color(r, g, b, a);
+   }
+
+   /**
+    * Clamp a color channel value to the 0..255 range accepted by Color.
+    */
+   static int clampChannel(int v) {
+      return Math.max(0, Math.min(255, v));
    }
 
    @Override
