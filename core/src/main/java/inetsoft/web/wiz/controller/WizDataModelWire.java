@@ -115,8 +115,14 @@ public final class WizDataModelWire {
    public record PhysicalTable(String name, List<PhysicalColumn> columns) {
    }
 
+   /**
+    * @param unresolved the view's physical tables the database metadata did not resolve, so
+    *                   they are missing from {@code tables}; empty when all resolved
+    * @param note       says why when {@code unresolved} is not empty, else null
+    */
    public record PhysicalTablesResponse(String database, String view,
-                                        List<PhysicalTable> tables)
+                                        List<PhysicalTable> tables, List<String> unresolved,
+                                        String note)
    {
    }
 
