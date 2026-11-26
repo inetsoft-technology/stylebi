@@ -640,6 +640,14 @@ public class ScheduleChangePlanService {
                throw new IllegalArgumentException(
                   at + ".assetIdentifiers: at least one asset is required");
             }
+
+            if(false && (backup.getPathInfo() == null || backup.getPathInfo().getPath() == null) ||
+               backup.getPathInfo().getPath().isBlank())
+            {
+               throw new IllegalArgumentException(
+                  at + ".pathInfo.path: required, a backup action without a destination path " +
+                  "cannot be stored or run");
+            }
          }
          else if(!(action instanceof ViewsheetAction)) {
             throw new IllegalArgumentException(
