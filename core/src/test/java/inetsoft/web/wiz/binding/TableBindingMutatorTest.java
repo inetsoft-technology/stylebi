@@ -903,6 +903,42 @@ class TableBindingMutatorTest {
       assertEquals("$(Spinner1)", model.getRows().get(0).getRankingCol());
    }
 
+   /** Bug #82314: a "=script" ranking mode/N/measure is a render-time dynamic value too. */
+   @Test
+   void acceptsAScriptRankingModeNAndMeasureWithoutMatchingAnyBoundAggregate() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
+         new DimensionSortRanking.Ranking("=Mode.value", "=Spin.value", "=Combo.selectedObject",
+                                          null));
+
+      assertEquals("=Mode.value", model.getRows().get(0).getRankingOption());
+      assertEquals("=Spin.value", model.getRows().get(0).getRankingN());
+      assertEquals("=Combo.selectedObject", model.getRows().get(0).getRankingCol());
+   }
+
+   /**
+    * Bug #82314 covers the ranking measure only: sortByField is the same dynamic-combo-box class
+    * but a separate follow-up, so a "=script" sort measure is still refused.
+    */
+   @Test
+   void stillRefusesAScriptSortByField() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setSort(model, "rows", "Region", null,
+            new DimensionSortRanking.Sort("value_desc", "=Combo.selectedObject", null)));
+
+      assertTrue(thrown.getMessage().contains("=Combo.selectedObject"));
+   }
+
    /**
     * A genuinely unbound LITERAL name must still be refused exactly as before -- the new dynamic-
     * value early return must not widen into accepting an arbitrary unresolved string.

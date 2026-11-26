@@ -90,6 +90,12 @@ abstract public class BaseJsonTable extends XTableNode {
          return isIntegral(prev) && isIntegral(cls) ? Long.class : Double.class;
       }
 
+      if((prev == java.sql.Date.class && cls == java.sql.Timestamp.class) ||
+         (prev == java.sql.Timestamp.class && cls == java.sql.Date.class))
+      {
+         return java.sql.Timestamp.class;
+      }
+
       return String.class;
    }
 
@@ -103,6 +109,12 @@ abstract public class BaseJsonTable extends XTableNode {
     * the same class.
     */
    static Object coerceToColumnType(Object val, Class<?> type) {
+      if(type == java.sql.Timestamp.class && val instanceof java.sql.Date &&
+         !(val instanceof java.sql.Timestamp))
+      {
+         return new java.sql.Timestamp(((java.sql.Date) val).getTime());
+      }
+
       if(val instanceof Number) {
          if(type == Double.class && val.getClass() != Double.class) {
             return ((Number) val).doubleValue();
@@ -286,6 +298,22 @@ abstract public class BaseJsonTable extends XTableNode {
       String formatType = getColumnFormat(header);
       String formatExtent = getColumnFormatExtent(header);
 
+      // a cached date/time type is not trusted for later values: text that is no longer a date
+      // of that type makes the column a string column, and a date-time in a date column is read
+      // as a date-time so its time is not dropped
+      if(inferred && formatType == null && type != XSchema.STRING &&
+         type != XSchema.BOOLEAN)
+      {
+         String actual = checkDateTime(str);
+
+         if(XSchema.STRING.equals(actual)) {
+            colTypes2.remove(header);
+            return str;
+         }
+
+         type = actual;
+      }
+
       try {
          if(formatType != null) {
             final FormatSpec fmtSpec = new FormatSpec(formatType, formatExtent);
@@ -302,14 +330,14 @@ abstract public class BaseJsonTable extends XTableNode {
          try {
             if(XSchema.DATE.equals(type)) {
                try {
-                  if(!isoDateFailed.contains(header)) {
+                  if(!isoDateFailed.contains(header + "|" + type)) {
                      java.sql.Date date = java.sql.Date.valueOf(parseDate(str));
                      return inferred ? new RawDate(date.getTime(), str) : date;
                   }
                }
                catch(DateTimeParseException ex) {
                   // don't try iso parsing again if failed.
-                  isoDateFailed.add(header);
+                  isoDateFailed.add(header + "|" + type);
                }
 
                // a date column keeps the calendar date as written, so the offset of a
@@ -319,16 +347,18 @@ abstract public class BaseJsonTable extends XTableNode {
             }
             else if(XSchema.TIME_INSTANT.equals(type)) {
                try {
-                  if(!isoDateFailed.contains(header)) {
+                  if(!isoDateFailed.contains(header + "|" + type)) {
                      java.sql.Timestamp ts = java.sql.Timestamp.valueOf(parseDateTime(str));
                      return inferred ? new RawTimestamp(ts, str) : ts;
                   }
                }
                catch(DateTimeParseException ex) {
-                  isoDateFailed.add(header);
+                  isoDateFailed.add(header + "|" + type);
                }
 
-               java.sql.Timestamp ts = parseFlexible(str).toTimestamp();
+               // like a date column, keep the wall clock as written instead of converting the
+               // offset to the server zone
+               java.sql.Timestamp ts = parseFlexible(stripOffset(str)).toTimestamp();
                return inferred ? new RawTimestamp(ts, str) : ts;
             }
             else if(XSchema.TIME.equals(type)) {
