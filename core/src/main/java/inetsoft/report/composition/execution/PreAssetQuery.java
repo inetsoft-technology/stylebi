@@ -1111,7 +1111,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       }
 
       // aggregate info post processed? do not apply max rows
-      int max = getMaxRows(false);
+      int max = getSourceMaxRows();
 
       if(max > 0) {
          String wflag = wquery ? SQLHelper.WHERE_SUBQUERY : null;
@@ -1144,6 +1144,51 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
     */
    protected boolean ignoreMaxRows(VariableTable vars) throws Exception {
       return "true".equals(vars.get(XQuery.HINT_IGNORE_MAX_ROWS));
+   }
+
+   /**
+    * Get the max row count to apply to the source fetch. This is
+    * <tt>getMaxRows(false)</tt>, except that no limit is applied when the sort
+    * or the distinct of the table still runs in memory after the fetch: cutting
+    * the source to N rows before the sort would return the first N stored rows
+    * instead of the first N sorted rows. The post max rows
+    * (<tt>getMaxRows(true)</tt>) is applied after the sort.
+    * @return the max row count of the source fetch.
+    */
+   protected int getSourceMaxRows() throws Exception {
+      // check getMaxRows(false) first: it is ALL when an aggregate is present,
+      // so isSortInfoMergeable() below never removes sorts from the sort info
+      int max = getMaxRows(false);
+
+      if(max <= 0) {
+         return max;
+      }
+
+      // distinct not pushed to the source query, done in memory
+      if(getTable().isDistinct()) {
+         return MaxRowsTableLens.ALL;
+      }
+
+      if(hasActiveSort() && !isSortInfoMergeable()) {
+         return MaxRowsTableLens.ALL;
+      }
+
+      return max;
+   }
+
+   /**
+    * Check if the sort info of the table has a sort that changes the row order.
+    */
+   private boolean hasActiveSort() {
+      for(SortRef sort : getTable().getSortInfo().getSorts()) {
+         int order = sort.getOrder();
+
+         if(order != XConstants.SORT_NONE && order != XConstants.SORT_ORIGINAL) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
