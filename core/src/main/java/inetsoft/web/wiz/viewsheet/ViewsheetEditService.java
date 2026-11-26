@@ -772,8 +772,8 @@ public class ViewsheetEditService {
 
    /**
     * Creates a Selection Container ({@code CurrentSelectionVSAssembly}) combining the given
-    * selection filters -- the container the native Composer's "combine filters into one
-    * compacted panel" gesture produces. Unlike {@link #groupAsTab}, {@code GroupingService}'s
+    * selection filters (one or more) -- the container the native Composer's "combine filters
+    * into one compacted panel" gesture produces. Unlike {@link #groupAsTab}, {@code GroupingService}'s
     * {@code selection=true} mode has no lazy-create fallback (it asserts the container already
     * exists), so the container is built here first via the same factory {@code add} already
     * uses, then each named filter is folded in with the same call
@@ -785,10 +785,16 @@ public class ViewsheetEditService {
    {
       List<String> names = request.assemblies();
 
-      if(names == null || names.size() < 2) {
+      if(names == null || names.isEmpty()) {
          throw new IllegalArgumentException(
-            "Edit op 'group_as_selection_container' requires 'assemblies' with at least two " +
-            "assembly names.");
+            "Edit op 'group_as_selection_container' requires 'assemblies' with at least one " +
+            "assembly name.");
+      }
+
+      if(new HashSet<>(names).size() != names.size()) {
+         throw new IllegalArgumentException(
+            "Edit op 'group_as_selection_container' requires distinct assembly names; got " +
+            names + ".");
       }
 
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
@@ -820,6 +826,12 @@ public class ViewsheetEditService {
          for(VSAssembly member : members) {
             grouping.groupComponents(rvs, container, member, true, linkUri, dispatcher);
          }
+
+         // groupComponents places each child at the container's bottom edge, i.e. outside the
+         // container's own box (a single filter included); reflow under the title row, as
+         // add_to_selection_container does.
+         container.layout();
+         coreLifecycleService.refreshVSAssembly(rvs, container, dispatcher);
       });
    }
 
@@ -1075,8 +1087,8 @@ public class ViewsheetEditService {
             (parent instanceof CurrentSelectionVSAssembly
                ? " -- it is a child of Selection Container '" + parent.getAbsoluteName() +
                   "', pass that name as 'assembly'"
-               : "") + ". edit(op:'" + op + "') works on a container made by " +
-            "group_as_selection_container" +
+               : "") + ". edit(op:'" + op + "') works on a Selection Container " +
+            "(edit op 'add' type 'SelectionContainer', or group_as_selection_container)" +
             ("reorder_container_children".equals(op) ? ", or on a Tab (group_as_tab)." : "."));
       }
 
