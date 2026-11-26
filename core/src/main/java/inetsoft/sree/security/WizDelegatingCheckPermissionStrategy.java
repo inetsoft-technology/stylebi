@@ -86,6 +86,18 @@ import java.security.Principal;
  * {@code update_bookmark} (override, re-add and the "(Home)" bookmark). This strategy is
  * unchanged.
  * <p>
+ * <b>Fifth narrow carve-out (Redmine bug #82413, supersedes #76630 for the dashboard
+ * email, share and schedule paths only).</b> The plugin endpoints that email, share or schedule a
+ * dashboard without a paired session ({@code WizDashboardDeliveryService}, {@code
+ * WizScheduleService}) evaluate, on {@code WizUtil.toolbarCheckPrincipal} (wiz tag removed, login
+ * check skipped), the real user's grants for: a read of the dashboard, the Viewer {@code Email} and
+ * {@code ExportExpandComponents} toolbar actions, the {@code Schedule} portal tab and scheduler
+ * access, the schedule options, and the {@code SHARE} target. Ownership of a schedule task is
+ * decided by comparing the caller's identity with the task owner, never by the security provider,
+ * so a user can list, change and delete only their own tasks. The work itself still runs as the wiz
+ * principal. This strategy is unchanged, and the native wiz email and share controllers
+ * ({@code WizEmailController}, {@code WizShareController}) are not covered by this carve-out.
+ * <p>
  * <b>Recorded decision: no further carve-outs beyond those above (Redmine bugs #80171, #80172;
  * decision: documented, not narrowed).</b> The toolbar action {@code PageNavigation} (Undo/Redo)
  * and the bookmark action {@code OpenBookmark} stay under the bypass. StyleBI's own server path
