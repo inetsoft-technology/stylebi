@@ -641,7 +641,7 @@ public class ScheduleChangePlanService {
                   at + ".assetIdentifiers: at least one asset is required");
             }
 
-            if(false && (backup.getPathInfo() == null || backup.getPathInfo().getPath() == null) ||
+            if(backup.getPathInfo() == null || backup.getPathInfo().getPath() == null ||
                backup.getPathInfo().getPath().isBlank())
             {
                throw new IllegalArgumentException(
