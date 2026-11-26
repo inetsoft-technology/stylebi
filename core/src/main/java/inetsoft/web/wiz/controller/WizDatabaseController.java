@@ -18,6 +18,7 @@
 
 package inetsoft.web.wiz.controller;
 
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.OrganizationManager;
@@ -254,7 +255,7 @@ public class WizDatabaseController {
       }
       else {
          for(String path : requested) {
-            if(path != null && securityEngine.checkPermission(
+            if(path != null && WizUtil.checkPermission(securityEngine,
                principal, ResourceType.DATA_SOURCE, path, ResourceAction.READ))
             {
                paths.add(path);
@@ -978,7 +979,7 @@ public class WizDatabaseController {
             ResourceType type = item.folder()
                ? ResourceType.DATA_SOURCE_FOLDER : ResourceType.DATA_SOURCE;
 
-            if(!securityEngine.checkPermission(principal, type, item.path(), ResourceAction.DELETE)) {
+            if(!WizUtil.checkPermission(securityEngine, principal, type, item.path(), ResourceAction.DELETE)) {
                results.add(new WizDatasourceDeleteItemResult(
                   item.path(), false, WizDatasourceDeleteItemResult.PERMISSION_DENIED, null, null));
                continue;
@@ -1190,9 +1191,9 @@ public class WizDatabaseController {
       ResourceType sourceType = PortalDataType.DATA_SOURCE_FOLDER.name().equals(cmd.getType())
          ? ResourceType.DATA_SOURCE_FOLDER : ResourceType.DATA_SOURCE;
 
-      return securityEngine.checkPermission(
+      return WizUtil.checkPermission(securityEngine,
             principal, ResourceType.DATA_SOURCE_FOLDER, cmd.getPath(), ResourceAction.WRITE) &&
-         securityEngine.checkPermission(principal, sourceType, cmd.getOldPath(), ResourceAction.DELETE);
+         WizUtil.checkPermission(securityEngine, principal, sourceType, cmd.getOldPath(), ResourceAction.DELETE);
    }
 
    /** Builds a definition carrying only a name, matching what {@code getDataSourceAuditPath} needs. */
@@ -1240,7 +1241,7 @@ public class WizDatabaseController {
    private void requireDataSourcePermission(String path, ResourceAction action, Principal principal)
       throws Exception
    {
-      if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, path, action)) {
+      if(!WizUtil.checkPermission(securityEngine, principal, ResourceType.DATA_SOURCE, path, action)) {
          throw new SecurityException(
             "Unauthorized access to data source \"" + path + "\" by user " + principal);
       }
@@ -1254,7 +1255,7 @@ public class WizDatabaseController {
    private void requireFolderPermission(String path, ResourceAction action, Principal principal)
       throws Exception
    {
-      if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE_FOLDER, path, action)) {
+      if(!WizUtil.checkPermission(securityEngine, principal, ResourceType.DATA_SOURCE_FOLDER, path, action)) {
          throw new SecurityException(
             "Unauthorized access to data source folder \"" + path + "\" by user " + principal);
       }
@@ -1278,14 +1279,14 @@ public class WizDatabaseController {
     */
    private boolean requireCreatePermission(String parentPath, Principal principal) throws Exception {
       boolean root = parentPath == null;
-      boolean writeOnParent = securityEngine.checkPermission(
+      boolean writeOnParent = WizUtil.checkPermission(securityEngine,
          principal, ResourceType.DATA_SOURCE_FOLDER, root ? "/" : parentPath, ResourceAction.WRITE);
 
       if(writeOnParent) {
          return false;
       }
 
-      boolean createDataSourceOnly = root && securityEngine.checkPermission(
+      boolean createDataSourceOnly = root && WizUtil.checkPermission(securityEngine,
          principal, ResourceType.CREATE_DATA_SOURCE, "*", ResourceAction.ACCESS);
 
       if(!createDataSourceOnly) {

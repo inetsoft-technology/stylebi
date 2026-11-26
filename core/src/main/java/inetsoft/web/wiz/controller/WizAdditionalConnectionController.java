@@ -18,6 +18,7 @@
 
 package inetsoft.web.wiz.controller;
 
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -104,7 +105,7 @@ public class WizAdditionalConnectionController {
             continue;
          }
 
-         boolean deletable = securityEngine.checkPermission(
+         boolean deletable = WizUtil.checkPermission(securityEngine,
             principal, ResourceType.DATA_SOURCE, base + "::" + name, ResourceAction.DELETE);
 
          connections.add(new WizAdditionalConnection(

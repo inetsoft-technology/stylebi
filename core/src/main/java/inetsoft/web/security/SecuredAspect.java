@@ -20,6 +20,7 @@ package inetsoft.web.security;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -236,6 +237,14 @@ public class SecuredAspect {
 
       try {
          AnalyticRepository repository = SUtil.getRepletRepository();
+
+         // Redmine #82431: the engine approves every wiz-tagged principal, so a data source
+         // check made with the request principal of a plugin user never refused anything
+         if(type == ResourceType.DATA_SOURCE || type == ResourceType.DATA_SOURCE_FOLDER ||
+            type == ResourceType.DATA_MODEL_FOLDER)
+         {
+            user = WizUtil.toolbarCheckPrincipal(user);
+         }
 
          for(ResourceAction action : actions) {
             if(!repository.checkPermission(user, type, resource, action)) {

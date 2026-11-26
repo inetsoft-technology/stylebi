@@ -18,6 +18,7 @@
 
 package inetsoft.web.wiz.controller;
 
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -42,7 +43,7 @@ class WizDatasourceGates {
    void requireDataSourcePermission(String path, ResourceAction action, Principal principal)
       throws Exception
    {
-      if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, path, action)) {
+      if(!WizUtil.checkPermission(securityEngine, principal, ResourceType.DATA_SOURCE, path, action)) {
          throw new SecurityException(
             "Unauthorized access to data source \"" + path + "\" by user " + principal);
       }
@@ -52,7 +53,7 @@ class WizDatasourceGates {
    void requireFolderPermission(String path, ResourceAction action, Principal principal)
       throws Exception
    {
-      if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE_FOLDER, path, action)) {
+      if(!WizUtil.checkPermission(securityEngine, principal, ResourceType.DATA_SOURCE_FOLDER, path, action)) {
          throw new SecurityException(
             "Unauthorized access to data source folder \"" + path + "\" by user " + principal);
       }
@@ -68,14 +69,14 @@ class WizDatasourceGates {
     */
    boolean requireCreatePermission(String parentPath, Principal principal) throws Exception {
       boolean root = parentPath == null;
-      boolean writeOnParent = securityEngine.checkPermission(
+      boolean writeOnParent = WizUtil.checkPermission(securityEngine,
          principal, ResourceType.DATA_SOURCE_FOLDER, root ? "/" : parentPath, ResourceAction.WRITE);
 
       if(writeOnParent) {
          return false;
       }
 
-      boolean createDataSourceOnly = root && securityEngine.checkPermission(
+      boolean createDataSourceOnly = root && WizUtil.checkPermission(securityEngine,
          principal, ResourceType.CREATE_DATA_SOURCE, "*", ResourceAction.ACCESS);
 
       if(!createDataSourceOnly) {

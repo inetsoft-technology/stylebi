@@ -17,6 +17,7 @@
  */
 package inetsoft.web.portal.data;
 
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
@@ -98,7 +99,7 @@ public class DataSourceBrowserService {
       }
 
       for(String name : getDataSources(path, false)) {
-         if(securityEngine.checkPermission(
+         if(WizUtil.checkPermission(securityEngine,
             principal, ResourceType.DATA_SOURCE, name, ResourceAction.READ)) {
             dataSources.add(getDataSourceInfo(registry.getDataSource(name), principal, locale));
          }
@@ -108,7 +109,7 @@ public class DataSourceBrowserService {
       Collections.sort(folders);
 
       for(String folder: folders) {
-         if(securityEngine.checkPermission(
+         if(WizUtil.checkPermission(securityEngine,
                principal, ResourceType.DATA_SOURCE_FOLDER, folder, ResourceAction.READ)) {
             dataSources.add(getDSFolderInfo(
                registry.getDataSourceFolder(folder), movingFolders, principal));
@@ -150,7 +151,7 @@ public class DataSourceBrowserService {
       List<DataSourceInfo> dataSources = new ArrayList<>();
 
       for(String name : getDataSources(path, true)) {
-         if(securityEngine.checkPermission(
+         if(WizUtil.checkPermission(securityEngine,
             principal, ResourceType.DATA_SOURCE, name, ResourceAction.READ)) {
             XDataSource dataSource = registry.getDataSource(name);
 
@@ -168,7 +169,7 @@ public class DataSourceBrowserService {
       Collections.sort(folders);
 
       for(String folder: folders) {
-         if(securityEngine.checkPermission(
+         if(WizUtil.checkPermission(securityEngine,
             principal, ResourceType.DATA_SOURCE_FOLDER, folder, ResourceAction.READ)) {
             DataSourceFolder dsFolder = registry.getDataSourceFolder(folder);
 
@@ -246,9 +247,9 @@ public class DataSourceBrowserService {
             .createdDateLabel(dateLabel)
             .dateFormat(Tool.getDateFormatPattern())
             .type(type)
-            .editable(securityEngine.checkPermission(principal,
+            .editable(WizUtil.checkPermission(securityEngine, principal,
                ResourceType.DATA_SOURCE_FOLDER, dsFolder.getFullName(), ResourceAction.WRITE))
-            .deletable(securityEngine.checkPermission(principal,
+            .deletable(WizUtil.checkPermission(securityEngine, principal,
                ResourceType.DATA_SOURCE_FOLDER, dsFolder.getFullName(), ResourceAction.DELETE))
             .hasSubFolder(hasSubDataSourceFolder(dsFolder, movingFolders))
             .build();
@@ -320,7 +321,7 @@ public class DataSourceBrowserService {
 
    private boolean checkDataSourcePermission(Principal principal, String name) {
       try {
-         return securityEngine.checkPermission(
+         return WizUtil.checkPermission(securityEngine,
             principal, ResourceType.DATA_SOURCE, name, ResourceAction.READ);
       }
       catch(SecurityException e) {
@@ -372,9 +373,9 @@ public class DataSourceBrowserService {
          .createdDate(cdate)
          .createdDateLabel(dateLabel)
          .dateFormat(Tool.getDateFormatPattern())
-         .editable(securityEngine.checkPermission(
+         .editable(WizUtil.checkPermission(securityEngine,
             principal, ResourceType.DATA_SOURCE, dataSource.getFullName(), ResourceAction.WRITE))
-         .deletable(securityEngine.checkPermission(
+         .deletable(WizUtil.checkPermission(securityEngine,
             principal, ResourceType.DATA_SOURCE, dataSource.getFullName(), ResourceAction.DELETE))
          .queryCreatable(isQueryCreatable(dataSource, principal))
          .childrenCreatable(isChildrenCreatable(dataSource.getFullName(), principal))
@@ -383,14 +384,14 @@ public class DataSourceBrowserService {
    }
 
    private boolean isQueryCreatable(XDataSource dataSource, Principal principal) throws SecurityException {
-      if(!securityEngine.checkPermission(
+      if(!WizUtil.checkPermission(securityEngine,
          principal, ResourceType.DATA_SOURCE, dataSource.getFullName(), ResourceAction.READ))
       {
          return false;
       }
 
       if(!(dataSource instanceof TabularDataSource)) {
-         return securityEngine.checkPermission(
+         return WizUtil.checkPermission(securityEngine,
             principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
       }
 
@@ -398,7 +399,7 @@ public class DataSourceBrowserService {
    }
 
    private boolean isChildrenCreatable(String name, Principal principal) throws SecurityException {
-      return securityEngine.checkPermission(
+      return WizUtil.checkPermission(securityEngine,
          principal, ResourceType.DATA_SOURCE, name, ResourceAction.WRITE);
    }
 
@@ -424,14 +425,14 @@ public class DataSourceBrowserService {
 
       // Bug #77840, a rename is a move within the parent: it needs WRITE and DELETE on the
       // folder, the same as the move and the Rename action of the portal
-      if(!securityEngine.checkPermission(
+      if(!WizUtil.checkPermission(securityEngine,
          principal, ResourceType.DATA_SOURCE_FOLDER, path, ResourceAction.WRITE))
       {
          throw new MessageException(Catalog.getCatalog(principal).getString(
             "common.writeAuthority", path));
       }
 
-      if(!securityEngine.checkPermission(
+      if(!WizUtil.checkPermission(securityEngine,
          principal, ResourceType.DATA_SOURCE_FOLDER, path, ResourceAction.DELETE))
       {
          throw new MessageException(Catalog.getCatalog(principal).getString(
@@ -816,7 +817,7 @@ public class DataSourceBrowserService {
 
       for(MoveCommand item : items) {
          try {
-            if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE_FOLDER,
+            if(!WizUtil.checkPermission(securityEngine, principal, ResourceType.DATA_SOURCE_FOLDER,
                   item.getPath(), ResourceAction.WRITE))
             {
                String path = item.getPath();
@@ -835,7 +836,7 @@ public class DataSourceBrowserService {
                String oname = item.getOldPath();
                String nname = item.getPath();
 
-               if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE_FOLDER,
+               if(!WizUtil.checkPermission(securityEngine, principal, ResourceType.DATA_SOURCE_FOLDER,
                   oname, ResourceAction.DELETE))
                {
                   throw new MessageException(Catalog.getCatalog(principal).getString(
@@ -885,7 +886,7 @@ public class DataSourceBrowserService {
                      "common.datasource.additionalConnectionMove"));
                }
 
-               if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE,
+               if(!WizUtil.checkPermission(securityEngine, principal, ResourceType.DATA_SOURCE,
                   oname, ResourceAction.DELETE))
                {
                   throw new MessageException(Catalog.getCatalog(principal).getString(
