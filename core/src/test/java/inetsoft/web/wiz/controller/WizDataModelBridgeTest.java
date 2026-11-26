@@ -673,6 +673,60 @@ class WizDataModelBridgeTest {
    }
 
    @Test
+   void viewUsedOnlyByAModelInADeletedFolderDeletesWithTheFolder() throws Exception {
+      addView("V", null);
+      addFolder("F");
+      addLogical("M", "V", "F");
+
+      List<DeleteResult> results = ok(items.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_PHYSICAL_VIEW, "V", null, true, null),
+         new DeleteItem(KIND_FOLDER, "F", null, false,
+                        List.of(new Ref(KIND_LOGICAL_MODEL, "M", null))))), bob),
+                                       DeleteResponse.class).results();
+
+      assertTrue(results.get(0).ok(), results.get(0).message());
+      assertTrue(results.get(1).ok(), results.get(1).message());
+      assertNull(registry().getPartition("V"));
+      assertNull(registry().getLogicalModel("M"));
+      assertFalse(Arrays.asList(dm.getFolders()).contains("F"));
+   }
+
+   @Test
+   void viewWithAnotherUserOutsideTheDeletedFolderIsStillInUse() throws Exception {
+      addView("V", null);
+      addFolder("F");
+      addLogical("M", "V", "F");
+      addLogical("outside", "V", null);
+
+      List<DeleteResult> results = ok(items.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_PHYSICAL_VIEW, "V", null, true, null),
+         new DeleteItem(KIND_FOLDER, "F", null, false,
+                        List.of(new Ref(KIND_LOGICAL_MODEL, "M", null))))), bob),
+                                       DeleteResponse.class).results();
+
+      assertEquals(VIEW_IN_USE, results.get(0).reason());
+      assertNotNull(registry().getPartition("V"));
+   }
+
+   @Test
+   void aFolderThatFailsItsPrecheckDoesNotExemptItsModelsFromAViewCheck() throws Exception {
+      addView("V", null);
+      addFolder("F");
+      addLogical("M", "V", "F");
+
+      // stale expect list: the folder precheck fails with EXPECT_MISMATCH
+      List<DeleteResult> results = ok(items.delete(new DeleteRequest(ds, List.of(
+         new DeleteItem(KIND_PHYSICAL_VIEW, "V", null, true, null),
+         new DeleteItem(KIND_FOLDER, "F", null, false, List.of()))), bob),
+                                       DeleteResponse.class).results();
+
+      assertEquals(VIEW_IN_USE, results.get(0).reason());
+      assertEquals(EXPECT_MISMATCH, results.get(1).reason());
+      assertNotNull(registry().getPartition("V"));
+      assertNotNull(registry().getLogicalModel("M"));
+   }
+
+   @Test
    void folderDeleteDeniedForAContainedModelDeletesNothing() throws Exception {
       addFolder("F");
       addLogical("lm", "pv", "F");
