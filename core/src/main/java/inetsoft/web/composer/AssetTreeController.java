@@ -104,14 +104,16 @@ public class AssetTreeController {
       @RequestBody LoadAssetTreeNodesEvent event, Principal principal)
       throws Exception
    {
-      return getNodes0(includeDatasources, includeColumns, includeWorksheets, includeViewsheets,
-         includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled, readOnly,
-         physical, event, principal, readOnly || assetRepository.checkPermission(
-            principal, ResourceType.WORKSHEET, "*", EnumSet.of(ResourceAction.ACCESS)),
-            securityEngine.checkPermission(
-            principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS),
-            readOnly || assetRepository.checkPermission(
-            principal, ResourceType.VIEWSHEET, "*", EnumSet.of(ResourceAction.ACCESS)));
+      try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
+         return getNodes0(includeDatasources, includeColumns, includeWorksheets, includeViewsheets,
+            includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled, readOnly,
+            physical, event, principal, readOnly || assetRepository.checkPermission(
+               principal, ResourceType.WORKSHEET, "*", EnumSet.of(ResourceAction.ACCESS)),
+               securityEngine.checkPermission(
+               principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS),
+               readOnly || assetRepository.checkPermission(
+               principal, ResourceType.VIEWSHEET, "*", EnumSet.of(ResourceAction.ACCESS)));
+      }
    }
 
    /**
