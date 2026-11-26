@@ -45,7 +45,12 @@ export class MessageDialog implements AfterViewInit {
 
    ngAfterViewInit() {
       if(this.buttons && this.buttons.first) {
-         this.buttons.first.nativeElement.focus();
+         // The default button takes focus so Enter answers the dialog, but this is not keyboard
+         // navigation: without focusVisible:false the browser treats it as keyboard focus and the
+         // primary button opens in its filled focus look, which changes back to its normal look at
+         // the first click elsewhere. A key press that moves focus still shows the focus look.
+         // Browsers without the option ignore it and keep the old behaviour.
+         this.buttons.first.nativeElement.focus({ focusVisible: false } as FocusOptions);
       }
    }
 
