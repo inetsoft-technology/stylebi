@@ -337,9 +337,10 @@ public abstract class AbstractMeasureColumn extends XDimIndex implements MVMeasu
                }
                break;
             case "LIKE":
-               // Bug #82376: the value has already been converted to a number, so it has no
-               // wildcard, and a LIKE without a wildcard matches the whole value (as without
-               // MV), not every value containing it. Compare as the '=' condition does.
+               // Bug #82376: a LIKE without a wildcard matches the whole value (as without MV),
+               // not every value containing it. The value reaches the column as a number
+               // (MVConditionListHandler converts it with the column type, a wildcard value
+               // such as '2%' becomes 0), so wildcards on a numeric column are not supported.
                if(rval == likeval) {
                   found = !found;
                }
@@ -376,12 +377,13 @@ public abstract class AbstractMeasureColumn extends XDimIndex implements MVMeasu
    }
 
    /**
-    * Get the value to compare with the column array values (as returned by getFragment())
-    * for a LIKE condition, which matches the whole value.
+    * Get the value to compare with the column array values as returned by getFragment()
+    * (the actual values, not the stored ones that getComparisonValue() scales for) for a LIKE
+    * condition, which matches the whole value.
     * @param val the condition value.
     */
    protected double getLikeComparisonValue(double val) {
-      return getComparisonValue(val);
+      return val;
    }
 
    /**

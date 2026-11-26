@@ -91,7 +91,7 @@ public class MVFloatColumn extends MVDecimalColumn {
     */
    @Override
    protected double getLikeComparisonValue(double val) {
-      return val == Tool.NULL_DOUBLE ? val : (float) getComparisonValue(val);
+      return val == Tool.NULL_DOUBLE ? val : (float) val;
    }
 
    /**
