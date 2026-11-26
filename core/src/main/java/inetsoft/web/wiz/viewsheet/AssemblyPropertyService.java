@@ -235,7 +235,7 @@ public class AssemblyPropertyService {
          return label;
       }
 
-      return PropertyAliases.labelFor(alias);
+      return PropertyAliases.labelFor(alias, path);
    }
 
    /** The alias vocabulary for an assembly's type, with its current values. */

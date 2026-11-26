@@ -431,6 +431,14 @@ public final class PropertyAliases {
       labels.put("trailerRowCount", "Trailer Rows");
       labels.put("trailerColCount", "Trailer Columns");
       labels.put("tipOnClick", "On Click Only");
+      // Bug #81681 (feedback): the rest of the Data Tip View group of the shared tip-pane
+      // (tip-pane.component.html). tipView/tipOption/flyOverViews/flyOnClick name one control
+      // each on every assembly that aliases them; "alpha" is path-labelled, see PATH_LABELS.
+      labels.put("tipOption", "Data Tip View (checked: show a data tip view instead of the tooltip)");
+      labels.put("tipView", "Data Tip View (the component shown as the data tip; None for no view)");
+      labels.put("tipAlpha", "Alpha (of the Data Tip View popup)");
+      labels.put("flyOverViews", "Flyover (the components shown on mouse over)");
+      labels.put("flyOnClick", "On Click Only (Flyover)");
       labels.put("xGridLineStyle", "X Grid Line Style (the vertical grid lines, on any chart orientation)");
       labels.put("xGridLineColor", "X Grid Line Color (the vertical grid lines, on any chart orientation)");
       labels.put("yGridLineStyle", "Y Grid Line Style (the horizontal grid lines, on any chart orientation)");
@@ -451,6 +459,22 @@ public final class PropertyAliases {
                  "Apply Selection is UNCHECKED when true (inverse of the Apply Selection checkbox)");
       return Collections.unmodifiableMap(labels);
    }
+
+   /**
+    * Static captions keyed by property path, for an alias whose name is shared by controls with
+    * different captions, so {@link #LABELS} (keyed by alias name alone) would mislabel one of
+    * them (bug #81681): {@code alpha} is the Data Tip View popup's alpha on a table, crosstab
+    * and calc table but the element opacity on a chart, text or image; {@code label} on a slider
+    * is Advanced > Show Labels > Label, not the Label tab's {@code showLabel}.
+    */
+   private static final Map<String, String> PATH_LABELS = Map.of(
+      "tableAdvancedPaneModel.tipPaneModel.alpha", "Alpha (of the Data Tip View popup)",
+      "crosstabAdvancedPaneModel.tipPaneModel.alpha", "Alpha (of the Data Tip View popup)",
+      "calcTableAdvancedPaneModel.tipPaneModel.alpha", "Alpha (of the Data Tip View popup)",
+      "sliderAdvancedPaneModel.sliderLabelPaneModel.label",
+      "Label (Advanced > Show Labels > Label: label the tick marks; not the Label tab's showLabel)",
+      "inputLabelPaneModel.showLabel",
+      "Show Label (Label tab: show the label beside the input; not Advanced > Show Labels > Label)");
 
    /**
     * Where a property's caption is itself model state rather than a fixed string, keyed by the
@@ -524,6 +548,15 @@ public final class PropertyAliases {
     */
    public static String labelFor(String alias) {
       return LABELS.get(alias);
+   }
+
+   /**
+    * The caption of the property at {@code path} under {@code alias}: the path's own caption
+    * ({@link #PATH_LABELS}) when it has one, else {@link #labelFor(String)}.
+    */
+   public static String labelFor(String alias, String path) {
+      String byPath = path == null ? null : PATH_LABELS.get(path);
+      return byPath != null ? byPath : LABELS.get(alias);
    }
 
    /**
