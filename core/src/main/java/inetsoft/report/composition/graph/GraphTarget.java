@@ -334,6 +334,11 @@ public class GraphTarget implements Cloneable, Serializable, XMLSerializable {
             obj.fmt = (CompositeTextFormat) fmt.clone();
          }
 
+         // the band fill is edited in place, so a clone (e.g. an undo checkpoint) must own it
+         if(bandFill != null) {
+            obj.bandFill = (CategoricalColorFrameWrapper) bandFill.clone();
+         }
+
          return obj;
       }
       catch(Exception exc) {
