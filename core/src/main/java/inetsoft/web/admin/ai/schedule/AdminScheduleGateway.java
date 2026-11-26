@@ -514,7 +514,11 @@ public class AdminScheduleGateway {
       return getTask(taskId, user).getTimeZone();
    }
 
-   /** A blank task time zone means none, the value the portal stores for "server default". */
+   /**
+    * A blank task time zone is stored as {@code null}, which the scheduler reads in the JVM
+    * default zone. The Enterprise Manager Options tab stores {@code ""} for the same choice, which
+    * the scheduler resolves to GMT, so the two do not behave identically.
+    */
    private static String normalizeTaskTimeZone(String timeZone) {
       return timeZone == null || timeZone.isBlank() ? null : timeZone.strip();
    }

@@ -143,8 +143,8 @@ public class ScheduleChangesetApplyService {
             try {
                if(ScheduleChangeRequest.VERB_CREATE.equals(original.getVerb())) {
                   applyCreate(txId, reviewedTask, taskId, original.getSpec(), original.getPath(),
-                             original.getTimeZone(), backupRef, req.getReviewOutcome(), user, linkURI, results, undoable,
-                             mutationEntered);
+                             original.getTimeZone(), backupRef, req.getReviewOutcome(), user,
+                             linkURI, results, undoable, mutationEntered);
                }
                else if(ScheduleChangeRequest.VERB_UPDATE.equals(original.getVerb())) {
                   applyUpdate(txId, reviewedTask, taskId, original.getPatch(), change.proposedValue(),
@@ -215,9 +215,8 @@ public class ScheduleChangesetApplyService {
 
    private void applyCreate(String txId, String task, String taskId,
                             CreateScheduleTaskRequest spec, String path, String timeZone,
-                            String backupRef,
-                            String reviewOutcome, Principal user, String linkURI,
-                            List<ApplyOutcome> results, List<Undo> undoable,
+                            String backupRef, String reviewOutcome, Principal user,
+                            String linkURI, List<ApplyOutcome> results, List<Undo> undoable,
                             AtomicBoolean mutationEntered)
       throws Exception
    {

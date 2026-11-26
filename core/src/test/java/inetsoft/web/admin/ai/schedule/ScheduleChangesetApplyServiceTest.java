@@ -705,6 +705,93 @@ class ScheduleChangesetApplyServiceTest {
       assertFalse(result.rollbackFailures().isEmpty());
    }
 
+   private static inetsoft.sree.schedule.ScheduleTask zonedTask(String zone, boolean enabled) {
+      inetsoft.sree.schedule.ScheduleTask task = sreeTask("t1", "admin");
+      task.setTimeZone(zone);
+      task.setEnabled(enabled);
+      return task;
+   }
+
+   private void applyZoneUpdate(inetsoft.sree.schedule.ScheduleTask existing,
+                                ScheduleTaskPatch patch, inetsoft.sree.schedule.ScheduleTask planned,
+                                inetsoft.sree.schedule.ScheduleTask readBack, String expectedStatus)
+      throws Exception
+   {
+      lenient().when(scheduleGateway.previewConditionResets(anyList(), eq(user)))
+         .thenReturn(java.util.Collections.singletonList(null));
+      when(scheduleManager.getScheduleTask("t1"))
+         .thenReturn(existing)    // preview
+         .thenReturn(existing)    // re-resolve inside apply()
+         .thenReturn(existing)    // apply: capture before-state
+         .thenReturn(readBack)    // apply: verify
+         .thenReturn(existing);   // rollback verify, when there is one
+      when(scheduleGateway.buildUpdatedTask(eq("t1"), eq(patch), any(), eq(user)))
+         .thenAnswer(inv -> planned);
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ApplyResult result = service.apply(applyRequest("zone", updateChange("t1", patch)), user, null);
+
+      assertEquals(expectedStatus, result.status());
+   }
+
+   private inetsoft.sree.schedule.ScheduleTask storedByUpdate() throws Exception {
+      ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> stored =
+         ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+      verify(scheduleGateway).storeUpdatedTask(eq("t1"), stored.capture(), eq(user));
+      return stored.getValue();
+   }
+
+   @Test void updateSetsTheTaskTimeZoneAndVerifiesItAgainstThePlan() throws Exception {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("Asia/Tokyo");
+
+      applyZoneUpdate(zonedTask(null, true), patch, zonedTask("Asia/Tokyo", true),
+                      zonedTask("Asia/Tokyo", true), AdminChangesetApplyService.STATUS_APPLIED);
+
+      assertEquals("Asia/Tokyo", storedByUpdate().getTimeZone());
+   }
+
+   @Test void updateClearsTheTaskTimeZoneAndVerifiesItAgainstThePlan() throws Exception {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("");
+
+      applyZoneUpdate(zonedTask("Asia/Tokyo", true), patch, zonedTask(null, true),
+                      zonedTask(null, true), AdminChangesetApplyService.STATUS_APPLIED);
+
+      assertNull(storedByUpdate().getTimeZone());
+   }
+
+   // C1: a patch that does not name the zone keeps it, also when it replaces the conditions
+   @Test void updateWithoutATimeZoneKeepsTheStoredZoneAcrossAConditionReplacement() throws Exception {
+      inetsoft.web.api.schedule.TimeCondition time = new inetsoft.web.api.schedule.TimeCondition();
+      time.setHour(5);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setEnabled(false);
+      patch.setConditions(List.of(time));
+
+      applyZoneUpdate(zonedTask("Europe/Paris", true), patch, zonedTask("Europe/Paris", false),
+                      zonedTask("Europe/Paris", false), AdminChangesetApplyService.STATUS_APPLIED);
+
+      assertEquals("Europe/Paris", storedByUpdate().getTimeZone());
+   }
+
+   // the zone is part of the pre-image: a failed verification puts the original zone back
+   @Test void rollbackOfAnUpdateRestoresTheOriginalTaskTimeZone() throws Exception {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("Asia/Tokyo");
+      inetsoft.sree.schedule.ScheduleTask existing = zonedTask("Europe/Paris", true);
+
+      // the store reads back the old zone, so it is not the planned task
+      applyZoneUpdate(existing, patch, zonedTask("Asia/Tokyo", true), existing,
+                      AdminChangesetApplyService.STATUS_ROLLED_BACK);
+
+      ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> restored =
+         ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+      verify(scheduleManager).setScheduleTask(eq("t1"), restored.capture(), any(), eq(user), any());
+      assertEquals("Europe/Paris", restored.getValue().getTimeZone());
+      assertNotSame(existing, restored.getValue());
+   }
+
    @Test void createsInTheFolderTheChangeNames() throws Exception {
       CreateScheduleTaskRequest spec = createSpec("t1", "admin");
       String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
