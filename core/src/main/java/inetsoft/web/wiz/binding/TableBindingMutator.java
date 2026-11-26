@@ -222,6 +222,7 @@ public final class TableBindingMutator {
          }
       }
 
+      TableAllRows.apply(model, refs, rvs, source);
       pruneOrphanedSuppression(model);
    }
 
@@ -702,7 +703,7 @@ public final class TableBindingMutator {
          }
       }
 
-      return out;
+      return TableAllRows.report(model, out);
    }
 
    // ── validation ────────────────────────────────────────────────────────────

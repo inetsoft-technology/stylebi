@@ -1244,6 +1244,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // keep Viewsheet.resetWS() off the copy the query runs on (77915)
       ntable.setProperty(Viewsheet.VS_BOUND_TABLE, "true");
       ws.addAssembly(ntable);
+      applyAllRows(ntable, vobj, ws);
       MVManager mgr = MVManager.getManager();
 
       // strip off the prefix VS_
@@ -1277,6 +1278,71 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       return ntable;
+   }
+
+   /**
+    * Apply the "Include all rows" option of a table or crosstab to the logical model table its
+    * query runs on. The base bound table is shared by every assembly bound to the same source,
+    * so the copy of it that carries the option is private to this assembly's query.
+    *
+    * @param ntable the bound copy of the viewsheet table the query of the assembly runs on.
+    * @param vobj   the viewsheet assembly the query is for.
+    * @param ws     the worksheet of the table.
+    */
+   static void applyAllRows(TableAssembly ntable, VSAssembly vobj, Worksheet ws) {
+      if(!(vobj != null && vobj.getVSAssemblyInfo() instanceof TableDataVSAssemblyInfo tinfo) ||
+         !(ntable instanceof MirrorTableAssembly mirror))
+      {
+         return;
+      }
+
+      List<String> allRows = tinfo.getAllRows();
+
+      if(allRows.isEmpty()) {
+         return;
+      }
+
+      // The mirrors and the bound table under this assembly's own copy are shared by every
+      // query on the viewsheet, which change them in place under the worksheet lock
+      // (VSAQuery.getVSTableAssembly, 77867), so the chain is read and copied under it, as
+      // copyBoundTable does.
+      synchronized(ws) {
+         if(BoundTableAssembly.findLogicalModelTable(mirror) == null) {
+            return;
+         }
+
+         // the bound table sits under however many mirrors the viewsheet and the worksheet
+         // wrapped it in, so the whole chain is copied down to the bound table
+         TableAssembly inner = copyWithAllRows(mirror.getTableAssembly(), allRows, ws,
+                                               ntable.getName() + "A");
+         mirror.setTableAssemblies(new TableAssembly[] { inner });
+      }
+   }
+
+   /**
+    * Copy a table and every mirror between it and its logical model bound table, the bound copy
+    * carrying the option. The caller holds the worksheet lock.
+    *
+    * @return the copy of {@code table}, in {@code ws}.
+    */
+   private static TableAssembly copyWithAllRows(TableAssembly table, List<String> allRows,
+                                                Worksheet ws, String name)
+   {
+      TableAssembly copy = (TableAssembly) table.copyAssembly(name);
+
+      if(copy instanceof BoundTableAssembly bound) {
+         bound.setAllRows(allRows);
+      }
+      else {
+         MirrorTableAssembly mirror = (MirrorTableAssembly) copy;
+         mirror.setTableAssemblies(new TableAssembly[] {
+            copyWithAllRows(((MirrorTableAssembly) table).getTableAssembly(), allRows, ws,
+                            name + "A") });
+      }
+
+      copy.setProperty(Viewsheet.VS_BOUND_TABLE, "true");
+      ws.addAssembly(copy);
+      return copy;
    }
 
    /**

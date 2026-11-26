@@ -21,6 +21,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
@@ -46,6 +47,10 @@ public class TableBindingModel extends BaseTableBindingModel {
          ColumnRefModel detail = (ColumnRefModel) refModelService.createDataRefModel(col);
          fixVSOrder(assembly, col, detail);
          addDetail(detail);
+      }
+
+      if(assembly.getInfo() instanceof TableDataVSAssemblyInfo info) {
+         setAllRows(info.getAllRows());
       }
    }
 

@@ -50,7 +50,7 @@ public class PasteAssembliesService extends WorksheetControllerService {
 
    @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Void pasteAssemblies(
+   public PasteAssembliesResult pasteAssemblies(
       @ClusterProxyKey String runtimeId,
       WSPasteAssembliesEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
@@ -67,7 +67,9 @@ public class PasteAssembliesService extends WorksheetControllerService {
       int y = event.getTop();
       Worksheet sws = srws.getWorksheet();
       Point topLeft = getTopLeft(sws, names);
-      String[] nnames = getSortedAvailableNames(rws, names, runtimeId, event, principal);
+      Map<String, String> skipped = new LinkedHashMap<>();
+      String[] nnames =
+         getSortedAvailableNames(rws, names, runtimeId, event, principal, skipped);
       // current worksheet primary
       String tprimary = ws.getPrimaryAssemblyName();
       // source worksheet primary
@@ -118,7 +120,19 @@ public class PasteAssembliesService extends WorksheetControllerService {
          commandDispatcher.sendCommand(builder.build());
       }
 
-      return null;
+      // the final old -> new names, so a caller without a browser (the wiz agent paste) can tell
+      // which names the pasted assemblies ended up with and which requested ones were skipped
+      List<String> newNames = new ArrayList<>();
+      List<String> oldNames = new ArrayList<>();
+      Enumeration<?> keys = nameMap.keys();
+
+      while(keys.hasMoreElements()) {
+         String nname = (String) keys.nextElement();
+         newNames.add(nname);
+         oldNames.add(nameMap.get(nname));
+      }
+
+      return new PasteAssembliesResult(newNames, oldNames, skipped);
    }
 
    private void copyOuterEntry(
@@ -368,7 +382,8 @@ public class PasteAssembliesService extends WorksheetControllerService {
     */
    private String[] getSortedAvailableNames(RuntimeWorksheet rws, String[] names,
                                             String runtimeId,
-                                            WSPasteAssembliesEvent event, Principal principal)
+                                            WSPasteAssembliesEvent event, Principal principal,
+                                            Map<String, String> skipped)
       throws Exception
    {
       Worksheet ws = getSRWS(event, principal).getWorksheet();
@@ -385,7 +400,7 @@ public class PasteAssembliesService extends WorksheetControllerService {
       Tool.mergeSort(asses, new DependencyComparator(ws, false));
       String[] nnames = getNames(asses);
       java.util.List<String> list = new ArrayList<>();
-      removeUnavailableName(rws, ws, nameset, nnames, list, runtimeId, event);
+      removeUnavailableName(rws, ws, nameset, nnames, list, runtimeId, event, skipped);
       asses = getAssemblies(ws, list.toArray(new String[list.size()]));
       // sort by dependency asc, first copy/cut parent, then copy/cut child
       Tool.mergeSort(asses, new DependencyComparator(ws, true));
@@ -399,7 +414,7 @@ public class PasteAssembliesService extends WorksheetControllerService {
    private void removeUnavailableName(
       RuntimeWorksheet rws, Worksheet ws,
       Set nameset, String[] nnames, java.util.List<String> list,
-      String runtimeId, WSPasteAssembliesEvent event)
+      String runtimeId, WSPasteAssembliesEvent event, Map<String, String> skipped)
    {
       java.util.List<String> list0 = new ArrayList<>();
       AssetEntry entry = rws.getEntry();
@@ -416,6 +431,8 @@ public class PasteAssembliesService extends WorksheetControllerService {
             (fromSelf(entry, assembly) || hasDepended(assembly, ws, nameset)))
          {
             nameset.remove(nnames[i]);
+            skipped.put(nnames[i], fromSelf(entry, assembly)
+               ? SKIP_OWN_MIRROR : SKIP_DEPENDS_OUTSIDE);
             continue;
          }
 
@@ -428,7 +445,7 @@ public class PasteAssembliesService extends WorksheetControllerService {
       String[] ascSortedNames = getNames(asses);
       java.util.List<String> removed = new ArrayList<>();
       checkDependent(rws, ws, nameset, escSortedNames,
-                     ascSortedNames, removed, runtimeId, event);
+                     ascSortedNames, removed, runtimeId, event, skipped);
 
       for(int i = 0; i < list0.size(); i++) {
          String name = list0.get(i);
@@ -481,7 +498,7 @@ public class PasteAssembliesService extends WorksheetControllerService {
       RuntimeWorksheet rws, Worksheet ws,
       Set nameset, String[] escSortedNames,
       String[] ascSortedNames, java.util.List<String> removed,
-      String runtimeId, WSPasteAssembliesEvent event)
+      String runtimeId, WSPasteAssembliesEvent event, Map<String, String> skipped)
    {
       if(nameset.size() == 0) {
          return;
@@ -501,10 +518,11 @@ public class PasteAssembliesService extends WorksheetControllerService {
          {
             nameset.remove(name);
             removed.add(name);
+            skipped.put(name, SKIP_CUT_DEPENDENT);
             // fix bug1257229826861,every time we remove an assembly, we should
             // check depended or dependent relation of other assemblies
             checkDepended(rws, ws, nameset, escSortedNames,
-                          ascSortedNames, removed, runtimeId, event);
+                          ascSortedNames, removed, runtimeId, event, skipped);
          }
       }
    }
@@ -523,7 +541,7 @@ public class PasteAssembliesService extends WorksheetControllerService {
       RuntimeWorksheet rws, Worksheet ws,
       Set nameset, String[] escSortedNames,
       String[] ascSortedNames, List<String> removed,
-      String runtimeId, WSPasteAssembliesEvent event)
+      String runtimeId, WSPasteAssembliesEvent event, Map<String, String> skipped)
    {
       if(nameset.size() == 0) {
          return;
@@ -543,10 +561,11 @@ public class PasteAssembliesService extends WorksheetControllerService {
          {
             nameset.remove(name);
             removed.add(name);
+            skipped.put(name, SKIP_DEPENDS_OUTSIDE);
             // fix bug1257229826861,every time we remove an assembly, we should
             // check depended or dependent relation of other assemblies
             checkDependent(rws, ws, nameset, escSortedNames,
-                           ascSortedNames, removed, runtimeId, event);
+                           ascSortedNames, removed, runtimeId, event, skipped);
          }
       }
    }
@@ -706,4 +725,13 @@ public class PasteAssembliesService extends WorksheetControllerService {
 
       return false;
    }
+
+   // why a requested assembly was left out of the paste, reported by the wiz agent paste
+   static final String SKIP_OWN_MIRROR =
+      "it is a mirror of the worksheet it would be pasted into";
+   static final String SKIP_DEPENDS_OUTSIDE =
+      "it depends on an assembly that is not part of the pasted set (or that could not be "
+      + "pasted)";
+   static final String SKIP_CUT_DEPENDENT =
+      "an assembly outside the cut set still depends on it";
 }

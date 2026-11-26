@@ -22,8 +22,11 @@ import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * BoundTableAssemblyInfo stores bound table assembly information.
@@ -58,6 +61,25 @@ public class BoundTableAssemblyInfo extends TableAssemblyInfo {
    }
 
    /**
+    * Get the logical model entities whose rows are all included (outer joined) when the table
+    * is queried from a logical model.
+    *
+    * @return the entity names, never null.
+    */
+   public List<String> getAllRows() {
+      return allRows == null ? new ArrayList<>() : new ArrayList<>(allRows);
+   }
+
+   /**
+    * Set the logical model entities whose rows are all included.
+    *
+    * @param allRows the entity names, null or empty for none.
+    */
+   public void setAllRows(List<String> allRows) {
+      this.allRows = allRows == null || allRows.isEmpty() ? null : new ArrayList<>(allRows);
+   }
+
+   /**
     * Write contents.
     * @param writer the specified writer.
     */
@@ -68,6 +90,17 @@ public class BoundTableAssemblyInfo extends TableAssemblyInfo {
       writer.println("<source>");
       source.writeXML(writer);
       writer.println("</source>");
+
+      // part of the xml so that the query cache tells a table with and without it apart
+      if(allRows != null) {
+         writer.println("<allRows>");
+
+         for(String entity : allRows) {
+            writer.print("<entity><![CDATA[" + entity + "]]></entity>");
+         }
+
+         writer.println("</allRows>");
+      }
    }
 
    /**
@@ -82,6 +115,18 @@ public class BoundTableAssemblyInfo extends TableAssemblyInfo {
       Element snode = Tool.getChildNodeByTagName(elem, "source");
       snode = Tool.getFirstChildNode(snode);
       source.parseXML(snode);
+
+      Element anode = Tool.getChildNodeByTagName(elem, "allRows");
+      allRows = null;
+
+      if(anode != null) {
+         allRows = new ArrayList<>();
+         NodeList nodes = Tool.getChildNodesByTagName(anode, "entity");
+
+         for(int i = 0; i < nodes.getLength(); i++) {
+            allRows.add(Tool.getValue(nodes.item(i)));
+         }
+      }
    }
 
    /**
@@ -93,6 +138,7 @@ public class BoundTableAssemblyInfo extends TableAssemblyInfo {
       try {
          BoundTableAssemblyInfo info = (BoundTableAssemblyInfo) super.clone();
          info.source = (SourceInfo) source.clone();
+         info.allRows = allRows == null ? null : new ArrayList<>(allRows);
          return info;
       }
       catch(Exception ex) {
@@ -102,6 +148,7 @@ public class BoundTableAssemblyInfo extends TableAssemblyInfo {
    }
 
    private SourceInfo source;
+   private List<String> allRows;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(BoundTableAssemblyInfo.class);
