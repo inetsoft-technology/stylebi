@@ -311,7 +311,7 @@ class DatagovMetadataFetchTests {
       ds.setUser("someuser");
       ds.setPassword("somepass");
 
-      DatagovRuntime.getSiteMetadata(ds, baseUrl + "/api/views/erm2-nwe9/rows.json?max_rows=0");
+      DatagovRuntime.getSiteMetadata(ds, baseUrl + "/api/views/erm2-nwe9.json");
 
       assertEquals("GET", capturedMethod);
       assertFalse(capturedHadBody, "a metadata read must never write a request body");
@@ -324,7 +324,7 @@ class DatagovMetadataFetchTests {
    void siteMetadataSendsNoAuthWhenNotConfigured() throws Exception {
       DatagovDataSource ds = new DatagovDataSource();
 
-      DatagovRuntime.getSiteMetadata(ds, baseUrl + "/api/views/erm2-nwe9/rows.json?max_rows=0");
+      DatagovRuntime.getSiteMetadata(ds, baseUrl + "/api/views/erm2-nwe9.json");
 
       assertEquals("GET", capturedMethod);
       assertNull(capturedAuthHeader);

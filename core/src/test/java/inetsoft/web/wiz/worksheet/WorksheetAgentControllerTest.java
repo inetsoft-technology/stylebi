@@ -11953,12 +11953,12 @@ class WorksheetAgentControllerTest {
    // ---------------------------------------------------------------------------
 
    private static final String DATAGOV_404 =
-      "The data.gov request to https://x/api/views/zzzz-zzzz/rows.json failed: not found " +
+      "The data.gov request to https://x/api/views/zzzz-zzzz.json failed: not found " +
       "(HTTP 404), the dataset or path does not exist";
    private static final String DATAGOV_ARRAY =
-      "The data.gov response from https://x/resource/sn5i-xuny.json is not in the rows.json " +
-      "shape this connector reads (a JSON object with 'meta' and 'data'); for example, a JSON " +
-      "array from a /resource/ endpoint is not supported.";
+      "The data.gov response from https://x/export/sn5i-xuny.json is not in the rows.json " +
+      "shape this connector reads (a JSON object with 'meta' and 'data'); point the URL suffix " +
+      "at the dataset's /resource/<id>.json path on the Socrata site instead";
 
    private static void assertNamesTheCauseNotCredentials(String message, String cause) {
       assertTrue(message.contains("The connector reported: " + cause), message);
