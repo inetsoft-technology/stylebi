@@ -1162,6 +1162,45 @@ class ScheduleChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("actions[0].assetIdentifiers"));
    }
 
+   @Test void resolveCreateRefusesABackupActionWithoutPathInfo() {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      IndividualAssetBackupAction backup = new IndividualAssetBackupAction();
+      backup.setAssetIdentifiers(List.of("1^2^__NULL__^ws"));
+      spec.setActions(List.of(backup));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(createChange(spec))), user));
+      assertTrue(ex.getMessage().contains("changes[0].spec.actions[0].pathInfo.path"));
+   }
+
+   @Test void resolveCreateRefusesABackupActionWithABlankPath() {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      IndividualAssetBackupAction backup = new IndividualAssetBackupAction();
+      backup.setAssetIdentifiers(List.of("1^2^__NULL__^ws"));
+      inetsoft.web.api.schedule.ServerPathInfo info = new inetsoft.web.api.schedule.ServerPathInfo();
+      info.setPath("  ");
+      backup.setPathInfo(info);
+      spec.setActions(List.of(backup));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(createChange(spec))), user));
+      assertTrue(ex.getMessage().contains("changes[0].spec.actions[0].pathInfo.path"));
+   }
+
+   @Test void resolveUpdateRefusesABackupActionWithoutPathInfo() throws Exception {
+      String taskId = ScheduleManager.getTaskId(new IdentityID("admin", "host-org").convertToKey(), "a");
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(sreeTask("a", "admin"));
+      IndividualAssetBackupAction backup = new IndividualAssetBackupAction();
+      backup.setAssetIdentifiers(List.of("1^2^__NULL__^ws"));
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setActions(List.of(backup));
+      ScheduleChangePlanRequest req = request("task", List.of(updateChange(taskId, patch)));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("changes[0].patch.actions[0].pathInfo.path"));
+   }
+
    @Test void resolveCreateNamesTheFolderPathWhenTheFolderIsRefused() throws Exception {
       CreateScheduleTaskRequest spec = createSpec("t1", "admin");
       ScheduleChangeRequest change = createChange(spec);
