@@ -141,7 +141,6 @@ class CalcTableVSAQueryPathAgreementTest {
     * The script path lists a null group value and an empty string as two groups, so each of them
     * must be summed on its own: null -> 1, "" -> 2.
     */
-   @Disabled("Bug #82397: the script path gives the null group and the empty group the sum of both (3.0 each)")
    @Test
    void scriptPathSumsANullGroupAndAnEmptyGroupSeparately() throws Exception {
       Scenario sc = new Scenario("null and empty group", sales(row(null, 1, 1.0),
@@ -1242,11 +1241,14 @@ class CalcTableVSAQueryPathAgreementTest {
          new Scenario("P5 special group values", special, 2, false, l -> {
             l.setCellBinding(1, 0, group("Region"));
             l.setCellBinding(1, 1, summary("Total", "Sum"));
-         }).knownDifference("Bug #82397: null and empty string are one group on the quick path",
+         }).knownDifference("Bug #82397: the quick path merges null and empty string into one " +
+                            "group (3.0) like a crosstab; the script path keeps them apart " +
+                            "(null 1.0, empty 2.0)",
                             "row count: quick 7 script 8",
                             "[1,0] quick=:String script=null",
+                            "[1,1] quick=3.0:Double script=1.0:Double",
                             "[2,0] quick=(p:String script=:String",
-                            "[2,1] quick=64.0:Double script=3.0:Double",
+                            "[2,1] quick=64.0:Double script=2.0:Double",
                             "[3,0] quick=a,b:String script=(p:String",
                             "[3,1] quick=132.0:Double script=64.0:Double",
                             "[4,0] quick=O'Brien:String script=a,b:String",
