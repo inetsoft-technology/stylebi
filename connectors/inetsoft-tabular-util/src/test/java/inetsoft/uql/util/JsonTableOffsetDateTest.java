@@ -31,13 +31,16 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.sql.Date;
+import java.sql.Timestamp;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Bug #82029: a date-time text with a UTC offset in a date column keeps the calendar date as
- * written, whatever the zone of the server.
+ * Bug #82029: a date-time text with a UTC offset keeps the wall clock as written, whatever the
+ * zone of the server. Since Bug #82350 a date-time next to plain dates makes a timestamp column
+ * (the time is no longer dropped), so those expectations are timestamps, and texts the date
+ * check does not accept stay raw text in a string column.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -82,55 +85,57 @@ class JsonTableOffsetDateTest {
       return cells;
    }
 
-   // the calendar date of each cell, as text
-   private static List<String> dates(List<Object> cells) {
-      List<String> list = new ArrayList<>();
-
-      for(Object cell : cells) {
-         assertInstanceOf(Date.class, cell);
-         list.add(cell.toString());
-      }
-
-      return list;
+   private static List<Object> columnCells(String... values) {
+      return load(values);
    }
 
-   // a plain date first makes the column a date column, then the offset text is read as a date
-   private static void assertKeepsWrittenDate(String text) {
-      assertEquals(Arrays.asList("2026-03-01", "2026-03-01"), dates(load("2026-03-01", text)),
-                   text);
+   // a plain date first, then a date-time text with an offset: the column becomes a timestamp
+   // column (Bug #82350, the time is not dropped) and the written wall clock is kept, not
+   // converted to the server zone (Bug #82029)
+   private static void assertKeepsWrittenWallClock(String text, String wallClock) {
+      assertEquals(Arrays.asList(Timestamp.valueOf("2026-03-01 00:00:00"),
+                                 Timestamp.valueOf(wallClock)),
+                   columnCells("2026-03-01", text), text);
+   }
+
+   // spellings that are not recognized as dates make the column a string column with raw text
+   private static void assertKeepsRawText(String text) {
+      assertEquals(Arrays.asList("2026-03-01", text), columnCells("2026-03-01", text), text);
    }
 
    @ParameterizedTest
    @ValueSource(strings = { "UTC", "America/New_York", "Asia/Shanghai", "Pacific/Kiritimati" })
-   void offsetSpellingsKeepTheWrittenDate(String zone) {
+   void offsetSpellingsKeepTheWrittenWallClock(String zone) {
       setZone(TimeZone.getTimeZone(zone));
 
-      assertKeepsWrittenDate("2026-03-01T01:00:00+02:00");
-      assertKeepsWrittenDate("2026-03-01T01:00:00Z");
-      assertKeepsWrittenDate("2026-03-01T01:00:00+0200");
-      assertKeepsWrittenDate("2026-03-01 01:00:00 +02:00");
-      assertKeepsWrittenDate("2026-03-01T01:00:00.123+02:00");
-      assertKeepsWrittenDate("2026-03-01T23:00:00-05:00");
-      assertKeepsWrittenDate("2026-03-01T01:00+02");
+      assertKeepsWrittenWallClock("2026-03-01T01:00:00+02:00", "2026-03-01 01:00:00");
+      assertKeepsWrittenWallClock("2026-03-01T01:00:00Z", "2026-03-01 01:00:00");
+      assertKeepsWrittenWallClock("2026-03-01T01:00:00+0200", "2026-03-01 01:00:00");
+      assertKeepsWrittenWallClock("2026-03-01T01:00:00.123+02:00", "2026-03-01 01:00:00.123");
+      assertKeepsWrittenWallClock("2026-03-01T23:00:00-05:00", "2026-03-01 23:00:00");
+      assertKeepsRawText("2026-03-01 01:00:00 +02:00");
+      assertKeepsRawText("2026-03-01T01:00+02");
    }
 
    @ParameterizedTest
    @ValueSource(strings = { "UTC", "America/New_York" })
-   void plainDateAndOffsetlessDateTimeAreUnchanged(String zone) {
+   void plainDateAndOffsetlessDateTime(String zone) {
       setZone(TimeZone.getTimeZone(zone));
 
-      assertEquals(Arrays.asList("2026-03-01", "2026-03-02"),
-                   dates(load("2026-03-01", "2026-03-02")));
-      assertKeepsWrittenDate("2026-03-01T01:00:00");
-      assertKeepsWrittenDate("2026-03-01 01:00:00");
+      assertEquals(Arrays.asList(Date.valueOf("2026-03-01"), Date.valueOf("2026-03-02")),
+                   columnCells("2026-03-01", "2026-03-02"));
+      assertKeepsWrittenWallClock("2026-03-01T01:00:00", "2026-03-01 01:00:00");
+      assertKeepsWrittenWallClock("2026-03-01 01:00:00", "2026-03-01 01:00:00");
    }
 
    @Test
    void plainDateAfterOffsetCellKeepsTheWrittenDate() {
       setZone(TimeZone.getTimeZone("UTC"));
 
-      assertEquals(Arrays.asList("2026-03-01", "2026-03-01", "2026-03-02"),
-                   dates(load("2026-03-01", "2026-03-01T01:00:00+02:00", "2026-03-02")));
+      assertEquals(Arrays.asList(Timestamp.valueOf("2026-03-01 00:00:00"),
+                                 Timestamp.valueOf("2026-03-01 01:00:00"),
+                                 Timestamp.valueOf("2026-03-02 00:00:00")),
+                   columnCells("2026-03-01", "2026-03-01T01:00:00+02:00", "2026-03-02"));
    }
 
    @Test
