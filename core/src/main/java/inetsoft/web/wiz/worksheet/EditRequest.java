@@ -98,13 +98,17 @@ import java.util.Map;
  *   <li>{@code add_unpivot} — {@code name}, {@code source}, {@code headerColumns}</li>
  *   <li>{@code add_date_range_column} — {@code table}, {@code column}, {@code dateOption}</li>
  *   <li>{@code add_numeric_range_column} — {@code table}, {@code column}, {@code boundaries},
- *       optional {@code labels} (one more entry than {@code boundaries})</li>
+ *       optional {@code labels} (count = {@code lessThanMin} bucket + one per gap + {@code greaterThanMax}
+ *       bucket; see {@code validateLabelCount}), optional {@code lessThanMin}/{@code greaterThanMax}/
+ *       {@code upperInclusive} (omitted = engine defaults: on/on/lower-inclusive)</li>
  *   <li>{@code edit_date_range_column} — {@code table}, {@code column} (the existing range
  *       column's own name), {@code dateOption}; the column is renamed to match, since its name
  *       encodes its option (see {@code add_date_range_column})</li>
  *   <li>{@code edit_numeric_range_column} — {@code table}, {@code column} (the existing range
  *       column's own name), {@code boundaries}, optional {@code labels} (replaces any existing
- *       labels; omitted/empty clears them back to the default auto-generated range text)</li>
+ *       labels; omitted/empty clears them back to the default auto-generated range text),
+ *       optional {@code lessThanMin}/{@code greaterThanMax}/{@code upperInclusive} (omitted = the
+ *       column's existing value is kept)</li>
  *   <li>{@code edit_cell} — {@code table}, {@code row}, {@code col}, {@code value}</li>
  *   <li>{@code insert_row} — {@code table}, {@code index}</li>
  *   <li>{@code delete_row} — {@code table}, {@code index}</li>
@@ -140,7 +144,8 @@ import java.util.Map;
  *   <li>{@code edit_variable} — {@code name}, {@code type}, {@code label}, {@code defaultValue};
  *       optional {@code choices} (the enumerated "Values" picker — embedded list or query
  *       source, plus display style — matching the Composer's own Variable dialog; {@code null}
- *       leaves it unchanged, see {@link WorksheetMutationSupport.VariableChoicesSpec})</li>
+ *       leaves it unchanged, see {@link WorksheetMutationSupport.VariableChoicesSpec}); optional
+ *       {@code defaultValueType} ("value"|"expression") and {@code none} (see {@code add_variable})</li>
  *   <li>{@code rename_variable} — {@code name}, {@code newName}</li>
  *   <li>{@code delete_variable} — {@code name}</li>
  *   <li>{@code edit_named_group} — {@code name}, {@code groupMappings} (see {@code add_named_group}
@@ -579,8 +584,86 @@ public record EditRequest(
     */
    String sourceSession,
    /** For {@code paste_assemblies}: {@code true} cuts instead of copies. */
-   Boolean cut
+   Boolean cut,
+   /**
+    * For add_numeric_range_column / edit_numeric_range_column: whether the "Less Than Min"
+    * bucket (below the first boundary) is shown -- the Composer Numeric Range dialog's checkbox
+    * ({@link inetsoft.uql.asset.ValueRangeInfo#setShowBottomValue}). {@code null} = not given:
+    * add keeps the engine default (on), edit leaves the column's existing value untouched.
+    */
+   Boolean lessThanMin,
+   /**
+    * For add_numeric_range_column / edit_numeric_range_column: whether the "Greater Than Max"
+    * bucket is shown ({@link inetsoft.uql.asset.ValueRangeInfo#setShowTopValue}). {@code null} =
+    * not given, same as {@code lessThanMin}.
+    */
+   Boolean greaterThanMax,
+   /**
+    * For add_numeric_range_column / edit_numeric_range_column: {@code true} makes each bucket
+    * upper-inclusive ({@code InclusiveType.UPPER}), {@code false} lower-inclusive
+    * ({@code InclusiveType.LOWER}); never {@code NONE}. {@code null} = not given, same as
+    * {@code lessThanMin}.
+    */
+   Boolean upperInclusive,
+   /**
+    * For add_variable / edit_variable: how {@link #defaultValue()} is stored -- {@code "value"}
+    * (a literal, today's behaviour; also what {@code null} means) or {@code "expression"}
+    * (JavaScript source, stored as the Composer's own Expression default).
+    */
+   String defaultValueType,
+   /**
+    * For add_variable / edit_variable: {@code true} stores no default at all -- the Composer
+    * Variable dialog's "None" checkbox. Mutually exclusive with {@code defaultValue}.
+    */
+   Boolean none
 ) {
+   /**
+    * Compatibility constructor for callers built before {@code lessThanMin}, {@code greaterThanMax},
+    * {@code upperInclusive}, {@code defaultValueType} and {@code none} were added -- defaults them
+    * to {@code null}.
+    */
+   public EditRequest(
+      String op, String table, String column, String name,
+      String type, String newName, String field, String operation,
+      List<String> values, String direction, List<WorksheetMutationSupport.GroupSpec> groups, List<WorksheetMutationSupport.AggregateSpec> aggregates,
+      String expression, boolean sql, String leftTable, String leftKey,
+      String rightTable, String rightKey, String joinType, Boolean visible,
+      List<String> tables, String source, String concatType, List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption, double[] boundaries,
+      String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col,
+      String value, Integer index, String alias, String description,
+      Integer maxRows, Boolean distinct, List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y,
+      String label, String defaultValue, String mode, Boolean insert,
+      List<String> subtables, String sourceTable, String attribute, String endpoint,
+      Map<String, String> parameters, List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly,
+      String suffix, List<WorksheetMutationSupport.CustomLookupSpec> customLookups, Boolean crosstab, List<String> labels,
+      WorksheetMutationSupport.VariableChoicesSpec choices, List<WorksheetMutationSupport.JoinPathSpec> joinPaths, Boolean mergeable, Boolean visibleInViewsheet,
+      Boolean confirmed, Integer rowCount, Boolean concatDistinct, List<WorksheetMutationSupport.RankingSpec> rankings,
+      Map<String, Object> queryParams, Map<String, Object> extraProperties, List<WorksheetMutationSupport.ConditionNode> mvUpdatePreConditions, List<WorksheetMutationSupport.ConditionNode> mvUpdatePostConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvDeletePreConditions, List<WorksheetMutationSupport.ConditionNode> mvDeletePostConditions, Boolean mvForceAppendUpdates, String path,
+      String scope, String format, List<WorksheetMutationSupport.ModelAttributeSpec> attributes, List<String> joinOperators,
+      String sourceSession, Boolean cut)
+   {
+      this(op, table, column, name, type, newName,
+           field, operation, values, direction, groups, aggregates,
+           expression, sql, leftTable, leftKey, rightTable, rightKey,
+           joinType, visible, tables, source, concatType, conditions,
+           ranking, headerColumns, dateOption, boundaries, datasource, schema,
+           catalog, logicalModel, leftKeys, rightKeys, row, col,
+           value, index, alias, description, maxRows, distinct,
+           columnOrder, groupMappings, groupOthers, variableValues, x, y,
+           label, defaultValue, mode, insert, subtables, sourceTable,
+           attribute, endpoint, parameters, lookup, lookupExpandArrays, lookupTopLevelOnly,
+           suffix, customLookups, crosstab, labels, choices, joinPaths,
+           mergeable, visibleInViewsheet, confirmed, rowCount, concatDistinct, rankings,
+           queryParams, extraProperties, mvUpdatePreConditions, mvUpdatePostConditions, mvDeletePreConditions, mvDeletePostConditions,
+           mvForceAppendUpdates, path, scope, format, attributes, joinOperators,
+           sourceSession, cut,
+           null, null, null, null, null);
+   }
+
    /**
     * Compatibility constructor for callers built before {@code joinOperators}, {@code sourceSession} and
     * {@code cut} were added -- defaults them to {@code null}.

@@ -57,6 +57,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import java.security.Principal;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -1839,4 +1840,116 @@ class AdminScheduleGatewayTest {
    private Principal user;
    private IdentityID callerOwner;
    private IdentityID otherOwner;
+
+   // -------------------------------------------------------------------------
+   // task-level time zone (the portal Options tab's Time Zone)
+   // -------------------------------------------------------------------------
+
+   private inetsoft.sree.schedule.ScheduleTask addTaskWithZone(String zone) throws Exception {
+      ScheduleTaskMetaData meta = new ScheduleTaskMetaData("zoned", callerOwner.convertToKey());
+      gateway.addScheduleTask(meta, true, false, -1, -1, null, null, null,
+                              Collections.emptyList(), Collections.emptyList(), null, "", null,
+                              zone, user);
+      org.mockito.ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> captor =
+         org.mockito.ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+      verify(scheduleManager).setScheduleTask(eq(meta.getTaskId()), captor.capture(), eq(user));
+      return captor.getValue();
+   }
+
+   @Test
+   void addScheduleTask_storesTheTaskTimeZoneAndItSurvivesTheXmlRoundTrip() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask saved = addTaskWithZone("  Asia/Tokyo ");
+
+      assertEquals("Asia/Tokyo", saved.getTimeZone());
+      assertEquals("Asia/Tokyo", ScheduleChangesetApplyService.deepCopy(saved).getTimeZone());
+      assertTrue(ScheduleXmlProjection.project(saved).contains("timeZone=\"Asia/Tokyo\""));
+   }
+
+   // C2: a create that names no zone stores none, as before
+   @Test
+   void addScheduleTask_withoutATimeZoneStoresNone() throws Exception {
+      assertNull(addTaskWithZone(null).getTimeZone());
+   }
+
+   @Test
+   void addScheduleTask_aBlankTimeZoneStoresNone() throws Exception {
+      assertNull(addTaskWithZone("   ").getTimeZone());
+   }
+
+   @Test
+   void buildUpdatedTask_setsAndClearsTheTaskTimeZone() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = storedTask();
+      ScheduleTaskPatch set = new ScheduleTaskPatch();
+      set.setTimeZone("Europe/Paris");
+
+      try(MockedStatic<OrganizationManager> ignored = siteAdminCaller()) {
+         inetsoft.sree.schedule.ScheduleTask candidate =
+            gateway.buildUpdatedTask(stored.getTaskId(), set, null, user);
+
+         assertEquals("Europe/Paris", candidate.getTimeZone());
+         assertNull(stored.getTimeZone());
+
+         stored.setTimeZone("Europe/Paris");
+         ScheduleTaskPatch clear = new ScheduleTaskPatch();
+         clear.setTimeZone("");
+         assertNull(gateway.buildUpdatedTask(stored.getTaskId(), clear, null, user).getTimeZone());
+         assertEquals("Europe/Paris", stored.getTimeZone());
+      }
+   }
+
+   // C1: a patch that does not mention the zone keeps it, also when it replaces conditions
+   @Test
+   void buildUpdatedTask_aPatchWithoutATimeZoneKeepsTheStoredOne() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = storedTask();
+      stored.setTimeZone("Europe/Paris");
+      ScheduleTaskPatch disable = new ScheduleTaskPatch();
+      disable.setEnabled(false);
+      inetsoft.web.api.schedule.CompletionCondition completion =
+         new inetsoft.web.api.schedule.CompletionCondition();
+      completion.setOwner("caller");
+      completion.setTaskName("first");
+      ScheduleTaskPatch replaceConditions = new ScheduleTaskPatch();
+      replaceConditions.setConditions(List.of(completion));
+
+      try(MockedStatic<OrganizationManager> ignored = siteAdminCaller()) {
+         assertEquals("Europe/Paris",
+            gateway.buildUpdatedTask(stored.getTaskId(), disable, null, user).getTimeZone());
+         assertEquals("Europe/Paris",
+            gateway.buildUpdatedTask(stored.getTaskId(), replaceConditions, null, user)
+               .getTimeZone());
+      }
+   }
+
+   @Test
+   void getScheduleTasks_includesTheTaskTimeZoneAndNullWhenNone() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask zoned = taskAt("zoned", "/");
+      zoned.setTimeZone("Asia/Tokyo");
+      inetsoft.sree.schedule.ScheduleTask plain = taskAt("plain", "/");
+      when(repository.getScheduleTasks(user))
+         .thenReturn(new String[]{zoned.getTaskId(), plain.getTaskId()});
+      when(scheduleManager.getScheduleTask(zoned.getTaskId())).thenReturn(zoned);
+      when(scheduleManager.getScheduleTask(plain.getTaskId())).thenReturn(plain);
+
+      AdminScheduleTaskList list = gateway.getScheduleTasks(null, user);
+
+      assertEquals(Arrays.asList("Asia/Tokyo", null),
+                   list.getTasks().stream().map(ScheduleTaskEntry::getTimeZone).toList());
+   }
+
+   @Test
+   void getScheduleTaskTimeZone_readsTheTaskZoneAndRequiresReadPermission() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask task = taskAt("t", "A/B");
+      task.setTimeZone("Asia/Tokyo");
+      when(repository.getScheduleTask(task.getTaskId())).thenReturn(task);
+
+      assertThrows(UnauthorizedAccessException.class,
+                   () -> gateway.getScheduleTaskTimeZone(task.getTaskId(), user));
+
+      when(repository.checkPermission(user, ResourceType.SCHEDULE_TASK, task.getTaskId(),
+                                      ResourceAction.READ)).thenReturn(true);
+      assertEquals("Asia/Tokyo", gateway.getScheduleTaskTimeZone(task.getTaskId(), user));
+
+      task.setTimeZone(null);
+      assertNull(gateway.getScheduleTaskTimeZone(task.getTaskId(), user));
+   }
 }

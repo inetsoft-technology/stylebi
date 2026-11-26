@@ -56,6 +56,7 @@ class AdminScheduleControllerTest {
    @Mock private AdminScheduleCycleGateway cycleGateway;
    @Mock private ScheduleCycleChangePlanService cyclePlanService;
    @Mock private ScheduleCycleChangesetApplyService cycleApplyService;
+   @Mock private ScheduleRedistributionService redistributionService;
    @Mock private Principal principal;
    @Mock private OrganizationManager orgManager;
    private AdminScheduleController controller;
@@ -64,7 +65,7 @@ class AdminScheduleControllerTest {
    @BeforeEach void setup() {
       controller = new AdminScheduleController(scheduleGateway, planService, applyService,
          folderGateway, folderPlanService, folderApplyService, cycleGateway, cyclePlanService,
-         cycleApplyService);
+         cycleApplyService, redistributionService);
 
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
@@ -170,6 +171,35 @@ class AdminScheduleControllerTest {
       ApplyResult result = controller.apply(req, "http://host/", principal);
 
       assertSame(applied, result);
+   }
+
+   // -------------------------------------------------------------------------
+   // redistribute-plan (bug 82395) -- delegates to the planner behind the same forbidden gate.
+   // -------------------------------------------------------------------------
+
+   @Test void redistributePlanThrowsForbiddenForNonSiteAdmin() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.redistributePlan(new RedistributePlanRequest(), principal));
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(redistributionService);
+   }
+
+   @Test void redistributePlanDelegatesToThePlanner() throws Exception {
+      RedistributePlanRequest req = new RedistributePlanRequest();
+      RedistributePlan plan = new RedistributePlan(List.of(), List.of(), 0L);
+      when(redistributionService.plan(req)).thenReturn(plan);
+
+      assertSame(plan, controller.redistributePlan(req, principal));
+   }
+
+   @Test void redistributePlanRefusalIsABadRequestWithTheFieldNamedMessage() {
+      var body = controller.handleIllegalArgument(
+         new IllegalArgumentException("startTime: 05:00 must be before endTime (01:00)"));
+
+      assertEquals("failed", body.get("status"));
+      assertEquals("startTime: 05:00 must be before endTime (01:00)", body.get("error"));
    }
 
    // -------------------------------------------------------------------------

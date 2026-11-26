@@ -57,6 +57,13 @@ public class ScheduleTaskPatch {
    public List<ScheduleAction> getActions() { return actions; }
    public void setActions(List<ScheduleAction> v) { this.actions = v; }
 
+   /**
+    * The task-level time zone (the portal Options tab's Time Zone). {@code null} leaves it alone,
+    * a blank value clears it back to the server default, anything else sets it.
+    */
+   public String getTimeZone() { return timeZone; }
+   public void setTimeZone(String v) { this.timeZone = v; }
+
    private String description;
    private String locale;
    private Boolean enabled;
@@ -65,4 +72,5 @@ public class ScheduleTaskPatch {
    private Long endDate;
    private List<ScheduleCondition> conditions;
    private List<ScheduleAction> actions;
+   private String timeZone;
 }

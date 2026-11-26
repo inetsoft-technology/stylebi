@@ -169,6 +169,12 @@ class DiscoverHandler extends SAXHandler {
                measure.setCaption(txt);
             }
 
+            // Mondrian reports a calculated member with MEASURE_AGGREGATOR 127
+            // (MDMEASURE_AGGR_CALCULATED) and no EXPRESSION column.
+            if("MEASURE_AGGREGATOR".equals(lastTag) && "127".equals(txt.trim())) {
+               measure.setCalcMeasure(true);
+            }
+
             if("EXPRESSION".equals(lastTag)) {
                measure.setCalcMeasure(true);
             }

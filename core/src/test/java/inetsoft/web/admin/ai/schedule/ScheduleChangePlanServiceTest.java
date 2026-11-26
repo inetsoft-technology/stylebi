@@ -1231,12 +1231,83 @@ class ScheduleChangePlanServiceTest {
       inetsoft.sree.schedule.ScheduleTask task = sreeTask("t1", "admin");
       when(scheduleManager.getScheduleTask("t1")).thenReturn(task);
       when(scheduleManager.getScheduleTasks("host-org")).thenReturn(new java.util.Vector<>());
-      when(scheduleManager.hasDependency(any(), eq("t1"))).thenReturn(true);
+      when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn("t2", (String) null);
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> service.resolve(request("task", List.of(deleteChange("t1"))), user));
       assertTrue(ex.getMessage().contains("waits on"));
+      assertTrue(ex.getMessage().contains("\"t2\""));
       verify(scheduleGateway, never()).hasOwnerAdminPermission(any(), any(), any());
+   }
+
+   private static String tid(String name) {
+      return sreeTask(name, "admin").getTaskId();
+   }
+
+   private void stubDeletableTasks(String... ids) throws Exception {
+      for(String id : ids) {
+         lenient().when(scheduleManager.getScheduleTask(id)).thenReturn(sreeTask(id, "admin"));
+      }
+
+      lenient().when(scheduleManager.getScheduleTasks("host-org")).thenAnswer(
+         inv -> new java.util.Vector<inetsoft.sree.schedule.ScheduleTask>());
+      lenient().when(scheduleManager.findDependant(any(), any())).thenReturn(null);
+      lenient().when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user)))
+         .thenReturn(true);
+   }
+
+   @Test void resolveDeleteAllowsTheWaitingTaskDeletedEarlierInThePlan() throws Exception {
+      stubDeletableTasks("t1", "t2");
+      when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn(tid("t2"), (String) null);
+
+      ResolvedPlan plan = service.resolve(
+         request("task", List.of(deleteChange("t2"), deleteChange("t1"))), user);
+
+      assertEquals(2, plan.changes().size());
+   }
+
+   @Test void resolveDeleteStillRefusesWhenTheWaitingTaskIsDeletedLater() throws Exception {
+      stubDeletableTasks("t1", "t2");
+      when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn(tid("t2"), (String) null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(
+            request("task", List.of(deleteChange("t1"), deleteChange("t2"))), user));
+      assertTrue(ex.getMessage().startsWith("changes[0].taskId:"));
+      assertTrue(ex.getMessage().contains("waits on"));
+   }
+
+   @Test void resolveDeleteAllowsAChainDeletedOutsideIn() throws Exception {
+      stubDeletableTasks("t1", "t2", "t3");
+      when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn(tid("t2"), (String) null);
+      when(scheduleManager.findDependant(any(), eq("t2"))).thenReturn(tid("t3"), (String) null);
+
+      ResolvedPlan plan = service.resolve(request("task",
+         List.of(deleteChange("t3"), deleteChange("t2"), deleteChange("t1"))), user);
+
+      assertEquals(3, plan.changes().size());
+   }
+
+   @Test void resolveDeleteRefusesAChainDeletedOutOfOrder() throws Exception {
+      stubDeletableTasks("t1", "t2", "t3");
+      lenient().when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn(tid("t2"), (String) null);
+      lenient().when(scheduleManager.findDependant(any(), eq("t2"))).thenReturn(tid("t3"), (String) null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task",
+            List.of(deleteChange("t2"), deleteChange("t3"), deleteChange("t1"))), user));
+      assertTrue(ex.getMessage().startsWith("changes[0].taskId:"));
+   }
+
+   @Test void resolveDeleteStillRefusesADependantOutsideThePlan() throws Exception {
+      stubDeletableTasks("t1", "t2");
+      when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn(tid("t2"), tid("t9"), (String) null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(
+            request("task", List.of(deleteChange("t2"), deleteChange("t1"))), user));
+      assertTrue(ex.getMessage().startsWith("changes[1].taskId:"));
+      assertTrue(ex.getMessage().contains(tid("t9")));
    }
 
    private static ScheduleChangeRequest updateChange(String taskId, ScheduleTaskPatch patch) {
@@ -1428,5 +1499,147 @@ class ScheduleChangePlanServiceTest {
       task.setOwner(new IdentityID(owner, "host-org"));
       task.setEnabled(true);
       return task;
+   }
+
+   // -------------------------------------------------------------------------
+   // task-level time zone (the portal Options tab's Time Zone)
+   // -------------------------------------------------------------------------
+
+   private ResolvedPlan resolveCreateWithZone(String zone) throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      ScheduleChangeRequest change = createChange(spec);
+      change.setTimeZone(zone);
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), "t1");
+      lenient().when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      lenient().when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      return service.resolve(request("task", List.of(change)), user);
+   }
+
+   @Test void resolveCreateShowsTheTaskTimeZoneInThePlan() throws Exception {
+      ResolvedPlan plan = resolveCreateWithZone("America/New_York");
+
+      assertTrue(plan.changes().get(0).proposedValue().endsWith(";timeZone=America/New_York"));
+   }
+
+   @Test void resolveCreateWithoutATaskTimeZoneKeepsTheProjectionAndHash() throws Exception {
+      String none = resolveCreateWithZone(null).changes().get(0).proposedValue();
+      String blank = resolveCreateWithZone("  ").changes().get(0).proposedValue();
+
+      assertFalse(none.contains(";timeZone="));
+      assertEquals(none, blank);
+      assertNotEquals(none, resolveCreateWithZone("Asia/Tokyo").changes().get(0).proposedValue());
+   }
+
+   @Test void resolveCreateRefusesAnUnknownTaskTimeZoneNamingTheField() {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> resolveCreateWithZone("Mars/Base"));
+
+      assertTrue(ex.getMessage().startsWith("changes[0].timeZone: \"Mars/Base\""),
+                 ex.getMessage());
+      assertThrows(IllegalArgumentException.class, () -> resolveCreateWithZone("GMT+99"));
+   }
+
+   // A5 differential: the task zone and a time condition's zone accept and refuse the same ids
+   @Test void taskTimeZoneAndConditionTimeZoneAreValidatedIdentically() throws Exception {
+      String[] ids = {"America/New_York", "UTC", "utc", "GMT", "Etc/UTC", "GMT+8", "Asia/Tokyo",
+                      "Mars/Base", "GMT+99", "Not/AZone", "new_york"};
+
+      for(String id : ids) {
+         boolean taskAccepts;
+         boolean conditionAccepts;
+
+         try {
+            resolveCreateWithZone(id);
+            taskAccepts = true;
+         }
+         catch(IllegalArgumentException e) {
+            taskAccepts = false;
+         }
+
+         try {
+            TimeCondition condition = timeCondition(9, 0);
+            condition.setTimeZone(id);
+            resolveCreateOf(specWith(condition));
+            conditionAccepts = true;
+         }
+         catch(IllegalArgumentException e) {
+            conditionAccepts = false;
+         }
+
+         assertEquals(conditionAccepts, taskAccepts, id);
+      }
+   }
+
+   @Test void resolveUpdateAcceptsAPatchOfOnlyATimeZone() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = sreeTask("t1", "admin");
+      inetsoft.sree.schedule.ScheduleTask candidate = sreeTask("t1", "admin");
+      candidate.setTimeZone("Asia/Tokyo");
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(stored);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("Asia/Tokyo");
+      when(scheduleGateway.buildUpdatedTask("t1", patch, null, user)).thenReturn(candidate);
+
+      PlanChange change = service.resolve(
+         request("task", List.of(updateChange("t1", patch))), user).changes().get(0);
+
+      assertFalse(change.currentValue().contains("timeZone="));
+      assertTrue(change.proposedValue().contains("timeZone=\"Asia/Tokyo\""),
+                 change.proposedValue());
+   }
+
+   @Test void resolveUpdateWithTheSameTaskTimeZoneIsTheNoOpRefusal() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = sreeTask("t1", "admin");
+      stored.setTimeZone("Asia/Tokyo");
+      inetsoft.sree.schedule.ScheduleTask candidate = sreeTask("t1", "admin");
+      candidate.setTimeZone("Asia/Tokyo");
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(stored);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("Asia/Tokyo");
+      when(scheduleGateway.buildUpdatedTask("t1", patch, null, user)).thenReturn(candidate);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateChange("t1", patch))), user));
+      assertTrue(ex.getMessage().contains("nothing to update"));
+   }
+
+   @Test void resolveUpdateWithABlankTaskTimeZoneIsAClearNotAnEmptyPatch() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = sreeTask("t1", "admin");
+      stored.setTimeZone("Asia/Tokyo");
+      inetsoft.sree.schedule.ScheduleTask candidate = sreeTask("t1", "admin");
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(stored);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("");
+      when(scheduleGateway.buildUpdatedTask("t1", patch, null, user)).thenReturn(candidate);
+
+      PlanChange change = service.resolve(
+         request("task", List.of(updateChange("t1", patch))), user).changes().get(0);
+
+      assertTrue(change.currentValue().contains("timeZone=\"Asia/Tokyo\""));
+      assertFalse(change.proposedValue().contains("timeZone="));
+   }
+
+   @Test void resolveUpdateRefusesAnUnknownTaskTimeZoneNamingTheField() {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("Mars/Base");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateChange("t1", patch))), user));
+
+      assertTrue(ex.getMessage().startsWith("changes[0].patch.timeZone: \"Mars/Base\""),
+                 ex.getMessage());
+   }
+
+   @Test void resolveUpdateAndDeleteRefuseAChangeLevelTimeZone() {
+      ScheduleChangeRequest update = updateChange("t1", enabledPatch(false));
+      update.setTimeZone("Asia/Tokyo");
+      ScheduleChangeRequest delete = deleteChange("t1");
+      delete.setTimeZone("Asia/Tokyo");
+
+      assertTrue(assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(update)), user))
+         .getMessage().startsWith("changes[0].timeZone:"));
+      assertTrue(assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(delete)), user))
+         .getMessage().startsWith("changes[0].timeZone:"));
    }
 }
