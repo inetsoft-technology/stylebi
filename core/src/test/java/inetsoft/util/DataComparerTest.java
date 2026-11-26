@@ -401,4 +401,27 @@ class DataComparerTest {
    void booleanComparerSecondNullReturnsPositive() {
       assertEquals(1, DataComparer.BOOL_COMPARER.compare(Boolean.FALSE, null));
    }
+
+   @Test
+   void numberComparerDistinguishesBigDecimalsAbove2Pow53() {
+      Comparer c = new DataComparer.NumberComparer();
+      BigDecimal a = new BigDecimal("9007199254740995");
+      BigDecimal b = new BigDecimal("9007199254740996");
+      assertTrue(c.compare(a, b) < 0);
+      assertTrue(c.compare(b, a) > 0);
+      assertEquals(0, c.compare(a, new BigDecimal("9007199254740995.0")));
+   }
+
+   @Test
+   void numberComparerComparesBigDecimalWithLongExactly() {
+      Comparer c = new DataComparer.NumberComparer();
+      assertTrue(c.compare(new BigDecimal("9007199254740993"), Long.valueOf(9007199254740992L)) > 0);
+      assertTrue(c.compare(new BigDecimal("1.5"), Long.valueOf(1L)) > 0);
+   }
+
+   @Test
+   void numberComparerKeepsDoubleComparisonForMixedDouble() {
+      Comparer c = new DataComparer.NumberComparer();
+      assertEquals(0, c.compare(new BigDecimal("2.5"), Double.valueOf(2.5)));
+   }
 }

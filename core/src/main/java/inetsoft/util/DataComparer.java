@@ -19,6 +19,8 @@ package inetsoft.util;
 
 import inetsoft.report.Comparer;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Date;
 
 /**
@@ -382,6 +384,24 @@ public class DataComparer {
     * Number comparer.
     */
    public static final class NumberComparer implements Comparer {
+      private static boolean isExactDecimal(Object v) {
+         return v instanceof BigDecimal || v instanceof BigInteger ||
+            v instanceof Long || v instanceof Integer || v instanceof Short ||
+            v instanceof Byte;
+      }
+
+      private static BigDecimal toBigDecimal(Number n) {
+         if(n instanceof BigDecimal) {
+            return (BigDecimal) n;
+         }
+
+         if(n instanceof BigInteger) {
+            return new BigDecimal((BigInteger) n);
+         }
+
+         return BigDecimal.valueOf(n.longValue());
+      }
+
       /**
        * This method should return > 0 if v1 is greater than v2, 0 if
        * v1 is equal to v2, or < 0 if v1 is less than v2.
@@ -397,6 +417,16 @@ public class DataComparer {
          }
          else if(v2 == null) {
             return 1;
+         }
+
+         if(isExactDecimal(v1) && isExactDecimal(v2) &&
+            (v1 instanceof BigDecimal || v1 instanceof BigInteger ||
+             v2 instanceof BigDecimal || v2 instanceof BigInteger))
+         {
+            // compare exactly, a double has only 53 bits of precision so distinct
+            // decimal values above 2^53 would otherwise compare equal
+            int res = toBigDecimal((Number) v1).compareTo(toBigDecimal((Number) v2));
+            return res < 0 ? -1 : (res > 0 ? 1 : 0);
          }
 
          String type = Tool.DOUBLE;
