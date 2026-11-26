@@ -420,7 +420,7 @@ public class ConditionListHandler {
                value.append(',');
             }
 
-            value.append(getExpression(cond, cond.getValue(j), vars));
+            value.append(getExpression(cond, toDecimalValue(field, cond.getValue(j)), vars));
          }
 
          value.append(')');
@@ -430,8 +430,8 @@ public class ConditionListHandler {
          break;
       case XCondition.BETWEEN:
          condnode = new XTrinaryCondition(field,
-                                          getExpression(cond, cond.getValue(0), vars),
-                                          getExpression(cond, cond.getValue(1), vars),
+                                          getExpression(cond, toDecimalValue(field, cond.getValue(0)), vars),
+                                          getExpression(cond, toDecimalValue(field, cond.getValue(1)), vars),
                                           "BETWEEN");
          break;
       case XCondition.STARTING_WITH:
@@ -467,12 +467,12 @@ public class ConditionListHandler {
          break;
       case XCondition.LESS_THAN:
          condnode = new XBinaryCondition(field,
-                                         getExpression(cond, cond.getValue(0), vars),
+                                         getExpression(cond, toDecimalValue(field, cond.getValue(0)), vars),
                                          cond.isEqual() ? "<=" : "<");
          break;
       case XCondition.GREATER_THAN:
          condnode = new XBinaryCondition(field,
-                                         getExpression(cond, cond.getValue(0), vars),
+                                         getExpression(cond, toDecimalValue(field, cond.getValue(0)), vars),
                                          cond.isEqual() ? ">=" : ">");
          break;
       default: // EQUAL_TO
@@ -489,7 +489,7 @@ public class ConditionListHandler {
             break;
          }
 
-         condValue = fixConditionValue(field, condValue);
+         condValue = toDecimalValue(field, fixConditionValue(field, condValue));
          condnode = new XBinaryCondition(field, getExpression(cond, condValue, vars, true), "=");
          break;
       }
@@ -582,6 +582,57 @@ public class ConditionListHandler {
 
       vars.put(name, helper.escapeLikeValue((String) value));
       return helper.getLikeEscapeClause(esc);
+   }
+
+   /**
+    * A Float condition value (e.g. from a Float variable) bound as is is sent as a REAL,
+    * 0.15f = 0.15000000596..., which some databases (e.g. Derby) then compare at that
+    * precision and so never match a DECIMAL 0.15. Bind it as the decimal the user typed
+    * when the field is a DECIMAL, NUMERIC, DOUBLE or FLOAT (double precision) column
+    * (bug #82410). A REAL field or a field without a known sql type is left alone. The
+    * elements of an array (a multi-value variable of one of) are converted into a new
+    * array, the condition's own value is not changed.
+    */
+   static Object toDecimalValue(XExpression field, Object condValue) {
+      if(field == null || !field.isSqlTypeSet()) {
+         return condValue;
+      }
+
+      switch(field.getSqlType()) {
+      case Types.DECIMAL:
+      case Types.NUMERIC:
+      case Types.DOUBLE:
+      case Types.FLOAT:
+         break;
+      default:
+         return condValue;
+      }
+
+      if(condValue instanceof Object[] arr) {
+         Object[] converted = null;
+
+         for(int i = 0; i < arr.length; i++) {
+            Object val = toDecimalValue(arr[i]);
+
+            if(val != arr[i]) {
+               if(converted == null) {
+                  // a new Object[], a Float[] can't hold a BigDecimal
+                  converted = Arrays.copyOf(arr, arr.length, Object[].class);
+               }
+
+               converted[i] = val;
+            }
+         }
+
+         return converted == null ? condValue : converted;
+      }
+
+      return toDecimalValue(condValue);
+   }
+
+   private static Object toDecimalValue(Object value) {
+      BigDecimal decimal = value instanceof Float ? Condition.getFloatDecimal((Float) value) : null;
+      return decimal == null ? value : decimal;
    }
 
    private Object fixConditionValue(XExpression field, Object condValue) {
