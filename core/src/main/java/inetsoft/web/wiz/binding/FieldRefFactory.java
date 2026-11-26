@@ -25,10 +25,13 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.JunctionOperator;
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
 import inetsoft.uql.asset.SNamedGroupInfo;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
@@ -1133,6 +1136,15 @@ public final class FieldRefFactory {
          return;
       }
 
+      if(ref.getFormula() == null && found == null) {
+         String modelFormula = modelDefaultFormula(rvs, effectiveSource(model, source), column);
+
+         if(modelFormula != null) {
+            ref.setFormula(modelFormula);
+            return;
+         }
+      }
+
       if(ref.getFormula() == null) {
          // A detail calc field is not in the worksheet column list dataTypeOf reads, so its own
          // declared type is the only place its numeric-ness is recorded.
@@ -1148,6 +1160,73 @@ public final class FieldRefFactory {
 
          ref.setFormula(dataType != null && NUMERIC_TYPES.contains(dataType) ? SUM : COUNT);
       }
+   }
+
+   /**
+    * Bug #82446: the formula a logical-model measure is defined with, as the Composer applies it
+    * when the measure is dropped on an aggregate shelf ({@code AssetUtil#getDefaultFormula}), or
+    * {@code null} when the column is not a model measure carrying a usable one.
+    *
+    * <p>The model attribute's formula and ref type travel on the bound table's public column
+    * selection ({@code AttributeRef#getDefaultFormula()}), which {@code SourceTableColumn} does
+    * not reproduce, so the table is read from the viewsheet's base worksheet. A formula that
+    * needs a second column or an N ({@code isTwoColumns()}/{@code hasN()}) cannot be expressed
+    * by a bare column binding and falls back to the data-type default; so does a name
+    * {@code AggregateFormula} does not know.
+    *
+    * @param table the bound table's name, or the source naming it.
+    */
+   private static String modelDefaultFormula(RuntimeViewsheet rvs, String table, String column) {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      Worksheet ws = vs == null ? null : vs.getBaseWorksheet();
+
+      if(ws == null || table == null || column == null) {
+         return null;
+      }
+
+      String formula = null;
+
+      // read under the worksheet lock: running queries change these tables in place under it
+      synchronized(ws) {
+         for(String name : new String[] { table, Assembly.TABLE_VS + table }) {
+            if(!(ws.getAssembly(name) instanceof TableAssembly assembly)) {
+               continue;
+            }
+
+            ColumnSelection columns = assembly.getColumnSelection(true);
+
+            for(int i = 0; columns != null && i < columns.getAttributeCount(); i++) {
+               DataRef ref = columns.getAttribute(i);
+
+               if(sameColumn(ref.getName(), column)) {
+                  formula = ref.getRefType() == DataRef.MEASURE ? ref.getDefaultFormula() : null;
+                  break;
+               }
+            }
+
+            if(formula != null) {
+               break;
+            }
+         }
+      }
+
+      if(formula == null || formula.isBlank()) {
+         return null;
+      }
+
+      AggregateFormula resolved = AggregateFormula.getFormula(formula.trim());
+
+      if(resolved == null || resolved.isTwoColumns() || resolved.hasN()) {
+         return null;
+      }
+
+      return resolved == AggregateFormula.NONE ? NONE : resolved.getFormulaName();
+   }
+
+   private static boolean sameColumn(String name, String column) {
+      return column.equalsIgnoreCase(name) ||
+         TableBindingService.unqualified(column).equalsIgnoreCase(name) ||
+         column.equalsIgnoreCase(TableBindingService.unqualified(name));
    }
 
    /**
@@ -1378,14 +1457,8 @@ public final class FieldRefFactory {
          return null;
       }
 
-      String bareColumn = TableBindingService.unqualified(column);
-
       for(BindingModel.SourceTableColumn col : table.getColumns()) {
-         String name = col.getName();
-
-         if(column.equalsIgnoreCase(name) || bareColumn.equalsIgnoreCase(name) ||
-            column.equalsIgnoreCase(TableBindingService.unqualified(name)))
-         {
+         if(sameColumn(col.getName(), column)) {
             return col;
          }
       }
