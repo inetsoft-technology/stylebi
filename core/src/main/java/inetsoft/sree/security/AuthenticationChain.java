@@ -309,11 +309,12 @@ public class AuthenticationChain
 
    @Override
    public Role getRole(IdentityID roleIdentity) {
-      return stream()
-         .map(p -> p.getRole(roleIdentity))
-         .filter(Objects::nonNull)
-         .findFirst()
-         .orElse(null);
+      return PermissionRequestScope.memo(this, "getRole", roleIdentity, () ->
+         stream()
+            .map(p -> p.getRole(roleIdentity))
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null));
    }
 
    public Role getProviderRole(IdentityID roleid, String providerName) {
@@ -327,11 +328,12 @@ public class AuthenticationChain
 
    @Override
    public Group getGroup(IdentityID groupIdentity) {
-      return stream()
-         .map(p -> p.getGroup(groupIdentity))
-         .filter(Objects::nonNull)
-         .findFirst()
-         .orElse(null);
+      return PermissionRequestScope.memo(this, "getGroup", groupIdentity, () ->
+         stream()
+            .map(p -> p.getGroup(groupIdentity))
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null));
    }
 
    @Override
@@ -608,12 +610,14 @@ public class AuthenticationChain
 
    @Override
    public boolean isSystemAdministratorRole(IdentityID roleId) {
-      return stream().filter(p -> p.getRole(roleId) != null).findFirst().stream().anyMatch(p -> p.isSystemAdministratorRole(roleId));
+      return PermissionRequestScope.memo(this, "isSystemAdministratorRole", roleId, () ->
+         stream().filter(p -> p.getRole(roleId) != null).findFirst().stream().anyMatch(p -> p.isSystemAdministratorRole(roleId)));
    }
 
    @Override
    public boolean isOrgAdministratorRole(IdentityID roleId) {
-      return stream().filter(p -> p.getRole(roleId) != null).findFirst().stream().anyMatch(p -> p.isOrgAdministratorRole(roleId));
+      return PermissionRequestScope.memo(this, "isOrgAdministratorRole", roleId, () ->
+         stream().filter(p -> p.getRole(roleId) != null).findFirst().stream().anyMatch(p -> p.isOrgAdministratorRole(roleId)));
    }
 
    @Override

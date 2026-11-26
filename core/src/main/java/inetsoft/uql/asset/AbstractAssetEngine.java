@@ -3977,6 +3977,15 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
     * @param permission the specified permission.
     * @return <tt>true</tt> if passed, <tt>false</tt> otherwise.
     */
+   /**
+    * Cheap org comparison, evaluated before the costly site admin lookup. A null org on either
+    * side is not "same org", so the site admin check still decides such a case as before.
+    */
+   private static boolean isSameOrg(Principal user, AssetEntry entry) {
+      String orgId = ((XPrincipal) user).getOrgId();
+      return orgId != null && orgId.equalsIgnoreCase(entry.getOrgID());
+   }
+
    private boolean checkAssetPermission0(Principal user, AssetEntry entry,
                                          ResourceAction permission) throws Exception
    {
@@ -4016,15 +4025,16 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       //reject if attempting to get another organization's assets
-      if(!OrganizationManager.getInstance().isSiteAdmin(user) && user != null &&
-         !((XPrincipal)user).getOrgId().equalsIgnoreCase(entry.getOrgID())) {
+      if(user != null && !isSameOrg(user, entry) &&
+         !OrganizationManager.getInstance().isSiteAdmin(user))
+      {
          return false;
       }
 
       //reject if non site admin accessing another's private repo
-      if(checkUserAsset && !OrganizationManager.getInstance().isSiteAdmin(user) && user != null &&
-         entry.getScope() == AssetRepository.USER_SCOPE &&
+      if(checkUserAsset && user != null && entry.getScope() == AssetRepository.USER_SCOPE &&
          !(user.getName().equals(entry.getUser().convertToKey())) &&
+         !OrganizationManager.getInstance().isSiteAdmin(user) &&
          !isSecurityOffAnonymousOwned(entry))
       {
          return false;

@@ -219,8 +219,10 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
     */
    @Override
    public Group getGroup(IdentityID groupIdentity) {
-      init();
-      return groupStorage.get(groupIdentity.convertToKey());
+      return PermissionRequestScope.memo(this, "getGroup", groupIdentity, () -> {
+         init();
+         return groupStorage.get(groupIdentity.convertToKey());
+      });
    }
 
    /**
@@ -252,8 +254,10 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
     */
    @Override
    public Role getRole(IdentityID roleIdentity) {
-      init();
-      return roleStorage.get(roleIdentity.convertToKey());
+      return PermissionRequestScope.memo(this, "getRole", roleIdentity, () -> {
+         init();
+         return roleStorage.get(roleIdentity.convertToKey());
+      });
    }
 
    /**

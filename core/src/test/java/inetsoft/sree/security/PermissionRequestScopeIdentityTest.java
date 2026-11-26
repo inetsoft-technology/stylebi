@@ -83,6 +83,83 @@ class PermissionRequestScopeIdentityTest {
    }
 
    @Test
+   void chain_roleAndGroupLookupsAreIndependentOfEntryCount() {
+      IdentityID roleId = new IdentityID("r", "org1");
+      IdentityID groupId = new IdentityID("g", "org1");
+
+      for(int entries : new int[] { 10, 200 }) {
+         AuthenticationProvider provider = mock(AuthenticationProvider.class);
+         when(provider.getRole(roleId)).thenReturn(new FSRole(roleId));
+         when(provider.getGroup(groupId)).thenReturn(new FSGroup(groupId));
+         AuthenticationChain chain = chainOf(provider);
+
+         try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
+            for(int i = 0; i < entries; i++) {
+               assertNotNull(chain.getRole(roleId));
+               assertNotNull(chain.getGroup(groupId));
+            }
+         }
+
+         verify(provider, times(1)).getRole(roleId);
+         verify(provider, times(1)).getGroup(groupId);
+      }
+   }
+
+   @Test
+   void chain_roleWithoutScopeCountsGrowAndOrgsDoNotShare() {
+      IdentityID roleId = new IdentityID("r", "org1");
+      IdentityID otherOrgRole = new IdentityID("r", "org2");
+      AuthenticationProvider provider = mock(AuthenticationProvider.class);
+      Role r1 = new FSRole(roleId);
+      Role r2 = new FSRole(otherOrgRole);
+      when(provider.getRole(roleId)).thenReturn(r1);
+      when(provider.getRole(otherOrgRole)).thenReturn(r2);
+      AuthenticationChain chain = chainOf(provider);
+
+      for(int i = 0; i < 5; i++) {
+         chain.getRole(roleId);
+      }
+
+      verify(provider, times(5)).getRole(roleId);
+
+      try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
+         assertSame(r1, chain.getRole(roleId));
+         assertSame(r2, chain.getRole(otherOrgRole));
+         assertSame(r1, chain.getRole(roleId));
+      }
+   }
+
+   @Test
+   void chain_adminRoleChecksAreIndependentOfEntryCount() {
+      for(int entries : new int[] { 10, 200 }) {
+         IdentityID[] closure = new IdentityID[4];
+         AuthenticationProvider provider = mock(AuthenticationProvider.class);
+
+         for(int k = 0; k < closure.length; k++) {
+            closure[k] = new IdentityID("role" + k, "org1");
+            when(provider.getRole(closure[k])).thenReturn(new FSRole(closure[k]));
+         }
+
+         AuthenticationChain chain = chainOf(provider);
+
+         try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
+            for(int i = 0; i < entries; i++) {
+               for(IdentityID role : closure) {
+                  assertFalse(chain.isSystemAdministratorRole(role));
+                  assertFalse(chain.isOrgAdministratorRole(role));
+               }
+            }
+         }
+
+         for(IdentityID role : closure) {
+            verify(provider, times(1)).isSystemAdministratorRole(role);
+            verify(provider, times(1)).isOrgAdministratorRole(role);
+            verify(provider, times(2)).getRole(role);
+         }
+      }
+   }
+
+   @Test
    void chain_withoutScopeCountsGrowWithEntries() {
       for(int entries : new int[] { 10, 200 }) {
          AuthenticationProvider provider = mock(AuthenticationProvider.class);
