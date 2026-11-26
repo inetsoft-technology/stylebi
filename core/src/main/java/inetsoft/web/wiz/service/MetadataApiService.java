@@ -2277,6 +2277,11 @@ public class MetadataApiService {
 
             XDataSource dataSource = xrepository.getDataSource(dsName);
 
+            if(dataSource instanceof inetsoft.uql.xmla.XMLADataSource) {
+               warnings.add(xmlaSkippedWarning(dsName));
+               continue;
+            }
+
             if(!(dataSource instanceof JDBCDataSource)) {
                continue;
             }
@@ -2316,6 +2321,12 @@ public class MetadataApiService {
                              ? new ArrayList<>(results.subList(0, MAX_SEARCH_RESULTS)) : results);
       response.setWarnings(warnings.isEmpty() ? null : warnings);
       return response;
+   }
+
+   private static String xmlaSkippedWarning(String dsName) {
+      return "Data source '" + dsName + "' is an XMLA (cube) source: it has cubes, not tables, " +
+         "so it is not searched. Use list_cubes and get_cube_details to find its cubes, " +
+         "dimensions, levels and measures.";
    }
 
    private static String skippedWarning(String dsName, Exception e) {
