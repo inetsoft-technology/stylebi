@@ -29,6 +29,10 @@ import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
 import inetsoft.web.wiz.binding.CalcTableService;
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.viewsheet.controller.UndoRedoServiceProxy;
+import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,7 +46,8 @@ import java.util.Map;
 
 import static inetsoft.web.wiz.viewsheet.ViewsheetFormatServiceTest.*;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Bug #82311: {@code set_format} carries {@code presenterProperties} to the painter, refuses
@@ -136,6 +141,64 @@ class ViewsheetFormatServicePresenterPropertiesTest {
 
       assertEquals(BAR, event.getFormat().getPresenter());
       assertEquals(100, event.getFormat().getPresenterProperties().get("maximum"));
+   }
+
+   /**
+    * Bug #82429: through the real {@code mutate}, a write the painter refuses (an unknown
+    * property, a wrong type, a Text with no presenter) leaves no undo step; a valid write adds
+    * exactly one.
+    */
+   private static final String UNKNOWN_PROP = "{\"presenterProperties\":{\"maxValue\":1}}";
+
+   private RuntimeViewsheet realMutateRvs;
+
+   private ViewsheetFormatService realMutateService(FormatPainterService painter)
+      throws Exception
+   {
+      realMutateRvs = rvsOf(Map.of("Gauge1", (VSAssemblyInfo) gaugeInfo()));
+      java.security.Principal agent = TestPrincipals.user("alice", "host-org");
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess access = mock(SheetRuntimeAccess.class);
+      JoinSession js = new JoinSession("tok", "Viewsheet/foo-7", "alice~;~host-org",
+                                       SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                       JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("tok"), any())).thenReturn(js);
+      when(access.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(realMutateRvs);
+      ViewsheetSessionService real = new ViewsheetSessionService(
+         sessions, access, mock(SheetAgentBroadcastService.class),
+         mock(UndoRedoServiceProxy.class));
+      return new ViewsheetFormatService(
+         real, FormatPainterProxies.local(painter), mock(CalcTableService.class), null);
+   }
+
+   @Test
+   void aPainterRefusalLeavesNoUndoStep82429() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      doThrow(new IllegalArgumentException("'maxValue' is not a property of presenter"))
+         .when(painter).setFormat(anyString(), any(), any(java.security.Principal.class), any(),
+                                  anyString());
+      ViewsheetFormatService service = realMutateService(painter);
+      java.security.Principal agent = TestPrincipals.user("alice", "host-org");
+
+      assertThrows(IllegalArgumentException.class, () -> service.setFormat(
+         "tok", agent, jsonRequest("[\"Gauge1\"]", "object", UNKNOWN_PROP), ""));
+
+      verify(realMutateRvs).restoreCurrentCheckpoint();
+      verify(realMutateRvs, never()).addCheckpoint(any());
+   }
+
+   @Test
+   void aValidWriteAddsExactlyOneUndoStep82429() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      ViewsheetFormatService service = realMutateService(painter);
+      java.security.Principal agent = TestPrincipals.user("alice", "host-org");
+
+      service.setFormat("tok", agent, jsonRequest("[\"Gauge1\"]", "object",
+                                                  "{\"color\":\"#ff0000\"}"), "");
+
+      verify(realMutateRvs, times(1)).addCheckpoint(any());
+      verify(realMutateRvs, never()).restoreCurrentCheckpoint();
    }
 
    @Test
