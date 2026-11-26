@@ -25,7 +25,8 @@ import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.DataSpace;
 import inetsoft.util.FileSystemService;
-import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
+import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.dialog.ImagePreviewPaneService;
 import inetsoft.web.service.BinaryTransferService;
@@ -42,11 +43,13 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Insets;
 import java.security.Principal;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(SpringExtension.class)
@@ -94,6 +97,82 @@ class VSLayoutControllerServiceTest {
       assertFalse(result.clickableScriptPaneModel().scriptEnabled());
       assertEquals("", result.clickableScriptPaneModel().scriptExpression());
       assertEquals("", result.clickableScriptPaneModel().onClickExpression());
+   }
+
+   /**
+    * Bug 82400: the dialog's model-to-info mapping now lives in
+    * {@link VSLayoutService#applyLayoutImageOptions}; the print-layout dialog's save must still
+    * write exactly what it wrote before, including the skin image's reset-then-scale ordering.
+    */
+   @Test
+   void savingTheImageDialogWritesThePictureAndScaleOptionsOntoTheLayoutEntry() throws Exception {
+      when(viewsheetService.getViewsheet(any(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getLayoutInfo()).thenReturn(layoutInfo);
+
+      PrintLayout layout = new PrintLayout();
+      VSEditableAssemblyLayout assemblyLayout = new VSEditableAssemblyLayout();
+      assemblyLayout.setName("ImageLayout");
+      ImageVSAssemblyInfo info = new ImageVSAssemblyInfo();
+      assemblyLayout.setInfo(info);
+      layout.setHeaderLayouts(new ArrayList<>(List.of(assemblyLayout)));
+      when(layoutInfo.getPrintLayout()).thenReturn(layout);
+      when(vsLayoutService.findAssemblyLayout(layout, "ImageLayout", 0))
+         .thenReturn(Optional.of(assemblyLayout));
+
+      String skin = ImageVSAssemblyInfo.SKIN_IMAGE + ImageVSAssemblyInfo.SKIN_TITLE;
+      service.setImagePropertyDialogModel("", "Print Layout", 0, "ImageLayout",
+         dialogModel(skin, 50, true, true, true, 3, 4, 5, 6), null, commandDispatcher);
+
+      assertEquals(skin, info.getImageValue());
+      assertEquals("50", info.getImageAlphaValue());
+      assertTrue(info.isScaleImageValue());
+      assertTrue(info.isTileValue());
+      // the scale block runs after the skin reset, so the dialog's aspect ratio wins
+      assertTrue(info.isMaintainAspectRatioValue());
+      assertEquals(new Insets(1, 1, 1, 1), info.getScale9Value());
+
+      service.setImagePropertyDialogModel("", "Print Layout", 0, "ImageLayout",
+         dialogModel(skin, 50, true, false, false, 3, 4, 5, 6), null, commandDispatcher);
+
+      assertFalse(info.isMaintainAspectRatioValue());
+      assertFalse(info.isTileValue());
+      assertEquals(new Insets(3, 4, 5, 6), info.getScale9Value());
+   }
+
+   @Test
+   void theSharedMappingLeavesThePictureAloneWithoutASelectedImageAndSkipsInsetsWhenKeepingRatio() {
+      ImageVSAssemblyInfo info = new ImageVSAssemblyInfo();
+      info.setImageValue("^UPLOADED^a.png");
+      info.setImageAlphaValue("70");
+      info.setScale9Value(new Insets(7, 7, 7, 7));
+
+      VSLayoutService.applyLayoutImageOptions(info, null, 10, true, true, false,
+                                              new Insets(1, 2, 3, 4));
+
+      assertEquals("^UPLOADED^a.png", info.getImageValue());
+      assertEquals("70", info.getImageAlphaValue(), "alpha is written only with a picture");
+      assertEquals(new Insets(7, 7, 7, 7), info.getScale9Value(),
+                   "insets apply only when the aspect ratio is not kept");
+   }
+
+   private static ImagePropertyDialogModel dialogModel(String image, int alpha, boolean scale,
+                                                       boolean maintain, boolean tile, int top,
+                                                       int left, int bottom, int right)
+   {
+      ImagePreviewPaneModel preview = ImagePreviewPaneModel.builder()
+         .selectedImage(image).alpha(alpha).imageTree(TreeNodeModel.builder().build()).build();
+      ImageScalePaneModel scalePane = ImageScalePaneModel.builder()
+         .scaleImageChecked(scale).maintainAspectRatio(maintain).tile(tile)
+         .top(top).left(left).bottom(bottom).right(right).build();
+
+      return ImagePropertyDialogModel.builder()
+         .imageGeneralPaneModel(ImageGeneralPaneModel.builder()
+            .staticImagePaneModel(StaticImagePaneModel.builder()
+               .imagePreviewPaneModel(preview).build()).build())
+         .imageAdvancedPaneModel(ImageAdvancedPaneModel.builder()
+            .imageScalePaneModel(scalePane).build())
+         .build();
    }
 
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;

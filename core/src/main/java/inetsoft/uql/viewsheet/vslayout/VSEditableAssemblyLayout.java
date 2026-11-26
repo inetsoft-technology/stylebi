@@ -96,5 +96,21 @@ public class VSEditableAssemblyLayout extends VSAssemblyLayout {
       }
    }
 
+   /**
+    * Clone this layout together with its own assembly info. The info is the state of a
+    * layout-only object (text value, image, ...), so a clone sharing it would let an edit made
+    * after a layout undo checkpoint leak into the checkpoint.
+    */
+   @Override
+   public Object clone() {
+      VSEditableAssemblyLayout layout = (VSEditableAssemblyLayout) super.clone();
+
+      if(layout != null && info != null) {
+         layout.info = info.clone();
+      }
+
+      return layout;
+   }
+
    private VSAssemblyInfo info;
 }

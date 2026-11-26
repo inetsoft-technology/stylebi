@@ -20,6 +20,8 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.PageBreakVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.Catalog;
@@ -28,12 +30,14 @@ import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
 import inetsoft.web.wiz.viewsheet.model.DeviceCatalogEntry;
 import inetsoft.web.wiz.viewsheet.model.LayoutModel;
+import inetsoft.web.wiz.viewsheet.model.LayoutImageModel;
 import inetsoft.web.wiz.viewsheet.model.LayoutObjectModel;
 import inetsoft.web.wiz.viewsheet.model.PrintLayoutSettingsModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.awt.Dimension;
+import java.awt.Insets;
 import java.awt.Point;
 import java.security.Principal;
 import java.util.*;
@@ -233,7 +237,55 @@ public class LayoutReadService {
          vsLayoutService.supportTableLayout(assembly),
          assemblyLayout.getTableLayout(),
          pageIndex,
-         layoutOnlyText(assemblyLayout));
+         layoutOnlyText(assemblyLayout),
+         objectType(assemblyLayout),
+         layoutOnlyImage(assemblyLayout));
+   }
+
+   /** {@code "assembly"} for a placed viewsheet assembly, else the kind of layout-only object. */
+   private static String objectType(VSAssemblyLayout assemblyLayout) {
+      if(!(assemblyLayout instanceof VSEditableAssemblyLayout editable)) {
+         return "assembly";
+      }
+
+      if(editable.getInfo() instanceof TextVSAssemblyInfo) {
+         return "text";
+      }
+
+      if(editable.getInfo() instanceof ImageVSAssemblyInfo) {
+         return "image";
+      }
+
+      return editable.getInfo() instanceof PageBreakVSAssemblyInfo ? "pagebreak" : "other";
+   }
+
+   /** The picture and options of a layout-only image object, {@code null} for any other object. */
+   private static LayoutImageModel layoutOnlyImage(VSAssemblyLayout assemblyLayout) {
+      if(!(assemblyLayout instanceof VSEditableAssemblyLayout editable) ||
+         !(editable.getInfo() instanceof ImageVSAssemblyInfo image))
+      {
+         return null;
+      }
+
+      int alpha;
+
+      try {
+         alpha = Integer.parseInt(image.getImageAlphaValue());
+      }
+      catch(Exception e) {
+         alpha = 100;
+      }
+
+      Insets insets = image.getScale9Value() == null ? new Insets(0, 0, 0, 0) :
+         image.getScale9Value();
+      Map<String, Integer> sides = new LinkedHashMap<>();
+      sides.put("top", insets.top);
+      sides.put("left", insets.left);
+      sides.put("bottom", insets.bottom);
+      sides.put("right", insets.right);
+
+      return new LayoutImageModel(image.getImageValue(), alpha, image.isScaleImageValue(),
+                                  image.isMaintainAspectRatioValue(), image.isTileValue(), sides);
    }
 
    /** The text of a layout-only text object, {@code null} for any other object. */

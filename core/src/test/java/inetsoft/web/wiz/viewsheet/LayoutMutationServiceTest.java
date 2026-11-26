@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.PopVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TipVSAssemblyInfo;
@@ -1298,6 +1299,279 @@ class LayoutMutationServiceTest {
          List.of(Map.of("name", "Table1", "x", 3, "y", 4000)), false);
 
       assertEquals(new Point(3, 4000), fx.deviceLayoutObjects().get(0).getPosition());
+   }
+
+   // ── Bug 82400: layout-only image picture and options ──────────────────────
+
+   private static final byte[] PNG = { 1, 2, 3 };
+
+   private static ImageVSAssemblyInfo imageInfo(Fixture fx, String name) {
+      VSAssemblyLayout layout = fx.printLayoutObject(name);
+      return (ImageVSAssemblyInfo) ((VSEditableAssemblyLayout) layout).getInfo();
+   }
+
+   private static ImageVSAssemblyInfo bandImageInfo(List<VSAssemblyLayout> band, String name) {
+      return (ImageVSAssemblyInfo) ((VSEditableAssemblyLayout) band.stream()
+         .filter(l -> l.getName().equals(name)).findFirst().orElseThrow()).getInfo();
+   }
+
+   @Test
+   void addImageInEachRegionStoresThePictureAndOptions() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.addUploadedImage("logo.png", PNG);
+      PrintLayout print = fx.masterVs.getLayoutInfo().getPrintLayout();
+
+      for(int region : new int[] { VSLayoutService.HEADER, VSLayoutService.FOOTER,
+                                   VSLayoutService.CONTENT })
+      {
+         fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", region,
+            List.of(Map.of("name", "Img" + region, "type", "image", "x", 5, "y", 5,
+                           "image", "^UPLOADED^logo.png", "alpha", 40, "scaleImage", true,
+                           "maintainAspectRatio", false, "tile", true,
+                           "insets", Map.of("top", 1, "left", 2, "bottom", 3, "right", 4))),
+            false);
+      }
+
+      List<ImageVSAssemblyInfo> infos = List.of(
+         bandImageInfo(print.getHeaderLayouts(), "Img" + VSLayoutService.HEADER),
+         bandImageInfo(print.getFooterLayouts(), "Img" + VSLayoutService.FOOTER),
+         imageInfo(fx, "Img" + VSLayoutService.CONTENT));
+
+      for(ImageVSAssemblyInfo info : infos) {
+         assertEquals("^UPLOADED^logo.png", info.getImageValue());
+         assertEquals("40", info.getImageAlphaValue());
+         assertTrue(info.isScaleImageValue());
+         assertFalse(info.isMaintainAspectRatioValue());
+         assertTrue(info.isTileValue());
+         assertEquals(new java.awt.Insets(1, 2, 3, 4), info.getScale9Value());
+      }
+   }
+
+   @Test
+   void theStoredImageSurvivesTheLayoutXmlRoundTrip() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.addUploadedImage("logo.png", PNG);
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.HEADER,
+         List.of(Map.of("name", "Logo", "type", "image", "x", 5, "y", 5,
+                        "image", "^UPLOADED^logo.png", "alpha", 30)), false);
+
+      VSEditableAssemblyLayout entry = (VSEditableAssemblyLayout) fx.masterVs.getLayoutInfo()
+         .getPrintLayout().getHeaderLayouts().get(0);
+      java.io.StringWriter out = new java.io.StringWriter();
+      entry.writeXML(new java.io.PrintWriter(out));
+      VSEditableAssemblyLayout parsed = new VSEditableAssemblyLayout();
+      parsed.parseXML(inetsoft.util.Tool.parseXML(new java.io.StringReader(out.toString()))
+                         .getDocumentElement());
+
+      ImageVSAssemblyInfo info = (ImageVSAssemblyInfo) parsed.getInfo();
+      assertEquals("^UPLOADED^logo.png", info.getImageValue());
+      assertEquals("30", info.getImageAlphaValue());
+   }
+
+   @Test
+   void aBareUploadedNameIsCompletedAndABareSkinNameToo() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.addUploadedImage("logo.png", PNG);
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "A", "type", "image", "x", 0, "y", 0, "image", "logo.png"),
+                 Map.of("name", "B", "type", "image", "x", 0, "y", 0, "image", "image_title.png")),
+         false);
+
+      assertEquals("^UPLOADED^logo.png", imageInfo(fx, "A").getImageValue());
+      assertEquals("^SKIN^" + ImageVSAssemblyInfo.SKIN_TITLE, imageInfo(fx, "B").getImageValue());
+      assertFalse(imageInfo(fx, "B").isMaintainAspectRatioValue(),
+                  "a skin image is stretched, the Composer dialog's own rule");
+      assertEquals(new java.awt.Insets(1, 1, 1, 1), imageInfo(fx, "B").getScale9Value());
+   }
+
+   @Test
+   void moveResizeSetsTheImageOfAnExistingLayoutOnlyImage() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.addUploadedImage("logo.png", PNG);
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.FOOTER,
+         List.of(Map.of("name", "Logo", "type", "image", "x", 5, "y", 5)), false);
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Logo", "image", "^UPLOADED^logo.png", "tile", true)), false);
+
+      ImageVSAssemblyInfo info = bandImageInfo(
+         fx.masterVs.getLayoutInfo().getPrintLayout().getFooterLayouts(), "Logo");
+      assertEquals("^UPLOADED^logo.png", info.getImageValue());
+      assertTrue(info.isTileValue());
+   }
+
+   @Test
+   void alphaAloneChangesOnlyTheOpacityOfAnImageThatHasAPicture() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.addUploadedImage("logo.png", PNG);
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Logo", "type", "image", "x", 5, "y", 5,
+                        "image", "^UPLOADED^logo.png", "tile", true)), false);
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Logo", "alpha", 25)), false);
+
+      ImageVSAssemblyInfo info = imageInfo(fx, "Logo");
+      assertEquals("25", info.getImageAlphaValue());
+      assertEquals("^UPLOADED^logo.png", info.getImageValue());
+      assertTrue(info.isTileValue(), "an option that was not named keeps its value");
+   }
+
+   /** Every refusal names the field and leaves the layout, and its undo history, untouched. */
+   @Test
+   void badImageInputIsRefusedNamingTheFieldWithoutSideEffect() throws Exception {
+      Object[][] cases = {
+         { "image", "^UPLOADED^missing.png", "uploaded" },
+         { "image", "dynamic_value", "image" },
+         { "image", "   ", "'image'" },
+         { "image", "^SKIN^nope.png", "skin" },
+         { "image", "^SERVER^", "server image" },
+         { "alpha", 101, "'alpha'" },
+         { "alpha", -1, "'alpha'" },
+         { "alpha", "abc", "'alpha'" },
+         { "scaleImage", "maybe", "'scaleImage'" },
+         { "tile", 5, "'tile'" },
+         { "insets", 4, "'insets'" },
+         { "insets", Map.of("middle", 1), "unknown side" },
+         { "insets", Map.of("top", -1), "insets.top" },
+      };
+
+      for(Object[] c : cases) {
+         Fixture fx = new Fixture();
+         fx.installPrintLayout();
+         fx.masterVs.addUploadedImage("logo.png", PNG);
+         focusPrintLayout(fx);
+         int pointsBefore = fx.masterRvs.getLayoutPointsSize();
+         int namesBefore = fx.printLayoutObjectNames().size();
+         Map<String, Object> object = new java.util.HashMap<>(
+            Map.of("name", "Logo", "type", "image", "x", 0, "y", 0));
+         object.put("image", "^UPLOADED^logo.png");
+         object.put((String) c[0], c[1]);
+
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add",
+               VSLayoutService.CONTENT, List.of(object), false), c[0] + "=" + c[1]);
+
+         assertTrue(thrown.getMessage().toLowerCase().contains(((String) c[2]).toLowerCase()),
+                    thrown.getMessage());
+         assertEquals(namesBefore, fx.printLayoutObjectNames().size());
+         assertEquals(pointsBefore, fx.masterRvs.getLayoutPointsSize());
+      }
+   }
+
+   @Test
+   void optionsThePrintWouldIgnoreAreRefused() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.addUploadedImage("logo.png", PNG);
+
+      // alpha with no picture
+      IllegalArgumentException noPicture = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+            List.of(Map.of("name", "Logo", "type", "image", "x", 0, "y", 0, "alpha", 50)), false));
+      assertTrue(noPicture.getMessage().contains("'alpha'"), noPicture.getMessage());
+
+      // insets while the aspect ratio is kept
+      IllegalArgumentException kept = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+            List.of(Map.of("name", "Logo", "type", "image", "x", 0, "y", 0,
+                           "image", "^UPLOADED^logo.png", "scaleImage", true,
+                           "maintainAspectRatio", true, "insets", Map.of("top", 1))), false));
+      assertTrue(kept.getMessage().contains("'insets'"), kept.getMessage());
+
+      // an aspect ratio while not scaling
+      IllegalArgumentException unscaled = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+            List.of(Map.of("name", "Logo", "type", "image", "x", 0, "y", 0,
+                           "image", "^UPLOADED^logo.png", "scaleImage", false,
+                           "maintainAspectRatio", false)), false));
+      assertTrue(unscaled.getMessage().contains("'maintainAspectRatio'"),
+                 unscaled.getMessage());
+      assertFalse(fx.printLayoutObjectNames().contains("Logo"));
+   }
+
+   @Test
+   void imageFieldsOnANonImageObjectAreRefusedNamingTheField() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.addUploadedImage("logo.png", PNG);
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Caption", "type", "text", "x", 0, "y", 0, "text", "hi")), false);
+
+      for(String type : List.of("text", "pagebreak")) {
+         IllegalArgumentException added = assertThrows(IllegalArgumentException.class,
+            () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add",
+               VSLayoutService.CONTENT,
+               List.of(Map.of("name", "New_" + type, "type", type, "x", 0, "y", 0,
+                              "image", "^UPLOADED^logo.png")), false));
+         assertTrue(added.getMessage().contains("\"image\""), added.getMessage());
+         assertFalse(fx.printLayoutObjectNames().contains("New_" + type));
+      }
+
+      IllegalArgumentException text = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize",
+            VSLayoutService.CONTENT,
+            List.of(Map.of("name", "Caption", "image", "^UPLOADED^logo.png")), false));
+      assertTrue(text.getMessage().contains("Caption"), text.getMessage());
+
+      IllegalArgumentException placed = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize",
+            VSLayoutService.CONTENT, List.of(Map.of("name", "Table1", "tile", true)), false));
+      assertTrue(placed.getMessage().contains("Table1"), placed.getMessage());
+
+      IllegalArgumentException existing = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.HEADER,
+            List.of(Map.of("name", "Table1", "x", 0, "y", 0, "image", "^UPLOADED^logo.png")),
+            false));
+      assertTrue(existing.getMessage().contains("Table1"), existing.getMessage());
+   }
+
+   @Test
+   void oneAddOfAnImageIsOneUndoStep() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.addUploadedImage("logo.png", PNG);
+      focusPrintLayout(fx);
+      int pointsBefore = fx.masterRvs.getLayoutPointsSize();
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Logo", "type", "image", "x", 0, "y", 0,
+                        "image", "^UPLOADED^logo.png", "alpha", 50)), false);
+
+      assertEquals(pointsBefore + 1, fx.masterRvs.getLayoutPointsSize());
+   }
+
+   /**
+    * Bug 82400: a layout-only entry's info used to be shared with its clones, so the undo
+    * snapshot of an image edit already carried the edit and undo could not revert it.
+    */
+   @Test
+   void undoRevertsAnImageEditMadeOnAnExistingLayoutOnlyImage() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.addUploadedImage("one.png", PNG);
+      fx.masterVs.addUploadedImage("two.png", PNG);
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Logo", "type", "image", "x", 0, "y", 0,
+                        "image", "^UPLOADED^one.png")), false);
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Logo", "image", "^UPLOADED^two.png")), false);
+      assertEquals("^UPLOADED^two.png", imageInfo(fx, "Logo").getImageValue());
+
+      PrintLayout undone = (PrintLayout) fx.masterRvs.layoutUndo();
+
+      ImageVSAssemblyInfo restored = (ImageVSAssemblyInfo) ((VSEditableAssemblyLayout)
+         undone.getVSAssemblyLayouts().stream().filter(l -> l.getName().equals("Logo"))
+            .findFirst().orElseThrow()).getInfo();
+      assertEquals("^UPLOADED^one.png", restored.getImageValue());
+      assertEquals("^UPLOADED^two.png", imageInfo(fx, "Logo").getImageValue(),
+                   "the live layout is not the snapshot");
    }
 
    /**
