@@ -86,11 +86,13 @@ public class ScheduleChangePlanService {
       List<PlanChange> changes = new ArrayList<>();
       Set<String> seenTaskIds = new HashSet<>();
       Set<String> compensableChanges = new HashSet<>();
+      Set<String> deletedEarlier = new HashSet<>();
       int index = 0;
 
       for(ScheduleChangeRequest change : req.getChanges()) {
          String label = "changes[" + index++ + "]";
-         changes.add(resolveOne(label, change, user, seenTaskIds, compensableChanges));
+         changes.add(resolveOne(label, change, user, seenTaskIds, compensableChanges,
+                                 deletedEarlier));
       }
 
       // Every verb is risk:high (spec §4), so signoff is always required. The storage snapshot is
@@ -109,7 +111,8 @@ public class ScheduleChangePlanService {
    }
 
    private PlanChange resolveOne(String label, ScheduleChangeRequest change, Principal user,
-                                 Set<String> seenTaskIds, Set<String> compensableChanges)
+                                 Set<String> seenTaskIds, Set<String> compensableChanges,
+                                 Set<String> deletedEarlier)
       throws Exception
    {
       if(change == null) {
@@ -126,7 +129,8 @@ public class ScheduleChangePlanService {
          return resolveUpdate(label, change, user, seenTaskIds, compensableChanges);
       }
 
-      return resolveDelete(label, change, user, seenTaskIds, compensableChanges);
+      return resolveDelete(label, change, user, seenTaskIds, compensableChanges,
+                           deletedEarlier);
    }
 
    /** Accepts "create"/"update"/"delete" verbatim; the tool layer normalizes natural aliases before this
@@ -359,7 +363,8 @@ public class ScheduleChangePlanService {
    }
 
    private PlanChange resolveDelete(String label, ScheduleChangeRequest change, Principal user,
-                                    Set<String> seenTaskIds, Set<String> compensableDeletes)
+                                    Set<String> seenTaskIds, Set<String> compensableDeletes,
+                                    Set<String> deletedEarlier)
       throws Exception
    {
       String taskId = change.getTaskId();
@@ -401,12 +406,25 @@ public class ScheduleChangePlanService {
          Vector<inetsoft.sree.schedule.ScheduleTask> allTasks =
             scheduleManager.getScheduleTasks(existing.getOwner().getOrgID());
 
-         if(allTasks != null && scheduleManager.hasDependency(allTasks, taskId)) {
-            throw new IllegalArgumentException(
-               label + ".taskId: another task has a completion condition that waits on \"" +
-               taskId + "\"; update or delete that task first");
+         if(allTasks != null) {
+            String dependant;
+
+            // A waiting task deleted earlier in this same plan no longer blocks this delete;
+            // apply runs the changes in plan order.
+            while((dependant = scheduleManager.findDependant(allTasks, taskId)) != null) {
+               if(!deletedEarlier.contains(dependant)) {
+                  throw new IllegalArgumentException(
+                     label + ".taskId: another task (\"" + dependant + "\") has a completion " +
+                     "condition that waits on \"" + taskId + "\"; update or delete that task first");
+               }
+
+               final String done = dependant;
+               allTasks.removeIf(t -> done.equals(t.getTaskId()));
+            }
          }
       }
+
+      deletedEarlier.add(existing.getTaskId());
 
       // Inverse-permission preflight (spec §4): a delete's rollback is a re-create of the captured
       // task, which needs ADMIN over the owner (and executeAsID, if set) -- a strictly stronger
