@@ -32,6 +32,7 @@ import inetsoft.uql.asset.internal.ScriptIterator.ScriptListener;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.ConditionListHandler;
+import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.uql.jdbc.util.VarSQL;
 import inetsoft.uql.path.XSelection;
@@ -1376,6 +1377,15 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
     */
    protected boolean isAggregateExpression(ColumnRef column) {
       if(!column.isExpression()) {
+         return false;
+      }
+
+      // Bug #82381, a SQL expression is computed per detail row before the summary, so it
+      // can be selected even when an aggregate reads the same columns, unless its own SQL
+      // text is an aggregate (e.g. max(field['x'])), which can't sit next to detail columns
+      if(column.isSQL() && column.getDataRef() instanceof ExpressionRef eref &&
+         eref.getExpression() != null && !JDBCUtil.isAggregateExpression(eref.getExpression()))
+      {
          return false;
       }
 
