@@ -17,8 +17,8 @@
  */
 package inetsoft.web.wiz.service;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.RepletRequest;
 import inetsoft.sree.schedule.ScheduleCondition;
 import inetsoft.sree.schedule.ScheduleManager;
@@ -31,9 +31,9 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.admin.schedule.ScheduleTaskService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -67,14 +67,60 @@ import java.util.Vector;
  */
 @Service
 public class WizScheduleService {
+   @Autowired
    public WizScheduleService(WizDashboardAccess access, ScheduleManager scheduleManager,
-                             ScheduleTaskService scheduleTaskService,
-                             ViewsheetService viewsheetService)
+                             ScheduleTaskService scheduleTaskService)
+   {
+      this(access, scheduleManager, scheduleTaskService, new Environment() {
+         @Override
+         public VSBookmarkInfo[] bookmarks(AssetEntry entry, IdentityID caller) {
+            return VSUtil.getBookmarks(entry, caller);
+         }
+
+         @Override
+         public String sender(IdentityID caller) {
+            return defaultSender(caller);
+         }
+      });
+   }
+
+   WizScheduleService(WizDashboardAccess access, ScheduleManager scheduleManager,
+                      ScheduleTaskService scheduleTaskService, Environment environment)
    {
       this.access = access;
       this.scheduleManager = scheduleManager;
       this.scheduleTaskService = scheduleTaskService;
-      this.viewsheetService = viewsheetService;
+      this.environment = environment;
+   }
+
+   /** What the Schedule tab reads from the server when it builds a new dashboard action. */
+   interface Environment {
+      /** The bookmarks of the dashboard the Schedule tab offers the user, Home first. */
+      VSBookmarkInfo[] bookmarks(AssetEntry entry, IdentityID caller);
+
+      /** The sender a new email action gets. */
+      String sender(IdentityID caller);
+   }
+
+   /**
+    * The sender the Schedule tab gives an action whose From field is not set: the user's own
+    * address (unless {@code em.mail.defaultEmailFromSelf} is off), else the server's
+    * {@code mail.from.address}.
+    */
+   static String defaultSender(IdentityID caller) {
+      String[] emails = new String[0];
+
+      try {
+         emails = SUtil.getEmails(caller);
+      }
+      catch(Exception e) {
+         // the server default is used
+      }
+
+      boolean useSelf = !"false".equals(SreeEnv.getProperty("em.mail.defaultEmailFromSelf"));
+      String userEmail = useSelf && emails.length > 0 ? emails[0] : null;
+      return userEmail != null && !userEmail.isEmpty() ?
+         userEmail : SreeEnv.getProperty("mail.from.address");
    }
 
    /** The formats the schedule email action offers and the default among them. */
@@ -333,8 +379,47 @@ public class WizScheduleService {
       }
 
       if(create || request.bookmarks() != null) {
-         applyBookmarks(action, entry, request.bookmarks(), caller, user);
+         applyBookmarks(action, entry, request.bookmarks(), caller);
       }
+
+      if(create) {
+         applyScheduleTabDefaults(action, entry, caller);
+      }
+   }
+
+   /**
+    * The defaults the Schedule tab gives a new dashboard email action, which a task that is to
+    * run needs and the plugin does not ask for: the tab's save path
+    * ({@code ScheduleService.getActionFromModel}) keeps Match Layout on and the layout options
+    * off, names the attachment after the dashboard, sends from the user's own address, and the
+    * tab's editors turn the HTML message on.
+    */
+   private void applyScheduleTabDefaults(ViewsheetAction action, AssetEntry entry,
+                                         IdentityID caller)
+   {
+      action.setMatchLayout(true);
+      action.setExpandSelections(false);
+      action.setOnlyDataComponents(false);
+      action.setExportAllTabbedTables(false);
+      action.setSaveToServerMatch(true);
+      action.setSaveToServerExpandSelections(false);
+      action.setSaveToServerOnlyDataComponents(false);
+      action.setSaveExportAllTabbedTables(false);
+      action.setMessageHtml(true);
+      action.setDeliverLink(false);
+      action.setCompressFile(false);
+      action.setAttachmentName(attachmentName(entry));
+      action.setFrom(environment.sender(caller));
+   }
+
+   /**
+    * The attachment name the Schedule tab derives when none is typed: the dashboard path with
+    * "/" and " " replaced by "_" ({@code Examples/Sales Summary} gives
+    * {@code Examples_Sales_Summary}). Left empty, the delivered attachment is named just
+    * {@code .pdf}.
+    */
+   static String attachmentName(AssetEntry entry) {
+      return entry.getPath().replace("/", "_").replace(" ", "_");
    }
 
    private String resolveFormat(String requested) {
@@ -365,77 +450,100 @@ public class WizScheduleService {
          FileFormatInfo.EXPORT_NAME_EXCEL : formats.get(0);
    }
 
-   /** The default is the Home bookmark, like a new Schedule tab action. */
+   /**
+    * The bookmarks of the action, resolved from the list the Schedule tab offers
+    * ({@code VSUtil.getBookmarks}) and stored with the type and owner of that list's entry: the
+    * run matches stored name, type and owner against the same list
+    * ({@code ViewsheetAction#runViewsheetAction}), so a type that differs from the list's (the
+    * Home bookmark is all-share, not private) never delivers. The default is the Home bookmark.
+    */
    private void applyBookmarks(ViewsheetAction action, AssetEntry entry, List<String> requested,
-                               IdentityID caller, Principal user)
-      throws Exception
+                               IdentityID caller)
    {
+      List<VSBookmarkInfo> offered = new ArrayList<>(
+         java.util.Arrays.asList(environment.bookmarks(entry, caller)));
+      VSBookmarkInfo home = null;
+
+      for(VSBookmarkInfo info : offered) {
+         if(VSBookmark.HOME_BOOKMARK.equals(info.getName())) {
+            home = info;
+            break;
+         }
+      }
+
+      if(home == null) {
+         home = new VSBookmarkInfo(VSBookmark.HOME_BOOKMARK, VSBookmarkInfo.ALLSHARE, caller,
+                                   false, System.currentTimeMillis());
+         offered.add(0, home);
+      }
+
+      List<VSBookmarkInfo> chosen = new ArrayList<>();
+
       if(requested == null || requested.isEmpty()) {
-         action.setBookmarks(new String[] { VSBookmark.HOME_BOOKMARK });
-         action.setBookmarkUsers(new IdentityID[] { caller });
-         action.setBookmarkTypes(new int[] { VSBookmarkInfo.PRIVATE });
-         return;
+         chosen.add(home);
       }
-
-      String runtimeId = viewsheetService.openViewsheet(entry, user, true);
-
-      try {
-         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
-         List<VSBookmarkInfo> visible = rvs.getBookmarks();
-         String[] names = new String[requested.size()];
-         IdentityID[] users = new IdentityID[requested.size()];
-         int[] types = new int[requested.size()];
-
-         for(int i = 0; i < names.length; i++) {
-            VSBookmarkInfo info = findBookmark(visible, requested.get(i));
-
-            if(info == null) {
-               throw new IllegalArgumentException(
-                  "'bookmarks' has \"" + requested.get(i) + "\", which this dashboard does " +
-                  "not offer you; available: " + bookmarkNames(visible) + ".");
-            }
-
-            names[i] = info.getName();
-            users[i] = info.getOwner() == null ? caller : info.getOwner();
-            types[i] = info.getType();
-         }
-
-         action.setBookmarks(names);
-         action.setBookmarkUsers(users);
-         action.setBookmarkTypes(types);
-      }
-      finally {
-         try {
-            viewsheetService.closeViewsheet(runtimeId, user);
-         }
-         catch(Exception e) {
-            LOG.warn("Failed to close runtime [{}] after a schedule call", runtimeId, e);
+      else {
+         for(String name : requested) {
+            chosen.add(findBookmark(offered, name));
          }
       }
+
+      String[] names = new String[chosen.size()];
+      IdentityID[] users = new IdentityID[chosen.size()];
+      int[] types = new int[chosen.size()];
+
+      for(int i = 0; i < names.length; i++) {
+         VSBookmarkInfo info = chosen.get(i);
+         names[i] = info.getName();
+         users[i] = info.getOwner() == null ? caller : info.getOwner();
+         types[i] = info.getType();
+      }
+
+      action.setBookmarks(names);
+      action.setBookmarkUsers(users);
+      action.setBookmarkTypes(types);
    }
 
-   private static VSBookmarkInfo findBookmark(List<VSBookmarkInfo> visible, String requested) {
-      for(VSBookmarkInfo info : visible) {
+   /** The offered bookmark a request names, as {@code name} or {@code name(owner)}. */
+   private static VSBookmarkInfo findBookmark(List<VSBookmarkInfo> offered, String requested) {
+      List<VSBookmarkInfo> matches = new ArrayList<>();
+
+      for(VSBookmarkInfo info : offered) {
          String owner = info.getOwner() == null ? null : info.getOwner().getName();
 
-         if(requested.equals(info.getName()) ||
-            owner != null && requested.equals(info.getName() + "(" + owner + ")"))
-         {
+         if(requested.equals(info.getName() + (owner == null ? "" : "(" + owner + ")"))) {
             return info;
+         }
+
+         if(requested.equals(info.getName())) {
+            matches.add(info);
          }
       }
 
-      return null;
-   }
-
-   private static String bookmarkNames(List<VSBookmarkInfo> visible) {
-      List<String> names = new ArrayList<>();
-
-      for(VSBookmarkInfo info : visible) {
-         names.add(info.getName());
+      if(matches.size() == 1) {
+         return matches.get(0);
       }
 
-      return String.join(", ", names);
+      if(matches.size() > 1) {
+         throw new IllegalArgumentException(
+            "'bookmarks' \"" + requested + "\" is ambiguous (several owners); use one of " +
+            bookmarkLabels(matches) + ".");
+      }
+
+      throw new IllegalArgumentException(
+         "'bookmarks' has \"" + requested + "\", which this dashboard does not offer you; " +
+         "available: " + bookmarkLabels(offered) + ".");
+   }
+
+   private static String bookmarkLabels(List<VSBookmarkInfo> bookmarks) {
+      List<String> labels = new ArrayList<>();
+
+      for(VSBookmarkInfo info : bookmarks) {
+         labels.add(info.getOwner() == null ? info.getName() :
+                       info.getName() + "(" + info.getOwner().getName() + ")");
+      }
+
+      return String.join(", ", labels);
    }
 
    /** Builds the one time condition of a request. */
@@ -671,6 +779,5 @@ public class WizScheduleService {
    private final WizDashboardAccess access;
    private final ScheduleManager scheduleManager;
    private final ScheduleTaskService scheduleTaskService;
-   private final ViewsheetService viewsheetService;
-   private static final Logger LOG = LoggerFactory.getLogger(WizScheduleService.class);
+   private final Environment environment;
 }

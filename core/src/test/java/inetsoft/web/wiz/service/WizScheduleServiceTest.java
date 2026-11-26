@@ -17,7 +17,6 @@
  */
 package inetsoft.web.wiz.service;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.schedule.TimeCondition;
@@ -29,6 +28,8 @@ import inetsoft.sree.security.SRPrincipal;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.viewsheet.VSBookmark;
+import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.web.admin.schedule.ScheduleTaskService;
 import inetsoft.web.wiz.service.WizScheduleService.TaskRequest;
 import inetsoft.web.wiz.service.WizScheduleService.TaskView;
@@ -328,6 +329,132 @@ class WizScheduleServiceTest {
          request("daily", "08:30", null, null, null, "America/New_York")));
    }
 
+
+   @Test
+   void theDefaultHomeBookmarkIsStoredAsTheScheduleTabStoresIt() throws Exception {
+      Fixture f = new Fixture(BOB);
+
+      f.service.create(daily("t"), f.wiz, "u/");
+
+      ViewsheetAction action = storedAction(f);
+      // all-share, owned by the caller: a private (0) Home bookmark fails at run time with "No
+      // valid bookmark" (ViewsheetAction#runViewsheetAction matches name, type and owner)
+      assertArrayEquals(new String[] { "(Home)" }, action.getBookmarks());
+      assertArrayEquals(new int[] { VSBookmarkInfo.ALLSHARE }, action.getBookmarkTypes());
+      assertArrayEquals(new IdentityID[] { BOB }, action.getBookmarkUsers());
+      String xml = xml(action);
+      assertTrue(xml.contains("type=\"1\""), xml);
+      assertFalse(xml.contains("type=\"0\""), xml);
+   }
+
+   @Test
+   void aHomeBookmarkTheListLacksIsStillAllShare() throws Exception {
+      Fixture f = new Fixture(BOB);
+      f.offered.clear();
+
+      f.service.create(daily("t"), f.wiz, "u/");
+
+      assertArrayEquals(new int[] { VSBookmarkInfo.ALLSHARE }, storedAction(f).getBookmarkTypes());
+   }
+
+   @Test
+   void aNamedBookmarkIsStoredWithTheTypeAndOwnerTheListGives() throws Exception {
+      Fixture f = new Fixture(BOB);
+      f.offered.add(new VSBookmarkInfo("Q1", VSBookmarkInfo.ALLSHARE, ALICE, false, 2L));
+      f.offered.add(new VSBookmarkInfo("Mine", VSBookmarkInfo.PRIVATE, BOB, false, 3L));
+      f.offered.add(new VSBookmarkInfo("Team", VSBookmarkInfo.GROUPSHARE, ALICE, false, 4L));
+
+      f.service.create(withBookmarks("Q1(alice)", "Mine", "Team"), f.wiz, "u/");
+
+      ViewsheetAction action = storedAction(f);
+      assertArrayEquals(new String[] { "Q1", "Mine", "Team" }, action.getBookmarks());
+      assertArrayEquals(new int[] { 1, 0, 2 }, action.getBookmarkTypes());
+      assertArrayEquals(new IdentityID[] { ALICE, BOB, ALICE }, action.getBookmarkUsers());
+   }
+
+   @Test
+   void anUnknownOrAmbiguousBookmarkIsRefusedNamingTheChoices() throws Exception {
+      Fixture f = new Fixture(BOB);
+      f.offered.add(new VSBookmarkInfo("Q1", VSBookmarkInfo.ALLSHARE, ALICE, false, 2L));
+      f.offered.add(new VSBookmarkInfo("Q1", VSBookmarkInfo.ALLSHARE, BOB, false, 3L));
+
+      IllegalArgumentException missing = assertThrows(IllegalArgumentException.class,
+         () -> f.service.create(withBookmarks("Nope"), f.wiz, "u/"));
+      assertTrue(missing.getMessage().contains("(Home)"), missing.getMessage());
+      IllegalArgumentException ambiguous = assertThrows(IllegalArgumentException.class,
+         () -> f.service.create(withBookmarks("Q1"), f.wiz, "u/"));
+      assertTrue(ambiguous.getMessage().contains("Q1(alice)") &&
+                    ambiguous.getMessage().contains("Q1(bob)"), ambiguous.getMessage());
+      verify(f.manager, never()).setScheduleTask(anyString(), any(), any(AssetEntry.class), any());
+   }
+
+   @Test
+   void theEmailActionGetsTheScheduleTabDefaults() throws Exception {
+      Fixture f = new Fixture(BOB);
+
+      f.service.create(daily("t"), f.wiz, "u/");
+
+      ViewsheetAction action = storedAction(f);
+      assertTrue(action.isMatchLayout());
+      assertFalse(action.isExpandSelections());
+      assertFalse(action.isOnlyDataComponents());
+      assertTrue(action.isSaveToServerMatch());
+      assertTrue(action.isMessageHtml());
+      assertFalse(action.isDeliverLink());
+      assertFalse(action.isCompressFile());
+      // not ".pdf": an empty attachment name delivers a file with no base name
+      assertEquals("Sales_Overview", action.getAttachmentName());
+      assertEquals("bob@x.com", action.getFrom());
+      String xml = xml(action);
+      assertTrue(xml.contains("Sales_Overview"), xml);
+      assertTrue(xml.contains("bob@x.com"), xml);
+   }
+
+   @Test
+   void theAttachmentNameFollowsTheDashboardPathLikeTheScheduleTab() {
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                        "Examples/Sales Summary", null, ORG);
+
+      assertEquals("Examples_Sales_Summary", WizScheduleService.attachmentName(entry));
+   }
+
+   @Test
+   void anUpdateOfAnotherFieldKeepsTheStoredEmailAction() throws Exception {
+      Fixture f = new Fixture(BOB);
+      f.store(task("mine", BOB));
+
+      f.service.update("mine", new TaskRequest(null, null, null, null, false, null, null, null,
+                                               null, null, null, null, null, null, null, null,
+                                               null, null, null, null), f.wiz, "u/");
+
+      ArgumentCaptor<ScheduleTask> stored = ArgumentCaptor.forClass(ScheduleTask.class);
+      verify(f.manager).setScheduleTask(anyString(), stored.capture(), any(), any());
+      ViewsheetAction action = (ViewsheetAction) stored.getValue().getAction(0);
+      assertEquals("a@x.com", action.getEmails());
+      assertEquals("Excel", action.getFileFormat());
+   }
+
+   private static TaskRequest withBookmarks(String... names) {
+      return new TaskRequest("t", "Sales/Overview", null, null, null, "daily", "08:30", null,
+                             null, null, null, null, null, List.of("a@x.com"), null, null, null,
+                             null, null, List.of(names));
+   }
+
+   private static ViewsheetAction storedAction(Fixture f) throws Exception {
+      ArgumentCaptor<ScheduleTask> stored = ArgumentCaptor.forClass(ScheduleTask.class);
+      verify(f.manager).setScheduleTask(anyString(), stored.capture(), isNull(), any());
+      return (ViewsheetAction) stored.getValue().getAction(0);
+   }
+
+   /** The action as it is persisted, which is what the scheduler reads back. */
+   private static String xml(ViewsheetAction action) {
+      java.io.StringWriter out = new java.io.StringWriter();
+      java.io.PrintWriter writer = new java.io.PrintWriter(out);
+      action.writeXML(writer);
+      writer.flush();
+      return out.toString();
+   }
+
    private static TaskRequest request(String frequency, String time, List<Integer> weekdays,
                                       Integer dayOfMonth, String runAt, String zone)
    {
@@ -364,12 +491,26 @@ class WizScheduleServiceTest {
       final AssetRepository assets = mock(AssetRepository.class);
       final ScheduleManager manager = mock(ScheduleManager.class);
       final ScheduleTaskService tasks = mock(ScheduleTaskService.class);
-      final ViewsheetService viewsheets = mock(ViewsheetService.class);
+      /** What the Schedule tab offers: Home first (all-share, owned by the caller). */
+      final List<VSBookmarkInfo> offered = new java.util.ArrayList<>();
       final WizScheduleService service = new WizScheduleService(
-         new WizDashboardAccess(assets, engine), manager, tasks, viewsheets);
+         new WizDashboardAccess(assets, engine), manager, tasks,
+         new WizScheduleService.Environment() {
+            @Override
+            public VSBookmarkInfo[] bookmarks(AssetEntry entry, IdentityID caller) {
+               return offered.toArray(new VSBookmarkInfo[0]);
+            }
+
+            @Override
+            public String sender(IdentityID caller) {
+               return "bob@x.com";
+            }
+         });
       final SRPrincipal wiz;
 
       Fixture(IdentityID caller) {
+         offered.add(new VSBookmarkInfo(VSBookmark.HOME_BOOKMARK, VSBookmarkInfo.ALLSHARE, caller,
+                                        false, 1L));
          wiz = new SRPrincipal(caller, new IdentityID[0], new String[0], caller.orgID, 42L);
          wiz.setProperty("wiz", "true");
 
