@@ -1039,14 +1039,13 @@ public class ScheduleService {
             !abstractAction.getEmails().isEmpty();
          String fromEmail = deliverEnable ? abstractAction.getFrom() : null;
 
-         if(!abstractAction.isMessageHtml()) {
-            abstractAction.setMessageHtml(true);
+         // The editor always works on HTML, so the model says so. The action itself is the cached
+         // task's instance and must not be changed by a read, so the converted message is only
+         // part of the model.
+         String message = abstractAction.getMessage();
 
-            if(abstractAction.getMessage() != null) {
-               String mess = abstractAction.getMessage();
-               mess = mess.replaceAll( "/\r?\n/", "<br/>");
-               abstractAction.setMessage(mess);
-            }
+         if(!abstractAction.isMessageHtml() && message != null) {
+            message = message.replaceAll( "/\r?\n/", "<br/>");
          }
 
          actionModel
@@ -1071,8 +1070,8 @@ public class ScheduleService {
                                                           abstractAction.getPassword().isEmpty() ? "" :
                                                           Util.PLACEHOLDER_PASSWORD : null)
             .attachmentName(abstractAction.getAttachmentName())
-            .htmlMessage(abstractAction.isMessageHtml())
-            .message(abstractAction.getMessage())
+            .htmlMessage(true)
+            .message(message)
             .actionClass("GeneralActionModel");
       }
 
