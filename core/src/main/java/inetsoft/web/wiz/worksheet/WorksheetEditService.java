@@ -66,7 +66,6 @@ import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.composer.ws.joins.JoinUtil;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.wiz.script.PaneScopeService;
-import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.model.DatabaseTableMeta;
 import inetsoft.web.wiz.service.MetadataApiService;
@@ -1115,6 +1114,16 @@ public class WorksheetEditService {
       public String unrevalidatedNote() {
          return unrevalidatedNote;
       }
+
+      /**
+       * The warning the last {@link #editVariable} produced (a string default starting with
+       * {@code =} stored as literal text), or {@code null}.
+       */
+      public String variableDefaultWarning() {
+         return variableDefaultWarning;
+      }
+
+      private String variableDefaultWarning;
 
       private String unrevalidatedNote;
 
@@ -2542,12 +2551,32 @@ public class WorksheetEditService {
        * @param table      the assembly name
        * @param column     the source numeric column name
        * @param boundaries the bucket boundary values (e.g. [0, 50, 100])
-       * @param labels     optional custom bucket labels, one more than {@code boundaries}
-       *                   (e.g. 2 boundaries -> 3 labels: below, between, above). {@code null}
+       * @param labels     optional custom bucket labels, one per bucket: the "Less Than Min"
+       *                   bucket (when on) + one per gap between boundaries + the "Greater Than
+       *                   Max" bucket (when on); see {@link #validateLabelCount}. {@code null}
        *                   or empty keeps the engine's default auto-generated range text.
        */
       public void addNumericRangeColumn(String table, String column, double[] boundaries,
                                          String[] labels)
+         throws PairingException
+      {
+         addNumericRangeColumn(table, column, boundaries, labels, null, null, null);
+      }
+
+      /**
+       * As {@link #addNumericRangeColumn(String, String, double[], String[])}, with the Numeric
+       * Range dialog's three checkboxes. A {@code null} flag is "not given": its setter is not
+       * called, so the {@link ValueRangeInfo} constructor default applies (less-than-min on,
+       * greater-than-max on, lower-inclusive) exactly as before these parameters existed.
+       *
+       * @param lessThanMin    show the bucket below the first boundary
+       * @param greaterThanMax show the bucket above the last boundary
+       * @param upperInclusive {@code true} = {@code InclusiveType.UPPER}, {@code false} =
+       *                       {@code InclusiveType.LOWER} (never {@code NONE})
+       */
+      public void addNumericRangeColumn(String table, String column, double[] boundaries,
+                                         String[] labels, Boolean lessThanMin,
+                                         Boolean greaterThanMax, Boolean upperInclusive)
          throws PairingException
       {
          if(boundaries == null || boundaries.length == 0) {
@@ -2555,7 +2584,10 @@ public class WorksheetEditService {
                "boundaries must be a non-empty array of numbers (e.g. [0, 50, 100]).");
          }
 
-         validateLabelCount(boundaries, labels);
+         ValueRangeInfo defaults = new ValueRangeInfo();
+         validateLabelCount(boundaries, labels,
+                            lessThanMin != null ? lessThanMin : defaults.isShowBottomValue(),
+                            greaterThanMax != null ? greaterThanMax : defaults.isShowTopValue());
 
          TableAssembly t = requireTable(table);
          ColumnSelection cs = t.getColumnSelection(false);
@@ -2571,6 +2603,7 @@ public class WorksheetEditService {
          ValueRangeInfo info = new ValueRangeInfo();
          info.setValues(boundaries);
          info.setLabels(labels);
+         applyRangeFlags(info, lessThanMin, greaterThanMax, upperInclusive);
          rangeRef.setValueRangeInfo(info);
 
          requireDerivedColumnFits(cs, column + "_range", table);
@@ -2619,28 +2652,60 @@ public class WorksheetEditService {
       }
 
       /**
-       * Validates that a caller-supplied label array, if present, has exactly one more entry
-       * than there are boundaries — the count {@link NumericRangeRef#getExpression} and
-       * {@link NumericRangeRef#getScriptExpression} index into (bottom bucket + one per gap +
-       * top bucket) given the engine's fixed defaults of showing both the bottom and top
-       * buckets. A shorter array is not just cosmetically wrong: those methods index straight
-       * into it with no bounds check, so a mismatch throws {@code ArrayIndexOutOfBoundsException}
-       * deep inside expression generation instead of failing here with a clear message.
+       * Sets only the range flags the caller gave; a {@code null} flag leaves the
+       * {@link ValueRangeInfo}'s current value (the constructor default on add, the column's
+       * existing value on edit) untouched.
        */
-      private static void validateLabelCount(double[] boundaries, String[] labels)
+      private static void applyRangeFlags(ValueRangeInfo info, Boolean lessThanMin,
+                                          Boolean greaterThanMax, Boolean upperInclusive)
+      {
+         if(lessThanMin != null) {
+            info.setShowBottomValue(lessThanMin);
+         }
+
+         if(greaterThanMax != null) {
+            info.setShowTopValue(greaterThanMax);
+         }
+
+         if(upperInclusive != null) {
+            info.setInclusiveType(upperInclusive
+               ? InclusiveType.UPPER : InclusiveType.LOWER);
+         }
+      }
+
+      /**
+       * Validates that a caller-supplied label array, if present, has exactly the number of
+       * entries {@link NumericRangeRef#getExpression} and
+       * {@link NumericRangeRef#getScriptExpression} index into: one for the "Less Than Min"
+       * bucket when {@code lessThanMin}, one per gap between the {@code n} boundaries
+       * ({@code n - 1}), and one for the "Greater Than Max" bucket when {@code greaterThanMax}.
+       * With a single boundary and both flags off the engine builds one {@code BETWEEN v AND v}
+       * bucket and reads {@code labels[0]}, so that case expects exactly 1.
+       *
+       * <p>The count must be exact: the top label is read from the LAST array entry, so a
+       * too-long array silently mislabels a middle bucket, and a shorter one throws
+       * {@code ArrayIndexOutOfBoundsException} deep inside expression generation (those methods
+       * index with no bounds check) instead of failing here with a clear message.
+       */
+      private static void validateLabelCount(double[] boundaries, String[] labels,
+                                             boolean lessThanMin, boolean greaterThanMax)
          throws PairingException
       {
          if(labels == null || labels.length == 0) {
             return;
          }
 
-         int expected = boundaries.length + 1;
+         int n = boundaries.length;
+         int expected = n == 1 && !lessThanMin && !greaterThanMax
+            ? 1 : (lessThanMin ? 1 : 0) + (n - 1) + (greaterThanMax ? 1 : 0);
 
          if(labels.length != expected) {
             throw new PairingException(
-               "labels must have exactly " + expected + " entries for " + boundaries.length +
-               " boundaries (one below the first, one between each pair, one above the last) " +
-               "— got " + labels.length + ".");
+               "labels must have exactly " + expected + " entries for " + n + " boundaries with " +
+               "lessThanMin=" + lessThanMin + " and greaterThanMax=" + greaterThanMax +
+               " (one for the below-minimum bucket when lessThanMin, one between each pair of " +
+               "boundaries, one for the above-maximum bucket when greaterThanMax; a single " +
+               "boundary with both off has one bucket) -- got " + labels.length + ".");
          }
       }
 
@@ -2775,18 +2840,30 @@ public class WorksheetEditService {
        *                   {@code null}/empty array clears any custom labels back to the
        *                   engine's default auto-generated range text — it does not preserve
        *                   whatever labels the column already had, since there is no partial
-       *                   "leave labels alone" signal distinguishable from "clear them."
+       *                   "leave labels alone" signal distinguishable from "clear them." Changing
+       *                   a flag without resupplying labels therefore clears custom labels too.
        */
       public void editNumericRangeColumn(String table, String column, double[] boundaries,
                                           String[] labels)
+         throws PairingException
+      {
+         editNumericRangeColumn(table, column, boundaries, labels, null, null, null);
+      }
+
+      /**
+       * As {@link #editNumericRangeColumn(String, String, double[], String[])}, with the Numeric
+       * Range dialog's three checkboxes. A {@code null} flag leaves the column's existing value
+       * untouched (and is what the label count is checked against).
+       */
+      public void editNumericRangeColumn(String table, String column, double[] boundaries,
+                                          String[] labels, Boolean lessThanMin,
+                                          Boolean greaterThanMax, Boolean upperInclusive)
          throws PairingException
       {
          if(boundaries == null || boundaries.length == 0) {
             throw new PairingException(
                "boundaries must be a non-empty array of numbers (e.g. [0, 50, 100]).");
          }
-
-         validateLabelCount(boundaries, labels);
 
          TableAssembly t = requireTable(table);
          ColumnSelection cs = t.getColumnSelection(false);
@@ -2817,7 +2894,14 @@ public class WorksheetEditService {
             info = new ValueRangeInfo();
          }
 
+         // After the column lookup, against the flags the column will have once this edit is
+         // applied (param ?? existing), and before anything is mutated so a refusal changes nothing.
+         validateLabelCount(boundaries, labels,
+                            lessThanMin != null ? lessThanMin : info.isShowBottomValue(),
+                            greaterThanMax != null ? greaterThanMax : info.isShowTopValue());
+
          info.setValues(boundaries);
+         applyRangeFlags(info, lessThanMin, greaterThanMax, upperInclusive);
          // Unconditional, even when labels is null/empty: the javadoc above promises omitting
          // labels clears any existing ones, and that contract must hold now that boundaries'
          // sibling settings survive the edit.
@@ -5602,6 +5686,25 @@ public class WorksheetEditService {
                                WorksheetMutationSupport.VariableChoicesSpec choices)
          throws PairingException
       {
+         editVariable(name, type, label, defaultValue, choices, null, null);
+      }
+
+      /**
+       * As {@link #editVariable(String, String, String, String,
+       * WorksheetMutationSupport.VariableChoicesSpec)}, with the Variable dialog's Value /
+       * Expression switch and None checkbox.
+       *
+       * @param defaultValueType {@code "value"} (or {@code null}) = literal, {@code "expression"}
+       *                         = {@code defaultValue} is JavaScript source
+       * @param none             {@code true} clears the default (the only way to clear one:
+       *                         {@code defaultValue == null} means leave unchanged)
+       */
+      public void editVariable(String name, String type, String label, String defaultValue,
+                               WorksheetMutationSupport.VariableChoicesSpec choices,
+                               String defaultValueType, Boolean none)
+         throws PairingException
+      {
+         variableDefaultWarning = null;
          Assembly a = ws.getAssembly(name);
          refuseMirrorOrHiddenCopy(a, name, MIRROR_EDIT_REMEDY);
 
@@ -5634,33 +5737,10 @@ public class WorksheetEditService {
             var.setTypeNode(requireValidType(type));
          }
 
-         if(defaultValue != null) {
-            // Use the variable's type to create the correct value node subclass
-            // (e.g. IntegerValue for "integer") so the default value survives
-            // serialization round-trips.
-            String effectiveType = type != null
-               ? type : (var.getTypeNode() != null ? var.getTypeNode().getType() : null);
-            inetsoft.uql.schema.XValueNode valueNode =
-               inetsoft.uql.schema.XValueNode.createValueNode(name, effectiveType);
-
-            if(valueNode != null) {
-               try {
-                  WizStrictValueParser.parse(defaultValue, effectiveType);
-                  valueNode.parse0(defaultValue);
-               }
-               catch(Exception e) {
-                  // L2-Group7: previously fell back to storing the raw, unparsed string
-                  // instead of failing loud -- the variable ended up with a default value
-                  // inconsistent with its own declared type, silently.
-                  throw new PairingException(
-                     "Default value '" + defaultValue + "' is not a valid " +
-                     (effectiveType != null ? effectiveType : "string") +
-                     " value for variable '" + name + "'.");
-               }
-
-               var.setValueNode(valueNode);
-            }
-         }
+         // After setTypeNode: none clears the node, and setTypeNode re-creates an empty one when
+         // the node is null.
+         variableDefaultWarning = WorksheetVariableDefault.apply(
+            var, name, type, defaultValue, defaultValueType, none);
 
          WorksheetMutationSupport.applyVariableChoices(ws, var, choices);
 
