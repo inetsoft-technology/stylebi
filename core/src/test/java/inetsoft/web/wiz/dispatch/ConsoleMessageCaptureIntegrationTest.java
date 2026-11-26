@@ -131,7 +131,10 @@ class ConsoleMessageCaptureIntegrationTest {
       inetsoft.util.Tool.clearUserMessage();
    }
 
-   /** The same build outside a scope records nothing; messages pending beforehand are not rows. */
+   /**
+    * Protective guard, not a regression test of the fix: it also passes without the user-message
+    * capture. It pins that a message pending before the scope is never made a row.
+    */
    @Test
    void aUserMessageThatWasAlreadyPendingWhenTheScopeStartedIsNotARow() throws Exception {
       inetsoft.util.Tool.addUserMessage("left over from earlier work");

@@ -464,7 +464,8 @@ public class VGraphPair {
 
             // an export builds the graph once, and this run ignores the failure; without this the
             // failure of the chart's own script is lost, and the wiz Console cannot show it
-            // (Bug #82316). Only a thread that scoped the list records it.
+            // (Bug #82316). It is recorded only when this thread has a list: the wiz console
+            // scope installs one, and so do a few sandbox sites on any thread.
             if(export && scriptError instanceof ScriptException) {
                List<Exception> exceptions = WorksheetService.ASSET_EXCEPTIONS.get();
 

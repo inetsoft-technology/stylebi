@@ -474,6 +474,53 @@ class ConsoleMessageCaptureTest {
       }
    }
 
+   /** Review r4: user messages without an assembly name used to be merged into one row. */
+   @Test
+   void twoSiblingUserMessagesInOneScopeAreTwoRowsEachKeepingItsOwnAssembly() throws Exception {
+      Tool.clearUserMessage();
+      String label = Catalog.getCatalog().getString("Script failed");
+
+      try {
+         ConsoleMessageCapture.scope(runtimeId, () -> {
+            Tool.addUserMessage(label + FAILURE);
+            Tool.addUserMessage(label + FAILURE.replace("B5Chart", "Chart2"));
+            return null;
+         });
+
+         ConsoleMessageBuffer.Snapshot snapshot = read();
+         assertEquals(2, snapshot.entries().size(), snapshot.entries().toString());
+         assertEquals(List.of("B5Chart", "Chart2"),
+                      snapshot.entries().stream().map(e -> e.assembly()).toList());
+         assertTrue(snapshot.entries().stream().allMatch(e -> e.message()
+            .startsWith(BaseTableService.SCRIPT_FAILURE_PREFIX) && e.message().lines().count() < 6),
+            snapshot.entries().toString());
+      }
+      finally {
+         Tool.clearUserMessage();
+      }
+   }
+
+   /** A message pending when the scope starts must not be recorded inside a new message's row. */
+   @Test
+   void aPendingUserMessagePlusANewOneRecordsOnlyTheNewOne() throws Exception {
+      Tool.clearUserMessage();
+      Tool.addUserMessage("pending X", ConfirmException.WARNING);
+
+      try {
+         ConsoleMessageCapture.scope(runtimeId, () -> {
+            Tool.addUserMessage("new Y", ConfirmException.WARNING);
+            return null;
+         });
+
+         ConsoleMessageBuffer.Snapshot snapshot = read();
+         assertEquals(1, snapshot.entries().size(), snapshot.entries().toString());
+         assertEquals("new Y", snapshot.entries().get(0).message());
+      }
+      finally {
+         Tool.clearUserMessage();
+      }
+   }
+
    private static MessageCommand message(MessageCommand.Type type, String text) {
       MessageCommand command = new MessageCommand();
       command.setType(type);

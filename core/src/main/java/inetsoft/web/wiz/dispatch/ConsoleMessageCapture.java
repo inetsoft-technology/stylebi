@@ -178,16 +178,14 @@ public final class ConsoleMessageCapture {
     * The user messages pending on this thread, as keys. A chart whose own script fails is rendered
     * past it, and {@code VGraphPair} reports the failure only as a user message
     * ({@code Tool.addUserMessage}), as does {@code alert()}; the Composer sends them from
-    * {@code EventAspect}, which no wiz call goes through. They are read, not cleared: the servlet
-    * filter clears them at the start and the end of every request.
+    * {@code EventAspect}, which no wiz call goes through. They are read one by one, not merged and
+    * not cleared: the servlet filter clears them at the start and the end of every request.
     */
    private static Set<String> pendingUserMessages() {
       Set<String> keys = new HashSet<>();
 
-      for(MessageCommand.Type type : RECORDED_TYPES) {
-         for(UserMessage message : Tool.getUserMessages(type)) {
-            keys.add(userMessageKey(message));
-         }
+      for(UserMessage message : Tool.peekUserMessages()) {
+         keys.add(userMessageKey(message));
       }
 
       return keys;
@@ -195,12 +193,19 @@ public final class ConsoleMessageCapture {
 
    /** Records the user messages that were not already pending when the scope started. */
    private static void recordUserMessages(Scope scope, Set<String> pending) {
-      for(MessageCommand.Type type : RECORDED_TYPES) {
-         for(UserMessage message : Tool.getUserMessages(type)) {
-            if(message.getMessage() != null && !pending.contains(userMessageKey(message))) {
-               String text = CapturingCommandDispatcher.withoutScriptFailedLabel(message.getMessage());
-               scope.record(type.name(), text, message.getAssemblyName());
-            }
+      for(UserMessage message : Tool.peekUserMessages()) {
+         String type = switch(message.getLevel()) {
+            case ConfirmException.ERROR -> ConsoleMessageBuffer.ERROR;
+            case ConfirmException.WARNING -> ConsoleMessageBuffer.WARNING;
+            case ConfirmException.INFO -> ConsoleMessageBuffer.INFO;
+            default -> null; // a question or progress, not a Console row
+         };
+
+         if(type != null && message.getMessage() != null &&
+            !pending.contains(userMessageKey(message)))
+         {
+            String text = CapturingCommandDispatcher.withoutScriptFailedLabel(message.getMessage());
+            scope.record(type, text, message.getAssemblyName());
          }
       }
    }
@@ -320,8 +325,6 @@ public final class ConsoleMessageCapture {
       private final Set<String> seen = new HashSet<>();
    }
 
-   private static final MessageCommand.Type[] RECORDED_TYPES = {
-      MessageCommand.Type.ERROR, MessageCommand.Type.WARNING, MessageCommand.Type.INFO };
    private static final Pattern ASSEMBLY =
       Pattern.compile("Script execution error in assembly:\\s*(\\S+)");
    private static final String SCRIPT_FAILED_MARKER = "Script failed:\n";
