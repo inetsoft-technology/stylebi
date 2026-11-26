@@ -56,13 +56,26 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
       XTableNode table = null;
 
       try {
-         URLConnection conn = getConnection(query);
-         BufferedReader connReader = new BufferedReader(
-            new InputStreamReader(conn.getInputStream(), "UTF-8"));
+         JsonObject jObj;
+         DatagovSoda.Request soda = DatagovSoda.parse(createURL(query));
 
-         // TODO: Might need to switch this to a streaming based implementation.
-         jsonReader = Json.createReader(connReader);
-         JsonObject jObj = jsonReader.readObject();
+         if(soda != null) {
+            // a rows.json or /resource/ URL of a Socrata site: always served from the supported
+            // SODA endpoint, in the shape DatagovTable reads
+            jObj = DatagovSoda.fetch((DatagovDataSource) query.getDataSource(), soda,
+                                     query0.getMaxRows(), DatagovSoda.PAGE_SIZE);
+         }
+         else {
+            // any other URL is read as a document already in the rows.json shape
+            URLConnection conn = getConnection(query);
+            BufferedReader connReader = new BufferedReader(
+               new InputStreamReader(openStream(conn, createURL(query)), "UTF-8"));
+
+            // TODO: Might need to switch this to a streaming based implementation.
+            jsonReader = Json.createReader(connReader);
+            jObj = jsonReader.readObject();
+         }
+
          table = new DatagovTable(jObj, query0.getMaxRows(), query);
       }
       catch(Exception ex) {
@@ -91,16 +104,20 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
    static String describeFailure(String url, Throwable ex) {
       String message = ex.getMessage();
 
+      if(ex instanceof DatagovHttpException) {
+         DatagovHttpException http = (DatagovHttpException) ex;
+         return describeStatus(http.getStatus(), http.getUrl());
+      }
+
       if(ex instanceof FileNotFoundException) {
-         return "The data.gov request to " + url + " failed: not found (HTTP 404), the dataset " +
-            "or path does not exist";
+         return "The data.gov request to " + url + " failed: not found, the dataset or path " +
+            "does not exist";
       }
 
       if(ex instanceof JsonException) {
          return "The data.gov response from " + url + " is not in the rows.json shape this " +
-            "connector reads (a JSON object with 'meta' and 'data'); for example, a JSON array " +
-            "from a /resource/ endpoint is not supported. Use the dataset's /api/views/<id>/" +
-            "rows.json path instead";
+            "connector reads (a JSON object with 'meta' and 'data'); point the URL suffix at " +
+            "the dataset's /resource/<id>.json path on the Socrata site instead";
       }
 
       if(message != null && message.contains("HTTP response code")) {
@@ -108,6 +125,45 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
       }
 
       return "Error executing data.gov query: " + url + " (" + message + ")";
+   }
+
+   /**
+    * Describes an HTTP error status by what it means for the request. The JDK throws the same
+    * {@link FileNotFoundException} for 404 and 410, so the status itself is what tells a dataset
+    * that does not exist from an endpoint Socrata has retired.
+    */
+   private static String describeStatus(int status, String url) {
+      String prefix = "The data.gov request to " + url + " failed: ";
+
+      switch(status) {
+      case 404:
+         return prefix + "not found (HTTP 404), the dataset or path does not exist";
+      case 410:
+         return prefix + "gone (HTTP 410), Socrata has retired this endpoint; use the dataset's " +
+            "/resource/<id>.json path";
+      case 401:
+      case 403:
+         return prefix + "access denied (HTTP " + status + "), check the data source credentials";
+      default:
+         return prefix + "the site answered HTTP " + status;
+      }
+   }
+
+   /**
+    * Opens the response stream, turning a non-2xx HTTP status into a {@link DatagovHttpException}
+    * that carries the status.
+    */
+   private static InputStream openStream(URLConnection conn, String url) throws Exception {
+      if(conn instanceof HttpURLConnection) {
+         HttpURLConnection http = (HttpURLConnection) conn;
+         int status = http.getResponseCode();
+
+         if(status < 200 || status >= 300) {
+            throw new DatagovHttpException(status, url, readErrorBody(http));
+         }
+      }
+
+      return conn.getInputStream();
    }
 
    @Override
@@ -252,8 +308,8 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
    }
 
    /**
-    * Reads one of the configured site's own classic-API endpoints (used only for
-    * {@code describeDataset}'s {@code rows.json?max_rows=0} call). A SEPARATE method from
+    * Reads one of the configured site's own metadata endpoints ({@code /api/views/<id>.json}, used
+    * by {@code describeDataset} and by {@link DatagovSoda}). A SEPARATE method from
     * {@link #getConnection} rather than a reuse of it: {@code getConnection} is shaped around
     * {@code runQuery}'s POST-with-no-body semantics ({@code conn.setDoOutput(true)}
     * unconditionally) and this call must stay GET-only per {@link TabularCatalogProvider}'s "must
@@ -266,11 +322,30 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
     * @param url the full, already-resolved request URL.
     */
    static String getSiteMetadata(DatagovDataSource ds, String url) throws Exception {
+      return readSite(ds, url, CATALOG_HTTP_TIMEOUT);
+   }
+
+   /**
+    * Reads one page of rows from the configured site's SODA endpoint. Same GET and credentials as
+    * {@link #getSiteMetadata}, with a longer read timeout because a page can be tens of thousands
+    * of rows.
+    *
+    * @param url the full, already-resolved request URL.
+    */
+   static String getSiteData(DatagovDataSource ds, String url) throws Exception {
+      return readSite(ds, url, DATA_HTTP_TIMEOUT);
+   }
+
+   private static String readSite(DatagovDataSource ds, String url, int readTimeout)
+      throws Exception
+   {
       HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
       conn.setConnectTimeout(CATALOG_HTTP_TIMEOUT);
-      conn.setReadTimeout(CATALOG_HTTP_TIMEOUT);
+      conn.setReadTimeout(readTimeout);
       conn.setRequestMethod("GET");
       conn.setRequestProperty("Accept", "application/json");
+      // a page of rows compresses well; the bytes on the wire are what a slow link costs
+      conn.setRequestProperty("Accept-Encoding", "gzip");
       String user = ds.getUser();
       String password = ds.getPassword();
 
@@ -296,17 +371,7 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
       int status = conn.getResponseCode();
 
       if(status < 200 || status >= 300) {
-         String body;
-
-         try(InputStream error = conn.getErrorStream()) {
-            body = error == null ? "" : IOUtils.toString(error, StandardCharsets.UTF_8);
-         }
-         catch(Exception ignore) {
-            body = "";
-         }
-
-         throw new Exception("Datagov site answered HTTP " + status + " for " + urlString +
-                             (body.isEmpty() ? "" : ": " + body));
+         throw new DatagovHttpException(status, urlString, readErrorBody(conn));
       }
 
       try(InputStream raw = conn.getInputStream()) {
@@ -327,6 +392,15 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
       }
    }
 
+   private static String readErrorBody(HttpURLConnection conn) {
+      try(InputStream error = conn.getErrorStream()) {
+         return error == null ? "" : IOUtils.toString(error, StandardCharsets.UTF_8);
+      }
+      catch(Exception ignore) {
+         return "";
+      }
+   }
+
    /**
     * Connect/read timeout (ms) for the catalog SPI's two HTTP calls ({@link #getDiscoveryMetadata}/
     * {@link #getSiteMetadata}) only -- deliberately not applied to {@link #getConnection}/
@@ -338,6 +412,9 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
     * timeout set anywhere in this class).
     */
    private static final int CATALOG_HTTP_TIMEOUT = 30_000;
+
+   /** Read timeout (ms) for one page of rows. */
+   private static final int DATA_HTTP_TIMEOUT = 120_000;
 
    /** Tries per Discovery page before the listing gives up (see {@link #getDiscoveryMetadata}). */
    private static final int DISCOVERY_ATTEMPTS = 3;

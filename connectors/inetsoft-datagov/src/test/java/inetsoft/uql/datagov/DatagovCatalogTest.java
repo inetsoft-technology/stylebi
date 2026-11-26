@@ -17,7 +17,6 @@
  */
 package inetsoft.uql.datagov;
 
-import com.sun.net.httpserver.HttpServer;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
@@ -42,8 +41,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Stream;
@@ -142,10 +139,14 @@ class DatagovCatalogTest {
       return "{\"resource\":{\"id\":\"" + id + "\",\"type\":\"" + type + "\",\"name\":\"n\"}}";
    }
 
-   private static String rowsJson(String description, Long rowIdentifierColumnId,
+   /** The Socrata system columns every described dataset leads with. */
+   private static final int SYSTEM = 8;
+
+   /** The Views API metadata ({@code /api/views/<id>.json}): the view itself, no system columns. */
+   private static String viewJson(String description, Long rowIdentifierColumnId,
                                   String... columns)
    {
-      StringBuilder sb = new StringBuilder("{\"meta\":{\"view\":{");
+      StringBuilder sb = new StringBuilder("{");
 
       if(description != null) {
          sb.append("\"description\":\"").append(description).append("\",");
@@ -155,8 +156,12 @@ class DatagovCatalogTest {
          sb.append("\"rowIdentifierColumnId\":").append(rowIdentifierColumnId).append(",");
       }
 
-      sb.append("\"columns\":[").append(String.join(",", columns)).append("]}}}");
+      sb.append("\"columns\":[").append(String.join(",", columns)).append("]}");
       return sb.toString();
+   }
+
+   private static List<String> userColumnNames(TabularDatasetSchema schema) {
+      return schema.columns().stream().skip(SYSTEM).map(TabularColumn::name).toList();
    }
 
    private static String column(int id, String name, String dataTypeName) {
@@ -284,18 +289,53 @@ class DatagovCatalogTest {
 
    @Test
    void describeDataset_echoesDatasetIdAndMarksColumnsComplete() throws Exception {
-      stubSiteMetadata(rowsJson(null, null, column(1, "sid", "meta_data")));
+      stubSiteMetadata(viewJson(null, null, column(1, "sid", "meta_data")));
 
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
 
       assertEquals("erm2-nwe9", schema.datasetId());
       assertFalse(schema.columnsMayBeIncomplete(),
-         "rows.json?max_rows=0 is declared metadata, not a bounded scan");
+         "the Views API metadata is declared metadata, not a bounded scan");
+   }
+
+   @Test
+   void describeDataset_leadsWithTheEightSystemColumnsRowsJsonAlwaysHad() throws Exception {
+      stubSiteMetadata(viewJson(null, null, column(1, "Unique Key", "text")));
+
+      TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
+
+      assertEquals(List.of("sid", "id", "position", "created_at", "created_meta", "updated_at",
+                           "updated_meta", "meta", "Unique Key"),
+         schema.columns().stream().map(TabularColumn::name).toList(),
+         "the runtime still builds these columns, so the description must declare them");
+   }
+
+   @Test
+   void describeDataset_readsOnlyTheViewMetadataEndpoint() throws Exception {
+      ArgumentCaptor<String> requested = ArgumentCaptor.forClass(String.class);
+      ensureStatic().when(() -> DatagovRuntime.getSiteMetadata(any(), requested.capture()))
+         .thenReturn(viewJson(null, null, column(1, "Unique Key", "text")));
+
+      DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
+
+      assertEquals(List.of("https://data.cityofnewyork.us/api/views/erm2-nwe9.json"),
+         requested.getAllValues(), "rows.json is retired and must not be called");
+   }
+
+   @Test
+   void describeDataset_retiredEndpointStatusIsNotDescribedAsMissing() {
+      stubSiteMetadataThrows(new DatagovHttpException(410,
+         "https://data.cityofnewyork.us/api/views/erm2-nwe9.json", "feature_deprecated"));
+
+      DatagovHttpException thrown = assertThrows(DatagovHttpException.class,
+         () -> DatagovCatalog.describeDataset(ds(), "erm2-nwe9"));
+      assertEquals(410, thrown.getStatus());
+      assertTrue(thrown.getMessage().contains("HTTP 410"), thrown.getMessage());
    }
 
    @Test
    void describeDataset_noColumns_throws() {
-      stubSiteMetadata(rowsJson(null, null));
+      stubSiteMetadata(viewJson(null, null));
 
       Exception thrown = assertThrows(Exception.class,
          () -> DatagovCatalog.describeDataset(ds(), "erm2-nwe9"));
@@ -304,8 +344,8 @@ class DatagovCatalogTest {
 
    @Test
    void describeDataset_unknownDataset_throwsNamingTheId() {
-      stubSiteMetadataThrows(new Exception("Datagov site answered HTTP 404 for " +
-         "https://data.cityofnewyork.us/api/views/aaaa-bbbb/rows.json?max_rows=0"));
+      stubSiteMetadataThrows(new DatagovHttpException(404,
+         "https://data.cityofnewyork.us/api/views/aaaa-bbbb.json", ""));
 
       Exception thrown = assertThrows(Exception.class,
          () -> DatagovCatalog.describeDataset(ds(), "aaaa-bbbb"));
@@ -315,13 +355,12 @@ class DatagovCatalogTest {
 
    @Test
    void describeDataset_columnOrderFollowsMetaViewColumnsArrayOrder() throws Exception {
-      stubSiteMetadata(rowsJson(null, null,
+      stubSiteMetadata(viewJson(null, null,
          column(3, "Third", "text"), column(1, "First", "text"), column(2, "Second", "text")));
 
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
 
-      assertEquals(List.of("Third", "First", "Second"),
-         schema.columns().stream().map(TabularColumn::name).toList(),
+      assertEquals(List.of("Third", "First", "Second"), userColumnNames(schema),
          "column order must follow the raw JSON array order, not the 'id'/'position' field");
    }
 
@@ -329,7 +368,7 @@ class DatagovCatalogTest {
    void describeDataset_paramsKeyMatchesDatagovQuerysOwnBeanProperty() throws Exception {
       // Derived, not written out: TabularUtil derives a property name from the getter, so a getter
       // rename must break this assertion rather than leave a literal here green.
-      stubSiteMetadata(rowsJson(null, null, column(1, "sid", "meta_data")));
+      stubSiteMetadata(viewJson(null, null, column(1, "sid", "meta_data")));
 
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
 
@@ -341,7 +380,8 @@ class DatagovCatalogTest {
       // Fully filled -- no empty value.
       schema.params().forEach((k, v) -> assertFalse(v == null || v.isBlank(),
          "params['" + k + "'] must not be empty"));
-      assertEquals("/api/views/erm2-nwe9/rows.json", schema.params().get("suffix"));
+      assertEquals("/resource/erm2-nwe9.json", schema.params().get("suffix"),
+         "the supported SODA endpoint, not the retired rows.json");
    }
 
    /**
@@ -354,45 +394,22 @@ class DatagovCatalogTest {
     * because this is the only test that ever hands the map back to a real {@code DatagovQuery}/
     * {@code DatagovRuntime.runQuery}.
     *
-    * <p>Reuses {@code DatagovRuntimeTest}'s own {@code rows.json} fixture for BOTH roles at once:
-    * the mocked {@code meta.view} response {@code describeDataset} reads its declared columns
-    * from, AND the literal HTTP body a local, in-process server (no live network, no Docker --
-    * same {@code com.sun.net.httpserver.HttpServer} approach as {@code DatagovMetadataFetchTests})
-    * answers with when {@code runQuery} requests the exact suffix {@code describeDataset}
-    * declared. One real payload, not two hand-authored ones that could silently drift apart.
+    * <p>Both roles are served by one local, in-process Socrata stand-in ({@link SodaStub}, no live
+    * network, no Docker): the dataset metadata {@code describeDataset} reads its declared columns
+    * from, and the rows {@code runQuery} reads from the exact suffix {@code describeDataset}
+    * declared (a suffix pointing anywhere else 404s there instead of passing).
     */
    @Test
    void describeDataset_paramsRoundTripThroughApplyQueryContractAndRunQueryReturnsRows()
       throws Exception
    {
-      String fixture;
-
-      try(InputStream in = getClass().getResourceAsStream("rows.json")) {
-         fixture = new String(IOUtils.toByteArray(in), StandardCharsets.UTF_8);
-      }
-
-      stubSiteMetadata(fixture);
-      TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
-      List<String> declaredColumns = schema.columns().stream().map(TabularColumn::name).toList();
-
-      HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-
-      try {
-         // Exactly the suffix path describeDataset declared -- a suffix pointing anywhere else
-         // (a renamed property, an appended query parameter) 404s here instead of passing.
-         server.createContext("/api/views/erm2-nwe9/rows.json", exchange -> {
-            byte[] body = fixture.getBytes(StandardCharsets.UTF_8);
-            exchange.getResponseHeaders().add("Content-Type", "application/json");
-            exchange.sendResponseHeaders(200, body.length);
-
-            try(OutputStream out = exchange.getResponseBody()) {
-               out.write(body);
-            }
-         });
-         server.start();
-
-         DatagovDataSource liveDs =
-            ds("http://localhost:" + server.getAddress().getPort() + "/");
+      try(SodaStub server = new SodaStub("erm2-nwe9", resource("soda-view.json"),
+                                         SodaStub.array(resource("soda-rows.json"))))
+      {
+         DatagovDataSource liveDs = ds(server.baseUrl());
+         TabularDatasetSchema schema = DatagovCatalog.describeDataset(liveDs, "erm2-nwe9");
+         List<String> declaredColumns =
+            schema.columns().stream().map(TabularColumn::name).toList();
          DatagovQuery query = new DatagovQuery();
          query.setDataSource(liveDs);
 
@@ -424,33 +441,31 @@ class DatagovCatalogTest {
          }
 
          assertEquals(1094, rows,
-            "the fixture holds 1094 rows and the binding must return them all");
+            "the fixture holds 1094 rows (more than SODA's default page of 1000) and the " +
+            "binding must return them all");
       }
-      finally {
-         server.stop(0);
+   }
+
+   private String resource(String name) throws Exception {
+      try(InputStream in = getClass().getResourceAsStream(name)) {
+         return new String(IOUtils.toByteArray(in), StandardCharsets.UTF_8);
       }
    }
 
    @Test
    void describeDataset_dateType_isDecimalWithoutUnrecognizedWarning() throws Exception {
-      stubSiteMetadata(rowsJson(null, null, column(1, "when", "date")));
+      stubSiteMetadata(viewJson(null, null, column(1, "when", "date")));
 
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
 
-      assertEquals(XSchema.DECIMAL, schema.columns().get(0).type());
+      assertEquals(XSchema.DECIMAL, schema.columns().get(SYSTEM).type());
       assertFalse(schema.description() != null && schema.description().contains("when"),
          schema.description());
    }
 
    @Test
    void describeDataset_metaDataColumns_numericOnlyForTheNumericSystemColumns() throws Exception {
-      String fixture;
-
-      try(InputStream in = getClass().getResourceAsStream("rows.json")) {
-         fixture = new String(IOUtils.toByteArray(in), StandardCharsets.UTF_8);
-      }
-
-      stubSiteMetadata(fixture);
+      stubSiteMetadata(resource("soda-view.json"));
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
       Map<String, String> types = new HashMap<>();
       schema.columns().forEach(c -> types.put(c.name(), c.type()));
@@ -466,46 +481,43 @@ class DatagovCatalogTest {
 
    @Test
    void describeDataset_metaDataKeyedByFieldName_displayNameCannotFlipAColumn() throws Exception {
-      stubSiteMetadata(rowsJson(null, null,
+      stubSiteMetadata(viewJson(null, null,
          "{\"id\":1,\"name\":\"Ordinal\",\"fieldName\":\":position\",\"dataTypeName\":\"meta_data\"}",
          "{\"id\":2,\"name\":\"position\",\"fieldName\":\":meta\",\"dataTypeName\":\"meta_data\"}"));
 
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
 
-      assertEquals(XSchema.DECIMAL, schema.columns().get(0).type());
-      assertEquals(XSchema.STRING, schema.columns().get(1).type());
+      assertEquals(XSchema.DECIMAL, schema.columns().get(SYSTEM).type());
+      assertEquals(XSchema.STRING, schema.columns().get(SYSTEM + 1).type());
    }
 
    @Test
    void describeDataset_typesAgreeWithWhatDatagovTableBuildsFromTheFirstRow() throws Exception {
-      String fixture;
+      try(SodaStub server = new SodaStub("erm2-nwe9", resource("soda-view.json"),
+                                         SodaStub.array(resource("soda-rows.json"))))
+      {
+         DatagovDataSource liveDs = ds(server.baseUrl());
+         TabularDatasetSchema schema = DatagovCatalog.describeDataset(liveDs, "erm2-nwe9");
 
-      try(InputStream in = getClass().getResourceAsStream("rows-string-sid.json")) {
-         fixture = new String(IOUtils.toByteArray(in), StandardCharsets.UTF_8);
-      }
+         DatagovQuery query = new DatagovQuery();
+         query.setDataSource(liveDs);
+         query.setSuffix(schema.params().get("suffix"));
+         XTableNode table = new DatagovRuntime().runQuery(query, new VariableTable());
+         assertTrue(table.next());
 
-      stubSiteMetadata(fixture);
-      TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
+         Map<String, Class<?>> expected = Map.of(
+            XSchema.STRING, String.class, XSchema.DECIMAL, java.math.BigDecimal.class);
 
-      DatagovDataSource fileDs = new DatagovDataSource();
-      fileDs.setURL(getClass().getResource("rows-string-sid.json").toExternalForm());
-      DatagovQuery query = new DatagovQuery();
-      query.setDataSource(fileDs);
-      XTableNode table = new DatagovRuntime().runQuery(query, new VariableTable());
-      assertTrue(table.next());
+         for(int i = 0; i < schema.columns().size(); i++) {
+            TabularColumn column = schema.columns().get(i);
 
-      Map<String, Class<?>> expected = Map.of(
-         XSchema.STRING, String.class, XSchema.DECIMAL, java.math.BigDecimal.class);
+            if(table.getObject(i) == null) {
+               continue;
+            }
 
-      for(int i = 0; i < schema.columns().size(); i++) {
-         TabularColumn column = schema.columns().get(i);
-
-         if(table.getObject(i) == null) {
-            continue;
+            assertEquals(expected.get(column.type()), table.getType(i),
+               "catalog type of \"" + column.name() + "\" must equal the built column type");
          }
-
-         assertEquals(expected.get(column.type()), table.getType(i),
-            "catalog type of \"" + column.name() + "\" must equal the built column type");
       }
    }
 
@@ -540,7 +552,7 @@ class DatagovCatalogTest {
       // confirms.
       ArgumentCaptor<String> requested = ArgumentCaptor.forClass(String.class);
       ensureStatic().when(() -> DatagovRuntime.getSiteMetadata(any(), requested.capture()))
-         .thenReturn(rowsJson(null, null, column(1, "sid", "meta_data")));
+         .thenReturn(viewJson(null, null, column(1, "sid", "meta_data")));
 
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), id);
 
@@ -584,7 +596,7 @@ class DatagovCatalogTest {
 
    @Test
    void describeDataset_rowIdentifierNamesABusinessColumn_reportedAsKeyColumn() throws Exception {
-      stubSiteMetadata(rowsJson(null, 2L,
+      stubSiteMetadata(viewJson(null, 2L,
          column(1, "sid", "meta_data"), column(2, "Unique Key", "text")));
 
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
@@ -594,7 +606,7 @@ class DatagovCatalogTest {
 
    @Test
    void describeDataset_noRowIdentifier_keyColumnsEmpty() throws Exception {
-      stubSiteMetadata(rowsJson(null, null,
+      stubSiteMetadata(viewJson(null, null,
          column(1, "sid", "meta_data"), column(2, "Unique Key", "text")));
 
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
@@ -606,7 +618,7 @@ class DatagovCatalogTest {
    void describeDataset_rowIdentifierNamesTheSystemColumn_stillFaithfullyReported()
       throws Exception
    {
-      stubSiteMetadata(rowsJson(null, 1L,
+      stubSiteMetadata(viewJson(null, 1L,
          column(1, "sid", "meta_data"), column(2, "Unique Key", "text")));
 
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
@@ -622,9 +634,9 @@ class DatagovCatalogTest {
       // rather than a bare number -- exercises getLong's JsonString fallback branch (review R1,
       // Minor 2), not just its NUMBER fast path every other test in this class hits via rowsJson/
       // column's unquoted-literal helpers.
-      stubSiteMetadata("{\"meta\":{\"view\":{\"rowIdentifierColumnId\":\"2\",\"columns\":[" +
+      stubSiteMetadata("{\"rowIdentifierColumnId\":\"2\",\"columns\":[" +
          "{\"id\":\"1\",\"name\":\"sid\",\"dataTypeName\":\"meta_data\"}," +
-         "{\"id\":\"2\",\"name\":\"Unique Key\",\"dataTypeName\":\"text\"}]}}}");
+         "{\"id\":\"2\",\"name\":\"Unique Key\",\"dataTypeName\":\"text\"}]}");
 
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
 
@@ -635,7 +647,7 @@ class DatagovCatalogTest {
 
    @Test
    void describeDataset_descriptionsAreTrimmedAndCarriedVerbatim() throws Exception {
-      stubSiteMetadata(rowsJson("NYC 311 service requests.\\n", null,
+      stubSiteMetadata(viewJson("NYC 311 service requests.\\n", null,
          column(1, "Unique Key", "text",
                 "Unique identifier of a Service Request (SR) in the open data set\\n")));
 
@@ -644,16 +656,16 @@ class DatagovCatalogTest {
       assertTrue(schema.description().startsWith("NYC 311 service requests."),
          schema.description());
       assertEquals("Unique identifier of a Service Request (SR) in the open data set",
-         schema.columns().get(0).description());
+         schema.columns().get(SYSTEM).description());
    }
 
    @Test
    void describeDataset_blankDescriptions_reportedAsNullNotEmptyString() throws Exception {
-      stubSiteMetadata(rowsJson(null, null, column(1, "sid", "meta_data")));
+      stubSiteMetadata(viewJson(null, null, column(1, "sid", "meta_data")));
 
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
 
-      assertNull(schema.columns().get(0).description());
+      assertNull(schema.columns().get(SYSTEM).description());
    }
 
    // ----- describeDataset: dataTypeName -> XSchema mapping (A4) -----
@@ -663,11 +675,11 @@ class DatagovCatalogTest {
    void describeDataset_mapsDataTypeNameToXSchema(String dataTypeName, String expectedXSchema)
       throws Exception
    {
-      stubSiteMetadata(rowsJson(null, null, column(1, "col", dataTypeName)));
+      stubSiteMetadata(viewJson(null, null, column(1, "col", dataTypeName)));
 
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
 
-      assertEquals(expectedXSchema, schema.columns().get(0).type(),
+      assertEquals(expectedXSchema, schema.columns().get(SYSTEM).type(),
          "dataTypeName '" + dataTypeName + "'");
    }
 
@@ -704,11 +716,11 @@ class DatagovCatalogTest {
    void describeDataset_unrecognizedDataTypeName_reportedAsStringAndFlaggedInDescription()
       throws Exception
    {
-      stubSiteMetadata(rowsJson(null, null, column(1, "futureField", "some_brand_new_type")));
+      stubSiteMetadata(viewJson(null, null, column(1, "futureField", "some_brand_new_type")));
 
       TabularDatasetSchema schema = DatagovCatalog.describeDataset(ds(), "erm2-nwe9");
 
-      assertEquals(XSchema.STRING, schema.columns().get(0).type());
+      assertEquals(XSchema.STRING, schema.columns().get(SYSTEM).type());
       assertTrue(schema.description().contains("futureField") &&
                  schema.description().contains("some_brand_new_type"),
          schema.description());

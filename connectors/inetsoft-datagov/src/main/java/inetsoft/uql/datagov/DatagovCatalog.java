@@ -100,8 +100,8 @@ final class DatagovCatalog {
 
             // Belt-and-suspenders: `only=datasets` is a real, server-side filter, but this is
             // cheap insurance against a response that includes a non-dataset asset (a chart, map,
-            // filtered view, story...) despite the filter -- those are not describable via
-            // rows.json, and emitting one here would only surface as a confusing describeDataset
+            // filtered view, story...) despite the filter -- those have no dataset columns to
+            // describe, and emitting one here would only surface as a confusing describeDataset
             // failure later.
             String type = getString(resource, "type");
 
@@ -139,23 +139,22 @@ final class DatagovCatalog {
       // An ABSOLUTE-PATH reference replaces base's whole path when resolved, keeping only
       // scheme+authority -- this reaches the site's classic API root regardless of whether the
       // operator's URL points at the site root or at one specific resource's full path (see A10).
-      URI target = base.resolve("/api/views/" + datasetId + "/rows.json?max_rows=0");
+      URI target = base.resolve("/api/views/" + datasetId + ".json");
       String context = "Socrata dataset '" + datasetId + "'";
 
       String json = DatagovRuntime.getSiteMetadata(ds, target.toString());
-      JsonObject root = parseObject(json, context);
-      JsonObject meta = root.getJsonObject("meta");
-      JsonObject view = meta == null ? null : meta.getJsonObject("view");
+      // the Views API metadata is the view itself; it carries the same columns the retired
+      // rows.json export did under meta.view, minus the system columns added back below
+      JsonObject view = parseObject(json, context);
+      JsonArray declaredColumns = view.getJsonArray("columns");
 
-      if(view == null) {
-         throw new Exception(context + " answered with no meta.view block.");
-      }
-
-      JsonArray rawColumns = view.getJsonArray("columns");
-
-      if(rawColumns == null || rawColumns.isEmpty()) {
+      if(declaredColumns == null || declaredColumns.isEmpty()) {
          throw new Exception(context + " declares no columns.");
       }
+
+      // rows.json always led with Socrata's system columns and the runtime still builds them, so
+      // the described columns must include them to equal what a build returns
+      JsonArray rawColumns = DatagovSoda.withSystemColumns(declaredColumns);
 
       List<TabularColumn> columns = new ArrayList<>();
       List<String> unrecognizedTypes = new ArrayList<>();
@@ -208,11 +207,10 @@ final class DatagovCatalog {
 
       Map<String, String> params = new LinkedHashMap<>();
       // Fully filled, with no empty value -- once the dataset id is known the exact suffix that
-      // reproduces this dataset's rows is completely determined. The classic /api/views/{id}/
-      // rows.json path is used deliberately, not the modern /resource/{id}.json path: DatagovTable's
-      // constructor requires meta.view.columns + a data array-of-arrays, exactly and only what the
-      // classic endpoint returns.
-      params.put("suffix", "/api/views/" + datasetId + "/rows.json");
+      // reproduces this dataset's rows is completely determined. The SODA /resource/{id}.json
+      // path is the supported endpoint; the retired /api/views/{id}/rows.json suffix older saved
+      // queries carry is still accepted and translated at run time (see DatagovSoda).
+      params.put("suffix", "/resource/" + datasetId + ".json");
 
       return new TabularDatasetSchema(datasetId, columns,
          keyColumnName == null ? List.of() : List.of(keyColumnName), params, false,
@@ -260,7 +258,7 @@ final class DatagovCatalog {
 
       text.append("Socrata dataset '").append(datasetId)
          .append("'. One row per record, columns read from the dataset's own declared metadata " +
-                 "(GET /api/views/").append(datasetId).append("/rows.json?max_rows=0) -- not a " +
+                 "(GET /api/views/").append(datasetId).append(".json) -- not a " +
                  "sample, so the column list is complete for the columns Socrata declares.");
 
       if(!unrecognizedTypes.isEmpty()) {
@@ -273,7 +271,7 @@ final class DatagovCatalog {
       return text.toString();
    }
 
-   private static JsonObject parseObject(String json, String context) throws Exception {
+   static JsonObject parseObject(String json, String context) throws Exception {
       JsonValue value;
 
       try(JsonReader reader = Json.createReader(new StringReader(json))) {
@@ -379,8 +377,8 @@ final class DatagovCatalog {
    /**
     * The Socrata system columns whose values are JSON numbers (epoch seconds for the two
     * timestamps), keyed without the leading colon of their {@code fieldName}. The other system
-    * columns (sid, id, created_meta, updated_meta, meta) are strings or null; live rows.json
-    * carries sid as a string such as "row-ypma~p3md-z6du".
+    * columns (sid, id, created_meta, updated_meta, meta) are strings or null; the sid
+    * is a string such as "row-ypma~p3md-z6du".
     */
    private static final Set<String> NUMERIC_META_COLUMNS =
       Set.of("position", "created_at", "updated_at");
