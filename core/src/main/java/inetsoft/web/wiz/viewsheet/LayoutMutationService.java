@@ -35,7 +35,9 @@ import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.VSEditableAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
+import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.composer.vs.dialog.ImagePreviewPaneService;
 import inetsoft.web.composer.vs.event.AddVSLayoutObjectEvent;
 import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import org.slf4j.Logger;
@@ -129,19 +131,29 @@ public class LayoutMutationService {
    public LayoutMutationService(LayoutSessionService layoutSessions,
                                  ViewsheetSessionService viewsheetSessions,
                                  VSLayoutService vsLayoutService,
-                                 SheetAgentBroadcastService broadcast)
+                                 SheetAgentBroadcastService broadcast,
+                                 ImagePreviewPaneService imagePreviewPaneService)
    {
       this.layoutSessions = layoutSessions;
       this.viewsheetSessions = viewsheetSessions;
       this.vsLayoutService = vsLayoutService;
       this.broadcast = broadcast;
+      this.imagePreviewPaneService = imagePreviewPaneService;
+   }
+
+   public LayoutMutationService(LayoutSessionService layoutSessions,
+                                 ViewsheetSessionService viewsheetSessions,
+                                 VSLayoutService vsLayoutService,
+                                 SheetAgentBroadcastService broadcast)
+   {
+      this(layoutSessions, viewsheetSessions, vsLayoutService, broadcast, null);
    }
 
    public LayoutMutationService(LayoutSessionService layoutSessions,
                                  ViewsheetSessionService viewsheetSessions,
                                  VSLayoutService vsLayoutService)
    {
-      this(layoutSessions, viewsheetSessions, vsLayoutService, null);
+      this(layoutSessions, viewsheetSessions, vsLayoutService, null, null);
    }
 
    public static final String OP_ADD = "add";
@@ -209,7 +221,7 @@ public class LayoutMutationService {
 
          if(OP_MOVE_RESIZE.equals(op)) {
             for(Map<String, Object> object : objects) {
-               planMoveResize(preMaster.getViewsheet(), preLayout, layoutName, region, object);
+               planMoveResize(preMaster, preLayout, layoutName, region, object);
             }
          }
          else {
@@ -221,7 +233,7 @@ public class LayoutMutationService {
 
             for(Map<String, Object> object : objects) {
                String name = requireName(object);
-               validateAddObject(preMaster.getViewsheet(), preLayout, layoutName, region, object,
+               validateAddObject(preMaster, preLayout, layoutName, region, object,
                                  name, placed);
                placed.add(name);
             }
@@ -312,7 +324,7 @@ public class LayoutMutationService {
             AbstractLayout layout = requireLayout(master, layoutName);
 
             for(Map<String, Object> object : objects) {
-               MoveResizePlan plan = planMoveResize(master.getViewsheet(), layout, layoutName,
+               MoveResizePlan plan = planMoveResize(master, layout, layoutName,
                                                     region, object);
                String name = plan.name();
                int resolved = plan.region();
@@ -366,7 +378,7 @@ public class LayoutMutationService {
     * the pre-validation in {@link #editObjects} and by the mutation lambda so they cannot drift.
     * The resulting position is the MERGED one (an omitted x/y keeps the current value).
     */
-   private MoveResizePlan planMoveResize(Viewsheet masterVs, AbstractLayout layout,
+   private MoveResizePlan planMoveResize(RuntimeViewsheet master, AbstractLayout layout,
                                          String layoutName, int region, Map<String, Object> object)
    {
       String name = requireName(object);
@@ -416,7 +428,7 @@ public class LayoutMutationService {
                "object -- \"" + imageField + "\" only applies to a layout-only image.");
          }
 
-         imageEdit = parseImageEdit(masterVs, object, "move_resize", name);
+         imageEdit = parseImageEdit(master, object, "move_resize", name);
          resolveImageOptions(imageInfo, imageEdit, name);
       }
 
@@ -456,7 +468,7 @@ public class LayoutMutationService {
 
                VSAssembly assembly = masterVs.getAssembly(name);
                boolean existAssembly = assembly != null;
-               validateAddObject(masterVs, layout, layoutName, region, object, name, placed);
+               validateAddObject(master, layout, layoutName, region, object, name, placed);
 
                if(!existAssembly) {
                   event.setType(parseAssetType(object.get("type"), name));
@@ -469,7 +481,7 @@ public class LayoutMutationService {
                   }
 
                   if(assembly instanceof ImageVSAssembly image) {
-                     ImageEdit imageEdit = parseImageEdit(masterVs, object, "add", name);
+                     ImageEdit imageEdit = parseImageEdit(master, object, "add", name);
 
                      if(imageEdit != null) {
                         applyImageEdit((ImageVSAssemblyInfo) image.getVSAssemblyInfo(), imageEdit);
@@ -502,10 +514,11 @@ public class LayoutMutationService {
     *
     * @return whether {@code name} is an existing assembly on the viewsheet.
     */
-   private boolean validateAddObject(Viewsheet masterVs, AbstractLayout layout, String layoutName,
-                                     int region, Map<String, Object> object, String name,
-                                     Set<String> placed)
+   private boolean validateAddObject(RuntimeViewsheet master, AbstractLayout layout,
+                                     String layoutName, int region, Map<String, Object> object,
+                                     String name, Set<String> placed)
    {
+      Viewsheet masterVs = master.getViewsheet();
       int xOffset = toInt("x", object.getOrDefault("x", 0));
       int yOffset = toInt("y", object.getOrDefault("y", 0));
       requireNonNegativePosition(xOffset, yOffset);
@@ -621,7 +634,7 @@ public class LayoutMutationService {
             }
 
             resolveImageOptions(new ImageVSAssemblyInfo(),
-                                parseImageEdit(masterVs, object, "add", name), name);
+                                parseImageEdit(master, object, "add", name), name);
          }
 
          // createVSAssembly reads the page size with no null guard (NPE otherwise).
@@ -921,11 +934,6 @@ public class LayoutMutationService {
       return result;
    }
 
-   /**
-    * Bug 78755: {@code Number.intValue()} keeps the low 32 bits of a long and truncates a
-    * fraction, so 4294967301 became 5 and 2.7 became 2. Convert exactly instead; an integral
-    * value such as {@code 5.0} is accepted.
-    */
    // ── layout-only image options ─────────────────────────────────────────────
 
    /**
@@ -966,8 +974,8 @@ public class LayoutMutationService {
     * Validate the image fields of {@code object}, or return {@code null} when it carries none.
     * Reads only the master's uploaded images, so it is safe before any layout session is opened.
     */
-   private static ImageEdit parseImageEdit(Viewsheet masterVs, Map<String, Object> object,
-                                           String op, String name)
+   private ImageEdit parseImageEdit(RuntimeViewsheet master, Map<String, Object> object,
+                                    String op, String name)
    {
       if(firstImageField(object) == null) {
          return null;
@@ -982,7 +990,7 @@ public class LayoutMutationService {
       }
 
       String image = object.containsKey("image") ?
-         normalizeImage(masterVs, object.get("image"), prefix) : null;
+         normalizeImage(master, object.get("image"), prefix) : null;
       Integer alpha = null;
 
       if(object.containsKey("alpha")) {
@@ -1063,9 +1071,12 @@ public class LayoutMutationService {
     * {@code ^UPLOADED^} form and a bare skin name to its {@code ^SKIN^} form. Anything else is a
     * path the layout image cannot show (the dynamic form is not offered for a layout object), so
     * it is refused rather than stored as an empty picture. An uploaded image must exist on the
-    * viewsheet; a {@code ^SERVER^} path is accepted as given.
+    * viewsheet and a {@code ^SERVER^} path must be one of the images the Composer's image dialog
+    * lists (its image tree), so an unknown or {@code ..} path is refused instead of printing an
+    * empty box.
     */
-   private static String normalizeImage(Viewsheet masterVs, Object value, String prefix) {
+   private String normalizeImage(RuntimeViewsheet master, Object value, String prefix) {
+      Viewsheet masterVs = master.getViewsheet();
       if(!(value instanceof String text) || text.isBlank()) {
          throw new IllegalArgumentException(
             prefix + "'image' must be a non-empty string -- use the selectedImage value " +
@@ -1108,7 +1119,7 @@ public class LayoutMutationService {
                prefix + "'image' " + image + " names no server image path.");
          }
 
-         return server + image.substring(server.length());
+         return requireKnownServerImage(master, image, prefix);
       }
 
       if(masterVs.getUploadedImageBytes(image) != null) {
@@ -1206,6 +1217,37 @@ public class LayoutMutationService {
                                maintain, tile, insets);
    }
 
+   /**
+    * A {@code ^SERVER^} value must name a leaf of the image tree the dialog itself offers
+    * ({@link ImagePreviewPaneService#getImageTree}), the same membership rule
+    * {@code AssemblyPropertyService.requireKnownSelectedImage} applies. A value that is not in
+    * the tree (including any {@code ..} or absolute path) is never stored.
+    */
+   private String requireKnownServerImage(RuntimeViewsheet master, String image, String prefix) {
+      String server = ImageVSAssemblyInfo.SERVER_IMAGE;
+      String candidate = server + image.substring(server.length()).trim();
+      TreeNodeModel tree =
+         imagePreviewPaneService == null ? null : imagePreviewPaneService.getImageTree(master);
+      String canonical = tree == null ? null :
+         AssemblyPropertyService.canonicalImageValue(tree, null, candidate);
+
+      if(canonical != null && canonical.startsWith(server)) {
+         return canonical;
+      }
+
+      List<String> known = new ArrayList<>();
+
+      if(tree != null) {
+         AssemblyPropertyService.collectImageValues(tree, known);
+      }
+
+      known.removeIf(value -> !value.startsWith(server));
+      throw new IllegalArgumentException(
+         prefix + "'image' " + image + " is not one of the server images this viewsheet can " +
+         "choose from, so it would print as an empty box. Known ^SERVER^ images: " +
+         (known.isEmpty() ? "none" : known) + ".");
+   }
+
    private static void applyImageEdit(ImageVSAssemblyInfo info, ImageEdit edit) {
       ResolvedImage resolved = resolveImageOptions(info, edit, "");
 
@@ -1219,6 +1261,11 @@ public class LayoutMutationService {
          resolved.maintainAspectRatio(), resolved.tile(), resolved.insets());
    }
 
+   /**
+    * Bug 78755: {@code Number.intValue()} keeps the low 32 bits of a long and truncates a
+    * fraction, so 4294967301 became 5 and 2.7 became 2. Convert exactly instead; an integral
+    * value such as {@code 5.0} is accepted.
+    */
    private static int toInt(String field, Object value) {
       try {
          return new java.math.BigDecimal(String.valueOf(value).trim()).intValueExact();
@@ -1251,4 +1298,5 @@ public class LayoutMutationService {
    private final ViewsheetSessionService viewsheetSessions;
    private final VSLayoutService vsLayoutService;
    private final SheetAgentBroadcastService broadcast;
+   private final ImagePreviewPaneService imagePreviewPaneService;
 }

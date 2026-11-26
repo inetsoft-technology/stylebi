@@ -3191,7 +3191,7 @@ public class AssemblyPropertyService {
     *
     * @param parentName the enclosing folder's display name, for the {@code "Folder/name"} alias.
     */
-   private static String canonicalImageValue(TreeNodeModel node, String parentName, String text) {
+   static String canonicalImageValue(TreeNodeModel node, String parentName, String text) {
       if(node.leaf()) {
          String canonical = canonicalImageValue(node);
 
@@ -3222,7 +3222,7 @@ public class AssemblyPropertyService {
       return null;
    }
 
-   private static void collectImageValues(TreeNodeModel node, List<String> into) {
+   static void collectImageValues(TreeNodeModel node, List<String> into) {
       if(node.leaf()) {
          String canonical = canonicalImageValue(node);
 

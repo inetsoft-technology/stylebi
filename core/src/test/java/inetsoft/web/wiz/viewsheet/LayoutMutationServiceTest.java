@@ -37,7 +37,9 @@ import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.VSEditableAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
+import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.composer.vs.dialog.ImagePreviewPaneService;
 import inetsoft.web.wiz.pairing.TestPrincipals;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.Test;
@@ -1574,6 +1576,69 @@ class LayoutMutationServiceTest {
                    "the live layout is not the snapshot");
    }
 
+   /** Bug 82400 review: the image tree the dialog offers, with one server image under a folder. */
+   private static TreeNodeModel serverImageTree() {
+      TreeNodeModel leaf = TreeNodeModel.builder().label("a.png").data("logos/a.png")
+         .type(ImageVSAssemblyInfo.SERVER_IMAGE).leaf(true).build();
+      TreeNodeModel folder = TreeNodeModel.builder().label("logos").data("logos").leaf(false)
+         .children(List.of(leaf)).build();
+      return TreeNodeModel.builder().children(List.of(folder)).build();
+   }
+
+   @Test
+   void serverImageInTheDialogTreeIsAccepted() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      when(fx.imagePreviewPaneService.getImageTree(any())).thenReturn(serverImageTree());
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Logo", "type", "image", "x", 0, "y", 0,
+                        "image", "^server^logos/a.png")), false);
+
+      assertEquals("^SERVER^logos/a.png", imageInfo(fx, "Logo").getImageValue());
+   }
+
+   @Test
+   void unknownOrEscapingServerImageIsRefusedWithoutSideEffect() throws Exception {
+      for(String value : new String[] { "^SERVER^logos/missing.png", "^SERVER^../secret.png",
+                                        "^SERVER^logos/../../secret.png", "^SERVER^/etc/passwd" })
+      {
+         Fixture fx = new Fixture();
+         fx.installPrintLayout();
+         when(fx.imagePreviewPaneService.getImageTree(any())).thenReturn(serverImageTree());
+         focusPrintLayout(fx);
+         int pointsBefore = fx.masterRvs.getLayoutPointsSize();
+         int namesBefore = fx.printLayoutObjectNames().size();
+
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add",
+               VSLayoutService.CONTENT,
+               List.of(Map.of("name", "Logo", "type", "image", "x", 0, "y", 0, "image", value)),
+               false), value);
+
+         assertTrue(thrown.getMessage().contains("'image'"), thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("^SERVER^logos/a.png"), thrown.getMessage());
+         assertEquals(namesBefore, fx.printLayoutObjectNames().size());
+         assertEquals(pointsBefore, fx.masterRvs.getLayoutPointsSize());
+      }
+   }
+
+   @Test
+   void unknownServerImageIsRefusedOnMoveResizeToo() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.addUploadedImage("one.png", PNG);
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Logo", "type", "image", "x", 0, "y", 0,
+                        "image", "^UPLOADED^one.png")), false);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize",
+            VSLayoutService.CONTENT, List.of(Map.of("name", "Logo", "image", "^SERVER^../x.png")),
+            false));
+      assertEquals("^UPLOADED^one.png", imageInfo(fx, "Logo").getImageValue());
+   }
+
    /**
     * Wires one {@code LayoutMutationService} against a REAL {@code LayoutSessionService}/
     * {@code VSLayoutService} (mocked only at the {@code ViewsheetSessionService}/
@@ -1586,8 +1651,9 @@ class LayoutMutationServiceTest {
       final VSLayoutService vsLayoutService = new VSLayoutService();
       final LayoutSessionService layoutSessions =
          new LayoutSessionService(viewsheetSessions, viewsheetService, vsLayoutService);
+      final ImagePreviewPaneService imagePreviewPaneService = mock(ImagePreviewPaneService.class);
       final LayoutMutationService service = new LayoutMutationService(
-         layoutSessions, viewsheetSessions, vsLayoutService);
+         layoutSessions, viewsheetSessions, vsLayoutService, null, imagePreviewPaneService);
 
       final Viewsheet masterVs = new Viewsheet();
       final TextVSAssembly masterText = new TextVSAssembly(masterVs, "Text1");
