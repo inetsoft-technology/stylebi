@@ -836,8 +836,8 @@ class MvStorageEngineTest {
       }
 
       private static double[] corrTuple(double[] a, double[] b) {
-         return new double[] { sumxy(a, b), sum(a), sum(b), a.length, sumsq(a), b.length,
-                               sumsq(b) };
+         // SUMWT, SUMx, SUMy, N, SUMSQx, SUMSQy over the pairs (Bug #82375)
+         return new double[] { sumxy(a, b), sum(a), sum(b), a.length, sumsq(a), sumsq(b) };
       }
 
       private static double mean(double[] a) {
@@ -1683,6 +1683,58 @@ class MvStorageEngineTest {
             assertRow(merged, "B", 90, 2.25, 30, 3);
             assertRow(merged, "C", 100, 0.1f, 50, 2);
             assertRow(merged, "null", 30, 1000000.0, 30, 1);
+         }
+         finally {
+            built.dispose();
+         }
+      }
+
+      @Test
+      void covarianceAndCorrelationLeaveOutPairsWithOneNull() throws Exception {
+         // Bug #82375: the sub-aggregates of covariance and correlation must all range over the
+         // rows where both columns are not null, as without MV (and as the database computes
+         // them). Rows 0-4 are block 0, rows 5-9 block 1. In block 0, B's products sum to 0.
+         Object[][] data = {
+            HEADERS,
+            { "A", 10, 1.5, ts(0) },
+            { "A", 20, null, ts(1) },
+            { "A", null, 4.0, ts(2) },
+            { "B", 40, 0.0, ts(3) },
+            { "B", 50, 0.0, ts(4) },
+            { "A", 30, 2.5, ts(5) },
+            { "A", 15, 7.0, ts(6) },
+            { "B", 60, 1.25, ts(7) },
+            { "B", 25, 3.0, ts(8) },
+            { "B", 35, null, ts(9) }
+         };
+         Built built = build("covariance", data, true, "5", "false");
+
+         try {
+            assertEquals(2, built.subs.size());
+            GroupRef[] groups = { new GroupRef(column("region", "string")) };
+            boolean[] order = { true };
+            AggregateRef cov = new AggregateRef(column("qty", "integer"),
+                                                column("price", "double"),
+                                                AggregateFormula.COVARIANCE);
+            AggregateRef corr = new AggregateRef(column("qty", "integer"),
+                                                 column("price", "double"),
+                                                 AggregateFormula.CORRELATION);
+            AggregateRef[] aggregates = { cov, corr };
+            AggregateRef[] subs = subAggregates(aggregates);
+            MVQuery query = new MVQuery(built.mv, groups, order, aggregates, subs, null);
+            query.add("b0", execute(built, 0, groups, order, subs, false));
+            query.add("b1", execute(built, 1, groups, order, subs, false));
+            query.complete(true);
+            Map<String, List<Object>> merged = tableRows(query.getData());
+
+            double[] ax = { 10, 30, 15 };
+            double[] ay = { 1.5, 2.5, 7.0 };
+            double[] bx = { 40, 50, 60, 25 };
+            double[] by = { 0.0, 0.0, 1.25, 3.0 };
+            assertRow(merged, "A", popCov(ax, ay),
+                      popCov(ax, ay) / Math.sqrt(popVariance(ax) * popVariance(ay)));
+            assertRow(merged, "B", popCov(bx, by),
+                      popCov(bx, by) / Math.sqrt(popVariance(bx) * popVariance(by)));
          }
          finally {
             built.dispose();

@@ -151,6 +151,22 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
     * Weighted sum.
     */
    private static final AggregateFormula SUM2 = new Sum2();
+   /**
+    * Sum of a column over the rows where the second column is not null. A sub-aggregate of
+    * covariance and correlation (Bug #82375).
+    */
+   private static final AggregateFormula PAIR_SUM = new PairAggregate(
+      "PAIRSUM", "PairSumFormula", PairAggregate.SUM);
+   /**
+    * Count of the rows where both columns are not null.
+    */
+   private static final AggregateFormula PAIR_COUNT = new PairAggregate(
+      "PAIRCOUNT", "PairCountFormula", PairAggregate.COUNT);
+   /**
+    * Sum of squares of a column over the rows where the second column is not null.
+    */
+   private static final AggregateFormula PAIR_SUMSQ = new PairAggregate(
+      "PAIRSUMSQ", "PairSumSQFormula", PairAggregate.SUMSQ);
 
    /**
     * Get all the available formulas.
@@ -165,7 +181,7 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
                   MODE, CORRELATION, COVARIANCE, VARIANCE, STANDARD_DEVIATION,
                   POPULATION_VARIANCE, POPULATION_STANDARD_DEVIATION, WEIGHTED_AVG,
                   AGGREGATE, FIRST, LAST, PRODUCT, CONCAT, NTH_LARGEST, NTH_SMALLEST,
-                  NTH_MOST_FREQUENT, PTH_PERCENTILE, SUM2
+                  NTH_MOST_FREQUENT, PTH_PERCENTILE, SUM2, PAIR_SUM, PAIR_COUNT, PAIR_SUMSQ
                };
 
                // optimization, use map to quickly find formula
@@ -1455,10 +1471,26 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
       @Override
       public String getExpressionSub(String column, String col2,
                                      AggregateHelper helper) {
+         // all terms range over the rows where both columns are not null (Bug #82375)
+         String n = "NULLIF(" + PAIR_COUNT.getExpressionSub(column, col2, helper) + ", 0)";
+
          return "(" + COVARIANCE.getExpressionSub(column, col2, helper) + ") / " +
-            guardedDenominator(
-               POPULATION_VARIANCE.getExpressionSub(column, null, helper),
-               POPULATION_VARIANCE.getExpressionSub(col2, null, helper));
+            guardedDenominator(pairVarianceSub(column, col2, n, helper),
+                               pairVarianceSub(col2, column, n, helper));
+      }
+
+      /**
+       * Get the population variance of x over the rows where both columns are not null, from
+       * the sub-aggregates: (SUMSQx * N - SUMx^2) / N^2.
+       * @param n the pair count, the same for x and y (one sub-aggregate, PAIRCOUNT(x, y)).
+       */
+      private static String pairVarianceSub(String x, String y, String n,
+                                            AggregateHelper helper)
+      {
+         String sum = PAIR_SUM.getExpressionSub(x, y, helper);
+
+         return "((0.0E0+" + PAIR_SUMSQ.getExpressionSub(x, y, helper) + ") * " + n +
+            " - ((0.0E0 + " + sum + ") * " + sum + "))/((0.0E0 + " + n + ") * " + n + ")";
       }
 
       /**
@@ -1469,9 +1501,12 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
       Collection<AggregateRef> getSubAggregates(DataRef col, DataRef col2) {
          OrderedSet<AggregateRef> set = new OrderedSet<>();
 
+         // the layout read by CompositeCorrelationFormula: the covariance sub-aggregates,
+         // then the sums of squares of x and y over the rows where both are not null
+         // (Bug #82375). For a correlation of a column with itself the duplicates are removed.
          set.addAll(COVARIANCE.getSubAggregates(col, col2));
-         set.addAll(POPULATION_STANDARD_DEVIATION.getSubAggregates(col, null));
-         set.addAll(POPULATION_STANDARD_DEVIATION.getSubAggregates(col2, null));
+         set.addAll(PAIR_SUMSQ.getSubAggregates(col, col2));
+         set.addAll(PAIR_SUMSQ.getSubAggregates(col2, col));
 
          return set;
       }
@@ -1554,15 +1589,15 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
       @Override
       public String getExpressionSub(String column, String col2,
                                      AggregateHelper helper) {
-         // (SUMWT / N) - (SUMx * (SUMy / (N^2)))
-         // (SUMWT / N) - (SUMx * (SUMy / (N^2)))
-         return "((0.0+" + SUMWT.getExpressionSub(column, col2, helper) +
-         ") /" + COUNT_ALL.getExpressionSub(column, col2, helper) +
-         ") - ((0.0 + " + SUM.getExpressionSub(column, col2, helper) +
-         ") * ((0.0 + " + SUM.getExpressionSub(col2, null, helper) +
-         ") / ((0.0 +" + COUNT_ALL.getExpressionSub(column, col2, helper) +
-         ") * " + COUNT_ALL.getExpressionSub(column, col2, helper) +
-         ")))";
+         // (SUMWT / N) - (SUMx * (SUMy / (N^2))), every term over the rows where both columns
+         // are not null (Bug #82375)
+         String n = "NULLIF(" + PAIR_COUNT.getExpressionSub(column, col2, helper) + ", 0)";
+
+         return "((0.0E0+" + SUMWT.getExpressionSub(column, col2, helper) +
+         ") /" + n +
+         ") - ((0.0E0 + " + PAIR_SUM.getExpressionSub(column, col2, helper) +
+         ") * ((0.0E0 + " + PAIR_SUM.getExpressionSub(col2, column, helper) +
+         ") / ((0.0E0 +" + n + ") * " + n + ")))";
       }
 
       /**
@@ -1572,10 +1607,14 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
       @Override
       Collection<AggregateRef> getSubAggregates(DataRef col, DataRef col2) {
          OrderedSet<AggregateRef> set = new OrderedSet<>();
+         // the layout read by CompositeCovarianceFormula. SUMWT skips the rows where either
+         // column is null, so the sums and the count must range over the same rows: a pair with
+         // one missing value is left out, as without MV (Bug #82375). For a covariance of a
+         // column with itself the two sums are the same and one is removed.
          set.addAll(SUMWT.getSubAggregates(col, col2));
-         set.addAll(SUM.getSubAggregates(col, null));
-         set.addAll(SUM.getSubAggregates(col2, null));
-         set.addAll(COUNT_ALL.getSubAggregates(col, null));
+         set.addAll(PAIR_SUM.getSubAggregates(col, col2));
+         set.addAll(PAIR_SUM.getSubAggregates(col2, col));
+         set.addAll(PAIR_COUNT.getSubAggregates(col, col2));
          return set;
       }
 
@@ -2444,6 +2483,79 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
       public AggregateFormula getParentFormula() {
          return SUM;
       }
+   }
+
+   /**
+    * A sub-aggregate of a two-column formula over the rows where both columns are not null,
+    * so that the sub-aggregates of one formula range over the same rows (Bug #82375).
+    */
+   private static class PairAggregate extends AggregateFormula {
+      static final int SUM = 0;
+      static final int COUNT = 1;
+      static final int SUMSQ = 2;
+
+      PairAggregate(String name, String formulaName, int type) {
+         this.name = name;
+         this.formulaName = formulaName;
+         this.type = type;
+      }
+
+      @Override
+      public String getName() {
+         return name;
+      }
+
+      @Override
+      public String getExpression(String column, String col2, AggregateHelper helper) {
+         switch(type) {
+         case COUNT:
+            return pairCount(column, col2);
+         case SUMSQ:
+            return "SUM(CASE WHEN " + pairParens(col2) + " IS NOT NULL THEN (0.0E0+" +
+               pairParens(column) + ") * (0.0E0+" + pairParens(column) + ") END)";
+         default:
+            return pairSum(column, col2);
+         }
+      }
+
+      @Override
+      public String getExpressionSub(String column, String col2, AggregateHelper helper) {
+         return "SUM(" + XUtil.quoteAlias(getUID(column, col2), null) + ")";
+      }
+
+      @Override
+      Collection<AggregateRef> getSubAggregates(DataRef col, DataRef col2) {
+         OrderedSet<AggregateRef> set = new OrderedSet<>();
+         String uid = getUID(getUIDName(col), getUIDName(col2));
+         col = new AliasDataRef(uid, col);
+         col = new ColumnRef(col);
+         set.add(new AggregateRef(col, col2, this));
+         return set;
+      }
+
+      @Override
+      public String getFormulaName() {
+         return isComposite() ? "Sum" : formulaName;
+      }
+
+      @Override
+      public boolean isTwoColumns() {
+         return true;
+      }
+
+      @Override
+      public String getDataType() {
+         return XSchema.DOUBLE;
+      }
+
+      @Override
+      public AggregateFormula getParentFormula() {
+         return AggregateFormula.SUM;
+      }
+
+      private final String name;
+      private final String formulaName;
+      private final int type;
    }
 
    /**

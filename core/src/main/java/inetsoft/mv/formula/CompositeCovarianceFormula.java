@@ -20,6 +20,7 @@ package inetsoft.mv.formula;
 import inetsoft.report.filter.Formula2;
 import inetsoft.uql.XConstants;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 
 /**
  * Calculate the covariance.
@@ -55,119 +56,89 @@ public class CompositeCovarianceFormula implements Formula2 {
     */
    @Override
    public void reset() {
-      sumwt_c1_c2= 0;
+      sumwt_c1_c2 = 0;
       cnt_c1 = 0;
       sum_c1 = 0;
       sum_c2 = 0;
-      cnt = 0;
    }
 
-   /**
-    * Add a double value to the formula.
-    */
    @Override
    public void addValue(double v) {
       throw new RuntimeException("Unsupported method called!");
    }
 
    /**
-    * Add double value to the formula.
+    * Add the sub-aggregates of a sub-group, in the order of
+    * AggregateFormula.COVARIANCE.getSubAggregates(): SUMWT(x, y), PAIRSUM(x, y),
+    * PAIRSUM(y, x), PAIRCOUNT(x, y), all over the rows where both x and y are not null
+    * (Bug #82375). For a covariance of a column with itself the second sum is left out
+    * (3 values). A null sub-aggregate (Tool.NULL_DOUBLE, no row in the sub-group) adds 0.
     */
    @Override
    public void addValue(double[] v) {
-      if(v == null || v.length < 4) {
+      if(v == null || v.length < 3 || v.length > 4) {
          return;
       }
 
-      cnt++;
-      sumwt_c1_c2 += v[0];
-      sum_c1 += v[1];
-      sum_c2 += v[2];
-      cnt_c1 += v[3];
+      int n = v.length == 3 ? 2 : 3;
+      add(v[0], v[1], v.length == 3 ? v[1] : v[2], v[n]);
    }
 
-   /**
-    * Add a float value to the formula.
-    */
+   private void add(double sumwt, double sumx, double sumy, double cnt) {
+      sumwt_c1_c2 += value(sumwt);
+      sum_c1 += value(sumx);
+      sum_c2 += value(sumy);
+      cnt_c1 += value(cnt);
+   }
+
+   private static double value(double val) {
+      return val == Tool.NULL_DOUBLE ? 0 : val;
+   }
+
    @Override
    public void addValue(float v) {
       throw new RuntimeException("Unsupported method called!");
    }
 
-   /**
-    * Add a long value to the formula.
-    */
    @Override
    public void addValue(long v) {
       throw new RuntimeException("Unsupported method called!");
    }
 
-   /**
-    * Add an int value to the formula.
-    */
    @Override
    public void addValue(int v) {
       throw new RuntimeException("Unsupported method called!");
    }
 
-   /**
-    * Add a short value to the formula.
-    */
    @Override
    public void addValue(short v) {
       throw new RuntimeException("Unsupported method called!");
    }
 
    /**
-    * Add a value to the formula.
+    * Add the sub-aggregates as objects, in the same order as addValue(double[]).
     */
    @Override
    public void addValue(Object v) {
-      if(v == null || !(v instanceof Object[])) {
+      if(!(v instanceof Object[] data) || data.length < 3) {
          return;
       }
 
-      double osumwt_c1_c2 = sumwt_c1_c2;
-      int ocnt_c1 = cnt_c1;
-      double osum_c1 = sum_c1;
-      double osum_c2 = sum_c2;
-
       try {
-         Object[] data = (Object[]) v;
-         Number val1 = (data[0] instanceof Number) ?
-            (Number) data[0] : Double.parseDouble(data[0] + "");
-         Number val2 = (data[1] instanceof Number) ?
-            (Number) data[1] : Double.parseDouble(data[1] + "");
-         int idx = data.length == 3 ? 1 : 2;
-         Number val3 = (data[idx] instanceof Number) ?
-            (Number) data[idx] : Double.parseDouble(data[idx] + "");
-         idx = data.length == 3 ? 2 : 3;
-         Number val4 = (data[idx] instanceof Number) ?
-            (Number) data[idx] : Double.parseDouble(data[idx] + "");
+         double[] vals = new double[data.length];
 
-         if(val1 == null || val2 == null || val3 == null || val4 == null) {
-            return;
+         for(int i = 0; i < data.length; i++) {
+            vals[i] = data[i] == null ? Tool.NULL_DOUBLE : (data[i] instanceof Number)
+               ? ((Number) data[i]).doubleValue() : Double.parseDouble(data[i] + "");
          }
 
-         cnt++;
-         sumwt_c1_c2 += val1.doubleValue();
-         sum_c1 += val2.intValue();
-         sum_c2 += val3.intValue();
-         cnt_c1 += val4.intValue();
+         addValue(vals);
       }
-      catch(NumberFormatException nfe) {
-         sumwt_c1_c2 = osumwt_c1_c2;
-         cnt_c1 = ocnt_c1;
-         sum_c1 = osum_c1;
-         sum_c2 = osum_c2;
+      catch(NumberFormatException ignore) {
+         // a sub-aggregate that is not a number, the sub-group is skipped
       }
    }
 
-   /**
-    * Set the default result option of this formula.
-    * @param def <tt>true</tt> to use the default value of a formula if no
-    * result, <tt>false</tt> to just return null.
-    */
    @Override
    public void setDefaultResult(boolean def) {
       this.def = def;
@@ -188,40 +159,21 @@ public class CompositeCovarianceFormula implements Formula2 {
     */
    @Override
    public Object getResult() {
-      if(cnt == 0) {
-         return def ? Double.valueOf(0) : null;
-      }
-
-      try {
-         return (cnt_c1 != 0) ?
-            Double.valueOf((sumwt_c1_c2 / cnt_c1) - ((sum_c1 * sum_c2) /
-                                                 (cnt_c1 * cnt_c1)))
-            : (def ? Double.valueOf(0) : null);
-      }
-      catch(Throwable e) {
-         return null;
-      }
+      return cnt_c1 > 0 ? Double.valueOf(covariance()) : (def ? Double.valueOf(0) : null);
    }
 
-   /**
-    * Get the formula result.
-    */
    @Override
    public double getDoubleResult() {
-      if(cnt == 0) {
-         return 0;
-      }
-
-      return cnt_c1 != 0 ?
-         (sumwt_c1_c2 / cnt_c1) - ((sum_c1 * sum_c2) / (cnt_c1 * cnt_c1)) : 0;
+      return cnt_c1 > 0 ? covariance() : 0;
    }
 
-   /**
-    * Check if the result is null.
-    */
    @Override
    public boolean isNull() {
-      return cnt == 0;
+      return cnt_c1 <= 0;
+   }
+
+   private double covariance() {
+      return (sumwt_c1_c2 / cnt_c1) - ((sum_c1 * sum_c2) / (cnt_c1 * cnt_c1));
    }
 
    @Override
@@ -256,10 +208,10 @@ public class CompositeCovarianceFormula implements Formula2 {
    }
 
    private double sumwt_c1_c2 = 0;
-   private int cnt_c1 = 0;
+   // count of the pairs, a double so that the square does not overflow
+   private double cnt_c1 = 0;
    private double sum_c1 = 0;
    private double sum_c2 = 0;
-   private int cnt = 0;
    private int[] cols;
    private boolean def;
 }

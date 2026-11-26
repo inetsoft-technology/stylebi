@@ -20,7 +20,9 @@ package inetsoft.uql.asset;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.XUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
@@ -220,5 +222,45 @@ class AggregateFormulaCovarianceSqlTest {
                    1e-9);
       assertEquals(-0.31972210,
                    eval("TI", AggregateFormula.CORRELATION.getExpression("X", "Y", h), 1), 1e-7);
+   }
+   /**
+    * Bug #82375: a pre-aggregated MV stores the sub-aggregates of each group and the formula is
+    * computed from them (getExpressionSub). Every sub-aggregate must range over the complete
+    * pairs, so the result equals the direct SQL.
+    */
+   private static Double viaSubAggregates(AggregateFormula form, int group) throws SQLException {
+      AggregateHelper h = helper("derby", false);
+      StringBuilder sql = new StringBuilder("SELECT G");
+
+      for(AggregateRef sub : form.getSubAggregates(column("X"), column("Y"))) {
+         AliasDataRef alias = (AliasDataRef) ((ColumnRef) sub.getDataRef()).getDataRef();
+         DataRef col2 = sub.getSecondaryColumn();
+         sql.append(", ").append(sub.getFormula().getExpression(
+            alias.getDataRef().getName(), col2 == null ? null : col2.getName(), h))
+            .append(" AS ").append(XUtil.quoteAlias(alias.getName(), null));
+      }
+
+      sql.append(" FROM T GROUP BY G");
+      return eval("(" + sql + ") S", form.getExpressionSub("X", "Y", h), group);
+   }
+
+   private static ColumnRef column(String name) {
+      return new ColumnRef(new AttributeRef(null, name));
+   }
+
+   @Test
+   void subAggregatesRestrictToCompletePairs() throws Exception {
+      for(int group : new int[] { 1, 2, 3, 5 }) {
+         assertEquals(cov(group), viaSubAggregates(AggregateFormula.COVARIANCE, group), 1e-9,
+                      "covariance " + group);
+      }
+
+      for(int group : new int[] { 1, 2, 3 }) {
+         assertEquals(corr(group), viaSubAggregates(AggregateFormula.CORRELATION, group), 1e-7,
+                      "correlation " + group);
+      }
+
+      assertNull(viaSubAggregates(AggregateFormula.COVARIANCE, 4));
+      assertNull(viaSubAggregates(AggregateFormula.CORRELATION, 4));
    }
 }
