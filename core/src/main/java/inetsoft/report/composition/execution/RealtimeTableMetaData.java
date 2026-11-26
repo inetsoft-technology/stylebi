@@ -59,6 +59,10 @@ public class RealtimeTableMetaData extends TableMetaData {
       super(name);
    }
 
+   private boolean hasColumn(String column) {
+      return column != null && colmap.containsKey(column);
+   }
+
    /**
     * Get a distinct list of column values.
     * @param column column name.
@@ -79,6 +83,24 @@ public class RealtimeTableMetaData extends TableMetaData {
       try {
          String[] columns = getColumns(refs);
          String[][] names = getColNames(refs);
+
+         // a column that was not found in the data when the meta data was built (see
+         // process()) is not available. Return null so that the caller gets the values by
+         // running its own query, without the user message ColumnsTable would add.
+         if(columns.length == 1) {
+            if(!hasColumn(columns[0]) && !hasColumn(names[0][0]) &&
+               !hasColumn(names[0][1]))
+            {
+               return null;
+            }
+         }
+         else {
+            for(String column : columns) {
+               if(!hasColumn(column)) {
+                  return null;
+               }
+            }
+         }
 
          if(columns.length == 1) {
             ColumnTable lens = (ColumnTable) getColumnTable0(columns, names);
@@ -447,11 +469,6 @@ public class RealtimeTableMetaData extends TableMetaData {
          tuples = new XSwappableObjectList<>(RowTuple.class);
          this.table = table;
 
-         // create header and column meta data for each column
-         ColumnMetaData[] cols = new ColumnMetaData[columns.length];
-         int mcnt = aggrs.size();
-         int[] colidx = new int[cols.length];
-         int[] midx = new int[mcnt];
          // call table.moreRows to fix the data type of a column, which might
          // change during the data loading process (a BigDecimal column might
          // store both int and float values)
@@ -459,37 +476,67 @@ public class RealtimeTableMetaData extends TableMetaData {
          ColumnIndexMap columnIndexMap = new ColumnIndexMap(table, true);
          appliedMaxRow = Util.getAppliedMaxRows(table);
 
-         for(int i = 0; i < cols.length; i++) {
-            int idx = Util.findColumn(columnIndexMap, columns[i]);
+         // The meta data is shared by all the selections bound to the table, so a header
+         // that the data does not produce (e.g. a stale binding of one selection) must not
+         // fail the others. Skip it; indices of the remaining columns/measures stay
+         // contiguous since they are used to index the tuples.
+         List<String> foundColumns = new ArrayList<>();
+         List<Integer> foundIdx = new ArrayList<>();
+
+         for(String column : columns) {
+            int idx = Util.findColumn(columnIndexMap, column);
 
             if(idx < 0) {
-               throw new RuntimeException("Column not found in table: " + columns[i]);
+               LOG.warn("Column not found in table, ignored: {}", column);
+               continue;
             }
 
+            foundColumns.add(column);
+            foundIdx.add(idx);
+         }
+
+         List<AggregateRef> foundAggrs = new ArrayList<>();
+         List<Integer> foundMidx = new ArrayList<>();
+
+         for(AggregateRef aggr : aggrs) {
+            int idx = Util.findColumn(columnIndexMap, aggr.toString());
+
+            if(idx < 0) {
+               LOG.warn("Measure not found in table, ignored: {}", aggr);
+               continue;
+            }
+
+            foundAggrs.add(aggr);
+            foundMidx.add(idx);
+         }
+
+         // create header and column meta data for each column
+         ColumnMetaData[] cols = new ColumnMetaData[foundColumns.size()];
+         int mcnt = foundAggrs.size();
+         int[] colidx = new int[cols.length];
+         int[] midx = new int[mcnt];
+
+         for(int i = 0; i < cols.length; i++) {
+            int idx = foundIdx.get(i);
+            String column = foundColumns.get(i);
             cols[i] = new ColumnMetaData();
             colidx[i] = idx;
             Class cls = table.getColType(idx);
             cols[i].setType(Tool.getDataType(cls));
             cols[i].setIndex(i);
-            colmap.put(columns[i], cols[i]);
-            colIdxMap.put(columns[i], idx);
+            colmap.put(column, cols[i]);
+            colIdxMap.put(column, idx);
          }
 
-         mformulas = new Formula[aggrs.size()];
+         measureIdxMap.clear();
+         mformulas = new Formula[mcnt];
 
-         for(int i = 0; i < aggrs.size(); i++) {
-            String mname = aggrs.get(i).toString();
-            int idx = Util.findColumn(columnIndexMap, mname);
-
-            if(idx < 0) {
-               throw new RuntimeException("Measure not found in table: " +
-                                          mname);
-            }
-
-            colIdxMap.put(mname, idx);
-            midx[i] = idx;
+         for(int i = 0; i < mcnt; i++) {
+            String mname = foundAggrs.get(i).toString();
+            colIdxMap.put(mname, foundMidx.get(i));
+            midx[i] = foundMidx.get(i);
             mformulas[i] = Util.createFormula(
-               table, aggrs.get(i).getFormula().getFormulaName());
+               table, foundAggrs.get(i).getFormula().getFormulaName());
             measureIdxMap.put(mname, i);
          }
 
