@@ -207,6 +207,50 @@ class CalculateRefTest {
       assertEquals(XSchema.STRING, ((ExpressionRef) ref.getDataRef()).getDataType());
    }
 
+   @Test
+   @DisplayName("Bug #82428: a calc field declared String keeps its declared type after the " +
+      "XML round trip")
+   void declaredString_roundTripKeepsTheDeclaredType() throws Exception {
+      for(boolean baseOnDetail : new boolean[] { false, true }) {
+         CalculateRef ref = calc(baseOnDetail, "field['Sum([a])']");
+         ref.setDataType(XSchema.STRING);
+         assertEquals(XSchema.STRING, outerDataType(ref), "detail=" + baseOnDetail);
+
+         CalculateRef parsed = (CalculateRef) roundTrip(ref);
+         assertTrue(parsed.isDataTypeSet(), "detail=" + baseOnDetail);
+         assertEquals(XSchema.STRING, parsed.getDataType());
+         assertEquals(XSchema.STRING, ((ExpressionRef) parsed.getDataRef()).getDataType());
+         assertTrue(ref.equals(parsed, true), "detail=" + baseOnDetail);
+      }
+   }
+
+   @Test
+   @DisplayName("Bug #82428: a calc field with no declared type stays undeclared after two " +
+      "XML round trips")
+   void undeclared_roundTripStaysUndeclared() throws Exception {
+      CalculateRef ref = new CalculateRef(false);
+      ExpressionRef exp = new ExpressionRef(null, "calc");
+      exp.setExpression("field['Sum([a])']");
+      ref.setDataRef(exp);
+      // the type falls back to the expression's "string", but nothing was declared
+      assertFalse(ref.isDataTypeSet());
+      assertEquals(XSchema.STRING, ref.getDataType());
+
+      CalculateRef once = (CalculateRef) roundTrip(ref);
+      assertFalse(once.isDataTypeSet());
+      assertEquals("", outerDataType(once));
+      CalculateRef twice = (CalculateRef) roundTrip(once);
+      assertFalse(twice.isDataTypeSet());
+      assertEquals("", outerDataType(twice));
+   }
+
+   /** The dataType attribute of the CalculateRef element itself, not of its expression. */
+   private static String outerDataType(DataRef ref) throws Exception {
+      Document doc = Tool.parseXML(new ByteArrayInputStream(
+         xml(ref).getBytes(StandardCharsets.UTF_8)));
+      return doc.getDocumentElement().getAttribute("dataType");
+   }
+
    /** A calculated field named "calc" of type double over the given expression. */
    private static CalculateRef calc(boolean baseOnDetail, String expression) {
       CalculateRef ref = new CalculateRef(baseOnDetail);

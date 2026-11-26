@@ -753,6 +753,40 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
+   @DisplayName("Bug #82428: an aggregate calc field declared String keeps the String result " +
+      "after the viewsheet is saved and reopened")
+   void declaredStringSurvivesSaveAndReopen() throws Exception {
+      initCityAb();
+      ratioFreehand(XSchema.STRING);
+      xmlRoundTrip();
+      assertTrue(vs.getCalcField("D", "ratio").isDataTypeSet());
+      List<Object> values = crosstab(aggregate("a", "Sum", XSchema.INTEGER),
+                                     aggregate("b", "Sum", XSchema.INTEGER),
+                                     aggregate("ratio", "None", XSchema.STRING));
+      assertEquals(Arrays.asList(9.0, 6.0, "1.5", 1.0, 1.0, "1"), values);
+   }
+
+   @Test
+   @DisplayName("Bug #82428: an aggregate calc field with no declared type stays undeclared " +
+      "and keeps its Double result after two saves")
+   void undeclaredStaysUndeclaredAfterSaveAndReopen() throws Exception {
+      initCityAb();
+      CalculateRef calc = new CalculateRef(false);
+      ExpressionRef expr = new ExpressionRef(null, "ratio");
+      expr.setExpression("field['Sum([a])'] / field['Sum([b])']");
+      calc.setDataRef(expr);
+      vs.addCalcField("D", calc);
+      xmlRoundTrip();
+      assertFalse(vs.getCalcField("D", "ratio").isDataTypeSet());
+      xmlRoundTrip();
+      assertFalse(vs.getCalcField("D", "ratio").isDataTypeSet());
+      List<Object> values = crosstab(aggregate("a", "Sum", XSchema.INTEGER),
+                                     aggregate("b", "Sum", XSchema.INTEGER),
+                                     aggregate("ratio", "None", XSchema.DOUBLE));
+      assertEquals(Arrays.asList(9.0, 6.0, 1.5, 1.0, 1.0, 1.0), values);
+   }
+
+   @Test
    @DisplayName("Bug #81668: the declared type of an " +
       "aggregate calc field is applied in a crosstab")
    void declaredTypeAppliedInCrosstab() throws Exception {
