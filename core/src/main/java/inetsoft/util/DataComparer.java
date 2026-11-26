@@ -382,6 +382,28 @@ public class DataComparer {
     * Number comparer.
     */
    public static final class NumberComparer implements Comparer {
+      private static boolean isBig(Object v) {
+         return v instanceof java.math.BigDecimal || v instanceof java.math.BigInteger;
+      }
+
+      private static boolean isExact(Object v) {
+         return v instanceof java.math.BigDecimal || v instanceof java.math.BigInteger ||
+            v instanceof Long || v instanceof Integer || v instanceof Short ||
+            v instanceof Byte;
+      }
+
+      private static java.math.BigDecimal toBigDecimal(Number n) {
+         if(n instanceof java.math.BigDecimal) {
+            return (java.math.BigDecimal) n;
+         }
+
+         if(n instanceof java.math.BigInteger) {
+            return new java.math.BigDecimal((java.math.BigInteger) n);
+         }
+
+         return java.math.BigDecimal.valueOf(n.longValue());
+      }
+
       /**
        * This method should return > 0 if v1 is greater than v2, 0 if
        * v1 is equal to v2, or < 0 if v1 is less than v2.
@@ -397,6 +419,12 @@ public class DataComparer {
          }
          else if(v2 == null) {
             return 1;
+         }
+
+         // exact comparison for arbitrary precision values, a double cannot tell
+         // apart decimals/integers that differ beyond 2^53
+         if(isExact(v1) && isExact(v2) && (isBig(v1) || isBig(v2))) {
+            return Integer.signum(toBigDecimal((Number) v1).compareTo(toBigDecimal((Number) v2)));
          }
 
          String type = Tool.DOUBLE;
