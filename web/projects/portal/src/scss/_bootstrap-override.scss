@@ -1032,8 +1032,8 @@ a:not([href]) {
 
 // The shell's danger button keeps a white label on a darker fill, as Bootstrap's does, rather than the
 // dark-red label above (Feature #80673, D1). The same state selectors as the rule above, and later, so it
-// wins on equal specificity; the :where() gate and the content exclusion add none. Dashboards and
-// custom-themed pages keep the rule above.
+// wins on equal specificity; the :where() gate and the content exclusion add none. Dashboards keep the
+// rule above; custom-themed pages get the derived fill below.
 :where(:root:not(.custom-theme)) .btn.btn-danger#{$outside-content} {
   &:hover:not(:disabled), &:active:not(:disabled),
   &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active,
@@ -1042,6 +1042,22 @@ a:not([href]) {
     color: #FFFFFF;
     background-color: var(--inet-danger-hover-bg-color);
     border: 1px solid var(--inet-danger-hover-bg-color);
+  }
+}
+
+// Custom-themed pages: the same white label on the fill derived from the theme's danger colour
+// (--inet-danger-hover-bg-color, declared for themed pages in _variables.scss, Bug #81984). Guarded like
+// that declaration, so a browser without color-mix() keeps the rule above the un-themed one.
+@supports (color: color-mix(in srgb, red 50%, black)) {
+  :where(:root.custom-theme) .btn.btn-danger#{$outside-content} {
+    &:hover:not(:disabled), &:active:not(:disabled),
+    &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active,
+    &.focus, &:focus-visible
+    {
+      color: #FFFFFF;
+      background-color: var(--inet-danger-hover-bg-color);
+      border: 1px solid var(--inet-danger-hover-bg-color);
+    }
   }
 }
 

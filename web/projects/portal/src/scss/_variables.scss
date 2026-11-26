@@ -685,6 +685,9 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
   --inet-focus-ring-width: 2px;
   --inet-focus-ring-color: rgba(217, 122, 26, 0.28);
   --inet-focus-ring: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+  // the chart canvas's selection fill (.viz-modern .chart-object-canvas): a translucent wash, kept apart
+  // from the ring token so a solid ring never paints an opaque block over a selected region (Bug #81984)
+  --inet-focus-ring-canvas-color: rgba(217, 122, 26, 0.28);
   --inet-focus-ring-outline: none;
   // the surface a filled button's ring is set off from it by; a surface container re-declares it
   --inet-focus-ring-gap-color: var(--inet-shell-surface-default);
@@ -731,6 +734,18 @@ $outside-content: ":where(:not(:is(#{$dashboard-content}, #{$content-popup}) *))
 // this wins over the block above by coming later and still loses to :root.shell-dark.
 :root:where(:not(.custom-theme)) {
   @include inet-shell-state-tokens;
+}
+
+// A themed page's fallbacks for the tokens its theme leaves unset (Bug #81984): a solid ring and a danger
+// hover fill derived from the theme's own primary and danger colours. Same specificity as the theme's
+// :root and earlier in the cascade (theme-variables.css loads after global.css), so a value the theme sets
+// wins and only an unset token takes the derived one. Guarded: where color-mix() is unsupported the custom
+// property would be invalid at computed-value time and drop the ring, so such a browser keeps today's ring.
+@supports (color: color-mix(in srgb, red 50%, black)) {
+  :root:where(.custom-theme) {
+    --inet-focus-ring-color: color-mix(in srgb, var(--inet-primary-color) 80%, black);
+    --inet-danger-hover-bg-color: color-mix(in srgb, var(--inet-danger-color) 85%, black);
+  }
 }
 
 // Dashboard content keeps today's values in the light shell: the shell state tokens and every
