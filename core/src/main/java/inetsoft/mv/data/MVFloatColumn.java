@@ -86,6 +86,15 @@ public class MVFloatColumn extends MVDecimalColumn {
    }
 
    /**
+    * The column stores floats, so compare with the float the value is stored as, as the
+    * '=' condition does (getRows0).
+    */
+   @Override
+   protected double getLikeComparisonValue(double val) {
+      return val == Tool.NULL_DOUBLE ? val : (float) val;
+   }
+
+   /**
     * Get the bit set for the specified range.
     */
    @Override
