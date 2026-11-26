@@ -35,6 +35,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * A class to map a Json array to a table.
@@ -519,6 +520,41 @@ abstract public class BaseJsonTable extends XTableNode {
       this.declaredObjectColumns = declared == null ? Collections.emptyMap() : declared;
    }
 
+   /**
+    * Supplies column types declared by the source (e.g. a GraphQL schema), used only for a
+    * column that is null on every row. Called lazily, at most once per load, and only when such a
+    * column exists. Columns with data and types set through {@link #setColumnType} are unaffected.
+    * Null by default, which keeps the string fallback.
+    *
+    * @param supplier column name to type name; may throw, which leaves the columns as string.
+    */
+   public void setDeclaredColumnTypes(Supplier<Map<String, String>> supplier) {
+      this.declaredColumnTypes = supplier;
+      this.resolvedColumnTypes = null;
+   }
+
+   /**
+    * @return the declared type of an all-null column, or null if none is known.
+    */
+   protected Class<?> declaredNullColumnType(String name) {
+      if(declaredColumnTypes == null) {
+         return null;
+      }
+
+      if(resolvedColumnTypes == null) {
+         try {
+            final Map<String, String> map = declaredColumnTypes.get();
+            resolvedColumnTypes = map == null ? Collections.emptyMap() : map;
+         }
+         catch(Exception | LinkageError e) {
+            resolvedColumnTypes = Collections.emptyMap();
+         }
+      }
+
+      final String type = resolvedColumnTypes.get(name);
+      return type == null ? null : CoreTool.getDataClass(type);
+   }
+
    public Map<String, List<String>> getDeclaredObjectColumns() {
       return declaredObjectColumns;
    }
@@ -711,6 +747,8 @@ abstract public class BaseJsonTable extends XTableNode {
    private Boolean dmyOrder;
    private Object jsonMetadata;
    private Map<String, List<String>> declaredObjectColumns = Collections.emptyMap();
+   private Supplier<Map<String, String>> declaredColumnTypes;
+   private Map<String, String> resolvedColumnTypes;
 
    private static final java.util.regex.Pattern OFFSET_PATTERN = java.util.regex.Pattern.compile(
       "^(.*\\d:\\d{2}(?::\\d{2}(?:[.,]\\d+)?)?)\\s*(?:Z|[+-]\\d{2}(?::?\\d{2})?)$");
