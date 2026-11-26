@@ -122,16 +122,17 @@ class RRuntimeTest {
     * write.csv call must not emit row names and must write NA as an empty cell, which the CSV
     * reader loads as null (the literal "NA" would turn a numeric column into text). Only the
     * command sent to R is asserted: loading the CSV into a swappable table needs the Spring
-    * context, so the read is cut short after the command is captured.
+    * context, so the read is cut short after the command is captured. Bug #82391: the name is
+    * evaluated once, in the same command that also returns the text columns.
     */
    @Test
    void testTransferTableByNameDropsRowNamesAndNa() throws Exception {
       RConnection connection = mock(RConnection.class);
       String[] command = new String[1];
-      doAnswer(inv -> {
+      when(connection.eval(anyString())).thenAnswer(inv -> {
          command[0] = inv.getArgument(0);
          return null;
-      }).when(connection).voidEval(anyString());
+      });
       when(connection.openFile(anyString())).thenThrow(new RuntimeException("stop after write"));
 
       inetsoft.util.FileSystemService fs = mock(inetsoft.util.FileSystemService.class);
@@ -144,8 +145,11 @@ class RRuntimeTest {
          assertThrows(RuntimeException.class, () -> RRuntime.transferTable(connection, "budget_wide"));
       }
 
+      assertTrue(command[0].startsWith("local({ .inetsoft_x <- budget_wide; "), command[0]);
       assertTrue(command[0].matches(
-         "write\\.csv\\(budget_wide, 'inetsoft-[0-9a-f-]+\\.csv', row\\.names = FALSE, na = \"\"\\)"),
+         ".*write\\.csv\\(\\.inetsoft_x, 'inetsoft-[0-9a-f-]+\\.csv', row\\.names = FALSE, na = \"\"\\);.*"),
          command[0]);
+      assertEquals(1, command[0].split("budget_wide", -1).length - 1, "the name is evaluated once");
+      verify(connection, never()).voidEval(anyString());
    }
 }

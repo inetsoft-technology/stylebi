@@ -29,6 +29,7 @@ import inetsoft.uql.asset.internal.WSExecution;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.util.XTableTableNode;
 import inetsoft.uql.util.filereader.CSVLoader;
+import inetsoft.uql.util.filereader.DateParseInfo;
 import inetsoft.util.FileSystemService;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ScriptEnv;
@@ -226,7 +227,12 @@ public class RRuntime extends TabularRuntime {
       File tempFile = FileSystemService.getInstance().getCacheTempFile("r", ".csv");
 
       try {
-         connection.voidEval("write.csv(" + name + ", '" + fileName + "', row.names = FALSE, na = \"\")");
+         // Bug #82391, write the CSV and, in the same evaluation of the name, get the
+         // character/factor columns: their quotes are stripped before CSVLoader detects the
+         // type, so "00123" would otherwise become the number 123.
+         REXP textColumns = connection.eval(
+            "local({ .inetsoft_x <- " + name + "; write.csv(.inetsoft_x, '" + fileName +
+            "', row.names = FALSE, na = \"\"); " + TEXT_COLUMNS_EXPR + " })");
 
          try(InputStream input = connection.openFile(fileName);
              OutputStream output = new FileOutputStream(tempFile))
@@ -236,7 +242,7 @@ public class RRuntime extends TabularRuntime {
 
          return CSVLoader.readCSV(
             tempFile, "UTF-8", true, ",", true, false, new HashMap<>(), new ArrayList<>(), true,
-            null, 50000, -1, -1, null);
+            null, 50000, -1, -1, createParseInfo(textColumns, name));
       }
       catch(Exception e) {
          throw new RuntimeException("Failed to transfer table '" + name + "' from R server", e);
@@ -252,6 +258,61 @@ public class RRuntime extends TabularRuntime {
          }
       }
    }
+
+   /**
+    * Creates the parse info that keeps the character/factor columns of a frame read by name
+    * as text.
+    *
+    * @param textColumns the result of {@link #TEXT_COLUMNS_EXPR}: the column count followed
+    *                    by the 0-based indexes of the character/factor columns, or empty.
+    * @param name        the R name, for logging.
+    *
+    * @return the parse info, or {@code null} to detect the type of every column.
+    */
+   private static DateParseInfo createParseInfo(REXP textColumns, String name) {
+      try {
+         int[] values = textColumns == null ? null : textColumns.asIntegers();
+
+         if(values == null || values.length < 2) {
+            return null;
+         }
+
+         int count = values[0];
+         List<Integer> columns = new ArrayList<>();
+
+         for(int i = 1; i < values.length; i++) {
+            // NA is Integer.MIN_VALUE, an index outside the file would fail the read
+            if(values[i] >= 0 && values[i] < count) {
+               columns.add(values[i]);
+            }
+         }
+
+         if(columns.isEmpty()) {
+            return null;
+         }
+
+         DateParseInfo parseInfo = new DateParseInfo();
+         parseInfo.setIgnoreTypeColumns(columns);
+         return parseInfo;
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to get the text columns of '{}' from R server", name, e);
+         return null;
+      }
+   }
+
+   /**
+    * R expression on {@code .inetsoft_x} returning the column count followed by the 0-based
+    * indexes of the character/factor columns (the ones write.csv quotes). It returns
+    * {@code integer(0)} for anything but a data frame whose columns each write one CSV column,
+    * and on error, so those keep detecting the type of every column.
+    */
+   private static final String TEXT_COLUMNS_EXPR =
+      "tryCatch(if(is.data.frame(.inetsoft_x) && " +
+      "!any(vapply(.inetsoft_x, function(z) length(dim(z)) > 1L, NA))) " +
+      "as.integer(unname(c(length(.inetsoft_x), which(vapply(.inetsoft_x, " +
+      "function(z) is.character(z) || is.factor(z), NA)) - 1L))) else integer(0), " +
+      "error = function(e) integer(0))";
 
    private static final Logger LOG = LoggerFactory.getLogger(RRuntime.class.getName());
 }
