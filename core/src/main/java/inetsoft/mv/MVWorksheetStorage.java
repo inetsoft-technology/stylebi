@@ -81,6 +81,10 @@ public class MVWorksheetStorage implements AutoCloseable {
       getStorage().delete(path);
    }
 
+   public void removeWorksheet(String path, String orgID) throws IOException {
+      getStorage(orgID).delete(path);
+   }
+
    @PreDestroy
    @Override
    public void close() throws Exception {

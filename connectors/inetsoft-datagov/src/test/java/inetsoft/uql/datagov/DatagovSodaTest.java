@@ -533,6 +533,46 @@ class DatagovSodaTest {
       }
    }
 
+   // Bug #82405 on the SODA path: a response of the wrong shape names the cause, not a Java error.
+
+   @Test
+   void aJsonObjectInsteadOfTheRowsArrayNamesTheCause() throws Exception {
+      try(SodaStub stub = stub()) {
+         stub.failWith("/resource", 200, "{\"results\":[],\"resultSetSize\":0}");
+
+         for(String suffix : List.of("/resource/jb7j-dtam.json",
+                                     "/api/views/jb7j-dtam/rows.json"))
+         {
+            String message = failureMessage(stub, suffix);
+            assertTrue(message.contains("instead of a JSON array of rows"), message);
+            assertFalse(message.contains("Cannot invoke") || message.contains("NullPointer"),
+                        message);
+         }
+      }
+   }
+
+   @Test
+   void metadataWithoutColumnsNamesTheCause() throws Exception {
+      try(SodaStub stub = stub()) {
+         stub.failWith("/api/views", 200, "{\"id\":\"jb7j-dtam\"}");
+         String message = failureMessage(stub, "/resource/jb7j-dtam.json");
+
+         assertTrue(message.contains("declares no columns"), message);
+         assertFalse(message.contains("Cannot invoke") || message.contains("NullPointer"),
+                     message);
+      }
+   }
+
+   @Test
+   void metadataThatIsNotAnObjectNamesTheCause() throws Exception {
+      try(SodaStub stub = stub()) {
+         stub.failWith("/api/views", 200, "[]");
+         String message = failureMessage(stub, "/resource/jb7j-dtam.json");
+
+         assertTrue(message.contains("instead of a JSON object"), message);
+      }
+   }
+
    @Test
    void aSelectInTheSuffixFailsWithTheParameterNamed() throws Exception {
       try(SodaStub stub = stub()) {

@@ -776,7 +776,7 @@ public class WorksheetAgentController {
 
       // add_variable needs RuntimeWorksheet to add the assembly.
       if("add_variable".equals(req.op())) {
-         addVariableFromEdit(sessionToken, req, user);
+         addVariableFromEdit(sessionToken, req, user, refreshNoteHolder);
          return;
       }
 
@@ -785,7 +785,7 @@ public class WorksheetAgentController {
       if("delete_variable".equals(req.op()) || "rename_variable".equals(req.op()) ||
          "edit_variable".equals(req.op()))
       {
-         editVariableAndSyncValues(sessionToken, req, user);
+         editVariableAndSyncValues(sessionToken, req, user, refreshNoteHolder);
          return;
       }
 
@@ -920,7 +920,8 @@ public class WorksheetAgentController {
     * which would wipe every variable's value), and only after the edit has succeeded, so a
     * refused edit keeps the live value.
     */
-   private void editVariableAndSyncValues(String sessionToken, EditRequest req, Principal user)
+   private void editVariableAndSyncValues(String sessionToken, EditRequest req, Principal user,
+                                          String[] noteHolder)
       throws Exception
    {
       String name = req.name();
@@ -948,7 +949,13 @@ public class WorksheetAgentController {
 
       boolean newNameOwned = targetDeclaredElsewhere;
 
-      editService.apply(sessionToken, user, editor -> dispatch(editor, req));
+      editService.apply(sessionToken, user, editor -> {
+         dispatch(editor, req);
+
+         if(noteHolder != null) {
+            noteHolder[0] = editor.variableDefaultWarning();
+         }
+      });
 
       if("edit_variable".equals(req.op()) && (!typeEdit || oldType == null)) {
          return;
@@ -4690,12 +4697,14 @@ public class WorksheetAgentController {
             editor.addDateRangeColumn(req.table(), req.column(), req.dateOption());
          case "add_numeric_range_column" ->
             editor.addNumericRangeColumn(req.table(), req.column(), req.boundaries(),
-               req.labels() != null ? req.labels().toArray(new String[0]) : null);
+               req.labels() != null ? req.labels().toArray(new String[0]) : null,
+               req.lessThanMin(), req.greaterThanMax(), req.upperInclusive());
          case "edit_date_range_column" ->
             editor.editDateRangeColumn(req.table(), req.column(), req.dateOption());
          case "edit_numeric_range_column" ->
             editor.editNumericRangeColumn(req.table(), req.column(), req.boundaries(),
-               req.labels() != null ? req.labels().toArray(new String[0]) : null);
+               req.labels() != null ? req.labels().toArray(new String[0]) : null,
+               req.lessThanMin(), req.greaterThanMax(), req.upperInclusive());
          case "edit_cell" -> {
             if(req.row() == null || req.col() == null) {
                throw new PairingException("edit_cell requires 'row' and 'col' fields");
@@ -4762,7 +4771,7 @@ public class WorksheetAgentController {
             editor.setPrimaryAssembly(req.table());
          case "edit_variable" ->
             editor.editVariable(req.name(), req.type(), req.label(), req.defaultValue(),
-                                req.choices());
+                                req.choices(), req.defaultValueType(), req.none());
          case "rename_variable" ->
             editor.renameVariable(req.name(), req.newName());
          case "delete_variable" ->
@@ -6478,7 +6487,8 @@ public class WorksheetAgentController {
    /**
     * Handles {@code add_variable} dispatched through the edit endpoint.
     */
-   private void addVariableFromEdit(String sessionToken, EditRequest req, Principal user)
+   private void addVariableFromEdit(String sessionToken, EditRequest req, Principal user,
+                                    String[] noteHolder)
       throws Exception
    {
       String varName = req.name();
@@ -6490,7 +6500,13 @@ public class WorksheetAgentController {
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
          boolean declaredBefore = declaredVariableNames(ws).contains(varName.toLowerCase());
-         createVariable(ws, varName, req.type(), req.label(), req.defaultValue(), req.choices());
+         String warning = createVariable(ws, varName, req.type(), req.label(),
+                                         req.defaultValue(), req.choices(),
+                                         req.defaultValueType(), req.none());
+
+         if(noteHolder != null) {
+            noteHolder[0] = warning;
+         }
 
          if(!declaredBefore) {
             purgeStaleVariableValue(rws, varName);
@@ -6534,9 +6550,14 @@ public class WorksheetAgentController {
       }
    }
 
-   private void createVariable(Worksheet ws, String name, String type, String label,
-                               String defaultValue,
-                               WorksheetMutationSupport.VariableChoicesSpec choices)
+   /**
+    * @return a warning about the default value to surface to the caller (see
+    *         {@link WorksheetVariableDefault#LITERAL_EQUALS_WARNING}), or {@code null}
+    */
+   private String createVariable(Worksheet ws, String name, String type, String label,
+                                 String defaultValue,
+                                 WorksheetMutationSupport.VariableChoicesSpec choices,
+                                 String defaultValueType, Boolean none)
       throws PairingException
    {
       requireValidVariableName(name);
@@ -6583,37 +6604,8 @@ public class WorksheetAgentController {
          var.setTypeNode(typeNode);
       }
 
-      if(defaultValue != null) {
-         // Determine the effective type for the value node.  When a type is specified,
-         // use the typed factory so the value node matches the variable type (e.g.
-         // IntegerValue for "integer") and the value is parsed correctly through
-         // XValueNode.parse0().  Without this, createValueNode(Object, String) always
-         // creates a StringValue regardless of the variable type, and the stored
-         // default value can be silently lost on serialization round-trips.
-         String effectiveType = type != null
-            ? type : (var.getTypeNode() != null ? var.getTypeNode().getType() : null);
-         inetsoft.uql.schema.XValueNode valueNode =
-            inetsoft.uql.schema.XValueNode.createValueNode(name, effectiveType);
-
-         if(valueNode != null) {
-            try {
-               WizStrictValueParser.parse(defaultValue, effectiveType);
-               valueNode.parse0(defaultValue);
-            }
-            catch(Exception e) {
-               // L2-Group7: previously fell back to storing the raw, unparsed string (e.g.
-               // "not_a_number" on a declared-integer variable) instead of failing loud --
-               // the variable ended up with a default value inconsistent with its own
-               // declared type, silently.
-               throw new PairingException(
-                  "Default value '" + defaultValue + "' is not a valid " +
-                  (effectiveType != null ? effectiveType : "string") +
-                  " value for variable '" + name + "'.");
-            }
-
-            var.setValueNode(valueNode);
-         }
-      }
+      String warning = WorksheetVariableDefault.apply(
+         var, name, type, defaultValue, defaultValueType, none);
 
       WorksheetMutationSupport.applyVariableChoices(ws, var, choices);
 
@@ -6622,6 +6614,7 @@ public class WorksheetAgentController {
       assembly.setPixelOffset(new Point(25, 25));
       AssetEventUtil.adjustAssemblyPosition(assembly, ws);
       ws.addAssembly(assembly);
+      return warning;
    }
 
    // ---------------------------------------------------------------------------
@@ -6803,17 +6796,28 @@ public class WorksheetAgentController {
    /**
     * @param choices the variable's enumerated "Values" picker (embedded list or query
     *               source), or {@code null} for a free-form value
+    * @param defaultValueType {@code "value"} (or {@code null}) / {@code "expression"}; see
+    *               {@link WorksheetVariableDefault}
+    * @param none   {@code true} stores no default
     */
    public record VariableRequest(String name, String type, String label, String defaultValue,
-                                 WorksheetMutationSupport.VariableChoicesSpec choices) {}
+                                 WorksheetMutationSupport.VariableChoicesSpec choices,
+                                 String defaultValueType, Boolean none)
+   {
+      public VariableRequest(String name, String type, String label, String defaultValue,
+                             WorksheetMutationSupport.VariableChoicesSpec choices)
+      {
+         this(name, type, label, defaultValue, choices, null, null);
+      }
+   }
 
    /**
     * Add a user variable to the worksheet.
     */
    @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/variable")
-   public void addVariable(@PathVariable String sessionToken,
-                           @RequestBody VariableRequest body,
-                           Principal user) throws Exception
+   public ResponseEntity<EditResponse> addVariable(@PathVariable String sessionToken,
+                                                   @RequestBody VariableRequest body,
+                                                   Principal user) throws Exception
    {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
@@ -6822,11 +6826,14 @@ public class WorksheetAgentController {
          throw new PairingException("Variable name is required.");
       }
 
+      String[] warningHolder = new String[1];
+
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
          boolean declaredBefore = declaredVariableNames(ws).contains(body.name().toLowerCase());
-         createVariable(ws, body.name(), body.type(), body.label(), body.defaultValue(),
-                        body.choices());
+         warningHolder[0] = createVariable(ws, body.name(), body.type(), body.label(),
+                                           body.defaultValue(), body.choices(),
+                                           body.defaultValueType(), body.none());
 
          if(!declaredBefore) {
             purgeStaleVariableValue(rws, body.name());
@@ -6834,6 +6841,12 @@ public class WorksheetAgentController {
 
          return null;
       });
+
+      // 200 with the warning in the edit response's own "note" channel, else the empty 204 this
+      // endpoint always returned.
+      return warningHolder[0] == null
+         ? ResponseEntity.noContent().build()
+         : ResponseEntity.ok(new EditResponse(null, null, null, warningHolder[0], null));
    }
 
    // ---------------------------------------------------------------------------

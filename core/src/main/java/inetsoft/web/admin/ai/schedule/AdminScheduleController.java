@@ -53,7 +53,8 @@ public class AdminScheduleController {
                                   ScheduleFolderChangesetApplyService folderApplyService,
                                   AdminScheduleCycleGateway cycleGateway,
                                   ScheduleCycleChangePlanService cyclePlanService,
-                                  ScheduleCycleChangesetApplyService cycleApplyService)
+                                  ScheduleCycleChangesetApplyService cycleApplyService,
+                                  ScheduleRedistributionService redistributionService)
    {
       this.scheduleGateway = scheduleGateway;
       this.planService = planService;
@@ -64,6 +65,7 @@ public class AdminScheduleController {
       this.cycleGateway = cycleGateway;
       this.cyclePlanService = cyclePlanService;
       this.cycleApplyService = cycleApplyService;
+      this.redistributionService = redistributionService;
    }
 
    @Secured(@RequiredPermission(
@@ -88,6 +90,7 @@ public class AdminScheduleController {
       requireSiteAdmin(user);
       return new ScheduleTaskView(taskId,
          scheduleGateway.getScheduleTaskPath(taskId, user),
+         scheduleGateway.getScheduleTaskTimeZone(taskId, user),
          scheduleGateway.getScheduleTask(taskId, null, user),
          scheduleGateway.getTaskConditionsLenient(taskId, null, user),
          scheduleGateway.getTaskActionsLenient(taskId, null, user));
@@ -170,6 +173,24 @@ public class AdminScheduleController {
       }
 
       return new ScheduleActionResult(outcomes);
+   }
+
+   /**
+    * Works out what Enterprise Manager's Balance Tasks would do to the named tasks, without
+    * saving anything: the new conditions of every task that changes, and the tasks left out with
+    * the reason. The caller turns each task into an update of the {@link #preview}/{@link #apply}
+    * plan, which supplies the preview, sign-off, drift check and rollback. See {@link
+    * ScheduleRedistributionService}.
+    */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/tasks",
+      actions = ResourceAction.ACCESS))
+   @PostMapping("/api/wiz/v1/admin/schedule/redistribute-plan")
+   public RedistributePlan redistributePlan(@RequestBody RedistributePlanRequest req,
+                                            Principal user) throws Exception
+   {
+      requireSiteAdmin(user);
+      return redistributionService.plan(req);
    }
 
    /**
@@ -334,4 +355,5 @@ public class AdminScheduleController {
    private final AdminScheduleCycleGateway cycleGateway;
    private final ScheduleCycleChangePlanService cyclePlanService;
    private final ScheduleCycleChangesetApplyService cycleApplyService;
+   private final ScheduleRedistributionService redistributionService;
 }

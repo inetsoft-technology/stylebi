@@ -74,6 +74,9 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
             // TODO: Might need to switch this to a streaming based implementation.
             jsonReader = Json.createReader(connReader);
             jObj = jsonReader.readObject();
+            // the SODA path builds this shape itself and names its own bad responses (see
+            // DatagovSoda.fetch); a document read as is must be checked (Bug #82405)
+            checkRowsJsonShape(jObj);
          }
 
          table = new DatagovTable(jObj, query0.getMaxRows(), query);
@@ -91,6 +94,23 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
       }
 
       return table;
+   }
+
+   /**
+    * Rejects a JSON object that is not in the rows.json shape, so the caller gets the shape
+    * message instead of a NullPointerException from the table parser (Bug #82405).
+    */
+   private static void checkRowsJsonShape(JsonObject json) {
+      JsonObject meta = json.containsKey("meta") && !json.isNull("meta") ?
+         json.getJsonObject("meta") : null;
+      JsonObject view = meta != null && meta.containsKey("view") && !meta.isNull("view") ?
+         meta.getJsonObject("view") : null;
+
+      if(view == null || !(view.get("columns") instanceof JsonArray) ||
+         !(json.get("data") instanceof JsonArray))
+      {
+         throw new JsonException("not in the rows.json shape");
+      }
    }
 
    /**

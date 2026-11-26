@@ -7895,6 +7895,154 @@ class WorksheetAgentControllerTest {
       assertNotNull(ws.getAssembly("dVar"));
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug #82399: variable default as an expression / None, on both create paths and edit
+   // ---------------------------------------------------------------------------
+
+   /** Parsed the way Spring parses the real request body, so the wire field names are covered. */
+   private static EditRequest variableEditRequest(String json) throws Exception {
+      return new inetsoft.web.WebConfig().objectMapper().readValue(json, EditRequest.class);
+   }
+
+   private static AssetVariable storedVariable(Worksheet ws, String name) {
+      return ((DefaultVariableAssembly) ws.getAssembly(name)).getVariable();
+   }
+
+   @Test
+   void addVariableStoresAnExpressionDefaultOnADateVariable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = strictVariableController(
+         ws, mock(AssetQuerySandbox.class), "TOK-82399A");
+
+      ResponseEntity<EditResponse> response = ctrl.edit("TOK-82399A", variableEditRequest("""
+         {"op": "add_variable", "name": "d", "type": "date",
+          "defaultValue": "=new Date()", "defaultValueType": "expression"}
+         """), agent);
+
+      ExpressionValue ev = assertInstanceOf(ExpressionValue.class,
+         storedVariable(ws, "d").getValueNode().getValue());
+      assertEquals("new Date()", ev.getExpression());
+      assertEquals(XSchema.DATE, storedVariable(ws, "d").getValueNode().getType());
+      assertEquals(204, response.getStatusCode().value(), "no warning: still the empty 204");
+   }
+
+   @Test
+   void addVariableNoneStoresNoDefault() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = strictVariableController(
+         ws, mock(AssetQuerySandbox.class), "TOK-82399B");
+
+      ctrl.edit("TOK-82399B", variableEditRequest("""
+         {"op": "add_variable", "name": "n", "type": "integer", "none": true}
+         """), agent);
+
+      assertNull(storedVariable(ws, "n").getValueNode());
+      assertEquals("integer", storedVariable(ws, "n").getTypeNode().getType());
+   }
+
+   @Test
+   void addVariableRefusesNoneTogetherWithADefaultValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = strictVariableController(
+         ws, mock(AssetQuerySandbox.class), "TOK-82399C");
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit(
+         "TOK-82399C", variableEditRequest("""
+            {"op": "add_variable", "name": "n", "type": "integer",
+             "defaultValue": "3", "none": true}
+            """), agent));
+      assertTrue(ex.getMessage().contains("none") && ex.getMessage().contains("defaultValue"),
+                 ex.getMessage());
+      assertNull(ws.getAssembly("n"), "a refused add leaves nothing behind");
+   }
+
+   @Test
+   void addVariableStringDefaultStartingWithEqualsIsALiteralWithAWarningInTheNote()
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = strictVariableController(
+         ws, mock(AssetQuerySandbox.class), "TOK-82399D");
+
+      ResponseEntity<EditResponse> response = ctrl.edit("TOK-82399D", variableEditRequest("""
+         {"op": "add_variable", "name": "u", "type": "string", "defaultValue": "=user"}
+         """), agent);
+
+      assertEquals("=user", storedVariable(ws, "u").getValueNode().getValue());
+      assertEquals(200, response.getStatusCode().value());
+      assertNotNull(response.getBody());
+      assertTrue(response.getBody().note().contains("literal text default"),
+                 response.getBody().note());
+      assertTrue(response.getBody().note().contains("defaultValueType:'expression'"),
+                 response.getBody().note());
+   }
+
+   @Test
+   void postVariableEndpointTakesTheSameDefaultFieldsAndReportsTheWarning() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = strictVariableController(
+         ws, mock(AssetQuerySandbox.class), "TOK-82399E");
+      com.fasterxml.jackson.databind.ObjectMapper mapper =
+         new inetsoft.web.WebConfig().objectMapper();
+
+      ResponseEntity<EditResponse> expression = ctrl.addVariable("TOK-82399E", mapper.readValue("""
+         {"name": "d", "type": "date", "defaultValue": "=new Date()",
+          "defaultValueType": "expression"}
+         """, WorksheetAgentController.VariableRequest.class), agent);
+      ResponseEntity<EditResponse> none = ctrl.addVariable("TOK-82399E", mapper.readValue("""
+         {"name": "n", "type": "integer", "none": true}
+         """, WorksheetAgentController.VariableRequest.class), agent);
+      ResponseEntity<EditResponse> literal = ctrl.addVariable("TOK-82399E", mapper.readValue("""
+         {"name": "u", "type": "string", "defaultValue": "=user"}
+         """, WorksheetAgentController.VariableRequest.class), agent);
+
+      assertEquals("new Date()", ((ExpressionValue) storedVariable(ws, "d").getValueNode()
+         .getValue()).getExpression());
+      assertNull(storedVariable(ws, "n").getValueNode());
+      assertEquals("=user", storedVariable(ws, "u").getValueNode().getValue());
+      assertEquals(204, expression.getStatusCode().value());
+      assertEquals(204, none.getStatusCode().value());
+      assertEquals(200, literal.getStatusCode().value());
+      assertTrue(literal.getBody().note().contains("literal text default"));
+   }
+
+   @Test
+   void editVariableThroughTheControllerReportsTheStringEqualsWarningAndStoresExpressions()
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      variableAssemblyForValues(ws, "u", "string");
+      variableAssemblyForValues(ws, "d", "date");
+      WorksheetAgentController ctrl = strictVariableController(
+         ws, mock(AssetQuerySandbox.class), "TOK-82399F");
+
+      ResponseEntity<EditResponse> literal = ctrl.edit("TOK-82399F", variableEditRequest("""
+         {"op": "edit_variable", "name": "u", "defaultValue": "=user"}
+         """), agent);
+      ResponseEntity<EditResponse> expression = ctrl.edit("TOK-82399F", variableEditRequest("""
+         {"op": "edit_variable", "name": "d", "defaultValue": "new Date()",
+          "defaultValueType": "expression"}
+         """), agent);
+
+      assertEquals(200, literal.getStatusCode().value());
+      assertTrue(literal.getBody().note().contains("literal text default"));
+      assertEquals("=user", storedVariable(ws, "u").getValueNode().getValue());
+      assertEquals(204, expression.getStatusCode().value());
+      assertEquals("new Date()", ((ExpressionValue) storedVariable(ws, "d").getValueNode()
+         .getValue()).getExpression());
+
+      ctrl.edit("TOK-82399F", variableEditRequest("""
+         {"op": "edit_variable", "name": "d", "none": true}
+         """), agent);
+      assertNull(storedVariable(ws, "d").getValueNode());
+   }
+
    private static DefaultVariableAssembly variableAssemblyForValues(
       Worksheet ws, String name, String type)
    {

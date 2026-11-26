@@ -2024,6 +2024,443 @@ class WorksheetEditServiceMutatorsTest {
          ((NumericRangeRef) unwrapped).getValueRangeInfo().getValues());
    }
 
+   // =========================================================================
+   // Bug #82399: numeric range options (Less Than Min / Greater Than Max / Upper Inclusive) and
+   // variable defaults (expression / None)
+   // =========================================================================
+
+   private static NumericRangeRef numericRange(EmbeddedTableAssembly t, String column) {
+      DataRef ref = t.getColumnSelection(false).getAttribute(column);
+      DataRef unwrapped = ref instanceof ColumnRef cr ? cr.getDataRef() : ref;
+      return (NumericRangeRef) unwrapped;
+   }
+
+   /** One-table worksheet plus the service to edit it, for the range option tests. */
+   private record RangeFixture(EmbeddedTableAssembly table, Principal agent,
+                               WorksheetEditService svc)
+   {
+      NumericRangeRef range(String column) {
+         return numericRange(table, column);
+      }
+   }
+
+   private RangeFixture rangeFixture() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "amount", "total");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      return new RangeFixture(t, agent, service(rws(ws), "Worksheet/ws1", agent, "TOK"));
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      "true,  true,  false",
+      "true,  true,  true",
+      "false, false, false",
+      "false, false, true",
+      "true,  false, false",
+      "true,  false, true",
+      "false, true,  false",
+      "false, true,  true"
+   })
+   void addNumericRangeColumnAppliesEveryRangeOptionCombination(boolean lessThanMin,
+                                                                 boolean greaterThanMax,
+                                                                 boolean upperInclusive)
+      throws Exception
+   {
+      RangeFixture f = rangeFixture();
+      f.svc().apply("TOK", f.agent(), ed -> ed.addNumericRangeColumn(
+         "T", "amount", new double[] { 50, 200 }, null,
+         lessThanMin, greaterThanMax, upperInclusive));
+
+      ValueRangeInfo info = f.range("amount_range").getValueRangeInfo();
+      assertEquals(lessThanMin, info.isShowBottomValue());
+      assertEquals(greaterThanMax, info.isShowTopValue());
+      assertEquals(upperInclusive ? InclusiveType.UPPER : InclusiveType.LOWER,
+                   info.getInclusiveType());
+
+      // The generated CASE text is what the engine runs and what read_worksheet_model shows
+      // today, so the claim is made on it, not only on the flags.
+      String sql = f.range("amount_range").getExpression();
+      String bottom = "field['amount'] " + (upperInclusive ? "<=" : "<") + " 50.0 THEN";
+      String top = "field['amount'] " + (upperInclusive ? ">" : ">=") + " 200.0 THEN";
+      String middle = upperInclusive
+         ? "field['amount'] > 50.0 AND field['amount'] <= 200.0 THEN"
+         : "field['amount'] >= 50.0 AND field['amount'] < 200.0 THEN";
+      assertEquals(lessThanMin, sql.contains(bottom), sql);
+      assertEquals(greaterThanMax, sql.contains(top), sql);
+      assertTrue(sql.contains(middle), sql);
+   }
+
+   @Test
+   void addNumericRangeColumnWithoutRangeOptionsKeepsTodaysExpression() throws Exception {
+      RangeFixture omitted = rangeFixture();
+      omitted.svc().apply("TOK", omitted.agent(), ed ->
+         ed.addNumericRangeColumn("T", "amount", new double[] { 50, 200 }, null));
+      RangeFixture explicit = rangeFixture();
+      explicit.svc().apply("TOK", explicit.agent(), ed -> ed.addNumericRangeColumn(
+         "T", "amount", new double[] { 50, 200 }, null, true, true, false));
+
+      ValueRangeInfo info = omitted.range("amount_range").getValueRangeInfo();
+      assertTrue(info.isShowBottomValue());
+      assertTrue(info.isShowTopValue());
+      assertEquals(InclusiveType.LOWER, info.getInclusiveType());
+      assertEquals(explicit.range("amount_range").getExpression(),
+                   omitted.range("amount_range").getExpression());
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      // lessThanMin, greaterThanMax, boundary count, expected label count
+      "true,  true,  2, 3",
+      "true,  false, 2, 2",
+      "false, true,  2, 2",
+      "false, false, 2, 1",
+      "true,  true,  1, 2",
+      "true,  false, 1, 1",
+      "false, true,  1, 1",
+      "false, false, 1, 1"
+   })
+   void addNumericRangeColumnLabelCountFollowsTheFlags(boolean lessThanMin, boolean greaterThanMax,
+                                                       int boundaryCount, int expected)
+      throws Exception
+   {
+      double[] boundaries = new double[boundaryCount];
+
+      for(int i = 0; i < boundaryCount; i++) {
+         boundaries[i] = 100 * (i + 1);
+      }
+
+      String[] exact = new String[expected];
+      String[] longer = new String[expected + 1];
+      String[] shorter = new String[expected - 1];
+      java.util.Arrays.setAll(exact, i -> "L" + i);
+      java.util.Arrays.setAll(longer, i -> "L" + i);
+      java.util.Arrays.setAll(shorter, i -> "L" + i);
+
+      RangeFixture f = rangeFixture();
+      f.svc().apply("TOK", f.agent(), ed -> ed.addNumericRangeColumn(
+         "T", "amount", boundaries, exact, lessThanMin, greaterThanMax, null));
+      assertArrayEquals(exact, f.range("amount_range").getValueRangeInfo().getLabels());
+      // every label actually lands in the CASE: nothing is silently dropped or shifted
+      String sql = f.range("amount_range").getExpression();
+
+      for(String label : exact) {
+         assertTrue(sql.contains("'" + label + "'"), label + " missing from " + sql);
+      }
+
+      for(String[] wrong : expected > 1 ? new String[][] { longer, shorter }
+                                        : new String[][] { longer }) {
+         RangeFixture g = rangeFixture();
+         PairingException ex = assertThrows(PairingException.class, () ->
+            g.svc().apply("TOK", g.agent(), ed -> ed.addNumericRangeColumn(
+               "T", "amount", boundaries, wrong, lessThanMin, greaterThanMax, null)));
+         assertTrue(ex.getMessage().contains("exactly " + expected + " entries"), ex.getMessage());
+         assertTrue(ex.getMessage().contains("got " + wrong.length), ex.getMessage());
+         assertNull(g.table().getColumnSelection(false).getAttribute("amount_range"));
+      }
+   }
+
+   @Test
+   void editNumericRangeColumnKeepsExistingRangeOptionsWhenNotGiven() throws Exception {
+      RangeFixture f = rangeFixture();
+      f.svc().apply("TOK", f.agent(), ed -> ed.addNumericRangeColumn(
+         "T", "amount", new double[] { 50, 200 }, null, false, true, true));
+
+      f.svc().apply("TOK", f.agent(), ed ->
+         ed.editNumericRangeColumn("T", "amount_range", new double[] { 10, 300 }, null));
+
+      ValueRangeInfo info = f.range("amount_range").getValueRangeInfo();
+      assertArrayEquals(new double[] { 10, 300 }, info.getValues());
+      assertFalse(info.isShowBottomValue());
+      assertTrue(info.isShowTopValue());
+      assertEquals(InclusiveType.UPPER, info.getInclusiveType());
+   }
+
+   @Test
+   void editNumericRangeColumnChangesOnlyTheRangeOptionsGiven() throws Exception {
+      RangeFixture f = rangeFixture();
+      f.svc().apply("TOK", f.agent(), ed -> ed.addNumericRangeColumn(
+         "T", "amount", new double[] { 50, 200 }, null, false, true, true));
+
+      f.svc().apply("TOK", f.agent(), ed -> ed.editNumericRangeColumn(
+         "T", "amount_range", new double[] { 50, 200 }, null, true, null, null));
+      ValueRangeInfo info = f.range("amount_range").getValueRangeInfo();
+      assertTrue(info.isShowBottomValue());
+      assertTrue(info.isShowTopValue(), "an omitted flag keeps its value");
+      assertEquals(InclusiveType.UPPER, info.getInclusiveType(), "an omitted flag keeps its value");
+
+      f.svc().apply("TOK", f.agent(), ed -> ed.editNumericRangeColumn(
+         "T", "amount_range", new double[] { 50, 200 }, null, null, false, false));
+      info = f.range("amount_range").getValueRangeInfo();
+      assertTrue(info.isShowBottomValue());
+      assertFalse(info.isShowTopValue());
+      assertEquals(InclusiveType.LOWER, info.getInclusiveType(),
+                   "upperInclusive:false is LOWER, never NONE");
+   }
+
+   @Test
+   void editNumericRangeColumnLabelCountUsesTheColumnsExistingFlags() throws Exception {
+      // The Composer (or add with a flag off) can leave a column with fewer buckets than the old
+      // "boundaries + 1" rule assumed; its edit must be checked against ITS flags.
+      RangeFixture f = rangeFixture();
+      f.svc().apply("TOK", f.agent(), ed -> ed.addNumericRangeColumn(
+         "T", "amount", new double[] { 50, 200 }, null, false, false, true));
+
+      f.svc().apply("TOK", f.agent(), ed -> ed.editNumericRangeColumn(
+         "T", "amount_range", new double[] { 50, 200 }, new String[] { "Mid" }));
+      assertArrayEquals(new String[] { "Mid" },
+                        f.range("amount_range").getValueRangeInfo().getLabels());
+
+      // the old n+1 count is now wrong for this column, and a refusal changes nothing
+      PairingException ex = assertThrows(PairingException.class, () ->
+         f.svc().apply("TOK", f.agent(), ed -> ed.editNumericRangeColumn(
+            "T", "amount_range", new double[] { 50, 200 }, new String[] { "a", "b", "c" })));
+      assertTrue(ex.getMessage().contains("exactly 1 entries"), ex.getMessage());
+      assertArrayEquals(new String[] { "Mid" },
+                        f.range("amount_range").getValueRangeInfo().getLabels());
+   }
+
+   @Test
+   void editNumericRangeColumnLabelCountUsesTheFlagsBeingSetInTheSameEdit() throws Exception {
+      RangeFixture f = rangeFixture();
+      f.svc().apply("TOK", f.agent(), ed -> ed.addNumericRangeColumn(
+         "T", "amount", new double[] { 50, 200 }, null));   // both buckets on: 3 labels
+
+      f.svc().apply("TOK", f.agent(), ed -> ed.editNumericRangeColumn(
+         "T", "amount_range", new double[] { 50, 200 }, new String[] { "Low", "Mid" },
+         true, false, null));
+
+      ValueRangeInfo info = f.range("amount_range").getValueRangeInfo();
+      assertArrayEquals(new String[] { "Low", "Mid" }, info.getLabels());
+      assertFalse(info.isShowTopValue());
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         f.svc().apply("TOK", f.agent(), ed -> ed.editNumericRangeColumn(
+            "T", "amount_range", new double[] { 50, 200 }, new String[] { "Low", "Mid", "Hi" },
+            true, false, null)));
+      assertTrue(ex.getMessage().contains("exactly 2 entries"), ex.getMessage());
+   }
+
+   @Test
+   void editNumericRangeColumnSingleBoundaryWithBothBucketsOffTakesOneLabel() throws Exception {
+      RangeFixture f = rangeFixture();
+      f.svc().apply("TOK", f.agent(), ed -> ed.addNumericRangeColumn(
+         "T", "amount", new double[] { 50, 200 }, null, false, false, null));
+
+      f.svc().apply("TOK", f.agent(), ed -> ed.editNumericRangeColumn(
+         "T", "amount_range", new double[] { 100 }, new String[] { "Exactly 100" }));
+
+      String sql = f.range("amount_range").getExpression();
+      assertTrue(sql.contains("BETWEEN 100.0 AND 100.0 THEN 'Exactly 100'"), sql);
+   }
+
+   // ---- variable defaults ---------------------------------------------------
+
+   private record VariableFixture(Worksheet ws, Principal agent, WorksheetEditService svc) {
+      AssetVariable variable(String name) {
+         return ((DefaultVariableAssembly) ws.getAssembly(name)).getVariable();
+      }
+
+      /** Runs editVariable and returns the warning the editor reported. */
+      String edit(String name, String type, String defaultValue, String defaultValueType,
+                  Boolean none) throws Exception
+      {
+         String[] warning = new String[1];
+         svc.apply("TOK", agent, ed -> {
+            ed.editVariable(name, type, null, defaultValue, null, defaultValueType, none);
+            warning[0] = ed.variableDefaultWarning();
+         });
+         return warning[0];
+      }
+   }
+
+   /** A variable built the way createVariable builds one: type node set, no default given. */
+   private VariableFixture variableFixture(String name, String type) throws Exception {
+      Worksheet ws = new Worksheet();
+      AssetVariable var = new AssetVariable(name);
+      var.setTypeNode(XSchema.createPrimitiveType(type));
+      DefaultVariableAssembly assembly = new DefaultVariableAssembly(ws, name);
+      assembly.setVariable(var);
+      ws.addAssembly(assembly);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      return new VariableFixture(ws, agent, service(rws(ws), "Worksheet/ws1", agent, "TOK"));
+   }
+
+   @Test
+   void editVariableStoresAnExpressionDefaultOnADateVariable() throws Exception {
+      // The reported failure: "=new Date()" on a date variable was refused as "not a valid date".
+      VariableFixture f = variableFixture("d", "date");
+
+      assertNull(f.edit("d", null, "=new Date()", "expression", null));
+
+      Object stored = f.variable("d").getValueNode().getValue();
+      ExpressionValue ev = assertInstanceOf(ExpressionValue.class, stored);
+      assertEquals("new Date()", ev.getExpression(), "ONE leading '=' is stripped");
+      assertEquals(ExpressionValue.JAVASCRIPT, ev.getType());
+      assertEquals(XSchema.DATE, f.variable("d").getValueNode().getType(),
+                   "the node keeps the variable's type, as the Composer dialog stores it");
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      "'new Date()', new Date()",
+      "'= new Date() ', new Date()",
+      "'==x', =x",
+      "'  =  1 + 1', 1 + 1"
+   })
+   void editVariableExpressionDefaultStripsOneLeadingEqualsAndTrims(String given, String stored)
+      throws Exception
+   {
+      VariableFixture f = variableFixture("v", "string");
+      f.edit("v", null, given, "expression", null);
+      assertEquals(stored,
+                   ((ExpressionValue) f.variable("v").getValueNode().getValue()).getExpression());
+   }
+
+   @ParameterizedTest
+   @CsvSource({ "integer", "double", "boolean", "string", "time", "timeInstant", "long" })
+   void editVariableExpressionDefaultWorksForEveryType(String type) throws Exception {
+      VariableFixture f = variableFixture("v", type);
+      f.edit("v", null, "1 + 1", "expression", null);
+      assertInstanceOf(ExpressionValue.class, f.variable("v").getValueNode().getValue());
+      assertEquals(type, f.variable("v").getValueNode().getType());
+   }
+
+   @ParameterizedTest
+   @CsvSource({ "''", "'   '", "'='", "' = '" })
+   void editVariableRefusesABlankExpressionDefault(String blank) throws Exception {
+      VariableFixture f = variableFixture("v", "string");
+      PairingException ex = assertThrows(PairingException.class,
+         () -> f.edit("v", null, blank, "expression", null));
+      assertTrue(ex.getMessage().contains("defaultValueType"), ex.getMessage());
+   }
+
+   @Test
+   void editVariableRefusesAnExpressionTypeWithoutADefaultValue() throws Exception {
+      VariableFixture f = variableFixture("v", "string");
+      PairingException ex = assertThrows(PairingException.class,
+         () -> f.edit("v", null, null, "expression", null));
+      assertTrue(ex.getMessage().contains("defaultValue"), ex.getMessage());
+   }
+
+   @Test
+   void editVariableNoneClearsTheDefault() throws Exception {
+      VariableFixture f = variableFixture("n", "integer");
+      f.edit("n", null, "5", null, null);
+      assertEquals(5, f.variable("n").getValueNode().getValue());
+
+      f.edit("n", null, null, null, true);
+
+      assertNull(f.variable("n").getValueNode(), "None is exactly the native setValueNode(null)");
+   }
+
+   @Test
+   void editVariableNoneRunsAfterATypeChangeInTheSameEdit() throws Exception {
+      // setTypeNode re-creates an empty node when the node is null, so clearing before it would
+      // leave a typed null-valued node instead of the native "None".
+      VariableFixture f = variableFixture("n", "integer");
+      f.edit("n", null, "5", null, null);
+
+      f.edit("n", "string", null, null, true);
+
+      assertNull(f.variable("n").getValueNode());
+      assertEquals("string", f.variable("n").getTypeNode().getType());
+   }
+
+   @Test
+   void editVariableRefusesNoneTogetherWithADefaultValue() throws Exception {
+      VariableFixture f = variableFixture("n", "string");
+      f.edit("n", null, "keep", null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> f.edit("n", null, "x", null, true));
+      assertTrue(ex.getMessage().contains("none") && ex.getMessage().contains("defaultValue"),
+                 ex.getMessage());
+      ex = assertThrows(PairingException.class,
+         () -> f.edit("n", null, null, "expression", true));
+      assertTrue(ex.getMessage().contains("none") && ex.getMessage().contains("defaultValueType"),
+                 ex.getMessage());
+      assertEquals("keep", f.variable("n").getValueNode().getValue(), "a refusal changes nothing");
+   }
+
+   @Test
+   void editVariableNoneFalseAndNullBehaveAsBefore() throws Exception {
+      VariableFixture f = variableFixture("n", "integer");
+      f.edit("n", null, "5", null, false);
+      assertEquals(5, f.variable("n").getValueNode().getValue());
+      f.edit("n", null, null, null, false);
+      assertEquals(5, f.variable("n").getValueNode().getValue(),
+                   "defaultValue == null with no none/defaultValueType still means unchanged");
+      f.edit("n", null, "7", "value", null);
+      assertEquals(7, f.variable("n").getValueNode().getValue());
+   }
+
+   @Test
+   void editVariableRefusesAnUnknownDefaultValueType() throws Exception {
+      VariableFixture f = variableFixture("v", "string");
+      PairingException ex = assertThrows(PairingException.class,
+         () -> f.edit("v", null, "x", "formula", null));
+      assertTrue(ex.getMessage().contains("defaultValueType"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("formula"), ex.getMessage());
+   }
+
+   @Test
+   void editVariableDefaultValueTypeIsCaseInsensitive() throws Exception {
+      VariableFixture f = variableFixture("v", "string");
+      f.edit("v", null, "1 + 1", " Expression ", null);
+      assertInstanceOf(ExpressionValue.class, f.variable("v").getValueNode().getValue());
+   }
+
+   @Test
+   void editVariableStringDefaultStartingWithEqualsIsALiteralWithAWarning() throws Exception {
+      VariableFixture f = variableFixture("s", "string");
+
+      String warning = f.edit("s", null, "=user", null, null);
+
+      assertEquals("=user", f.variable("s").getValueNode().getValue());
+      assertNotNull(warning);
+      assertTrue(warning.contains("literal"), warning);
+      assertTrue(warning.contains("defaultValueType:'expression'"), warning);
+   }
+
+   @Test
+   void editVariableGivesNoWarningWhenTheDefaultIsTypedOrDoesNotStartWithEquals()
+      throws Exception
+   {
+      VariableFixture f = variableFixture("s", "string");
+      assertNull(f.edit("s", null, "=user", "value", null), "explicitly a value: no warning");
+      assertNull(f.edit("s", null, "user", null, null));
+      assertNull(f.edit("s", null, "=user", "expression", null));
+   }
+
+   @Test
+   void editVariableLiteralDefaultStillGoesThroughTheStrictParser() throws Exception {
+      VariableFixture f = variableFixture("n", "integer");
+      PairingException ex = assertThrows(PairingException.class,
+         () -> f.edit("n", null, "=1", null, null));
+      assertTrue(ex.getMessage().contains("not a valid integer"), ex.getMessage());
+   }
+
+   @Test
+   void expressionDefaultSurvivesAnXmlRoundTripOnADateVariable() throws Exception {
+      VariableFixture f = variableFixture("d", "date");
+      f.edit("d", null, "=new Date()", "expression", null);
+
+      java.io.StringWriter out = new java.io.StringWriter();
+      java.io.PrintWriter writer = new java.io.PrintWriter(out);
+      f.variable("d").writeXML(writer);
+      writer.flush();
+      org.w3c.dom.Element elem = inetsoft.util.Tool.parseXML(
+         new java.io.StringReader(out.toString())).getDocumentElement();
+      AssetVariable back = new AssetVariable();
+      back.parseXML(elem);
+
+      ExpressionValue ev = assertInstanceOf(ExpressionValue.class, back.getValueNode().getValue());
+      assertEquals("new Date()", ev.getExpression());
+      assertEquals(XSchema.DATE, back.getValueNode().getType());
+   }
+
    @Test
    void setGroupAggregateFailsLoudOnUnrecognizedDateLevel() throws Exception {
       Worksheet ws = new Worksheet();

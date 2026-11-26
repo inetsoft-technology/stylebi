@@ -532,8 +532,20 @@ public class WorksheetReadService {
          expression = exprRef.getExpression();
       }
 
+      WorksheetModel.RangeOptionsModel rangeOptions = null;
+
+      if(ref.getDataRef() instanceof NumericRangeRef numeric &&
+         numeric.getValueRangeInfo() != null)
+      {
+         ValueRangeInfo info = numeric.getValueRangeInfo();
+         InclusiveType inclusive = info.getInclusiveType();
+         rangeOptions = new WorksheetModel.RangeOptionsModel(
+            info.isShowBottomValue(), info.isShowTopValue(), inclusive == InclusiveType.UPPER,
+            inclusive == InclusiveType.NONE ? inclusive.name() : null);
+      }
+
       return new WorksheetModel.ColumnModel(name, type, alias, expression, description,
-                                            ref.isVisible());
+                                            ref.isVisible(), rangeOptions);
    }
 
    /**
@@ -581,13 +593,23 @@ public class WorksheetReadService {
       String type = var.getTypeNode() != null ? var.getTypeNode().getType() : null;
       // AssetVariable extends UserVariable; getValueNode() holds the default value.
       XValueNode valueNode = var.getValueNode();
-      String defaultValue = valueNode != null ? valueNode.getValue() != null
-         ? valueNode.getValue().toString() : null : null;
+      Object rawDefault = valueNode != null ? valueNode.getValue() : null;
+      // An expression default is stored as an ExpressionValue; its toString is "Expression[...]",
+      // not the script the caller wrote.
+      boolean expression = rawDefault instanceof ExpressionValue;
+      String defaultValue = rawDefault == null ? null
+         : expression ? ((ExpressionValue) rawDefault).getExpression() : rawDefault.toString();
+      String defaultValueType = rawDefault == null ? null
+         : expression ? WorksheetVariableDefault.EXPRESSION : WorksheetVariableDefault.VALUE;
+      // A wiz-created variable with a type and no default carries a node holding no value, not
+      // no node (UserVariable#setTypeNode creates one); the Composer reads both as None.
+      Boolean none = rawDefault == null ? Boolean.TRUE : null;
 
       // The assembly name, not the inner variable's: they differ for the hidden copy backing a
       // mirror (OUTER..._n), and every write tool resolves the assembly name.
       return new WorksheetModel.VariableModel(dva.getName(), label, type, defaultValue,
-                                              readVariableChoices(var), hidden(dva), primary);
+                                              readVariableChoices(var), hidden(dva), primary,
+                                              defaultValueType, none);
    }
 
    /**

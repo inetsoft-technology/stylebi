@@ -156,4 +156,41 @@ class EditRequestParametersDeserializationTest {
          assertInstanceOf(String.class, element);
       }
    }
+
+   /** Bug #82399: the wire names the plugin sends for the numeric range and variable options. */
+   @Test
+   void deserializesNumericRangeOptionsAndVariableDefaultFields() throws Exception {
+      EditRequest range = mapper.readValue("""
+         {
+           "op": "add_numeric_range_column", "table": "T", "column": "PRICE",
+           "boundaries": [50, 200],
+           "lessThanMin": false, "greaterThanMax": false, "upperInclusive": true
+         }
+         """, EditRequest.class);
+
+      assertEquals(Boolean.FALSE, range.lessThanMin());
+      assertEquals(Boolean.FALSE, range.greaterThanMax());
+      assertEquals(Boolean.TRUE, range.upperInclusive());
+
+      EditRequest variable = mapper.readValue("""
+         {"op": "add_variable", "name": "d", "type": "date",
+          "defaultValue": "=new Date()", "defaultValueType": "expression", "none": false}
+         """, EditRequest.class);
+
+      assertEquals("expression", variable.defaultValueType());
+      assertEquals(Boolean.FALSE, variable.none());
+   }
+
+   @Test
+   void leavesRangeOptionsAndVariableDefaultFieldsNullWhenOmitted() throws Exception {
+      EditRequest req = mapper.readValue("""
+         {"op": "add_numeric_range_column", "table": "T", "column": "PRICE", "boundaries": [50]}
+         """, EditRequest.class);
+
+      assertNull(req.lessThanMin());
+      assertNull(req.greaterThanMax());
+      assertNull(req.upperInclusive());
+      assertNull(req.defaultValueType());
+      assertNull(req.none());
+   }
 }
