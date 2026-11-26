@@ -177,6 +177,89 @@ class ViewsheetSessionServiceTest {
       verify(rvs, never()).addCheckpoint(any());
    }
 
+   private ViewsheetSessionService serviceFor82429(RuntimeViewsheet rvs, SheetAgentBroadcastService broadcast,
+                                                    Principal agent) throws Exception {
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+                                      SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(rvs);
+      return new ViewsheetSessionService(
+         sessions, runtimeAccess, broadcast, mock(UndoRedoServiceProxy.class));
+   }
+
+   /**
+    * Bug #82429: a request the service refuses with an IllegalArgumentException after the
+    * mutation started must roll back and add no undo step, like a refused dependency cycle.
+    */
+   @Test
+   void aRefusedWriteRollsBackAndTakesNoCheckpoint82429() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ViewsheetSessionService svc = serviceFor82429(rvs, broadcast, agent);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {
+            throw new IllegalArgumentException("'maxValue' is not a property of presenter");
+         }));
+
+      assertEquals("'maxValue' is not a property of presenter", thrown.getMessage());
+      verify(rvs).restoreCurrentCheckpoint();
+      verify(rvs, never()).addCheckpoint(any());
+      verify(broadcast).broadcastRefresh(any(), any(), anyString(), any(Principal.class), any());
+   }
+
+   /** Bug #82429: a failed restore must not replace the original refusal. */
+   @Test
+   void aFailedRestoreDoesNotMaskTheRefusal82429() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
+      when(rvs.restoreCurrentCheckpoint()).thenThrow(new IllegalStateException("restore failed"));
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ViewsheetSessionService svc = serviceFor82429(rvs, broadcast, agent);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {
+            throw new IllegalArgumentException("refused");
+         }));
+
+      assertEquals("refused", thrown.getMessage());
+      verify(rvs, never()).addCheckpoint(any());
+   }
+
+   /**
+    * Bug #82429: a multi-part request whose second part is refused undoes the first part too,
+    * and a successful call still adds exactly one step.
+    */
+   @Test
+   void aRefusedSecondPartRollsBackTheWholeCallAndASuccessAddsOneStep82429() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ViewsheetSessionService svc = serviceFor82429(rvs, broadcast, agent);
+      int[] applied = {0};
+
+      assertThrows(IllegalArgumentException.class,
+         () -> svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {
+            applied[0]++;
+            throw new IllegalArgumentException("second part refused");
+         }));
+
+      assertEquals(1, applied[0]);
+      verify(rvs).restoreCurrentCheckpoint();
+      verify(rvs, never()).addCheckpoint(any());
+
+      svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {});
+      verify(rvs, times(1)).addCheckpoint(any());
+   }
+
    /**
     * Bug #80379: a successful agent edit hints the Composer to follow it to this sheet, once, and
     * after the refresh that shows the edit.

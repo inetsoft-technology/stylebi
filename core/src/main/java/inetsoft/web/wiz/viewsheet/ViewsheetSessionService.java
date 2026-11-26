@@ -344,10 +344,12 @@ public class ViewsheetSessionService {
          noted.initCause(e.getCause());
          throw noted;
       }
-      catch(InvalidDependencyException e) {
+      catch(InvalidDependencyException | IllegalArgumentException e) {
          // A refused dependency cycle (Bug #81884): the service applied the edit before the
          // check threw, and the native Composer rolls back to the last checkpoint here. Without
          // it the runtime kept the invalid binding and later calls failed on it.
+         // An IllegalArgumentException is a refusal of the request (Bug #82429): the whole call
+         // is undone, so a refused write leaves no empty undo step and no half-applied part.
          try {
             // The current checkpoint, not the newest: after an undo they differ.
             rvs.restoreCurrentCheckpoint();
