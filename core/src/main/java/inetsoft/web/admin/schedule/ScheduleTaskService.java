@@ -1579,6 +1579,14 @@ public class ScheduleTaskService {
       return formatModels;
    }
 
+   /**
+    * The names of the formats the email action of a dashboard schedule task offers, in the order
+    * the schedule dialog lists them. Excel is the dialog's default when it is offered.
+    */
+   public List<String> getVSMailFormatNames() {
+      return getVSMailFormats().stream().map(ExportFormatModel::getType).toList();
+   }
+
    private List<ExportFormatModel> getVSMailFormats() {
       List<ExportFormatModel> formatModels = new ArrayList<>();
       String[] vsformats = new String[]{ FileFormatInfo.EXPORT_NAME_EXCEL,
