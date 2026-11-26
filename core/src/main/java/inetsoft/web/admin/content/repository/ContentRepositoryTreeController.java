@@ -65,8 +65,10 @@ public class ContentRepositoryTreeController {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
-      List<ContentRepositoryTreeNode> nodes = treeService.getRootNodes(principal, usersToLoad);
-      return new ContentRepositoryTreeModel(nodes);
+      try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
+         List<ContentRepositoryTreeNode> nodes = treeService.getRootNodes(principal, usersToLoad);
+         return new ContentRepositoryTreeModel(nodes);
+      }
    }
 
    @Secured(
@@ -79,6 +81,14 @@ public class ContentRepositoryTreeController {
    @PostMapping("/api/em/content/repository/private/tree")
    public ContentRepositoryTreeModel getRepositoryPrivateTree(@RequestBody CommonKVModel<String, String>[] users,
                                                               Principal principal) throws Exception
+   {
+      try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
+         return getRepositoryPrivateTree0(users, principal);
+      }
+   }
+
+   private ContentRepositoryTreeModel getRepositoryPrivateTree0(
+      CommonKVModel<String, String>[] users, Principal principal) throws Exception
    {
       List<ContentRepositoryTreeNode> nodes = new ArrayList<>();
 
@@ -116,6 +126,14 @@ public class ContentRepositoryTreeController {
    public ContentRepositoryTreeModel getRepositoryTree(@DecodeParam("path") String path,
                                                        @DecodeParam("owner") String owner,
                                                        Principal principal) throws Exception
+   {
+      try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
+         return getRepositoryTree0(path, owner, principal);
+      }
+   }
+
+   private ContentRepositoryTreeModel getRepositoryTree0(String path, String owner,
+                                                         Principal principal) throws Exception
    {
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       RepositoryOwnerOrgCheck.checkOwnerOrg(ownerID, principal);
@@ -161,7 +179,9 @@ public class ContentRepositoryTreeController {
                                                           @PermissionUser Principal principal)
       throws Exception
    {
-      return new ContentRepositoryTreeModel(treeService.searchNodes(principal, filter));
+      try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
+         return new ContentRepositoryTreeModel(treeService.searchNodes(principal, filter));
+      }
    }
 
    private final ContentRepositoryTreeService treeService;
