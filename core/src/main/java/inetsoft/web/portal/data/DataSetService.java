@@ -123,7 +123,6 @@ public class DataSetService {
 
       List<WorksheetBrowserInfo> folders =
          getSortedEntryStram(entries, AssetEntry.Type.FOLDER)
-            .filter(entry -> checkAssetPermission(principal, entry, ResourceAction.READ))
             .map(e -> getFolderInfo(e, movingFolders, principal))
             .collect(Collectors.toList());
 
@@ -151,16 +150,17 @@ public class DataSetService {
                  .build());
       }
 
+      final boolean worksheetAccess = securityProvider.checkPermission(
+         principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
+      final boolean mvAccess = hasMaterializationAccess(principal);
       List<WorksheetBrowserInfo> worksheets =
          getSortedEntryStram(entries, AssetEntry.Type.WORKSHEET)
-            .filter(entry -> checkAssetPermission(principal, entry, ResourceAction.READ))
-            .map(e -> getWorksheetInfo(e, movingFolders, principal))
+            .map(e -> getWorksheetInfo(e, movingFolders, principal, worksheetAccess, mvAccess))
             .collect(Collectors.toList());
 
       return PortalDataBrowserModel.builder()
          .root("/".equals(folderPath))
-         .worksheetAccess(securityProvider.checkPermission(
-            principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS))
+         .worksheetAccess(worksheetAccess)
          .currentFolder(getBreadcrumbs(folderPath, scope, principal))
          .folders(folders)
          .files(worksheets)
@@ -252,10 +252,13 @@ public class DataSetService {
       AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.FOLDER, folderPath, user);
       AssetEntry[] entries = dataSetSearchService.findAssets(entry, query, principal)
          .toArray(new AssetEntry[0]);
+      final boolean worksheetAccess = securityProvider.checkPermission(
+         principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
+      final boolean mvAccess = hasMaterializationAccess(principal);
       Stream<WorksheetBrowserInfo> worksheetStream =
          getFilteredEntryStream(entries, AssetEntry.Type.WORKSHEET)
             .filter(e -> checkAssetPermission(principal, e, ResourceAction.READ))
-            .map(e -> getWorksheetInfo(e, principal));
+            .map(e -> getWorksheetInfo(e, null, principal, worksheetAccess, mvAccess));
       Stream<WorksheetBrowserInfo> folderStream =
          getFilteredEntryStream(entries, AssetEntry.Type.FOLDER)
             .filter(e -> checkAssetPermission(principal, e, ResourceAction.READ))
@@ -462,15 +465,30 @@ public class DataSetService {
    protected WorksheetBrowserInfo getWorksheetInfo(AssetEntry entry,
                                                    String[] movingFolders, Principal principal)
    {
+      return getWorksheetInfo(entry, movingFolders, principal,
+                              securityProvider.checkPermission(
+                                 principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS),
+                              hasMaterializationAccess(principal));
+   }
+
+   /**
+    * Entry-independent materialization permission (mv enabled and MATERIALIZATION access).
+    */
+   private boolean hasMaterializationAccess(Principal principal) {
+      return SreeEnv.getBooleanProperty("ws.mv.enabled") &&
+         securityProvider.checkPermission(principal, ResourceType.MATERIALIZATION,
+                                          "*", ResourceAction.ACCESS);
+   }
+
+   protected WorksheetBrowserInfo getWorksheetInfo(AssetEntry entry, String[] movingFolders,
+                                                   Principal principal, boolean canWorksheet,
+                                                   boolean mvAccess)
+   {
       updateEntryCreationDetails(entry);
       boolean editable = checkAssetPermission(principal, entry, ResourceAction.WRITE);
       final boolean deletable = entry.isEditable() &&
          checkAssetPermission(principal, entry, ResourceAction.DELETE);
-      boolean canMaterialize = SreeEnv.getBooleanProperty("ws.mv.enabled") &&
-         editable && securityProvider.checkPermission(principal, ResourceType.MATERIALIZATION,
-                                                      "*", ResourceAction.ACCESS);
-      boolean canWorksheet = securityProvider.checkPermission(
-         principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
+      boolean canMaterialize = mvAccess && editable;
       String modifiedDateLabel = entry.getModifiedDate() == null ? "" :
          gregorianDateFormat().format(entry.getModifiedDate());
       String createdDateLabel = entry.getCreatedDate() == null ? "" :

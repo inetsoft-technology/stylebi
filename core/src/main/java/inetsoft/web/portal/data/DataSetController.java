@@ -17,6 +17,7 @@
  */
 package inetsoft.web.portal.data;
 
+import inetsoft.sree.security.PermissionRequestScope;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.asset.AssetEntry;
@@ -77,7 +78,9 @@ public class DataSetController {
          }
       }
 
-      return dataSetService.getDataBrowser(path, scopeValue, movingFolders, home, principal);
+      try(PermissionRequestScope.Handle scope1 = PermissionRequestScope.open()) {
+         return dataSetService.getDataBrowser(path, scopeValue, movingFolders, home, principal);
+      }
    }
 
    @PostMapping("api/data/search/datasets/assetNames")
@@ -88,6 +91,15 @@ public class DataSetController {
    ))
    public SearchDataResultsModel getSearchAssetNames(@RequestBody SearchDataCommand command,
                                                      Principal principal)
+      throws Exception
+   {
+      try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
+         return getSearchAssetNames0(command, principal);
+      }
+   }
+
+   private SearchDataResultsModel getSearchAssetNames0(SearchDataCommand command,
+                                                       Principal principal)
       throws Exception
    {
       WorksheetBrowserInfo[] searchResults =
@@ -120,6 +132,15 @@ public class DataSetController {
    ))
    public SearchDataResultsModel getSearchAssets(@RequestBody SearchDataCommand command,
                                                  Principal principal)
+      throws Exception
+   {
+      try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
+         return getSearchAssets0(command, principal);
+      }
+   }
+
+   private SearchDataResultsModel getSearchAssets0(SearchDataCommand command,
+                                                   Principal principal)
       throws Exception
    {
       SearchDataResultsModel model = new SearchDataResultsModel();
