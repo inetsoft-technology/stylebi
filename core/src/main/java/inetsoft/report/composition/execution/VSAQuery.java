@@ -1858,6 +1858,21 @@ public abstract class VSAQuery {
             if(ref != null) {
                allCols += ";" + ref.getAttribute();
             }
+
+            // the same holds for a calc field compared on the right-hand side of a condition
+            if(item.getXCondition() instanceof Condition) {
+               for(DataRef valueRef : ((Condition) item.getXCondition()).getDataRefValues()) {
+                  DataRef base = AssetUtil.getBaseAttribute(valueRef);
+
+                  if(base instanceof DateRangeRef) {
+                     base = ((DateRangeRef) base).getDataRef();
+                  }
+
+                  if(base != null) {
+                     allCols += ";" + base.getAttribute();
+                  }
+               }
+            }
          }
       }
 
