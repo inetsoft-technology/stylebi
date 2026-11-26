@@ -1424,6 +1424,7 @@ public class RuntimeCalcTableLens extends CalcTableLens implements MappedTableLe
       public Object clone() {
          IndexMap obj = new IndexMap(0);
          obj.map = (Vector<IndexObject>) map.clone();
+         obj.len = len;
          return obj;
       }
 

@@ -82,4 +82,38 @@ public class RuntimeCalcTableLensTest {
          Assertions.assertEquals(i, table.getCol(i));
       }
    }
+
+   @Test
+   public void indexMapCloneKeepsTheMappingAndIsIndependentOfTheOriginal() {
+      RuntimeCalcTableLens.IndexMap map = new RuntimeCalcTableLens.IndexMap(3);
+      map.insert(0, 7, new CalcCellContext());
+      RuntimeCalcTableLens.IndexMap copy = (RuntimeCalcTableLens.IndexMap) map.clone();
+
+      Assertions.assertEquals(4, copy.size());
+      Assertions.assertArrayEquals(new int[] { 7, 0, 1, 2 }, copy.getMapArray());
+      Assertions.assertEquals(7, copy.get(0));
+      Assertions.assertEquals(2, copy.get(3));
+
+      copy.remove(0);
+      Assertions.assertEquals(4, map.size());
+      Assertions.assertArrayEquals(new int[] { 7, 0, 1, 2 }, map.getMapArray());
+      Assertions.assertArrayEquals(new int[] { 0, 1, 2 }, copy.getMapArray());
+   }
+
+   @Test
+   public void clonedRuntimeTableMapsItsRowsLikeTheOriginal() {
+      RuntimeCalcTableLens table = new RuntimeCalcTableLens(
+         new CalcTableLens(XTableUtil.getDefaultTableLens()));
+      RuntimeCalcTableLens.IndexMap rowMap = new RuntimeCalcTableLens.IndexMap(3);
+      rowMap.insert(0, 2, new CalcCellContext());
+      table.setRowMap(rowMap);
+
+      RuntimeCalcTableLens copy = table.clone();
+
+      for(int i = 0; i < 4; i++) {
+         Assertions.assertEquals(table.getRow(i), copy.getRow(i));
+      }
+
+      Assertions.assertEquals(2, copy.getRow(0));
+   }
 }
