@@ -179,6 +179,7 @@ public class TernAnnotationProcessor extends AbstractProcessor {
          // stale entry in an incrementally-built file until the next clean build.
          ObjectNode definitionRoot = readExistingDefinitions(mapper, file);
          Set<String> priorUnions = readUnionMarkers(definitionRoot);
+         migrateTopLevelUnions(mapper, definitionRoot, priorUnions);
 
          for(Map.Entry<String, ClassDef> e : definitions.entrySet()) {
             definitionRoot.set(e.getKey(), e.getValue().toJson(mapper));
@@ -227,11 +228,17 @@ public class TernAnnotationProcessor extends AbstractProcessor {
     * This runs against the merged definition set (the previously generated definitions plus
     * this round's) so an incremental compile cannot shrink a union down to only the
     * subclasses that happened to be recompiled.
+    *
+    * The unions are written under the "!define" object, never as top-level keys. A top-level
+    * key of a tern definition file is a global variable, and the unions are only type names
+    * for "+Name" references: they are not objects a script can use, so exposing them as
+    * globals made the editor offer names the runtime does not define (Bug #82370).
     */
    private void addUnionDefinitions(ObjectMapper mapper, ObjectNode definitionRoot,
                                     Set<String> priorUnions)
    {
       Set<String> unions = new TreeSet<>(priorUnions);
+      ObjectNode defineRoot = getDefineRoot(mapper, definitionRoot);
 
       for(String base : unionBases) {
          // a real @TernClass definition always takes precedence over a synthetic union
@@ -274,7 +281,11 @@ public class TernAnnotationProcessor extends AbstractProcessor {
             continue;
          }
 
-         JsonNode existing = definitionRoot.get(base);
+         // a top-level definition exists only when it was auto-created to carry static
+         // members; it is already a real global, so the members are merged into it
+         JsonNode topLevel = definitionRoot.get(base);
+         boolean global = topLevel instanceof ObjectNode;
+         JsonNode existing = global ? topLevel : defineRoot.get(base);
          ObjectNode node;
 
          if(existing instanceof ObjectNode) {
@@ -283,7 +294,10 @@ public class TernAnnotationProcessor extends AbstractProcessor {
          else {
             node = mapper.createObjectNode();
             node.put("!type", "fn()");
-            definitionRoot.set(base, node);
+         }
+
+         if(!global) {
+            defineRoot.set(base, node);
          }
 
          JsonNode declared = node.get("prototype");
@@ -294,13 +308,52 @@ public class TernAnnotationProcessor extends AbstractProcessor {
          }
 
          node.set("prototype", prototype);
-         unions.add(base);
+
+         if(!global) {
+            unions.add(base);
+         }
       }
 
       if(!unions.isEmpty()) {
          ArrayNode marker = mapper.createArrayNode();
          unions.forEach(marker::add);
          definitionRoot.set(UNION_MARKER, marker);
+      }
+   }
+
+   private ObjectNode getDefineRoot(ObjectMapper mapper, ObjectNode definitionRoot) {
+      JsonNode define = definitionRoot.get(DEFINE);
+
+      if(define instanceof ObjectNode) {
+         return (ObjectNode) define;
+      }
+
+      ObjectNode node = mapper.createObjectNode();
+      definitionRoot.set(DEFINE, node);
+      return node;
+   }
+
+   /**
+    * A file written before the unions moved under "!define" has them as top-level keys.
+    * Move those copies, so that an incremental compile does not leave them behind as
+    * globals, and so that the top-level check in isTernClass() only ever sees real
+    * definitions.
+    */
+   private void migrateTopLevelUnions(ObjectMapper mapper, ObjectNode definitionRoot,
+                                      Set<String> priorUnions)
+   {
+      if(priorUnions.isEmpty()) {
+         return;
+      }
+
+      ObjectNode defineRoot = getDefineRoot(mapper, definitionRoot);
+
+      for(String name : priorUnions) {
+         JsonNode stale = definitionRoot.remove(name);
+
+         if(stale != null && !defineRoot.has(name)) {
+            defineRoot.set(name, stale);
+         }
       }
    }
 
@@ -522,4 +575,5 @@ public class TernAnnotationProcessor extends AbstractProcessor {
    private final Set<String> unionBases = new TreeSet<>();
 
    private static final String UNION_MARKER = "!unions";
+   private static final String DEFINE = "!define";
 }

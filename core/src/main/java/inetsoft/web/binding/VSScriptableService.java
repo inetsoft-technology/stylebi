@@ -298,13 +298,7 @@ public class VSScriptableService {
    {
       ObjectNode functions = (ObjectNode)
          mapper.readTree(getClass().getResource("js-functions.json"));
-      ObjectNode generated = (ObjectNode) mapper.readTree(
-         getClass().getResource("/inetsoft/web/binding/js-functions.generated.json"));
-
-      for(Iterator<Map.Entry<String, JsonNode>> it = generated.fields(); it.hasNext();) {
-         Map.Entry<String, JsonNode> e = it.next();
-         functions.set(e.getKey(), e.getValue());
-      }
+      ObjectNode generatedDefine = GeneratedScriptDefinitions.addGenerated(mapper, functions);
 
       // remove reporting only scripts from function tree
       functions.remove(sreeOnly);
@@ -315,6 +309,7 @@ public class VSScriptableService {
       }
 
       library.setAll(functions);
+      GeneratedScriptDefinitions.mergeDefine(library, generatedDefine);
       InetsoftUserDocumentation.rewriteScriptApiDocUrls(library);
 
       ObjectNode chartConstants = (ObjectNode) library.get("Chart");
