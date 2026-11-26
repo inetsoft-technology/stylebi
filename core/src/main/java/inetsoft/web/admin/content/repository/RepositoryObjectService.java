@@ -498,6 +498,9 @@ public class RepositoryObjectService {
                if(RecycleUtils.isInRecycleBin(node.path())) {
                   removeFolder(node, registry);
                }
+               else if(permanent) {
+                  RecycleUtils.deleteRepositoryFolder(node.path(), node.owner(), force);
+               }
                else {
                   RecycleUtils.moveRepositoryFolderToRecycleBin(node.path(),
                      node.label(), node.owner(), principal, recycleBin, force);
@@ -508,6 +511,12 @@ public class RepositoryObjectService {
                if(RecycleUtils.isInRecycleBin(node.path())) {
                   removeWorksheetFolder(principal, node, force);
                   recycleBin.removeEntry(node.path());
+               }
+               else if(permanent) {
+                  String liveFolder = node.owner() != null ?
+                     treeService.getUnscopedPath(node.path()) : node.path();
+                  registryManager.removeWorksheetFolder(
+                     liveFolder, node.owner(), force, principal);
                }
                else {
                   //move worksheet folder to recycle bin

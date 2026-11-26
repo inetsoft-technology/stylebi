@@ -220,6 +220,42 @@ public final class RecycleUtils {
    }
 
    /**
+    * Permanently deletes a live dashboard (repository) folder without moving it to the recycle
+    * bin. The registry removal also removes the folder's permission and the contained assets.
+    *
+    * @param force <tt>false</tt> to first check whether any dashboard in the folder or its
+    *              subfolders is used by another asset and throw a {@link ConfirmException}
+    *              if so; <tt>true</tt> to skip that check (the user already confirmed).
+    */
+   public static void deleteRepositoryFolder(String path, IdentityID owner, boolean force)
+      throws Exception
+   {
+      if(path != null && owner != null && !SUtil.isMyReport(path)) {
+         path = Tool.MY_DASHBOARD + "/" + path;
+      }
+
+      if(!force) {
+         checkRepositoryFolderRemoveable(path, owner);
+      }
+
+      writeLock.lock();
+
+      try {
+         RepletRegistry registry = getRegistry(path, owner);
+
+         if(!registry.removeFolder(path)) {
+            throw new RemoteException("Failed to remove registry folder " + path);
+         }
+
+         registry.save();
+         SharedMVUtil.removeMV(path);
+      }
+      finally {
+         writeLock.unlock();
+      }
+   }
+
+   /**
     * Checks whether any dashboard in a repository folder (or in its subfolders) is used by
     * another asset, the same check a single dashboard delete runs. The check walks the asset
     * engine's mirror of the repository folder. It is dependency-only: the callers already
