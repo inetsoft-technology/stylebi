@@ -54,11 +54,249 @@ public final class DependencyStorageService {
     *    if key is exist, will replace it.
     */
    public void put(String key, RenameTransformObject obj) throws Exception {
+      Batch batch = BATCH.get();
+
+      if(batch != null && obj instanceof DependenciesInfo info && batch.buffer(key, info)) {
+         return;
+      }
+
       getDependencyStorage().put(key, obj).get(10L, TimeUnit.SECONDS);
    }
 
    public RenameTransformObject get(String key) throws Exception {
+      Batch batch = BATCH.get();
+
+      if(batch != null) {
+         return batch.get(key);
+      }
+
       return getDependencyStorage().get(key);
+   }
+
+   /**
+    * Starts a write batch on the calling thread. A shared target (for example a worksheet used by
+    * many dashboards) has one record listing all its dependents, and every added dependent used
+    * to read and rewrite that whole record, so importing N assets cost O(N x record length).
+    * While a batch is open, the {@link #get(String)} / {@link #put(String, RenameTransformObject)}
+    * calls of the thread that opened it keep the changed {@link DependenciesInfo} records in memory
+    * and {@link Batch#close()} writes each one once. Other threads are not affected.
+    *
+    * <p>The flush merges with the record stored at that time, so dependents added by someone else
+    * while the batch was open are kept. Operations that read or restructure the whole store
+    * (rename, remove, clear, getKeys, migrate) flush the open batch first. A nested call returns a
+    * no-op handle; only the outermost one flushes.
+    *
+    * @return the handle, to be closed in a {@code finally}/try-with-resources on the same thread.
+    */
+   public Batch beginBatch() {
+      if(BATCH.get() != null) {
+         return new Batch(this, false);
+      }
+
+      Batch batch = new Batch(this, true);
+      BATCH.set(batch);
+      return batch;
+   }
+
+   private void flushBatch() {
+      Batch batch = BATCH.get();
+
+      if(batch != null) {
+         batch.flush();
+      }
+   }
+
+   /**
+    * The in-memory changes of one {@link #beginBatch()} scope.
+    */
+   public static final class Batch implements AutoCloseable {
+      private Batch(DependencyStorageService service, boolean owner) {
+         this.service = service;
+         this.owner = owner;
+      }
+
+      private String orgId() {
+         return OrganizationManager.getInstance().getCurrentOrgID().toLowerCase();
+      }
+
+      private RenameTransformObject get(String key) throws Exception {
+         String orgId = orgId();
+         BatchKey bkey = new BatchKey(orgId, key);
+         Pending pending = dirty.get(bkey);
+
+         if(pending != null) {
+            return pending.info;
+         }
+
+         RenameTransformObject obj = service.getDependencyStorage(orgId).get(key);
+         // the base of the later merge: what the store held when the caller started changing it
+         loaded.put(bkey, obj instanceof DependenciesInfo info ?
+            new Base(copy(info.getDependencies()), copy(info.getEmbedDependencies())) :
+            new Base(null, null));
+         return obj;
+      }
+
+      private boolean buffer(String key, DependenciesInfo info) {
+         BatchKey bkey = new BatchKey(orgId(), key);
+         Pending pending = dirty.get(bkey);
+
+         if(pending != null) {
+            pending.info = info;
+            return true;
+         }
+
+         Base base = loaded.get(bkey);
+
+         if(base == null) {
+            // not read through this batch, there is nothing to merge against: write it directly
+            return false;
+         }
+
+         dirty.put(bkey, new Pending(info, base));
+         return true;
+      }
+
+      /**
+       * Writes the changed records and forgets everything held. A failure is logged and the
+       * remaining records are still written.
+       */
+      public void flush() {
+         Map<BatchKey, Pending> records = new LinkedHashMap<>(dirty);
+         List<Runnable> actions = new ArrayList<>(flushActions);
+         dirty.clear();
+         loaded.clear();
+         attachments.clear();
+         flushActions.clear();
+
+         for(Map.Entry<BatchKey, Pending> e : records.entrySet()) {
+            try {
+               flush(e.getKey(), e.getValue());
+            }
+            catch(Exception ex) {
+               LOG.error("Failed to save the dependencies of {}, the dependents added by " +
+                         "this operation are missing from it", e.getKey().key(), ex);
+            }
+         }
+
+         for(Runnable action : actions) {
+            try {
+               action.run();
+            }
+            catch(Exception ex) {
+               LOG.error("Failed to write the deferred dependency changes of an import", ex);
+            }
+         }
+      }
+
+      /**
+       * Gets the object kept by this batch under the key, creating it the first time. For other
+       * dependency writes (the outer dependencies kept inside a worksheet, logical model or data
+       * source) that are deferred the same way; the object is dropped by the next flush.
+       */
+      public <T> T attachment(Object key, java.util.function.Supplier<T> factory) {
+         @SuppressWarnings("unchecked")
+         T value = (T) attachments.computeIfAbsent(key, k -> factory.get());
+         return value;
+      }
+
+      /**
+       * Adds an action that runs once, on the thread that flushes, at the next flush. Each action
+       * must set up whatever org context it needs and merge into what is stored at that time.
+       */
+      public void addFlushAction(Runnable action) {
+         flushActions.add(action);
+      }
+
+      private void flush(BatchKey bkey, Pending pending) throws Exception {
+         KeyValueStorage<RenameTransformObject> storage =
+            service.getDependencyStorage(bkey.orgId());
+         RenameTransformObject current = storage.get(bkey.key());
+         DependenciesInfo result = pending.info;
+
+         if(current instanceof DependenciesInfo cinfo &&
+            !(Objects.equals(nonNull(cinfo.getDependencies()), nonNull(pending.base.dependencies())) &&
+              Objects.equals(nonNull(cinfo.getEmbedDependencies()), nonNull(pending.base.embed()))))
+         {
+            // the record changed while the batch was open, apply only this batch's changes to it
+            result = cinfo;
+            result.setDependencies(merge(cinfo.getDependencies(), pending.base.dependencies(),
+                                         pending.info.getDependencies()));
+            result.setEmbedDependencies(merge(cinfo.getEmbedDependencies(), pending.base.embed(),
+                                              pending.info.getEmbedDependencies()));
+         }
+
+         storage.put(bkey.key(), result).get(10L, TimeUnit.SECONDS);
+      }
+
+      private static List<AssetObject> merge(List<AssetObject> current, List<AssetObject> base,
+                                             List<AssetObject> changed)
+      {
+         List<AssetObject> result = new ArrayList<>(nonNull(current));
+         Set<AssetObject> baseSet = new HashSet<>(nonNull(base));
+         Set<AssetObject> changedSet = new HashSet<>(nonNull(changed));
+         result.removeIf(o -> baseSet.contains(o) && !changedSet.contains(o));
+         Set<AssetObject> resultSet = new HashSet<>(result);
+
+         for(AssetObject o : nonNull(changed)) {
+            if(!baseSet.contains(o) && resultSet.add(o)) {
+               result.add(o);
+            }
+         }
+
+         return result;
+      }
+
+      private static List<AssetObject> copy(List<AssetObject> list) {
+         return list == null ? null : new ArrayList<>(list);
+      }
+
+      private static List<AssetObject> nonNull(List<AssetObject> list) {
+         return list == null ? Collections.emptyList() : list;
+      }
+
+      @Override
+      public void close() {
+         if(owner) {
+            try {
+               flush();
+            }
+            finally {
+               BATCH.remove();
+            }
+         }
+      }
+
+      private record BatchKey(String orgId, String key) {
+      }
+
+      private record Base(List<AssetObject> dependencies, List<AssetObject> embed) {
+      }
+
+      private static final class Pending {
+         Pending(DependenciesInfo info, Base base) {
+            this.info = info;
+            this.base = base;
+         }
+
+         DependenciesInfo info;
+         final Base base;
+      }
+
+      private final DependencyStorageService service;
+      private final boolean owner;
+      private final Map<BatchKey, Base> loaded = new HashMap<>();
+      private final Map<BatchKey, Pending> dirty = new LinkedHashMap<>();
+      private final Map<Object, Object> attachments = new HashMap<>();
+      private final List<Runnable> flushActions = new ArrayList<>();
+   }
+
+   /**
+    * Gets the write batch open on the calling thread.
+    *
+    * @return the batch, or {@code null} if no import is running on this thread.
+    */
+   public static Batch currentBatch() {
+      return BATCH.get();
    }
 
    public RenameTransformObject getWithOrg(String key, String orgid) throws Exception {
@@ -88,6 +326,7 @@ public final class DependencyStorageService {
    }
 
    public boolean rename(String oldKey, String newKey, String organizationId) {
+      flushBatch();
       KeyValueStorage<RenameTransformObject> storage = getDependencyStorage(organizationId);
 
       oldKey = AssetEntry.createAssetEntry(oldKey)
@@ -115,6 +354,8 @@ public final class DependencyStorageService {
    }
 
    public boolean remove(String key) {
+      flushBatch();
+
       try {
          getDependencyStorage().remove(key).get(10L, TimeUnit.SECONDS);
       }
@@ -127,6 +368,7 @@ public final class DependencyStorageService {
    }
 
    public void clear() {
+      flushBatch();
       Set<String> keys = getKeys(null);
 
       try {
@@ -138,11 +380,13 @@ public final class DependencyStorageService {
    }
 
    public void removeDependencyStorage(String orgID) throws Exception {
+      flushBatch();
       getDependencyStorage(orgID).deleteStore().get(1L, TimeUnit.MINUTES);
       getDependencyStorage(orgID).close();
    }
 
    public void migrateStorageData(Organization oOrg, Organization nOrg, boolean removeOld) throws Exception {
+      flushBatch();
       KeyValueStorage<RenameTransformObject> oStorage = getDependencyStorage(oOrg.getId());
       KeyValueStorage<RenameTransformObject> nStorage = getDependencyStorage(nOrg.getId());
       SortedMap<String, RenameTransformObject> data = new TreeMap<>();
@@ -162,6 +406,7 @@ public final class DependencyStorageService {
    }
 
    public void migrateStorageData(IdentityID oldUser, IdentityID newUser) throws Exception {
+      flushBatch();
       KeyValueStorage<RenameTransformObject> oStorage = getDependencyStorage(oldUser.getOrgID());
       KeyValueStorage<RenameTransformObject> nStorage = getDependencyStorage(newUser.getOrgID());
       SortedMap<String, RenameTransformObject> data = new TreeMap<>();
@@ -245,6 +490,7 @@ public final class DependencyStorageService {
    }
 
    public Set<String> getKeys(IndexedStorage.Filter filter) {
+      flushBatch();
       return getDependencyStorage().stream()
          .map(KeyValuePair::getKey)
          .filter(k -> filter == null || filter.accept(k))
@@ -289,6 +535,7 @@ public final class DependencyStorageService {
       queueOpen.get(30, TimeUnit.SECONDS);
    }
 
+   private static final ThreadLocal<Batch> BATCH = new ThreadLocal<>();
    private final KeyValueStorageManager keyValueStorageManager;
    private volatile CompletableFuture<Void> queueOpen = CompletableFuture.completedFuture(null);
 

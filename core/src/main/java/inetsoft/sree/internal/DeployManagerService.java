@@ -54,6 +54,7 @@ import inetsoft.web.portal.data.SecretIdAuthorizer;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -329,6 +330,10 @@ public class DeployManagerService {
       AtomicInteger decryptFailures = new AtomicInteger();
       PasswordEncryption.setMasterDecryptFailures(decryptFailures);
       Set<String> undecryptableAssets = new LinkedHashSet<>();
+      // Bug #82450, write the dependency records of the shared targets once per import instead of
+      // once per imported asset; flushed in the finally so assets saved before a failure keep
+      // their dependents
+      DependencyStorageService.Batch dependencyBatch = beginDependencyBatch();
 
       try {
          importAssets0(overwriting, order, info, desktop, principal, ignoreList, actionRecord,
@@ -356,6 +361,20 @@ public class DeployManagerService {
       finally {
          PasswordEncryption.setDecryptForceLocal(false);
          PasswordEncryption.setMasterDecryptFailures(null);
+         if(dependencyBatch != null) {
+            dependencyBatch.close();
+         }
+      }
+   }
+
+   private static DependencyStorageService.Batch beginDependencyBatch() {
+      try {
+         return DependencyStorageService.getInstance().beginBatch();
+      }
+      catch(BeansException e) {
+         // no dependency storage in this context (nothing to batch), import as before
+         LOG.debug("Dependency storage is not available, importing without a write batch", e);
+         return null;
       }
    }
 
