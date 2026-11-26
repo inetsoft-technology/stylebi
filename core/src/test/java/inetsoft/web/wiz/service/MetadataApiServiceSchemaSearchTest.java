@@ -240,6 +240,43 @@ class MetadataApiServiceSchemaSearchTest {
          "genuinely empty search criteria (no query, no fields) must still return no results");
    }
 
+   /**
+    * Bug #82387: an XMLA (cube) source was skipped without a trace, so an absent table read as
+    * "the data does not exist". It now leaves a warning naming the source and the cube tools,
+    * and the relational sources are still searched.
+    */
+   @Test
+   void xmlaSourceIsReportedAsSkippedNotSilentlyDropped() throws Exception {
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSourceFullNames())
+         .thenReturn(new String[] { "OLAP/FoodMart", "Examples/Orders" });
+      when(xrepository.getDataSource("OLAP/FoodMart"))
+         .thenReturn(mock(inetsoft.uql.xmla.XMLADataSource.class));
+      when(xrepository.getDataSource("Examples/Orders")).thenReturn(mock(JDBCDataSource.class));
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(anyString(), any(ResourceAction.class), any()))
+         .thenReturn(true);
+
+      MetadataApiService service = spy(new MetadataApiService(
+         xrepository, dataSourceService, mock(AssetRepository.class),
+         mock(AssetTreeService.class), new ObjectMapper()));
+      doReturn(oneTableFixture("orders")).when(service)
+         .getDatabaseTables(anyString(), any(), any(), any(), any());
+
+      SchemaSearchRequest request = new SchemaSearchRequest();
+      request.setQuery("order");
+
+      SchemaSearchResponse response = service.searchSchema(request, mock(Principal.class));
+
+      assertEquals(1, response.getResults().size(), "the relational source is still searched");
+      assertEquals(1, response.getWarnings().size());
+      String warning = response.getWarnings().get(0);
+      assertTrue(warning.contains("OLAP/FoodMart"), warning);
+      assertTrue(warning.contains("list_cubes"), warning);
+      assertFalse(warning.contains("Examples/Orders"), warning);
+   }
+
    @Test
    void queryAndFieldsTogetherStillMatchOnTableNameAloneWhenNoColumnMatches() throws Exception {
       MetadataApiService service = createSpiedService(
