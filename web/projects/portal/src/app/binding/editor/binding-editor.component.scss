@@ -180,12 +180,31 @@
   overflow: hidden;
 }
 
+/* The Text layout designer is a floating panel like the Color and Shape panels, not a cover over the
+   whole editor: it is as tall as its rows (the grid scrolls past its maximum height), sits by the
+   Text shelf's layout button, and leaves the chart, the shelves and the binding tree in view and usable, which a
+   field dropped into a row needs. The wrapper does not take pointer events; the panel does. */
 .layout-designer-overlay {
   position: absolute;
   inset: 0;
   z-index: 10;
-  background: var(--inet-dark-surface-color, var(--inet-shell-surface, #fff));
+  pointer-events: none;
   display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding: 12px;
+  padding-bottom: var(--layout-designer-bottom, 12px);
+
+  text-layout-designer {
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    width: min(760px, 100%);
+    max-height: 100%;
+    overflow: hidden;
+    background: var(--inet-dark-surface-color, var(--inet-shell-surface, #fff));
+    border: 1px solid var(--inet-default-border-color, #ddd);
+    border-radius: var(--inet-radius-md, 6px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
 }

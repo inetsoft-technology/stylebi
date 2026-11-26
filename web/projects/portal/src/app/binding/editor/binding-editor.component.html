@@ -168,7 +168,7 @@
             }
 
             @if(showLayoutDesigner) {
-              <div class="layout-designer-overlay">
+              <div class="layout-designer-overlay" [style.--layout-designer-bottom.px]="layoutDesignerBottom">
                 <text-layout-designer
                   [layout]="layoutDesignerLayout"
                   [textFields]="layoutDesignerTextFields"
