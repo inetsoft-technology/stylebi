@@ -824,7 +824,10 @@ public class XMLAHandler extends XHandler {
          return null;
       }
 
-      if("OK".equals(conn.getResponseMessage())) {
+      // the reason phrase is optional (RFC 9112), so decide on the status code
+      int status = conn.getResponseCode();
+
+      if(status == HttpURLConnection.HTTP_OK) {
          try {
             BufferedInputStream input =
                new BufferedInputStream(conn.getInputStream());
@@ -839,8 +842,13 @@ public class XMLAHandler extends XHandler {
       else {
          throw new RuntimeException(
             Catalog.getCatalog().getString(
-               "viewer.viewsheet.cube.actionErr", conn.getResponseMessage()));
+               "viewer.viewsheet.cube.actionErr", getErrorDetail(status, conn.getResponseMessage())));
       }
+   }
+
+   private static String getErrorDetail(int status, String message) {
+      return message == null || message.isEmpty() ? "HTTP " + status :
+         "HTTP " + status + " " + message;
    }
 
    /**
