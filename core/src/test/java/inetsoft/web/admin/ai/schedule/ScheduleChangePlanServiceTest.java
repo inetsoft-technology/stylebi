@@ -1231,12 +1231,83 @@ class ScheduleChangePlanServiceTest {
       inetsoft.sree.schedule.ScheduleTask task = sreeTask("t1", "admin");
       when(scheduleManager.getScheduleTask("t1")).thenReturn(task);
       when(scheduleManager.getScheduleTasks("host-org")).thenReturn(new java.util.Vector<>());
-      when(scheduleManager.hasDependency(any(), eq("t1"))).thenReturn(true);
+      when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn("t2", (String) null);
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> service.resolve(request("task", List.of(deleteChange("t1"))), user));
       assertTrue(ex.getMessage().contains("waits on"));
+      assertTrue(ex.getMessage().contains("\"t2\""));
       verify(scheduleGateway, never()).hasOwnerAdminPermission(any(), any(), any());
+   }
+
+   private static String tid(String name) {
+      return sreeTask(name, "admin").getTaskId();
+   }
+
+   private void stubDeletableTasks(String... ids) throws Exception {
+      for(String id : ids) {
+         lenient().when(scheduleManager.getScheduleTask(id)).thenReturn(sreeTask(id, "admin"));
+      }
+
+      lenient().when(scheduleManager.getScheduleTasks("host-org")).thenAnswer(
+         inv -> new java.util.Vector<inetsoft.sree.schedule.ScheduleTask>());
+      lenient().when(scheduleManager.findDependant(any(), any())).thenReturn(null);
+      lenient().when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user)))
+         .thenReturn(true);
+   }
+
+   @Test void resolveDeleteAllowsTheWaitingTaskDeletedEarlierInThePlan() throws Exception {
+      stubDeletableTasks("t1", "t2");
+      when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn(tid("t2"), (String) null);
+
+      ResolvedPlan plan = service.resolve(
+         request("task", List.of(deleteChange("t2"), deleteChange("t1"))), user);
+
+      assertEquals(2, plan.changes().size());
+   }
+
+   @Test void resolveDeleteStillRefusesWhenTheWaitingTaskIsDeletedLater() throws Exception {
+      stubDeletableTasks("t1", "t2");
+      when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn(tid("t2"), (String) null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(
+            request("task", List.of(deleteChange("t1"), deleteChange("t2"))), user));
+      assertTrue(ex.getMessage().startsWith("changes[0].taskId:"));
+      assertTrue(ex.getMessage().contains("waits on"));
+   }
+
+   @Test void resolveDeleteAllowsAChainDeletedOutsideIn() throws Exception {
+      stubDeletableTasks("t1", "t2", "t3");
+      when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn(tid("t2"), (String) null);
+      when(scheduleManager.findDependant(any(), eq("t2"))).thenReturn(tid("t3"), (String) null);
+
+      ResolvedPlan plan = service.resolve(request("task",
+         List.of(deleteChange("t3"), deleteChange("t2"), deleteChange("t1"))), user);
+
+      assertEquals(3, plan.changes().size());
+   }
+
+   @Test void resolveDeleteRefusesAChainDeletedOutOfOrder() throws Exception {
+      stubDeletableTasks("t1", "t2", "t3");
+      lenient().when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn(tid("t2"), (String) null);
+      lenient().when(scheduleManager.findDependant(any(), eq("t2"))).thenReturn(tid("t3"), (String) null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task",
+            List.of(deleteChange("t2"), deleteChange("t3"), deleteChange("t1"))), user));
+      assertTrue(ex.getMessage().startsWith("changes[0].taskId:"));
+   }
+
+   @Test void resolveDeleteStillRefusesADependantOutsideThePlan() throws Exception {
+      stubDeletableTasks("t1", "t2");
+      when(scheduleManager.findDependant(any(), eq("t1"))).thenReturn(tid("t2"), tid("t9"), (String) null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(
+            request("task", List.of(deleteChange("t2"), deleteChange("t1"))), user));
+      assertTrue(ex.getMessage().startsWith("changes[1].taskId:"));
+      assertTrue(ex.getMessage().contains(tid("t9")));
    }
 
    private static ScheduleChangeRequest updateChange(String taskId, ScheduleTaskPatch patch) {
