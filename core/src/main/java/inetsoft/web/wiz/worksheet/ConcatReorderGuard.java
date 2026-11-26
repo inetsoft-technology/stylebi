@@ -58,7 +58,7 @@ final class ConcatReorderGuard {
     * Resolves {@code names} to the subtables of {@code table}, in that order, failing loudly when
     * the list is not exactly a permutation of the current subtables.
     */
-   static TableAssembly[] resolvePermutation(Worksheet ws, ConcatenatedTableAssembly table,
+   static TableAssembly[] resolvePermutation(Worksheet ws, CompositeTableAssembly table,
                                              List<String> names) throws PairingException
    {
       List<String> current = Arrays.asList(table.getTableNames());
