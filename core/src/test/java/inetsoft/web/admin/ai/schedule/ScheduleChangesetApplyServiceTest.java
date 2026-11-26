@@ -137,7 +137,7 @@ class ScheduleChangesetApplyServiceTest {
       verify(backupService, never()).backup(anyString());
       assertNull(result.rollbackFailures());
       verify(scheduleGateway).addScheduleTask(any(), eq(true), anyBoolean(), anyLong(), anyLong(),
-         any(), any(), any(), any(), any(), any(), any(), any(), any(), eq(user));
+         any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), eq(user));
       verify(scheduleGateway, never()).removeScheduleTask(anyString(), any(), eq(user));
    }
 
@@ -257,7 +257,7 @@ class ScheduleChangesetApplyServiceTest {
                   () -> service.apply(req, user, null));
       verify(scheduleGateway, never())
          .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
-                          any(), any(), any(), any(), any(), any(), any(), eq(user));
+                          any(), any(), any(), any(), any(), any(), any(), any(), eq(user));
    }
 
    @Test void applyThrowsWhenReviewOutcomeMissing() throws Exception {
@@ -290,7 +290,7 @@ class ScheduleChangesetApplyServiceTest {
       assertNotNull(ex.current());
       verify(scheduleGateway, never())
          .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
-                          any(), any(), any(), any(), any(), any(), any(), eq(user));
+                          any(), any(), any(), any(), any(), any(), any(), any(), eq(user));
    }
 
    @Test void rejectsABlankTaskToken() throws Exception {
@@ -325,7 +325,7 @@ class ScheduleChangesetApplyServiceTest {
          () -> service.apply(req, user, null));
       verify(scheduleGateway, never())
          .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
-                          any(), any(), any(), any(), any(), any(), any(), eq(user));
+                          any(), any(), any(), any(), any(), any(), any(), any(), eq(user));
    }
 
    // -------------------------------------------------------------------------
@@ -342,7 +342,7 @@ class ScheduleChangesetApplyServiceTest {
       lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
       doThrow(new IllegalStateException("boom")).when(scheduleGateway)
          .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
-                          any(), any(), any(), any(), any(), any(), any(), eq(user));
+                          any(), any(), any(), any(), any(), any(), any(), any(), eq(user));
 
       ScheduleApplyRequest req = applyRequest("create a task", createChange(spec));
 
@@ -368,7 +368,7 @@ class ScheduleChangesetApplyServiceTest {
       lenient().doThrow(new inetsoft.web.security.auth.UnauthorizedAccessException(
          "Unauthorized access to viewsheet X"))
          .when(scheduleGateway).checkAddScheduleTaskSavable(any(), anyBoolean(), anyBoolean(),
-            anyLong(), anyLong(), any(), any(), any(), any(), any(), isNotNull(), eq(user));
+            anyLong(), anyLong(), any(), any(), any(), any(), any(), isNotNull(), any(), eq(user));
 
       ApplyResult result =
          service.apply(applyRequest("create a task", createChange(spec)), user, "http://example.com/");
@@ -376,7 +376,7 @@ class ScheduleChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       assertNull(result.rollbackFailures());
       verify(scheduleGateway, never()).addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(),
-         anyLong(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+         anyLong(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
    }
 
    @Test void createRefusedBeforeAnyWriteIsRolledBackNotRollbackFailed() throws Exception {
@@ -394,7 +394,7 @@ class ScheduleChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       assertNull(result.rollbackFailures());
       verify(scheduleGateway, never()).addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(),
-         anyLong(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+         anyLong(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
    }
 
    // The before-state capture (the deep copy of the stored task and its permission, bug #78420)
@@ -656,7 +656,7 @@ class ScheduleChangesetApplyServiceTest {
       verify(scheduleGateway).storeUpdatedTask(eq("t1"), any(), eq(user));
       verify(scheduleGateway, never()).removeScheduleTask(anyString(), any(), any());
       verify(scheduleGateway, never()).addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(),
-         anyLong(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+         anyLong(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
    }
 
    // An update whose stored result is not the planned task is restored from the pre-image captured
@@ -811,7 +811,7 @@ class ScheduleChangesetApplyServiceTest {
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       verify(scheduleGateway).addScheduleTask(any(), eq(true), anyBoolean(), anyLong(), anyLong(),
-         any(), any(), any(), any(), any(), any(), any(), eq(folder), any(), eq(user));
+         any(), any(), any(), any(), any(), any(), any(), eq(folder), any(), any(), eq(user));
    }
 
    private ScheduleApplyRequest applyRequest(String task, ScheduleChangeRequest... changes)
@@ -904,7 +904,7 @@ class ScheduleChangesetApplyServiceTest {
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       verify(scheduleGateway).addScheduleTask(any(), eq(true), anyBoolean(), anyLong(), anyLong(),
-         any(), any(), any(), any(), any(), any(), any(), any(), eq("Asia/Tokyo"), eq(user));
+         any(), any(), any(), any(), any(), any(), any(), any(), eq("Asia/Tokyo"), any(), eq(user));
    }
 
    @Test void createWithoutATimeZonePassesNone() throws Exception {
@@ -919,6 +919,115 @@ class ScheduleChangesetApplyServiceTest {
       service.apply(applyRequest("create", createChange(spec)), user, null);
 
       verify(scheduleGateway).addScheduleTask(any(), eq(true), anyBoolean(), anyLong(), anyLong(),
-         any(), any(), any(), any(), any(), any(), any(), any(), isNull(), eq(user));
+         any(), any(), any(), any(), any(), any(), any(), any(), isNull(), any(), eq(user));
+   }
+
+   // -------------------------------------------------------------------------
+   // email zip password (Bug #82325, G1)
+   // -------------------------------------------------------------------------
+
+   private static EmailZipPasswordSpec zipSpec(int index, String password) {
+      EmailZipPasswordSpec spec = new EmailZipPasswordSpec();
+      spec.setActionIndex(index);
+      spec.setPassword(password);
+      return spec;
+   }
+
+   private static inetsoft.web.api.schedule.ViewsheetAction zippedAction(boolean emailZip) {
+      inetsoft.web.api.schedule.ViewsheetAction action =
+         new inetsoft.web.api.schedule.ViewsheetAction();
+      action.setViewsheet("1^128^__NULL__^Examples/Sales Summary^host-org");
+      action.setEmails(List.of("qa@example.com"));
+      action.setEmailZip(emailZip);
+      return action;
+   }
+
+   @Test void aCreateHandsItsZipPasswordsToTheGateway() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      spec.setActions(List.of(zippedAction(true)));
+      ScheduleChangeRequest change = createChange(spec);
+      EmailZipPasswordSpec entry = zipSpec(0, "PW-PLACEHOLDER-ZIP-1");
+      change.setEmailZipPasswords(List.of(entry));
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      when(scheduleManager.getScheduleTask(taskId))
+         .thenReturn(null)
+         .thenReturn(null)
+         .thenReturn(sreeTask("t1", "admin"));
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      lenient().when(scheduleGateway.viewsheetExists(anyString())).thenReturn(true);
+
+      ApplyResult result = service.apply(applyRequest("create a zipped task", change), user, null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      // both the no-write save check and the write carry the entries
+      verify(scheduleGateway, atLeastOnce()).checkAddScheduleTaskSavable(any(), anyBoolean(),
+         anyBoolean(), anyLong(), anyLong(), any(), any(), any(), any(), any(), any(),
+         eq(List.of(entry)), eq(user));
+      verify(scheduleGateway).addScheduleTask(any(), eq(true), anyBoolean(), anyLong(), anyLong(),
+         any(), any(), any(), any(), any(), any(), any(), any(), any(), eq(List.of(entry)),
+         eq(user));
+      assertFalse(result.toString().contains("PW-PLACEHOLDER-ZIP-1"));
+   }
+
+   // C2: a create without entries passes none
+   @Test void aCreateWithoutZipPasswordsPassesNone() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      when(scheduleManager.getScheduleTask(taskId))
+         .thenReturn(null)
+         .thenReturn(null)
+         .thenReturn(sreeTask("t1", "admin"));
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+
+      service.apply(applyRequest("create a task", createChange(spec)), user, null);
+
+      verify(scheduleGateway).addScheduleTask(any(), eq(true), anyBoolean(), anyLong(), anyLong(),
+         any(), any(), any(), any(), any(), any(), any(), any(), any(), isNull(), eq(user));
+   }
+
+   @Test void aCreateWithAZipPasswordOnAnActionWithoutEmailZipIsRefusedBeforeAnyWrite()
+      throws Exception
+   {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      spec.setActions(List.of(zippedAction(false)));
+      ScheduleChangeRequest change = createChange(spec);
+      change.setEmailZipPasswords(List.of(zipSpec(0, "PW-PLACEHOLDER-ZIP-1")));
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      lenient().when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      lenient().when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      lenient().when(scheduleGateway.viewsheetExists(anyString())).thenReturn(true);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> applyRequest("create a zipped task", change));
+
+      assertTrue(ex.getMessage().contains("emailZip"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("PW-PLACEHOLDER-ZIP-1"));
+      verify(scheduleGateway, never()).addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(),
+         anyLong(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+   }
+
+   @Test void anUpdateHandsItsZipPasswordsToTheGatewayInThePatch() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask existing = sreeTask("t1", "admin");
+      when(scheduleManager.getScheduleTask("t1"))
+         .thenReturn(existing)         // preview
+         .thenReturn(existing)         // re-resolve inside apply()
+         .thenReturn(existing)         // apply: capture before-state
+         .thenReturn(disabledTask());  // apply: verify
+      lenient().when(scheduleGateway.viewsheetExists(anyString())).thenReturn(true);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setActions(List.of(zippedAction(true)));
+      patch.setEmailZipPasswords(List.of(zipSpec(0, "PW-PLACEHOLDER-ZIP-1")));
+      when(scheduleGateway.buildUpdatedTask(eq("t1"), eq(patch), any(), eq(user)))
+         .thenAnswer(inv -> disabledTask());
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      service.apply(applyRequest("zip an action", updateChange("t1", patch)), user, null);
+
+      org.mockito.ArgumentCaptor<ScheduleTaskPatch> captor =
+         org.mockito.ArgumentCaptor.forClass(ScheduleTaskPatch.class);
+      verify(scheduleGateway, atLeastOnce()).buildUpdatedTask(eq("t1"), captor.capture(), any(),
+                                                              eq(user));
+      assertTrue(captor.getAllValues().stream().allMatch(p -> p.getEmailZipPasswords() != null &&
+         p.getEmailZipPasswords().get(0).getActionIndex() == 0));
    }
 }

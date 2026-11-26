@@ -184,6 +184,25 @@ public class AdminScheduleGateway {
                                String timeZone, Principal user)
       throws Exception
    {
+      addScheduleTask(taskMetaData, enabled, deleteIfNotScheduledToRun, startDate, endDate,
+                      description, locale, executeAsID, conditions, actions, organizationid,
+                      linkUri, folder, timeZone, null, user);
+   }
+
+   /**
+    * Adds a schedule task in {@code folder} with the task-level {@code timeZone} and the email zip
+    * passwords of its viewsheet actions, see {@link EmailZipPasswordSpec}. {@code null} or empty
+    * {@code emailZipPasswords} stores no zip password.
+    */
+   public void addScheduleTask(ScheduleTaskMetaData taskMetaData, boolean enabled,
+                               boolean deleteIfNotScheduledToRun, long startDate, long endDate,
+                               String description, String locale, ScheduleTask.ExecuteAsID executeAsID,
+                               List<ScheduleCondition> conditions, List<ScheduleAction> actions,
+                               String organizationid, String linkUri, AssetEntry folder,
+                               String timeZone, List<EmailZipPasswordSpec> emailZipPasswords,
+                               Principal user)
+      throws Exception
+   {
       checkPermission(user);
       String taskId = taskMetaData.getTaskId();
       inetsoft.sree.schedule.ScheduleTask task = repository.getScheduleTask(taskId);
@@ -200,7 +219,7 @@ public class AdminScheduleGateway {
 
       task = buildNewTask(taskMetaData, owner, enabled, deleteIfNotScheduledToRun, startDate,
                           endDate, description, locale, executeAsID, conditions, actions, linkUri,
-                          timeZone, user);
+                          timeZone, emailZipPasswords, user);
 
       if(folder == null) {
          scheduleManager.setScheduleTask(task.getTaskId(), task, user);
@@ -391,6 +410,9 @@ public class AdminScheduleGateway {
             .filter(Objects::nonNull)
             .forEach(action -> candidate.addAction(action, linkUri));
          restoreStoredPasswords(patch.getActions(), stored, candidate);
+         // after the stored password was kept, so an entry overrides it, and before the
+         // sanitize, so a new secret id is checked like any other
+         applyEmailZipPasswords(candidate, patch.getEmailZipPasswords(), stored);
 
          for(int i = 0; i < candidate.getActionCount(); i++) {
             inetsoft.sree.schedule.ScheduleAction original = i < stored.getActionCount() &&
@@ -441,7 +463,12 @@ public class AdminScheduleGateway {
                   Util.PLACEHOLDER_PASSWORD.equals(p.getPassword()))
                {
                   int format = p.getFormat().getTypeValue();
-                  keepPassword(vs.getFilePathInfo(format), oldVs.getFilePathInfo(format));
+                  inetsoft.sree.schedule.ServerPathInfo pathInfo = vs.getFilePathInfo(format);
+
+                  // a password the server location resolved wins, as in the portal save
+                  if(pathInfo != null && Tool.isEmptyString(pathInfo.getPassword())) {
+                     keepPassword(pathInfo, oldVs.getFilePathInfo(format));
+                  }
                }
             }
 
@@ -474,6 +501,61 @@ public class AdminScheduleGateway {
          built.setUseCredential(old.isUseCredential());
          built.setSecretId(old.getSecretId());
          built.setPassword(old.getPassword());
+      }
+   }
+
+   /**
+    * Applies the zip password entries to the viewsheet actions of {@code candidate}. A password
+    * sets it (and drops any secret), a secret id sets the credential mode, a blank entry clears
+    * all three, and the masked placeholder keeps the one stored at the same index in
+    * {@code stored} (none when there is no such action). Entries name an action by its index in
+    * the candidate's list.
+    *
+    * @throws IllegalArgumentException if an entry does not name a viewsheet action of the task.
+    *         The message never contains a password.
+    */
+   private static void applyEmailZipPasswords(inetsoft.sree.schedule.ScheduleTask candidate,
+                                              List<EmailZipPasswordSpec> specs,
+                                              inetsoft.sree.schedule.ScheduleTask stored)
+   {
+      if(specs == null) {
+         return;
+      }
+
+      for(EmailZipPasswordSpec spec : specs) {
+         int index = spec.getActionIndex();
+
+         if(index < 0 || index >= candidate.getActionCount() ||
+            !(candidate.getAction(index) instanceof inetsoft.sree.schedule.ViewsheetAction vs))
+         {
+            throw new IllegalArgumentException(
+               "emailZipPasswords: actionIndex " + index + " is not a viewsheet action of the task");
+         }
+
+         if(spec.keepsStored()) {
+            boolean hasStored = stored != null && index < stored.getActionCount() &&
+               stored.getAction(index) instanceof inetsoft.sree.schedule.ViewsheetAction;
+            inetsoft.sree.schedule.ViewsheetAction old = hasStored ?
+               (inetsoft.sree.schedule.ViewsheetAction) stored.getAction(index) : null;
+            vs.setUseCredential(old != null && old.isUseCredential());
+            vs.setSecretId(old == null ? null : old.getSecretId());
+            vs.setPassword(old == null ? null : old.getPassword());
+         }
+         else if(spec.usesCredential()) {
+            vs.setUseCredential(true);
+            vs.setSecretId(spec.getSecretId());
+            vs.setPassword(null);
+         }
+         else if(spec.setsPassword()) {
+            vs.setUseCredential(false);
+            vs.setSecretId(null);
+            vs.setPassword(spec.getPassword());
+         }
+         else {
+            vs.setUseCredential(false);
+            vs.setSecretId(null);
+            vs.setPassword(null);
+         }
       }
    }
 
@@ -512,6 +594,33 @@ public class AdminScheduleGateway {
     */
    public String getScheduleTaskTimeZone(String taskId, Principal user) throws Exception {
       return getTask(taskId, user).getTimeZone();
+   }
+
+   /**
+    * Which viewsheet actions of the task have an email zip password or secret id stored, by index
+    * in the task's action list. Never the password. The public {@link ScheduleAction} DTO has no
+    * field for it, so it is read from the task itself. Same permission checks as
+    * {@link #getScheduleTask}.
+    */
+   public List<EmailZipPasswordView> getScheduleTaskEmailZipPasswords(String taskId, Principal user)
+      throws Exception
+   {
+      inetsoft.sree.schedule.ScheduleTask task = getTask(taskId, user);
+      List<EmailZipPasswordView> views = new ArrayList<>();
+
+      for(int i = 0; i < task.getActionCount(); i++) {
+         if(task.getAction(i) instanceof inetsoft.sree.schedule.ViewsheetAction vs) {
+            boolean secret = vs.isUseCredential() && !Tool.isEmptyString(vs.getSecretId());
+            boolean password = !vs.isUseCredential() && !Tool.isEmptyString(vs.getPassword());
+
+            if(secret || password) {
+               views.add(new EmailZipPasswordView(i, password, secret,
+                                                  secret ? vs.getSecretId() : null));
+            }
+         }
+      }
+
+      return views;
    }
 
    /**
@@ -973,7 +1082,8 @@ public class AdminScheduleGateway {
       ScheduleTaskMetaData taskMetaData, IdentityID owner, boolean enabled,
       boolean deleteIfNotScheduledToRun, long startDate, long endDate, String description,
       String locale, ScheduleTask.ExecuteAsID executeAsID, List<ScheduleCondition> conditions,
-      List<ScheduleAction> actions, String linkUri, String timeZone, Principal user)
+      List<ScheduleAction> actions, String linkUri, String timeZone,
+      List<EmailZipPasswordSpec> emailZipPasswords, Principal user)
       throws Exception
    {
       String name = taskMetaData.getTaskName();
@@ -998,6 +1108,7 @@ public class AdminScheduleGateway {
          .map(this::convertAction)
          .filter(Objects::nonNull)
          .forEach(action -> finalTask.addAction(action, linkUri));
+      applyEmailZipPasswords(task, emailZipPasswords, null);
 
       // Enforce schedule option permissions -- same sanitization applied by the UI.
       // A new task has no prior state, so pass an empty task as the "original".
@@ -1029,6 +1140,25 @@ public class AdminScheduleGateway {
                                            Principal user)
       throws Exception
    {
+      checkAddScheduleTaskSavable(taskMetaData, enabled, deleteIfNotScheduledToRun, startDate,
+                                  endDate, description, locale, executeAsID, conditions, actions,
+                                  linkUri, null, user);
+   }
+
+   /**
+    * {@link #checkAddScheduleTaskSavable} for a task that also stores email zip passwords, so a
+    * secret id the save would refuse is refused here.
+    */
+   public void checkAddScheduleTaskSavable(ScheduleTaskMetaData taskMetaData, boolean enabled,
+                                           boolean deleteIfNotScheduledToRun, long startDate,
+                                           long endDate, String description, String locale,
+                                           ScheduleTask.ExecuteAsID executeAsID,
+                                           List<ScheduleCondition> conditions,
+                                           List<ScheduleAction> actions, String linkUri,
+                                           List<EmailZipPasswordSpec> emailZipPasswords,
+                                           Principal user)
+      throws Exception
+   {
       IdentityID owner = IdentityID.getIdentityIDFromKey(taskMetaData.getTaskOwnerId());
 
       if(owner == null) {
@@ -1037,7 +1167,7 @@ public class AdminScheduleGateway {
 
       inetsoft.sree.schedule.ScheduleTask task = buildNewTask(taskMetaData, owner, enabled,
          deleteIfNotScheduledToRun, startDate, endDate, description, locale, executeAsID,
-         conditions, actions, linkUri, null, user);
+         conditions, actions, linkUri, null, emailZipPasswords, user);
       scheduleManager.checkScheduleTaskSave(task.getTaskId(), task, user);
    }
 
@@ -1613,8 +1743,18 @@ public class AdminScheduleGateway {
                info.setPath(filePath.getPath());
             }
             else {
+               String password = filePath.getPassword();
+
+               // Bug #77958, the portal gives a path inside a server location the location's
+               // stored password: the plugin only sees the masked one
+               if(Util.PLACEHOLDER_PASSWORD.equals(password)) {
+                  password = Tool.defaultIfNull(
+                     getServerLocationPassword(filePath.getPath(), filePath.getUsername()),
+                     password);
+               }
+
                info = new inetsoft.sree.schedule.ServerPathInfo(
-                  filePath.getPath(), filePath.getUsername(), getNewPassword(filePath.getPassword()));
+                  filePath.getPath(), filePath.getUsername(), getNewPassword(password));
             }
 
             output.setFilePath(filePath.getFormat().getTypeValue(), info);
@@ -1634,6 +1774,23 @@ public class AdminScheduleGateway {
     */
    private static String getNewPassword(String password) {
       return Util.PLACEHOLDER_PASSWORD.equals(password) ? null : password;
+   }
+
+   /**
+    * The stored password of the server location {@code path} is in, the one the portal gives such
+    * a path when its placeholder is saved (Bug #77958). Server locations are FTP and SFTP
+    * folders, so any other path has none and the configuration is not read for it.
+    *
+    * @return the password, {@code null} when no location with a password matches.
+    */
+   static String getServerLocationPassword(String path, String username) {
+      String lower = path == null ? "" : path.toLowerCase();
+
+      if(!lower.startsWith("ftp://") && !lower.startsWith("sftp://")) {
+         return null;
+      }
+
+      return ScheduleService.getServerLocationPassword(path, username);
    }
 
    private void populateScheduleAlerts(ViewsheetAction action,

@@ -64,6 +64,13 @@ public class ScheduleTaskPatch {
    public String getTimeZone() { return timeZone; }
    public void setTimeZone(String v) { this.timeZone = v; }
 
+   /**
+    * The zip passwords of the email deliveries of the replaced {@code actions}, see
+    * {@link EmailZipPasswordSpec}. Needs {@code actions}: the indices refer to that list.
+    */
+   public List<EmailZipPasswordSpec> getEmailZipPasswords() { return emailZipPasswords; }
+   public void setEmailZipPasswords(List<EmailZipPasswordSpec> v) { this.emailZipPasswords = v; }
+
    private String description;
    private String locale;
    private Boolean enabled;
@@ -73,4 +80,5 @@ public class ScheduleTaskPatch {
    private List<ScheduleCondition> conditions;
    private List<ScheduleAction> actions;
    private String timeZone;
+   private List<EmailZipPasswordSpec> emailZipPasswords;
 }

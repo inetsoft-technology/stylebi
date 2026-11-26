@@ -310,7 +310,7 @@ class ScheduleChangePlanServiceTest {
       doThrow(new inetsoft.web.security.auth.UnauthorizedAccessException(
          "Unauthorized access to viewsheet X"))
          .when(scheduleGateway).checkAddScheduleTaskSavable(any(), anyBoolean(), anyBoolean(),
-            anyLong(), anyLong(), any(), any(), any(), any(), any(), any(), eq(user));
+            anyLong(), anyLong(), any(), any(), any(), any(), any(), any(), any(), eq(user));
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> service.resolve(request("task", List.of(createChange(spec))), user));
@@ -1570,5 +1570,318 @@ class ScheduleChangePlanServiceTest {
       assertTrue(assertThrows(IllegalArgumentException.class,
          () -> service.resolve(request("task", List.of(delete)), user))
          .getMessage().startsWith("changes[0].timeZone:"));
+   }
+
+   // -------------------------------------------------------------------------
+   // email zip password (Bug #82325, G1)
+   // -------------------------------------------------------------------------
+
+   private static final String ZIP_PW = "PW-PLACEHOLDER-ZIP-1";
+
+   private static EmailZipPasswordSpec zipSpec(int index, String password, Boolean useCredential,
+                                               String secretId)
+   {
+      EmailZipPasswordSpec spec = new EmailZipPasswordSpec();
+      spec.setActionIndex(index);
+      spec.setPassword(password);
+      spec.setUseCredential(useCredential);
+      spec.setSecretId(secretId);
+      return spec;
+   }
+
+   private static inetsoft.web.api.schedule.ViewsheetAction zippedAction(boolean emailZip) {
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setEmailZip(emailZip);
+      return action;
+   }
+
+   private ResolvedPlan resolveCreateWithZipPasswords(List<ScheduleAction> actions,
+                                                      EmailZipPasswordSpec... specs)
+      throws Exception
+   {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      spec.setActions(actions);
+      ScheduleChangeRequest change = createChange(spec);
+      change.setEmailZipPasswords(List.of(specs));
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), "t1");
+      lenient().when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      lenient().when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      lenient().when(scheduleGateway.viewsheetExists(anyString())).thenReturn(true);
+      return service.resolve(request("task", List.of(change)), user);
+   }
+
+   private String zipRefusal(List<ScheduleAction> actions, EmailZipPasswordSpec... specs) {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> resolveCreateWithZipPasswords(actions, specs));
+      assertFalse(ex.getMessage().contains(ZIP_PW), "the refusal must not echo the password");
+      return ex.getMessage();
+   }
+
+   @Test void createPlanShowsTheZipPasswordTokenWithoutTheValue() throws Exception {
+      ResolvedPlan plan = resolveCreateWithZipPasswords(List.of(zippedAction(true)),
+         zipSpec(0, ZIP_PW, null, null));
+
+      String proposed = plan.changes().get(0).proposedValue();
+      assertTrue(proposed.contains(";emailZipPasswords=[0:set]"), proposed);
+      assertFalse(proposed.contains(ZIP_PW));
+      assertFalse(plan.toString().contains(ZIP_PW));
+   }
+
+   @Test void createPlanShowsTheSecretIdModeAndTheClearToken() throws Exception {
+      String proposed = resolveCreateWithZipPasswords(
+         List.of(zippedAction(true), zippedAction(true)),
+         zipSpec(0, null, true, "secret-1"), zipSpec(1, "", null, null))
+         .changes().get(0).proposedValue();
+
+      assertTrue(proposed.contains(
+         ";emailZipPasswords=[0:useCredential,secretId=secret-1, 1:cleared]"), proposed);
+   }
+
+   // the existing hashes must not move when the field is absent
+   @Test void createPlanWithoutZipPasswordsHasNoZipToken() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      spec.setActions(List.of(zippedAction(true)));
+
+      assertFalse(resolveCreateOf(spec).changes().get(0).proposedValue()
+                     .contains("emailZipPasswords"));
+   }
+
+   @Test void createPlanWithAnEmptyZipPasswordListHasNoZipToken() throws Exception {
+      assertFalse(resolveCreateWithZipPasswords(List.of(zippedAction(true)))
+                     .changes().get(0).proposedValue().contains("emailZipPasswords"));
+   }
+
+   @Test void createPlanRefusesAZipPasswordOnAnActionWithoutEmailZip() {
+      String message = zipRefusal(List.of(zippedAction(false)), zipSpec(0, ZIP_PW, null, null));
+
+      assertTrue(message.startsWith("changes[0].emailZipPasswords[0]"), message);
+      assertTrue(message.contains("emailZip"), message);
+   }
+
+   @Test void createPlanRefusesAZipPasswordOnAnActionWithEmailZipUnset() {
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+
+      assertTrue(zipRefusal(List.of(action), zipSpec(0, ZIP_PW, null, null)).contains("emailZip"));
+   }
+
+   @Test void createPlanRefusesAnActionIndexOutOfRangeOrNotAViewsheet() {
+      String outOfRange = zipRefusal(List.of(zippedAction(true)), zipSpec(3, ZIP_PW, null, null));
+      assertTrue(outOfRange.contains("emailZipPasswords[0].actionIndex"), outOfRange);
+
+      BatchAction batch = new BatchAction();
+      batch.setTaskName("b");
+      batch.setOwner("admin");
+      batch.setQueryEntry("q");
+      batch.setEmbeddedParameters(List.of());
+      assertTrue(zipRefusal(List.of(batch), zipSpec(0, ZIP_PW, null, null))
+                    .contains("actionIndex"));
+      assertTrue(zipRefusal(List.of(zippedAction(true)), zipSpec(-1, ZIP_PW, null, null))
+                    .contains("actionIndex"));
+   }
+
+   @Test void createPlanRefusesTwoEntriesForOneAction() {
+      String message = zipRefusal(List.of(zippedAction(true)),
+         zipSpec(0, ZIP_PW, null, null), zipSpec(0, "PW-PLACEHOLDER-ZIP-2", null, null));
+
+      assertTrue(message.contains("emailZipPasswords[1].actionIndex"), message);
+      assertFalse(message.contains("PW-PLACEHOLDER-ZIP-2"));
+   }
+
+   @Test void createPlanRefusesAPasswordTogetherWithASecretId() {
+      // useCredential true with a password
+      String credentialAndPassword = zipRefusal(List.of(zippedAction(true)),
+         zipSpec(0, ZIP_PW, true, "secret-1"));
+      assertTrue(credentialAndPassword.contains("emailZipPasswords[0].password"),
+                 credentialAndPassword);
+
+      // a password with a secret id but without useCredential
+      String secretWithoutFlag = zipRefusal(List.of(zippedAction(true)),
+         zipSpec(0, ZIP_PW, null, "secret-1"));
+      assertTrue(secretWithoutFlag.contains("emailZipPasswords[0].secretId"), secretWithoutFlag);
+   }
+
+   @Test void createPlanRefusesUseCredentialWithoutASecretId() {
+      assertTrue(zipRefusal(List.of(zippedAction(true)), zipSpec(0, null, true, null))
+                    .contains("emailZipPasswords[0].secretId"));
+      assertTrue(zipRefusal(List.of(zippedAction(true)), zipSpec(0, null, true, "  "))
+                    .contains("emailZipPasswords[0].secretId"));
+   }
+
+   @Test void createPlanRefusesASecretIdWithoutUseCredentialTrue() {
+      assertTrue(zipRefusal(List.of(zippedAction(true)), zipSpec(0, null, false, "secret-1"))
+                    .contains("emailZipPasswords[0].secretId"));
+      assertTrue(zipRefusal(List.of(zippedAction(true)), zipSpec(0, null, null, "secret-1"))
+                    .contains("useCredential"));
+   }
+
+   @Test void zipPasswordIsRefusedInFipsModeButAClearIsNot() throws Exception {
+      try(MockedStatic<inetsoft.util.PasswordEncryption> fips =
+             mockStatic(inetsoft.util.PasswordEncryption.class))
+      {
+         fips.when(inetsoft.util.PasswordEncryption::isFipsCompliant).thenReturn(true);
+
+         String setMessage = zipRefusal(List.of(zippedAction(true)),
+                                        zipSpec(0, ZIP_PW, null, null));
+         assertTrue(setMessage.contains("FIPS"), setMessage);
+         assertTrue(setMessage.contains("emailZipPasswords[0]"), setMessage);
+         assertTrue(zipRefusal(List.of(zippedAction(true)), zipSpec(0, null, true, "secret-1"))
+                       .contains("FIPS"));
+
+         // clearing stays possible, the stored value can still be removed
+         assertTrue(resolveCreateWithZipPasswords(List.of(zippedAction(true)),
+                       zipSpec(0, "", null, null))
+                       .changes().get(0).proposedValue().contains("[0:cleared]"));
+      }
+   }
+
+   @Test void zipPasswordIsAcceptedWhenNotInFipsMode() throws Exception {
+      try(MockedStatic<inetsoft.util.PasswordEncryption> fips =
+             mockStatic(inetsoft.util.PasswordEncryption.class))
+      {
+         fips.when(inetsoft.util.PasswordEncryption::isFipsCompliant).thenReturn(false);
+
+         assertNotNull(resolveCreateWithZipPasswords(List.of(zippedAction(true)),
+                          zipSpec(0, ZIP_PW, null, null)));
+      }
+   }
+
+   @Test void createPlanPassesTheZipPasswordsToTheSaveCheck() throws Exception {
+      EmailZipPasswordSpec entry = zipSpec(0, ZIP_PW, null, null);
+      resolveCreateWithZipPasswords(List.of(zippedAction(true)), entry);
+
+      verify(scheduleGateway).checkAddScheduleTaskSavable(any(), anyBoolean(), anyBoolean(),
+         anyLong(), anyLong(), any(), any(), any(), any(), any(), any(), eq(List.of(entry)),
+         eq(user));
+   }
+
+   @Test void updateRefusesZipPasswordsWithoutPatchActions() throws Exception {
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(sreeTask("t1", "admin"));
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setDescription("d");
+      patch.setEmailZipPasswords(List.of(zipSpec(0, ZIP_PW, null, null)));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateChange("t1", patch))), user));
+
+      assertTrue(ex.getMessage().contains("patch.emailZipPasswords"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("patch.actions"), ex.getMessage());
+      assertFalse(ex.getMessage().contains(ZIP_PW));
+      verify(scheduleGateway, never()).buildUpdatedTask(any(), any(), any(), any());
+   }
+
+   @Test void updatePatchWithOnlyZipPasswordsStillNeedsActions() throws Exception {
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(sreeTask("t1", "admin"));
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setEmailZipPasswords(List.of(zipSpec(0, ZIP_PW, null, null)));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateChange("t1", patch))), user));
+
+      assertTrue(ex.getMessage().contains("patch.actions"), ex.getMessage());
+   }
+
+   @Test void updateRefusesAZipPasswordOnAnActionWithoutEmailZip() throws Exception {
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(sreeTask("t1", "admin"));
+      lenient().when(scheduleGateway.viewsheetExists(anyString())).thenReturn(true);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setActions(List.of(zippedAction(false)));
+      patch.setEmailZipPasswords(List.of(zipSpec(0, ZIP_PW, null, null)));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateChange("t1", patch))), user));
+
+      assertTrue(ex.getMessage().startsWith("changes[0].patch.emailZipPasswords[0]"),
+                 ex.getMessage());
+      assertTrue(ex.getMessage().contains("emailZip"));
+      assertFalse(ex.getMessage().contains(ZIP_PW));
+   }
+
+   @Test void updateWithZipPasswordsAndActionsReachesTheGateway() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = sreeTask("t1", "admin");
+      inetsoft.sree.schedule.ScheduleTask candidate = sreeTask("t1", "admin");
+      candidate.setEnabled(false);
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(stored);
+      lenient().when(scheduleGateway.viewsheetExists(anyString())).thenReturn(true);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setActions(List.of(zippedAction(true)));
+      patch.setEmailZipPasswords(List.of(zipSpec(0, ZIP_PW, null, null)));
+      when(scheduleGateway.buildUpdatedTask("t1", patch, null, user)).thenReturn(candidate);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(updateChange("t1", patch))), user);
+
+      assertFalse(plan.toString().contains(ZIP_PW));
+      verify(scheduleGateway).buildUpdatedTask("t1", patch, null, user);
+   }
+
+   @Test void deleteAndUpdateRefuseTheChangeLevelZipPasswords() throws Exception {
+      ScheduleChangeRequest delete = deleteChange("t1");
+      delete.setEmailZipPasswords(List.of(zipSpec(0, ZIP_PW, null, null)));
+      IllegalArgumentException onDelete = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(delete)), user));
+      assertTrue(onDelete.getMessage().startsWith("changes[0].emailZipPasswords:"),
+                 onDelete.getMessage());
+      assertFalse(onDelete.getMessage().contains(ZIP_PW));
+
+      ScheduleChangeRequest update = updateChange("t1", enabledPatch(false));
+      update.setEmailZipPasswords(List.of(zipSpec(0, ZIP_PW, null, null)));
+      IllegalArgumentException onUpdate = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(update)), user));
+      assertTrue(onUpdate.getMessage().contains("patch.emailZipPasswords"),
+                 onUpdate.getMessage());
+   }
+
+   @Test void zipPasswordSpecToStringNeverPrintsThePassword() {
+      assertFalse(zipSpec(0, ZIP_PW, null, null).toString().contains(ZIP_PW));
+      assertTrue(zipSpec(0, ZIP_PW, null, null).toString().contains("password=set"));
+      assertTrue(zipSpec(1, "", null, null).toString().contains("password=cleared"));
+      assertTrue(zipSpec(1, inetsoft.report.internal.Util.PLACEHOLDER_PASSWORD, null, null)
+                    .toString().contains("password=kept"));
+   }
+
+   // -------------------------------------------------------------------------
+   // a placeholder password in a server location (Bug #82325, G2)
+   // -------------------------------------------------------------------------
+
+   private String shownFtpPlaceholder(String path, String username) throws Exception {
+      inetsoft.web.api.schedule.ViewsheetAction.SaveToServerFilePath p = filePath(path);
+      p.setUsername(username);
+      p.setPassword(inetsoft.report.internal.Util.PLACEHOLDER_PASSWORD);
+      inetsoft.web.api.schedule.ViewsheetAction action = vsAction();
+      action.setSaveToServerFilePaths(List.of(p));
+      return shownActionOf(action);
+   }
+
+   private static MockedStatic<inetsoft.sree.internal.SUtil> oneServerLocation() {
+      MockedStatic<inetsoft.sree.internal.SUtil> sutil = mockStatic(
+         inetsoft.sree.internal.SUtil.class, withSettings().lenient()
+            .defaultAnswer(Answers.CALLS_REAL_METHODS));
+      sutil.when(inetsoft.sree.internal.SUtil::getServerLocationsWithPasswords).thenReturn(List.of(
+         inetsoft.web.admin.schedule.model.ServerLocation.builder()
+            .path("ftp://host/reports").label("Finance share")
+            .pathInfoModel(inetsoft.web.admin.schedule.model.ServerPathInfoModel.builder()
+               .path("ftp://host/reports").username("ftpuser").password("PW-PLACEHOLDER-FTP-LOC")
+               .ftp(true).build())
+            .build()));
+      return sutil;
+   }
+
+   @Test void aPlaceholderInsideAServerLocationShowsThePasswordAsSetNeverItsValue()
+      throws Exception
+   {
+      try(MockedStatic<inetsoft.sree.internal.SUtil> sutil = oneServerLocation()) {
+         String shown = shownFtpPlaceholder("ftp://host/reports/daily", "ftpuser");
+
+         assertTrue(shown.contains("password=set(server location)"), shown);
+         assertFalse(shown.contains("PW-PLACEHOLDER-FTP-LOC"), shown);
+      }
+   }
+
+   // C2: outside every location the placeholder is still not reported as a password
+   @Test void aPlaceholderOutsideEveryServerLocationIsStillNotReportedAsSet() throws Exception {
+      try(MockedStatic<inetsoft.sree.internal.SUtil> sutil = oneServerLocation()) {
+         assertFalse(shownFtpPlaceholder("ftp://host/other", "ftpuser").contains("password="));
+         assertFalse(shownFtpPlaceholder("ftp://host/reports/daily", "someoneelse")
+                        .contains("password="));
+      }
    }
 }

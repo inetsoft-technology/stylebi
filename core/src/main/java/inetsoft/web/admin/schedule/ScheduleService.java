@@ -2453,7 +2453,7 @@ public class ScheduleService {
     *
     * @return the password, or {@code null} if no location with a password matches.
     */
-   private static String getServerLocationPassword(String path, String username) {
+   public static String getServerLocationPassword(String path, String username) {
       FTPUtil.Endpoint endpoint = parseServerEndpoint(path);
 
       if(endpoint == null) {

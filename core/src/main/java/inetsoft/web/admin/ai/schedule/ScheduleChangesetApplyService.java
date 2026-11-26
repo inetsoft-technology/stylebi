@@ -143,7 +143,7 @@ public class ScheduleChangesetApplyService {
             try {
                if(ScheduleChangeRequest.VERB_CREATE.equals(original.getVerb())) {
                   applyCreate(txId, reviewedTask, taskId, original.getSpec(), original.getPath(),
-                             original.getTimeZone(), backupRef, req.getReviewOutcome(), user,
+                             original.getTimeZone(), original.getEmailZipPasswords(), backupRef, req.getReviewOutcome(), user,
                              linkURI, results, undoable, mutationEntered);
                }
                else if(ScheduleChangeRequest.VERB_UPDATE.equals(original.getVerb())) {
@@ -215,7 +215,7 @@ public class ScheduleChangesetApplyService {
 
    private void applyCreate(String txId, String task, String taskId,
                             CreateScheduleTaskRequest spec, String path, String timeZone,
-                            String backupRef, String reviewOutcome, Principal user,
+                            List<EmailZipPasswordSpec> emailZipPasswords, String backupRef, String reviewOutcome, Principal user,
                             String linkURI, List<ApplyOutcome> results, List<Undo> undoable,
                             AtomicBoolean mutationEntered)
       throws Exception
@@ -232,7 +232,7 @@ public class ScheduleChangesetApplyService {
       scheduleGateway.checkAddScheduleTaskSavable(meta, spec.isEnabled(),
          spec.isDeleteIfNotScheduledToRun(), spec.getStartDate(), spec.getEndDate(),
          spec.getDescription(), spec.getLocale(), spec.getExecuteAsID(), spec.getConditions(),
-         spec.getActions(), link, user);
+         spec.getActions(), link, emailZipPasswords, user);
       // the folder is resolved before the write, a refused folder proves nothing was touched
       AssetEntry folder = scheduleGateway.resolveCreateFolder(path, user);
       mutationEntered.set(true);
@@ -240,7 +240,7 @@ public class ScheduleChangesetApplyService {
       scheduleGateway.addScheduleTask(meta, spec.isEnabled(), spec.isDeleteIfNotScheduledToRun(),
          spec.getStartDate(), spec.getEndDate(), spec.getDescription(), spec.getLocale(),
          spec.getExecuteAsID(), spec.getConditions(), spec.getActions(),
-         spec.getOwner().getOrgID(), link, folder, timeZone, user);
+         spec.getOwner().getOrgID(), link, folder, timeZone, emailZipPasswords, user);
 
       String after = ScheduleXmlProjection.project(scheduleManager.getScheduleTask(taskId));
       boolean verified = after != null;

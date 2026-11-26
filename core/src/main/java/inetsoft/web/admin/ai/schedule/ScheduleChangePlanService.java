@@ -24,6 +24,7 @@ import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTaskMetaData;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.MessageException;
+import inetsoft.util.PasswordEncryption;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -180,6 +181,7 @@ public class ScheduleChangePlanService {
       requireNoPermissionResets(label, spec.getConditions(), user);
       requireSupportedActions(label + ".spec", spec.getActions());
       requireExistingViewsheets(label + ".spec", spec.getActions());
+      requireValidEmailZipPasswords(label, change.getEmailZipPasswords(), spec.getActions());
 
       String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
       requireUnseen(label, taskId, seenTaskIds);
@@ -224,7 +226,7 @@ public class ScheduleChangePlanService {
             new ScheduleTaskMetaData(spec.getName(), spec.getOwner().convertToKey()),
             spec.isEnabled(), spec.isDeleteIfNotScheduledToRun(), spec.getStartDate(),
             spec.getEndDate(), spec.getDescription(), spec.getLocale(), spec.getExecuteAsID(),
-            spec.getConditions(), spec.getActions(), null, user);
+            spec.getConditions(), spec.getActions(), null, change.getEmailZipPasswords(), user);
       }
       catch(Exception e) {
          if(e instanceof IllegalArgumentException) {
@@ -247,6 +249,10 @@ public class ScheduleChangePlanService {
 
       if(change.getTimeZone() != null && !change.getTimeZone().isBlank()) {
          proposed += ";timeZone=" + change.getTimeZone().strip();
+      }
+
+      if(change.getEmailZipPasswords() != null && !change.getEmailZipPasswords().isEmpty()) {
+         proposed += ";emailZipPasswords=" + projectEmailZipPasswords(change.getEmailZipPasswords());
       }
 
       return new PlanChange(taskId, spec.getOwner().getOrgID(), null, proposed,
@@ -299,13 +305,19 @@ public class ScheduleChangePlanService {
             label + ".timeZone: not used for verb=update; send it as patch.timeZone");
       }
 
+      if(change.getEmailZipPasswords() != null) {
+         throw new IllegalArgumentException(
+            label + ".emailZipPasswords: not used for verb=update; send it as " +
+            "patch.emailZipPasswords");
+      }
+
       ScheduleTaskPatch patch = change.getPatch();
 
       if(patch == null || patch.getDescription() == null && patch.getLocale() == null &&
          patch.getEnabled() == null && patch.getDeleteIfNotScheduledToRun() == null &&
          patch.getStartDate() == null && patch.getEndDate() == null &&
          patch.getConditions() == null && patch.getActions() == null &&
-         patch.getTimeZone() == null)
+         patch.getTimeZone() == null && patch.getEmailZipPasswords() == null)
       {
          throw new IllegalArgumentException(
             label + ".patch: at least one field to change is required for verb=update");
@@ -336,6 +348,17 @@ public class ScheduleChangePlanService {
          requireSupportedActions(label + ".patch", patch.getActions());
          requireExistingViewsheets(label + ".patch", patch.getActions());
       }
+
+      if(patch.getEmailZipPasswords() != null && !patch.getEmailZipPasswords().isEmpty() &&
+         patch.getActions() == null)
+      {
+         throw new IllegalArgumentException(
+            label + ".patch.emailZipPasswords: needs patch.actions, its actionIndex values refer " +
+            "to the replaced action list; resend the actions with the zip password entries");
+      }
+
+      requireValidEmailZipPasswords(label + ".patch", patch.getEmailZipPasswords(),
+                                    patch.getActions());
 
       inetsoft.sree.schedule.ScheduleTask candidate;
 
@@ -390,6 +413,11 @@ public class ScheduleChangePlanService {
       if(change.getTimeZone() != null) {
          throw new IllegalArgumentException(
             label + ".timeZone: not used for verb=delete; remove it or use verb=create");
+      }
+
+      if(change.getEmailZipPasswords() != null) {
+         throw new IllegalArgumentException(
+            label + ".emailZipPasswords: not used for verb=delete; remove it or use verb=create");
       }
 
       requireUnseen(label, taskId, seenTaskIds);
@@ -626,6 +654,95 @@ public class ScheduleChangePlanService {
          }
       }
    }
+   /**
+    * Refuses zip password entries the apply could not store as asked: an index that is not a
+    * viewsheet action, an action that does not zip its attachment, a second entry for one action,
+    * a conflicting password and secret id, and any set while the server is in FIPS mode (the
+    * portal hides those inputs there). A clear is not a set, so it stays allowed in FIPS mode.
+    * Messages carry the field names, never a password.
+    *
+    * @param label {@code changes[i]} for a create, {@code changes[i].patch} for an update.
+    */
+   private static void requireValidEmailZipPasswords(String label,
+                                                     List<EmailZipPasswordSpec> specs,
+                                                     List<ScheduleAction> actions)
+   {
+      if(specs == null) {
+         return;
+      }
+
+      Set<Integer> seen = new HashSet<>();
+
+      for(int j = 0; j < specs.size(); j++) {
+         String at = label + ".emailZipPasswords[" + j + "]";
+         EmailZipPasswordSpec spec = specs.get(j);
+
+         if(spec == null) {
+            throw new IllegalArgumentException(at + ": must be an object");
+         }
+
+         int index = spec.getActionIndex();
+
+         if(actions == null || index < 0 || index >= actions.size() ||
+            !(actions.get(index) instanceof ViewsheetAction va))
+         {
+            throw new IllegalArgumentException(
+               at + ".actionIndex: " + index + " is not a viewsheet action of the task's actions");
+         }
+
+         if(!seen.add(index)) {
+            throw new IllegalArgumentException(
+               at + ".actionIndex: " + index + " already has an emailZipPasswords entry");
+         }
+
+         if(!Boolean.TRUE.equals(va.isEmailZip())) {
+            throw new IllegalArgumentException(
+               at + ": action " + index + " needs emailZip true to carry a zip password or " +
+               "secret id");
+         }
+
+         boolean secretGiven = spec.getSecretId() != null && !spec.getSecretId().isBlank();
+
+         if(spec.usesCredential()) {
+            if(!secretGiven) {
+               throw new IllegalArgumentException(
+                  at + ".secretId: required when useCredential is true");
+            }
+
+            if(spec.getPassword() != null && !spec.getPassword().isEmpty()) {
+               throw new IllegalArgumentException(
+                  at + ".password: not allowed with useCredential true, send the password or " +
+                  "the secretId, not both");
+            }
+         }
+         else if(secretGiven) {
+            throw new IllegalArgumentException(
+               at + ".secretId: only used with useCredential true; send useCredential true to " +
+               "use the secret id, or drop it");
+         }
+
+         if((spec.usesCredential() || spec.setsPassword()) && PasswordEncryption.isFipsCompliant())
+         {
+            throw new IllegalArgumentException(
+               at + ": a zip " + (spec.usesCredential() ? "secret id" : "password") +
+               " cannot be set while the server is in FIPS mode, as in the portal");
+         }
+      }
+   }
+
+   /** The zip password entries as the plan text shows them, never with a password value. */
+   private static String projectEmailZipPasswords(List<EmailZipPasswordSpec> specs) {
+      List<String> parts = new ArrayList<>();
+
+      for(EmailZipPasswordSpec spec : specs) {
+         String state = spec.usesCredential() ? "useCredential,secretId=" + spec.getSecretId()
+            : spec.keepsStored() ? "kept" : spec.setsPassword() ? "set" : "cleared";
+         parts.add(spec.getActionIndex() + ":" + state);
+      }
+
+      return parts.toString();
+   }
+
    private static void requireSupportedActions(String label, List<ScheduleAction> actions) {
       if(actions == null) {
          return;
@@ -1027,15 +1144,22 @@ public class ScheduleChangePlanService {
          }
       }
 
-      // the placeholder the API returns for a stored password is dropped by the gateway
+      // the placeholder the API returns for a stored password is dropped by the gateway, unless
+      // the path is in a configured server location, whose stored password it then takes
       boolean fieldPassword = p.getPassword() != null && !p.getPassword().isEmpty() &&
          !Util.PLACEHOLDER_PASSWORD.equals(p.getPassword());
+      boolean locationPassword = split == null && !p.isUseCredential() &&
+         Util.PLACEHOLDER_PASSWORD.equals(p.getPassword()) &&
+         AdminScheduleGateway.getServerLocationPassword(p.getPath(), p.getUsername()) != null;
 
       if(split != null) {
          sb.append(",password=set");
       }
       else if(fieldPassword) {
          sb.append(",password=set").append(ignored);
+      }
+      else if(locationPassword) {
+         sb.append(",password=set(server location)");
       }
 
       return sb.append('}').toString();

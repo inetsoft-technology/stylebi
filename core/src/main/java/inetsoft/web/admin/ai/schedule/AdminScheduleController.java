@@ -93,7 +93,8 @@ public class AdminScheduleController {
          scheduleGateway.getScheduleTaskTimeZone(taskId, user),
          scheduleGateway.getScheduleTask(taskId, null, user),
          scheduleGateway.getTaskConditionsLenient(taskId, null, user),
-         scheduleGateway.getTaskActionsLenient(taskId, null, user));
+         scheduleGateway.getTaskActionsLenient(taskId, null, user),
+         scheduleGateway.getScheduleTaskEmailZipPasswords(taskId, user));
    }
 
    /**

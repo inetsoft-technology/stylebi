@@ -20,6 +20,8 @@ package inetsoft.web.admin.ai.schedule;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.web.api.schedule.CreateScheduleTaskRequest;
 
+import java.util.List;
+
 /**
  * One requested schedule-task change: create a new task from {@code spec}, update the task named
  * by {@code taskId} with {@code patch}, or delete it. {@code spec} (create), {@code taskId} with
@@ -65,10 +67,19 @@ public class ScheduleChangeRequest {
    public String getTimeZone() { return timeZone; }
    public void setTimeZone(String v) { this.timeZone = v; }
 
+   /**
+    * The zip passwords of the email deliveries of the actions a {@code create} stores, see
+    * {@link EmailZipPasswordSpec}. {@code null} or empty means none. An update sends them in
+    * {@link ScheduleTaskPatch#getEmailZipPasswords()}.
+    */
+   public List<EmailZipPasswordSpec> getEmailZipPasswords() { return emailZipPasswords; }
+   public void setEmailZipPasswords(List<EmailZipPasswordSpec> v) { this.emailZipPasswords = v; }
+
    private String verb;
    private String taskId;
    private CreateScheduleTaskRequest spec;
    private ScheduleTaskPatch patch;
    private String path;
    private String timeZone;
+   private List<EmailZipPasswordSpec> emailZipPasswords;
 }
