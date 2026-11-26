@@ -54,13 +54,18 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
+import inetsoft.web.composer.ws.PasteAssembliesResult;
+import inetsoft.web.composer.ws.PasteAssembliesServiceProxy;
 import inetsoft.web.composer.ws.RenameColumnController;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.dialog.ExpressionDialogService;
 import inetsoft.web.composer.ws.dialog.ExpressionNameSupport;
+import inetsoft.web.composer.ws.event.WSPasteAssembliesEvent;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.composer.ws.joins.JoinUtil;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.wiz.script.PaneScopeService;
 import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.model.DatabaseTableMeta;
@@ -149,7 +154,6 @@ public class WorksheetEditService {
     *                           (Bug #81675); {@code null} skips the source-column check for
     *                           such tables.
     */
-   @Autowired
    public WorksheetEditService(SheetSessionService sessions,
                                SheetRuntimeAccess runtimeAccess,
                                SheetAgentBroadcastService broadcast,
@@ -159,6 +163,26 @@ public class WorksheetEditService {
                                WorksheetService worksheetEngine,
                                MetadataApiService metadataApiService)
    {
+      this(sessions, runtimeAccess, broadcast, securityEngine, innerJoinService,
+           expressionDialogService, worksheetEngine, metadataApiService, null);
+   }
+
+   /**
+    * @param pasteAssembliesService the Composer's worksheet paste, behind {@code paste_assemblies}
+    *                               ({@code null} only where that op is not exercised)
+    */
+   @Autowired
+   public WorksheetEditService(SheetSessionService sessions,
+                               SheetRuntimeAccess runtimeAccess,
+                               SheetAgentBroadcastService broadcast,
+                               SecurityEngine securityEngine,
+                               InnerJoinService innerJoinService,
+                               ExpressionDialogService expressionDialogService,
+                               WorksheetService worksheetEngine,
+                               MetadataApiService metadataApiService,
+                               PasteAssembliesServiceProxy pasteAssembliesService)
+   {
+      this.pasteAssembliesService = pasteAssembliesService;
       this.metadataApiService = metadataApiService;
       this.worksheetEngine = worksheetEngine;
       this.sessions = sessions;
@@ -302,6 +326,296 @@ public class WorksheetEditService {
       broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
       broadcast.focusSheet(rws, session.runtimeId());
       return result;
+   }
+
+   /**
+    * The Composer's worksheet paste: copy or cut several assemblies, in one step, inside this
+    * worksheet or from another worksheet this agent holds a session on.
+    *
+    * <p>The copy itself is {@code PasteAssembliesService#pasteAssemblies}, the service behind the
+    * Composer's Paste, so naming, dependency order and re-pointing a copied join/mirror at the
+    * copied sources are the Composer's. This method adds only what a browser-less caller needs:
+    * a validated, authorized source session, the old-to-new names, the skipped assemblies, and
+    * the source-side removal of a cross-worksheet cut (the Composer leaves that to the client).
+    *
+    * @param targetToken the session of the worksheet pasted into (the endpoint's path token)
+    * @param sourceToken the session of the worksheet copied from, or {@code null}/blank for this
+    *                    worksheet; a token only, never a runtime id
+    * @param cut         {@code true} to cut instead of copy
+    * @param names       the assemblies to copy or cut
+    * @param x           left of the pasted set, or {@code null} for the default
+    * @param y           top of the pasted set, or {@code null} for the default
+    * @param agent       the agent's principal
+    * @throws PairingException naming the offending field when the request is refused; nothing has
+    *                          been changed then
+    */
+   public PasteAssembliesOutcome pasteAssemblies(String targetToken, String sourceToken,
+                                                 boolean cut, List<String> names, Integer x,
+                                                 Integer y, Principal agent)
+      throws Exception
+   {
+      if(pasteAssembliesService == null) {
+         throw new PairingException(PairingException.Kind.INTERNAL,
+                                    "paste_assemblies is not available on this server");
+      }
+
+      List<String> requested = new ArrayList<>();
+
+      if(names != null) {
+         for(String name : names) {
+            if(name != null && !name.isBlank() && !requested.contains(name.strip())) {
+               requested.add(name.strip());
+            }
+         }
+      }
+
+      if(requested.isEmpty()) {
+         throw new PairingException(
+            "tables: name at least one assembly to " + (cut ? "cut" : "copy") + ".");
+      }
+
+      String agentKey = agentKey(agent);
+      JoinSession target = sessions.resolve(targetToken, agentKey);
+
+      if(target == null) {
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+                                    "Invalid or expired session: " + targetToken);
+      }
+
+      // The source is resolved from a token, never a runtime id taken from the request: once the
+      // destination session is authorized, the engine hands any runtime id to a paired-agent
+      // principal, so the token is what proves this agent holds the source worksheet.
+      boolean same = sourceToken == null || sourceToken.isBlank();
+      JoinSession source = target;
+
+      if(!same) {
+         source = sessions.resolve(sourceToken, agentKey);
+
+         if(source == null) {
+            throw new PairingException(
+               "sourceSession: invalid, expired, or not held by this login. Pass the session token "
+               + "of a worksheet you have connected (connect_sheet), or omit it to paste inside "
+               + "this worksheet.");
+         }
+
+         if(source.sheetType() != SheetType.WORKSHEET) {
+            throw new PairingException(
+               "sourceSession: that session is not a worksheet. Only assemblies of another "
+               + "worksheet can be pasted.");
+         }
+
+         try {
+            PaneScopeService.requireWholeSheetSession(source);
+         }
+         catch(PairingException e) {
+            throw new PairingException("sourceSession: " + e.getMessage());
+         }
+
+         if(ViewerModePolicy.isViewer(source, runtimeAccess)) {
+            throw new PairingException(
+               "sourceSession: that session is a read-only viewer session; assemblies cannot be "
+               + "copied or cut from it.");
+         }
+
+         if(source.runtimeId().equals(target.runtimeId())) {
+            throw new PairingException(
+               "sourceSession: that is the session of the worksheet being pasted into. Omit "
+               + "sourceSession to " + (cut ? "cut" : "copy") + " inside this worksheet.");
+         }
+      }
+
+      RuntimeWorksheet trws = (RuntimeWorksheet) runtimeAccess.getSheetForPairing(
+         SheetType.WORKSHEET, target.runtimeId(), agent);
+      RuntimeWorksheet srws = same ? trws : (RuntimeWorksheet) runtimeAccess.getSheetForPairing(
+         SheetType.WORKSHEET, source.runtimeId(), agent);
+      Worksheet sws = srws.getWorksheet();
+      java.awt.Point topLeft = new java.awt.Point(Integer.MAX_VALUE, Integer.MAX_VALUE);
+
+      for(String name : requested) {
+         Assembly a = sws.getAssembly(name);
+
+         if(!(a instanceof WSAssembly wsa)) {
+            throw new PairingException(
+               "tables: no assembly named '" + name + "' in " +
+               (same ? "this worksheet" : "the source worksheet") + ".");
+         }
+
+         // A hidden copy backs a mirror; a mirror of another worksheet brings its own copies
+         // along when it is pasted (bug #78037), so the copy is never requested on its own.
+         if(wsa.isOuter()) {
+            throw new PairingException(
+               "tables: '" + name + "' is a hidden copy that backs a mirror and cannot be " +
+               (cut ? "cut" : "copied") + " on its own. Paste the mirror itself.");
+         }
+
+         java.awt.Point pos = wsa.getPixelOffset();
+
+         if(pos != null) {
+            topLeft.x = Math.min(topLeft.x, pos.x);
+            topLeft.y = Math.min(topLeft.y, pos.y);
+         }
+      }
+
+      if(topLeft.x == Integer.MAX_VALUE) {
+         topLeft.setLocation(0, 0);
+      }
+
+      WSPasteAssembliesEvent event = new WSPasteAssembliesEvent();
+      event.setAssemblies(requested.toArray(new String[0]));
+      event.setSourceRuntimeId(same ? target.runtimeId() : source.runtimeId());
+      event.setCut(cut);
+      // The Composer pastes at the pointer. Without one a same-worksheet copy lands offset from
+      // the original (as duplicate_assembly does); a cut or another worksheet keeps the position.
+      int offset = same && !cut ? 40 : 0;
+      event.setLeft(x != null ? x : topLeft.x + offset);
+      event.setTop(y != null ? y : topLeft.y + offset);
+
+      PasteAssembliesResult result = applyOnRuntime(
+         targetToken, agent, rws -> runPaste(rws, event, agent));
+      Map<String, String> oldToNew = new java.util.LinkedHashMap<>();
+      List<PasteAssembliesOutcome.NamePair> alsoCopied = new ArrayList<>();
+      List<PasteAssembliesOutcome.NamePair> pasted = new ArrayList<>();
+      List<String> moved = new ArrayList<>();
+
+      for(int i = 0; i < result.getOldNames().size(); i++) {
+         String from = result.getOldNames().get(i);
+         String to = result.getNewNames().get(i);
+
+         if(!requested.contains(from)) {
+            alsoCopied.add(new PasteAssembliesOutcome.NamePair(from, to));
+         }
+         else if(same && cut) {
+            moved.add(from);
+         }
+         else {
+            pasted.add(new PasteAssembliesOutcome.NamePair(from, to));
+         }
+
+         oldToNew.put(from, to);
+      }
+
+      List<PasteAssembliesOutcome.Skipped> skipped = new ArrayList<>();
+
+      for(String name : requested) {
+         if(!oldToNew.containsKey(name)) {
+            skipped.add(new PasteAssembliesOutcome.Skipped(
+               name, result.getSkipped().getOrDefault(
+                  name, "the Composer's paste rules do not support copying it")));
+         }
+      }
+
+      List<String> notRemoved = new ArrayList<>();
+
+      if(cut && !same) {
+         // Only what was actually pasted leaves the source. The Composer deletes every requested
+         // name from the client; that would also delete the assemblies the paste skipped, which
+         // were never copied anywhere.
+         LinkedHashSet<String> toRemove = new LinkedHashSet<>();
+
+         for(PasteAssembliesOutcome.NamePair pair : pasted) {
+            toRemove.add(pair.from());
+         }
+
+         notRemoved = removeFromSource(sourceToken, agent, toRemove);
+      }
+
+      return new PasteAssembliesOutcome(pasted, alsoCopied, moved, skipped, notRemoved);
+   }
+
+   /**
+    * Runs the Composer paste on {@code rws} and leaves the worksheet as it was if it fails. The
+    * native service reports an assembly it skips as an ERROR message AFTER the copies were
+    * added; letting the capturing dispatcher turn that into an exception would fail a call whose
+    * writes already happened, so those messages are consumed (the structured skipped list is the
+    * report), and only a real exception rolls back.
+    */
+   private PasteAssembliesResult runPaste(RuntimeWorksheet rws, WSPasteAssembliesEvent event,
+                                          Principal agent)
+      throws Exception
+   {
+      Worksheet ws = rws.getWorksheet();
+      Set<String> before = new LinkedHashSet<>();
+
+      for(Assembly a : ws.getAssemblies()) {
+         before.add(a.getName());
+      }
+
+      try {
+         return CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
+            int mark = dispatcher.capturedCount();
+            PasteAssembliesResult result =
+               pasteAssembliesService.pasteAssemblies(rws.getID(), event, agent, dispatcher);
+
+            for(String message : dispatcher.consumeErrorsSince(mark)) {
+               LOG.info("paste_assemblies: Composer paste reported: {}", message);
+            }
+
+            return result;
+         });
+      }
+      catch(Exception e) {
+         Assembly[] now = ws.getAssemblies();
+
+         for(int i = now.length - 1; i >= 0; i--) {
+            if(!before.contains(now[i].getName())) {
+               ws.removeAssembly(now[i].getName());
+            }
+         }
+
+         throw e;
+      }
+   }
+
+   /**
+    * Removes the pasted assemblies from the source worksheet of a cross-worksheet cut, those
+    * nothing depends on first (a join before the tables under it). A name that is already gone
+    * counts as removed: deleting a pasted mirror removes its own hidden copies with it.
+    *
+    * @return the names that could not be removed (empty when the source is clean)
+    */
+   private List<String> removeFromSource(String sourceToken, Principal agent,
+                                         Set<String> names)
+      throws Exception
+   {
+      List<String> left = new ArrayList<>();
+
+      try {
+         apply(sourceToken, agent, editor -> {
+            LinkedHashSet<String> remaining = new LinkedHashSet<>(names);
+            boolean progress = true;
+
+            while(!remaining.isEmpty() && progress) {
+               progress = false;
+
+               for(java.util.Iterator<String> it = remaining.iterator(); it.hasNext();) {
+                  String name = it.next();
+                  Assembly a = editor.ws.getAssembly(name);
+
+                  if(a == null) {
+                     it.remove();
+                     progress = true;
+                  }
+                  else if(editor.dependentNames(a).isEmpty()) {
+                     editor.deleteTable(name);
+                     it.remove();
+                     progress = true;
+                  }
+               }
+            }
+
+            left.addAll(remaining);
+         });
+      }
+      catch(Exception e) {
+         // The paste already landed in the destination; say what is now in both worksheets
+         // rather than failing the whole call.
+         LOG.warn("paste_assemblies: cut could not remove the pasted assemblies from the source",
+                  e);
+         left.clear();
+         left.addAll(names);
+      }
+
+      return left;
    }
 
    @FunctionalInterface
@@ -706,6 +1020,7 @@ public class WorksheetEditService {
    private final ExpressionDialogService expressionDialogService;
    private final WorksheetService worksheetEngine;
    private final MetadataApiService metadataApiService;
+   private final PasteAssembliesServiceProxy pasteAssembliesService;
    /**
     * Bug #81675: the columns of {@code table}'s bound source. {@code
     * ExpressionNameSupport.sourceColumns} reads only logical-model sources and returns an empty
@@ -1568,6 +1883,20 @@ public class WorksheetEditService {
       // -----------------------------------------------------------------------
 
       /**
+       * Two-table {@code addJoin} whose keys are all equi conditions; see
+       * {@link #addJoin(String, String, String, String, String, String, List, List, List)}.
+       */
+      public void addJoin(String name, String leftTable, String leftKey,
+                          String rightTable, String rightKey,
+                          String joinType,
+                          List<String> leftKeys, List<String> rightKeys)
+         throws PairingException, SecurityException
+      {
+         addJoin(name, leftTable, leftKey, rightTable, rightKey, joinType, leftKeys, rightKeys,
+                 null);
+      }
+
+      /**
        * Creates a new {@link RelationalJoinTableAssembly} joining {@code leftTable} and
        * {@code rightTable} on the given key columns and adds it to the worksheet.
        *
@@ -1587,12 +1916,19 @@ public class WorksheetEditService {
        *                   {@code "MERGE"} delegates to {@link #addMergeJoin}.
        * @param leftKeys   optional multi-key list of left column names (overrides {@code leftKey})
        * @param rightKeys  optional multi-key list of right column names (overrides {@code rightKey})
+       * @param operators  optional comparison operator of each key condition, one entry per key
+       *                   (see {@link #parseJoinOperator}); {@code null}, an empty list, or a
+       *                   {@code null}/{@code "="} entry keeps that key an equi condition, which
+       *                   carries {@code joinType}. Non-equi keys are incompatible with
+       *                   {@code "CROSS"}/{@code "MERGE"} and with an outer {@code joinType} on a
+       *                   call whose keys are ALL non-equi.
        * @throws PairingException if either source assembly is not found
        */
       public void addJoin(String name, String leftTable, String leftKey,
                           String rightTable, String rightKey,
                           String joinType,
-                          List<String> leftKeys, List<String> rightKeys)
+                          List<String> leftKeys, List<String> rightKeys,
+                          List<String> operators)
          throws PairingException, SecurityException
       {
          if(name == null || name.isBlank()) {
@@ -1600,11 +1936,13 @@ public class WorksheetEditService {
          }
 
          if("CROSS".equalsIgnoreCase(joinType)) {
+            keyOperations(TableAssemblyOperator.CROSS_JOIN, operators, 1);
             addCrossJoin(name, leftTable, rightTable);
             return;
          }
 
          if("MERGE".equalsIgnoreCase(joinType)) {
+            keyOperations(TableAssemblyOperator.MERGE_JOIN, operators, 1);
             addMergeJoin(name, new String[]{ leftTable, rightTable });
             return;
          }
@@ -1613,6 +1951,10 @@ public class WorksheetEditService {
          TableAssembly right = requireTable(rightTable);
 
          int operation = parseJoinType(joinType);
+         int keyCount = leftKeys != null && rightKeys != null && !leftKeys.isEmpty() ?
+            leftKeys.size() : 1;
+         // one operation per key: the join type for an equi key, the operator for any other
+         int[] keyOps = keyOperations(operation, operators, keyCount);
 
          boolean leftIsJoin = left instanceof RelationalJoinTableAssembly;
          boolean rightIsJoin = right instanceof RelationalJoinTableAssembly;
@@ -1671,7 +2013,7 @@ public class WorksheetEditService {
                   op.setRightTable(anchorRight.getName());
                   op.setLeftAttribute(new AttributeRef(null, leftKeys.get(i)));
                   op.setRightAttribute(new AttributeRef(null, rightKeys.get(i)));
-                  op.setOperation(operation);
+                  op.setOperation(keyOps[i]);
                   // Validate only THIS new edge against its own anchor pair -- noperator was
                   // seeded above with the join's pre-existing operators, which may span other,
                   // unrelated member-table pairs; a whole-noperator check would be wrong for them.
@@ -1690,7 +2032,7 @@ public class WorksheetEditService {
                op.setRightTable(anchorRight.getName());
                op.setLeftAttribute(new AttributeRef(null, leftKey));
                op.setRightAttribute(new AttributeRef(null, rightKey));
-               op.setOperation(operation);
+               op.setOperation(keyOps[0]);
                requireCompatibleJoinKeyTypes(op, anchorLeft, anchorRight);
                noperator.addOperator(op);
             }
@@ -1743,7 +2085,7 @@ public class WorksheetEditService {
                op.setRightTable(rightTable);
                op.setLeftAttribute(new AttributeRef(null, leftKeys.get(i)));
                op.setRightAttribute(new AttributeRef(null, rightKeys.get(i)));
-               op.setOperation(operation);
+               op.setOperation(keyOps[i]);
                top.addOperator(op);
             }
          }
@@ -1754,7 +2096,7 @@ public class WorksheetEditService {
             op.setRightTable(rightTable);
             op.setLeftAttribute(new AttributeRef(null, leftKey));
             op.setRightAttribute(new AttributeRef(null, rightKey));
-            op.setOperation(operation);
+            op.setOperation(keyOps[0]);
             top.addOperator(op);
          }
 
@@ -1839,6 +2181,8 @@ public class WorksheetEditService {
 
             int operation = parseJoinType(path.joinType());
             crossJoin = crossJoin || operation == TableAssemblyOperator.CROSS_JOIN;
+            int condition = keyOperations(
+               operation, path.operator() == null ? null : List.of(path.operator()), 1)[0];
 
             TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
             op.setLeftTable(path.leftTable());
@@ -1853,7 +2197,7 @@ public class WorksheetEditService {
                requireCompatibleJoinKeyTypes(op, left, right);
             }
 
-            op.setOperation(operation);
+            op.setOperation(condition);
             noperator.addOperator(op);
          }
 
@@ -3422,8 +3766,9 @@ public class WorksheetEditService {
        * are preserved. A pair holding only non-equi operators is refused. New keys replace the
        * WHOLE key list of the pair: {@code leftKey}/{@code rightKey} with a selector leave one
        * key; {@code leftKeys}/{@code rightKeys} set the list (both given, same length; a
-       * half-supplied key is refused). A key change also DROPS the pair's non-equi operators.
-       * With a selector and no {@code joinType} the edge keeps its stored type; without a
+       * half-supplied key is refused). A key change keeps the pair's non-equi operators that the
+       * new keys do not restate unless the overload with {@code operators} is used, which sets the
+       * pair's whole condition list. With a selector and no {@code joinType} the edge keeps its stored type; without a
        * selector (one-edge join) a missing {@code joinType} means INNER. Other pairs are never
        * rewritten. {@code joinType} MERGE is refused.</p>
        *
@@ -3452,6 +3797,30 @@ public class WorksheetEditService {
       public void editJoin(String name, String leftKey, String rightKey, String joinType,
                            List<String> leftKeys, List<String> rightKeys,
                            String edgeLeft, String edgeRight)
+         throws PairingException, SecurityException
+      {
+         editJoin(name, leftKey, rightKey, joinType, leftKeys, rightKeys, edgeLeft, edgeRight,
+                  null);
+      }
+
+      /**
+       * {@link #editJoin(String, String, String, String, List, List, String, String)} with a
+       * comparison operator per new key.
+       *
+       * <p>{@code operators} (one entry per new key, {@code null}/{@code "="} for an equi key,
+       * see {@link #parseJoinOperator}) is the COMPLETE condition list of the pair: it replaces
+       * the pair's stored conditions, non-equi ones included, so a caller reshapes the edge by
+       * restating what it keeps (the operator names a read returns round-trip). Without
+       * {@code operators} every new key is an equi key, and the pair's stored non-equi
+       * conditions that the new keys do not restate are KEPT, as the Composer does when its
+       * equi key or type changes; a kept condition on the same column pair as a new key is
+       * refused. The operators are relative to {@code edgeLeft}/{@code edgeRight}, so a
+       * reversed selector mirrors them (&gt; becomes &lt;) like the join type. {@code operators}
+       * needs new keys.</p>
+       */
+      public void editJoin(String name, String leftKey, String rightKey, String joinType,
+                           List<String> leftKeys, List<String> rightKeys,
+                           String edgeLeft, String edgeRight, List<String> operators)
          throws PairingException, SecurityException
       {
          Assembly a = ws.getAssembly(name);
@@ -3490,6 +3859,14 @@ public class WorksheetEditService {
                "Pass both leftKey and rightKey to set a key, or neither to keep the keys.");
          }
 
+         boolean explicitOperators = operators != null && !operators.isEmpty();
+
+         if(explicitOperators && !leftList && leftKey == null) {
+            throw new PairingException(
+               "operators are the comparison of each new key: pass leftKey/rightKey or " +
+               "leftKeys/rightKeys with them.");
+         }
+
          boolean selector = edgeLeft != null || edgeRight != null;
          JoinEdge edge;
 
@@ -3526,7 +3903,7 @@ public class WorksheetEditService {
                }
             }
 
-            operation = edge.reversed() ? mirrorJoinOperation(keep) : keep;
+            operation = edge.reversed() ? InnerJoinService.mirrorOperation(keep) : keep;
          }
 
          boolean cross = operation == TableAssemblyOperator.CROSS_JOIN;
@@ -3558,7 +3935,7 @@ public class WorksheetEditService {
 
          // The pair is stored as (edge.left, edge.right); the caller's join type and key sides are
          // relative to (edgeLeft, edgeRight), so a reversed match flips them.
-         int storedOp = edge.reversed() ? mirrorJoinOperation(operation) : operation;
+         int storedOp = edge.reversed() ? InnerJoinService.mirrorOperation(operation) : operation;
 
          if(cross && storedCross) {
             if(selector) {
@@ -3590,6 +3967,9 @@ public class WorksheetEditService {
             List<String> callerLeft = listKeys ? leftKeys : List.of(leftKey);
             List<String> callerRight = listKeys ? rightKeys : List.of(rightKey);
             int count = Math.min(callerLeft.size(), callerRight.size());
+            // operations are relative to the caller's (edgeLeft, edgeRight); a reversed selector
+            // mirrors each into the stored orientation, as it does the join type
+            int[] keyOps = keyOperations(operation, operators, count);
             TableAssembly leftAssembly = requireTable(edge.left());
             TableAssembly rightAssembly = requireTable(edge.right());
             TableAssemblyOperator newTop = new TableAssemblyOperator();
@@ -3613,8 +3993,13 @@ public class WorksheetEditService {
                newOp.setRightTable(edge.right());
                newOp.setLeftAttribute(new AttributeRef(null, storedLeftKey));
                newOp.setRightAttribute(new AttributeRef(null, storedRightKey));
-               newOp.setOperation(storedOp);
+               newOp.setOperation(edge.reversed() ? InnerJoinService.mirrorOperation(keyOps[i]) :
+                                     keyOps[i]);
                newTop.addOperator(newOp);
+            }
+
+            if(!explicitOperators) {
+               keepStoredNonEquiOperators(stored, newTop, label);
             }
 
             requireCompatibleJoinKeyTypes(newTop, leftAssembly, rightAssembly);
@@ -3652,7 +4037,8 @@ public class WorksheetEditService {
          if(equiCount == 0) {
             throw new PairingException(
                "Edge " + label + " holds only non-equi operators (" + String.join(", ", nonEqui) +
-               "), which have no join type to change. Pass new leftKey/rightKey to replace them.");
+               "), which have no join type to change. Pass leftKeys/rightKeys with operators to " +
+               "replace them.");
          }
 
          if(toChange.isEmpty()) {
@@ -3964,16 +4350,45 @@ public class WorksheetEditService {
             case TableAssemblyOperator.FULL_JOIN -> "FULL";
             case TableAssemblyOperator.CROSS_JOIN -> "CROSS";
             case TableAssemblyOperator.MERGE_JOIN -> "MERGE";
-            default -> "NON-EQUI";
+            default -> {
+               TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+               op.setOperation(operation);
+               yield op.getName2();
+            }
          };
       }
 
-      private static int mirrorJoinOperation(int operation) {
-         return switch(operation) {
-            case TableAssemblyOperator.LEFT_JOIN -> TableAssemblyOperator.RIGHT_JOIN;
-            case TableAssemblyOperator.RIGHT_JOIN -> TableAssemblyOperator.LEFT_JOIN;
-            default -> operation;
-         };
+      /**
+       * Copies the non-equi conditions of {@code stored} that {@code newTop} does not already
+       * restate (same column pair) into {@code newTop}, so an edit of the equi keys does not
+       * silently drop a condition the caller never mentioned.
+       */
+      private static void keepStoredNonEquiOperators(TableAssemblyOperator stored,
+                                                     TableAssemblyOperator newTop, String label)
+         throws PairingException
+      {
+         for(TableAssemblyOperator.Operator op : stored.getOperators()) {
+            if(op.isEqualJoin() || op.isCrossJoin() || op.isMergeJoin()) {
+               continue;
+            }
+
+            String leftColumn = op.getLeftAttribute() == null ? null :
+               op.getLeftAttribute().getAttribute();
+            String rightColumn = op.getRightAttribute() == null ? null :
+               op.getRightAttribute().getAttribute();
+
+            for(TableAssemblyOperator.Operator key : newTop.getOperators()) {
+               if(joinKeyMatches(key, leftColumn, rightColumn)) {
+                  throw new PairingException(
+                     "Edge " + label + " already holds " + op.getName2() + " on " + leftColumn +
+                     " / " + rightColumn + ", and a pair of columns takes one condition. Pass " +
+                     "operators to restate the edge's whole condition list, or use other " +
+                     "columns for the new key.");
+               }
+            }
+
+            newTop.addOperator((TableAssemblyOperator.Operator) op.clone());
+         }
       }
 
       private static boolean isCrossPair(TableAssemblyOperator top) {
@@ -5931,6 +6346,87 @@ public class WorksheetEditService {
             case "MINUS"     -> TableAssemblyOperator.MINUS;
             default          -> TableAssemblyOperator.UNION;
          };
+      }
+
+      /**
+       * Maps a key condition's comparison operator to its operation: {@code =} (also {@code ==}
+       * and the {@code INNER_JOIN}/{@code LEFT_JOIN}/{@code RIGHT_JOIN}/{@code FULL_JOIN} names a
+       * read reports for an equi key) is {@link TableAssemblyOperator#INNER_JOIN}, meaning "equi,
+       * the join type decides"; {@code >}, {@code <}, {@code >=}, {@code <=} and {@code <>}
+       * (or {@code !=}) are the matching non-equi operations, as are the {@code *_JOIN} names a
+       * read reports for them. Unlike {@link #parseJoinType} an unknown operator is refused,
+       * never defaulted: a comparison silently turned into equality returns the wrong rows.
+       */
+      static int parseJoinOperator(String operator) throws PairingException {
+         String key = operator == null ? "" : operator.trim().toUpperCase();
+
+         return switch(key) {
+            case "=", "==", "INNER_JOIN", "LEFT_JOIN", "RIGHT_JOIN", "FULL_JOIN" ->
+               TableAssemblyOperator.INNER_JOIN;
+            case ">", "GREATER_JOIN" -> TableAssemblyOperator.GREATER_JOIN;
+            case "<", "LESS_JOIN" -> TableAssemblyOperator.LESS_JOIN;
+            case ">=", "GREATER_EQUAL_JOIN" -> TableAssemblyOperator.GREATER_EQUAL_JOIN;
+            case "<=", "LESS_EQUAL_JOIN" -> TableAssemblyOperator.LESS_EQUAL_JOIN;
+            case "<>", "!=", "NOT_EQUAL_JOIN" -> TableAssemblyOperator.NOT_EQUAL_JOIN;
+            default -> throw new PairingException(
+               "operator must be one of =, >, <, >=, <=, <> (got \"" + operator + "\").");
+         };
+      }
+
+      /**
+       * The operation of each of {@code keyCount} key conditions: {@code operation} (the join
+       * type's) for an equi key, the parsed operator for any other. {@code operators} is
+       * {@code null}/empty (every key is equi) or has exactly one entry per key. A non-equi key
+       * cannot ride on a CROSS/MERGE join, and an outer join type needs at least one equi key to
+       * carry it, so both are refused here rather than stored as a join the caller did not ask
+       * for.
+       */
+      static int[] keyOperations(int operation, List<String> operators, int keyCount)
+         throws PairingException
+      {
+         boolean given = operators != null && !operators.isEmpty();
+
+         if(given && operators.size() != keyCount) {
+            throw new PairingException(
+               "operators must have one entry per key (" + keyCount + " key" +
+               (keyCount == 1 ? "" : "s") + "), got " + operators.size() + ".");
+         }
+
+         int[] ops = new int[keyCount];
+         int nonEqui = 0;
+
+         for(int i = 0; i < keyCount; i++) {
+            int parsed = given && operators.get(i) != null && !operators.get(i).isBlank() ?
+               parseJoinOperator(operators.get(i)) : TableAssemblyOperator.INNER_JOIN;
+            ops[i] = parsed == TableAssemblyOperator.INNER_JOIN ? operation : parsed;
+
+            if(parsed != TableAssemblyOperator.INNER_JOIN) {
+               nonEqui++;
+            }
+         }
+
+         if(nonEqui > 0) {
+            if(operation == TableAssemblyOperator.CROSS_JOIN ||
+               operation == TableAssemblyOperator.MERGE_JOIN)
+            {
+               throw new PairingException(
+                  "A CROSS or MERGE join has no key conditions, so it takes no operator other " +
+                  "than =; use an INNER join for a comparison such as > or <>.");
+            }
+
+            boolean outer = operation == TableAssemblyOperator.LEFT_JOIN ||
+               operation == TableAssemblyOperator.RIGHT_JOIN ||
+               operation == TableAssemblyOperator.FULL_JOIN;
+
+            if(outer && nonEqui == keyCount) {
+               throw new PairingException(
+                  "An outer join type (" + operationName(operation) + ") applies to '=' " +
+                  "keys, and none of these keys is '='. Add an '=' key, or use joinType INNER " +
+                  "for a comparison-only join.");
+            }
+         }
+
+         return ops;
       }
 
       static int parseJoinType(String joinType) {

@@ -176,8 +176,16 @@ public class SchedulerConfigurationService {
                clusterBuilder = clusterBuilder.uptime(catalog.getString("Not ready"));
             }
             else {
-               final Duration duration = Duration.between(
+               // A remote node publishes its start time from its own clock; if that clock is
+               // ahead of this node the difference is negative, which formatDuration rejects.
+               // Clamp to zero so one skewed node does not fail the whole status call.
+               Duration duration = Duration.between(
                   Instant.ofEpochMilli(startTime.getTime()), now);
+
+               if(duration.isNegative()) {
+                  duration = Duration.ZERO;
+               }
+
                clusterBuilder.uptime(DurationFormatUtils.formatDuration(duration.toMillis(),
                                                                "d'd' H'h' m'm' s's'"));
             }
