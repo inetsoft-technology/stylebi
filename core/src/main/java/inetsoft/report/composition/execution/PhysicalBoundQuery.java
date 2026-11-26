@@ -152,7 +152,7 @@ public class PhysicalBoundQuery extends BoundQuery {
       }
 
       if(!isQueryMergeable(false)) {
-         int max = getMaxRows(false);
+         int max = getSourceMaxRows();
 
          if(max > 0) {
             vars.put(XQuery.HINT_MAX_ROWS, max + "");

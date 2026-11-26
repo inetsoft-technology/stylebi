@@ -72,7 +72,7 @@ public class TabularBoundQuery extends BoundQuery {
       super.merge(vars);
 
       if(xquery != null) {
-         xquery.setMaxRows(getMaxRows(false));
+         xquery.setMaxRows(getSourceMaxRows());
       }
    }
 
