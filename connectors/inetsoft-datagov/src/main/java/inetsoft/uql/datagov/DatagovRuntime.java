@@ -63,6 +63,7 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
          // TODO: Might need to switch this to a streaming based implementation.
          jsonReader = Json.createReader(connReader);
          JsonObject jObj = jsonReader.readObject();
+         checkRowsJsonShape(jObj);
          table = new DatagovTable(jObj, query0.getMaxRows(), query);
       }
       catch(Exception ex) {
@@ -78,6 +79,23 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
       }
 
       return table;
+   }
+
+   /**
+    * Rejects a JSON object that is not in the rows.json shape, so the caller gets the shape
+    * message instead of a NullPointerException from the table parser (Bug #82405).
+    */
+   private static void checkRowsJsonShape(JsonObject json) {
+      JsonObject meta = json.containsKey("meta") && !json.isNull("meta") ?
+         json.getJsonObject("meta") : null;
+      JsonObject view = meta != null && meta.containsKey("view") && !meta.isNull("view") ?
+         meta.getJsonObject("view") : null;
+
+      if(view == null || !(view.get("columns") instanceof JsonArray) ||
+         !(json.get("data") instanceof JsonArray))
+      {
+         throw new JsonException("not in the rows.json shape");
+      }
    }
 
    /**
