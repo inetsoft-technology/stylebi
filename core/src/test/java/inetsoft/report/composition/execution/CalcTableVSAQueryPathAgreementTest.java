@@ -98,9 +98,11 @@ class CalcTableVSAQueryPathAgreementTest {
    void quickPathAndScriptPathGiveTheSameCells(Scenario sc) throws Exception {
       if(sc.knownQuickFailure != null) {
          // the quick path throws today; this turns red when it works again
-         assertThrows(Exception.class, () -> run(sc, false),
-                      sc.name + ": the quick path works now, remove the known failure: " +
-                      sc.knownQuickFailure);
+         Exception e = assertThrows(Exception.class, () -> run(sc, false),
+                                    sc.name + ": the quick path works now, remove the known " +
+                                    "failure: " + sc.knownQuickFailure);
+         assertTrue(causes(e).contains("Column not found: CF_Q"),
+                    sc.name + ": the quick path fails for another reason: " + causes(e));
          // the script path does not prune: the same layout works there
          assertTrue(run(sc, true).size() > 1, sc.name + ": the script path gives no rows");
          return;
@@ -127,6 +129,7 @@ class CalcTableVSAQueryPathAgreementTest {
          // pinned as the current behavior: this turns red when the difference is gone
          assertFalse(diffs.isEmpty(), sc.name + ": the known difference is gone, remove it: " +
                                       sc.knownDifference);
+         assertEquals(sc.knownDiffs, diffs, sc.name + ": the cells that differ changed");
          return;
       }
 
@@ -695,6 +698,17 @@ class CalcTableVSAQueryPathAgreementTest {
       }
    }
 
+   /** The messages of an exception and of all its causes. */
+   private static String causes(Throwable e) {
+      StringBuilder buf = new StringBuilder();
+
+      for(Throwable t = e; t != null; t = t.getCause()) {
+         buf.append(t.getMessage()).append(" <- ");
+      }
+
+      return buf.toString();
+   }
+
    private static List<String> diff(List<List<Object>> quick, List<List<Object>> script,
                                     int cols)
    {
@@ -760,6 +774,7 @@ class CalcTableVSAQueryPathAgreementTest {
       ws.addAssembly(table);
 
       Viewsheet vs = new Viewsheet();
+      // setBaseWorksheet is not public and no test helper opens a viewsheet on a bare worksheet
       Method setBase = Viewsheet.class.getDeclaredMethod("setBaseWorksheet", Worksheet.class);
       setBase.setAccessible(true);
       setBase.invoke(vs, ws);
@@ -1029,7 +1044,8 @@ class CalcTableVSAQueryPathAgreementTest {
             l.setCellBinding(1, 0, dateGroup(XConstants.YEAR_DATE_GROUP, 1));
             l.setCellBinding(1, 1, summary("Total", "Sum"));
          }).knownDifference("the quick path labels the null date group with an empty string, " +
-                            "the script path with null; both show blank, the sums agree"),
+                            "the script path with null; both show blank, the sums agree",
+                            "[1,0] quick=:String script=null"),
          new Scenario("D4 date group, every 2 years (not a crosstab)", datedTypes(), dates, 2,
                       false, l -> {
             l.setCellBinding(1, 0, dateGroup(XConstants.YEAR_DATE_GROUP, 2));
@@ -1076,7 +1092,8 @@ class CalcTableVSAQueryPathAgreementTest {
             l.setCellBinding(1, 0, timeSeriesGroup(XConstants.YEAR_DATE_GROUP));
             l.setCellBinding(1, 1, summary("Total", "Sum"));
          }).knownDifference("the quick path labels the null date group with an empty string, " +
-                            "the script path with null; both show blank, the sums agree"),
+                            "the script path with null; both show blank, the sums agree",
+                            "[1,0] quick=:String script=null"),
          new Scenario("T1 outer group top 2 without Others, inner group", nestedTypes(), topData,
                       3, false, l -> {
             TableCellBinding outer = group("Region");
@@ -1157,7 +1174,9 @@ class CalcTableVSAQueryPathAgreementTest {
             l.setCellBinding(1, 2, all);
          }).knownDifference("Bug #82408 [Dev feedback needed]: with a Top N and no Others the " +
                             "grand total is 191 (the shown groups) on the quick path and 401 " +
-                            "(all data) on the script path"),
+                            "(all data) on the script path",
+                            "[1,2] quick=191.0:Double script=401.0:Double",
+                            "[2,2] quick=191.0:Double script=401.0:Double"),
          new Scenario("GT3 grand total of the table, top 2 with Others", sales(
             row("A", 1, 100.0), row("B", 1, 90.0), row("C", 1, 80.0), row("D", 1, 70.0),
             row("E", 1, 60.0), row("A", 1, 1.0)), 3, false, l -> {
@@ -1169,7 +1188,8 @@ class CalcTableVSAQueryPathAgreementTest {
             all.setRowGroup(null);
             l.setCellBinding(1, 2, all);
          }).knownDifference("the script path labels it \"Others \" with a trailing space, " +
-                            "on purpose; the grand total is 401 on both paths"),
+                            "on purpose; the grand total is 401 on both paths",
+                            "[3,0] quick=Others:String script=Others :String"),
          new Scenario("P2a nested groups, summary of the inner group", nestedTypes(), nestedData,
                       3, false, l -> {
             l.setCellBinding(1, 0, group("Region"));
@@ -1216,11 +1236,25 @@ class CalcTableVSAQueryPathAgreementTest {
          new Scenario("P6b aggregates with null values, fill blank with zero", nulls, 6, true,
                       oneGroup).knownDifference("accepted in #81084: Max/Min of an all-null " +
                                                 "group are 0 on the quick path, empty on the " +
-                                                "script path"),
+                                                "script path",
+                            "[3,3] quick=0.0:Double script=null",
+                            "[3,4] quick=0.0:Double script=null"),
          new Scenario("P5 special group values", special, 2, false, l -> {
             l.setCellBinding(1, 0, group("Region"));
             l.setCellBinding(1, 1, summary("Total", "Sum"));
-         }).knownDifference("Bug #82397: null and empty string are one group on the quick path"),
+         }).knownDifference("Bug #82397: null and empty string are one group on the quick path",
+                            "row count: quick 7 script 8",
+                            "[1,0] quick=:String script=null",
+                            "[2,0] quick=(p:String script=:String",
+                            "[2,1] quick=64.0:Double script=3.0:Double",
+                            "[3,0] quick=a,b:String script=(p:String",
+                            "[3,1] quick=132.0:Double script=64.0:Double",
+                            "[4,0] quick=O'Brien:String script=a,b:String",
+                            "[4,1] quick=16.0:Double script=132.0:Double",
+                            "[5,0] quick=say \"hi\":String script=O'Brien:String",
+                            "[5,1] quick=8.0:Double script=16.0:Double",
+                            "[6,0] quick=x]y:String script=say \"hi\":String",
+                            "[6,1] quick=32.0:Double script=8.0:Double"),
          new Scenario("P3 top 2 without Others", ranked, 2, false, l -> {
             TableCellBinding g = group("Region");
             g.setTopN(topN(2, false));
@@ -1233,7 +1267,8 @@ class CalcTableVSAQueryPathAgreementTest {
             l.setCellBinding(1, 0, g);
             l.setCellBinding(1, 1, summary("Total", "Sum"));
          }).knownDifference("the script path labels it \"Others \" with a trailing space, " +
-                            "on purpose (LayoutTool: told apart from a named group)"),
+                            "on purpose (LayoutTool: told apart from a named group)",
+                            "[3,0] quick=Others:String script=Others :String"),
          new Scenario("P7 percent of the group total", plain, 3, false, l -> {
             l.setCellBinding(1, 0, group("Region"));
             l.setCellBinding(1, 1, summary("Total", "Sum"));
@@ -1289,15 +1324,20 @@ class CalcTableVSAQueryPathAgreementTest {
          return this;
       }
 
-      /** The two paths differ today; the reason is a bug number or an accepted decision. */
-      Scenario knownDifference(String reason) {
+      /**
+       * The two paths differ today; the reason is a bug number or an accepted decision. The
+       * differing cells are pinned too, so the scenario also fails when another cell changes.
+       */
+      Scenario knownDifference(String reason, String... diffs) {
          this.knownDifference = reason;
+         this.knownDiffs = List.of(diffs);
          return this;
       }
 
       final String name;
       boolean fallsBack;
       String knownDifference;
+      List<String> knownDiffs;
       String knownQuickFailure;
       BiConsumer<Viewsheet, CalcTableVSAssembly> setup;
       BiConsumer<List<List<Object>>, String> expect;
@@ -1309,7 +1349,7 @@ class CalcTableVSAQueryPathAgreementTest {
    }
 
    private static final String GROUP_CELL = "g1";
-   private static final List<String> boundTables =
+   private final List<String> boundTables =
       Collections.synchronizedList(new ArrayList<>());
    private ViewsheetSandbox box;
 }
