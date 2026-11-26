@@ -658,6 +658,76 @@ describe("VSSelection �?Pass 3: Display", () => {
       });
    });
 
+   // Bug #82388: the title always has a real default bottom border and the closed header overhangs
+   // the object's border by its top and bottom widths.
+   describe("closed dropdown stays inside the object's rounded border", () => {
+      const realTitleBottom = "1px solid #d1d5db";
+
+      async function setup(over: any = {}, objBottom = "1px solid #d1d5db") {
+         const { comp } = await renderComponent();
+         comp.model = makeMockListModel({ dropdown: true, container: null,
+            ...over } as any);
+         comp.model.objectFormat.border = { top: "1px solid #d1d5db", left: "1px solid #d1d5db",
+            right: "1px solid #d1d5db", bottom: objBottom } as any;
+         comp.model.titleFormat.border = { top: "", left: "", right: "",
+            bottom: realTitleBottom } as any;
+         comp.model.titleFormat.height = 20;
+         comp.model.hidden = over.hidden ?? true;
+         return comp;
+      }
+
+      it("should drop the title bottom border in the closed dropdown", async () => {
+         const comp = await setup();
+
+         expect(comp.headerBorderBottomEffective).toBe("none");
+         expect(comp.selectedTextBorderBottom).toBe("none");
+      });
+
+      it("should shrink the closed header by the object's top and bottom borders", async () => {
+         const comp = await setup();
+
+         expect(comp.getTitleHeight()).toBe(18);
+         expect(comp.getTitleCellHeight()).toBe(18);
+      });
+
+      it("should not suppress the header bottom when the object bottom is a 0px none border", async () => {
+         const comp = await setup({}, "0px none #d1d5db");
+
+         expect(comp.headerBorderBottomEffective).toBe(realTitleBottom);
+         expect(comp.selectedTextBorderBottom).toBe(realTitleBottom);
+      });
+
+      it("should leave a selection inside a container unchanged", async () => {
+         const comp = await setup({ containerType: "VSSelectionContainer" });
+
+         expect(comp.headerBorderBottomEffective).toBe(realTitleBottom);
+         expect(comp.getTitleHeight()).toBe(20);
+      });
+
+      it("should keep the title border and height when expanded", async () => {
+         const comp = await setup({ hidden: false });
+
+         expect(comp.headerBorderBottomEffective).toBe(realTitleBottom);
+         expect(comp.selectedTextBorderBottom).toBe(realTitleBottom);
+         expect(comp.getTitleHeight()).toBe(20);
+      });
+
+      it("should keep the title border and height in list mode", async () => {
+         const comp = await setup({ dropdown: false });
+
+         expect(comp.headerBorderBottomEffective).toBe(realTitleBottom);
+         expect(comp.getTitleHeight()).toBe(20);
+      });
+
+      it("should keep the title border and height when the object has no bottom border", async () => {
+         const comp = await setup({}, "");
+         comp.model.objectFormat.border.top = "";
+
+         expect(comp.headerBorderBottomEffective).toBe(realTitleBottom);
+         expect(comp.getTitleHeight()).toBe(20);
+      });
+   });
+
    describe("Group 10 �?getIdentifier", () => {
       it("should return value for leaf node", async () => {
          const { comp } = await renderComponent();
