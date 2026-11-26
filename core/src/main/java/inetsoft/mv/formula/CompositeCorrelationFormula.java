@@ -86,7 +86,7 @@ public class CompositeCorrelationFormula implements Formula2 {
       if(v.length == 4) {
          add(v[0], v[1], v[1], v[2], v[3], v[3]);
       }
-      else if(v.length >= 6) {
+      else if(v.length == 6) {
          add(v[0], v[1], v[2], v[3], v[4], v[5]);
       }
    }

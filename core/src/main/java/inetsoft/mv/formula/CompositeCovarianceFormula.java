@@ -76,7 +76,7 @@ public class CompositeCovarianceFormula implements Formula2 {
     */
    @Override
    public void addValue(double[] v) {
-      if(v == null || v.length < 3) {
+      if(v == null || v.length < 3 || v.length > 4) {
          return;
       }
 
