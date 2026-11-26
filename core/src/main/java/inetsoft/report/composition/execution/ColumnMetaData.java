@@ -106,18 +106,22 @@ class ColumnMetaData implements Cloneable, Serializable {
          if(mixedType) {
             // don't perform type conversion for mixed type
          }
-         if(fval != null && !val.getClass().equals(fval.getClass())) {
+         else if(fval != null && !val.getClass().equals(fval.getClass())) {
             String ntype = Tool.getDataType(val);
 
             // allow integer and boolean to be treated as same. this was the
-            // logic before the mixedType support.
-            if(dataType.equals(XSchema.BOOLEAN) && val instanceof Integer) {
+            // logic before the mixedType support. only 0/1 integers are merged with
+            // booleans, any other value would be changed (e.g. 23 to true, false to 0)
+            if(dataType.equals(XSchema.BOOLEAN) && isZeroOrOne(val)) {
                val = (Integer) val != 0;
             }
-            else if(dataType.equals(XSchema.INTEGER) && val instanceof Boolean) {
+            else if(dataType.equals(XSchema.INTEGER) && val instanceof Boolean &&
+               isZeroOrOneColumn())
+            {
                val = val == Boolean.TRUE ? 1 : 0;
             }
-            else if(XSchema.isNumericType(dataType) && !XSchema.isNumericType(ntype) ||
+            else if(dataType.equals(XSchema.BOOLEAN) || val instanceof Boolean ||
+               XSchema.isNumericType(dataType) && !XSchema.isNumericType(ntype) ||
                XSchema.isDateType(dataType) && !XSchema.isDateType(ntype) ||
                XSchema.STRING.equals(dataType) && !XSchema.STRING.equals(ntype))
             {
@@ -154,6 +158,26 @@ class ColumnMetaData implements Cloneable, Serializable {
       return result;
    }
 
+   /**
+    * Check if the value is an integer 0 or 1, which may be merged with a boolean.
+    */
+   private static boolean isZeroOrOne(Object val) {
+      return val instanceof Integer && ((Integer) val == 0 || (Integer) val == 1);
+   }
+
+   /**
+    * Check if all the values added so far are integer 0 or 1.
+    */
+   private boolean isZeroOrOneColumn() {
+      for(Object item : items) {
+         if(item != null && !isZeroOrOne(item)) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
    private void enlargeNumberType(Object val) {
       dataType = Tool.getDataType(val);
       fval = val;
@@ -174,6 +198,15 @@ class ColumnMetaData implements Cloneable, Serializable {
     * Get the index of the value in the column value list.
     */
    public int getValueIndex(Object val) {
+      // a mixed type column keeps the values unconverted
+      if(mixedType) {
+         Integer info = infomap.get(val);
+
+         if(info != null) {
+            return info;
+         }
+      }
+
       if(val != null && fval != null && !val.getClass().equals(fval.getClass())) {
          val = Tool.getData(dataType, val);
       }

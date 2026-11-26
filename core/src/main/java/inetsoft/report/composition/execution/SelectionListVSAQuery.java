@@ -172,6 +172,8 @@ public class SelectionListVSAQuery extends AbstractSelectionVSAQuery {
             .collect(Collectors.toList());
 
       boolean findSelected = false;
+      // the value types (number, date, boolean, other) found in the column
+      int valueTypes = 0;
 
       for(int r = 1; data.moreRows(r); r++) {
          Object obj0 = data.getObject(r, 0);
@@ -206,6 +208,7 @@ public class SelectionListVSAQuery extends AbstractSelectionVSAQuery {
             selection2.setComparator(comp);
          }
 
+         valueTypes |= getValueTypeMask(obj);
          Format fmt = table2 == null ? null : table2.getDefaultFormat(r, 0);
          Object mvalue = mvalues.get(SelectionSet.normalize(obj));
 
@@ -254,6 +257,12 @@ public class SelectionListVSAQuery extends AbstractSelectionVSAQuery {
             selection2.addSelectionValue(svalue);
          }
       }
+
+      // a column with values of more than one type (e.g. of a rotated table) can't be
+      // sorted by the type of its first value
+      boolean mixedType = Integer.bitCount(valueTypes) > 1;
+      selection.setMixedType(mixedType);
+      selection2.setMixedType(mixedType);
 
       SelectionValue[] arr = new SelectionValue[svalues.size()];
       selection.setSelectionValues(svalues.toArray(arr));
@@ -328,6 +337,26 @@ public class SelectionListVSAQuery extends AbstractSelectionVSAQuery {
             sval.setState(state);
          }
       }
+   }
+
+   /**
+    * Get the bit of the value type (number, date, boolean or other) of a value, or 0 for null.
+    */
+   static int getValueTypeMask(Object obj) {
+      if(obj == null) {
+         return 0;
+      }
+      else if(obj instanceof Number) {
+         return 1;
+      }
+      else if(obj instanceof Date) {
+         return 2;
+      }
+      else if(obj instanceof Boolean) {
+         return 4;
+      }
+
+      return 8;
    }
 
    /**
