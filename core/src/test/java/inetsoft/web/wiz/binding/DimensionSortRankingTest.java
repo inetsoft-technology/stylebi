@@ -382,12 +382,51 @@ class DimensionSortRankingTest {
       assertEquals("7", dimension.getRankingN());
    }
 
+   /**
+    * Bug #82314: the Composer's ranking pane offers Value/Variable/Expression on mode, N and the
+    * ranking measure, so "=script" is stored verbatim for each and read back as typed.
+    */
    @Test
-   void refusesAScriptOrJunkNAndAScriptMode() {
+   void storesAScriptModeNAndMeasureVerbatimAndReadsThemBack() {
+      BDimensionRefModel dimension = new BDimensionRefModel();
+
+      DimensionSortRanking.applyRanking(dimension, new DimensionSortRanking.Ranking(
+         "=Selection.mode", "=Spin.value + 1", "=Combo.selectedObject", null));
+
+      assertEquals("=Selection.mode", dimension.getRankingOption());
+      assertEquals("=Spin.value + 1", dimension.getRankingN());
+      assertEquals("=Combo.selectedObject", dimension.getRankingCol());
+
+      Map<String, Object> described = DimensionSortRanking.describe(dimension);
+      assertEquals("=Selection.mode", described.get("ranking"));
+      assertEquals("=Spin.value + 1", described.get("rankingN"));
+      assertEquals("=Combo.selectedObject", described.get("rankingMeasure"));
+   }
+
+   @Test
+   void aLiteralModeAcceptsAScriptNAndMeasure() {
+      BDimensionRefModel dimension = new BDimensionRefModel();
+
+      DimensionSortRanking.applyRanking(dimension, new DimensionSortRanking.Ranking(
+         "top", "=1+1", "=Combo.selectedObject", null));
+
+      assertEquals(String.valueOf(XCondition.TOP_N), dimension.getRankingOption());
+      assertEquals("=1+1", dimension.getRankingN());
+      assertEquals("=Combo.selectedObject", dimension.getRankingCol());
+   }
+
+   @Test
+   void aScriptModeStillNeedsNAndMeasure() {
       assertThrows(IllegalArgumentException.class,
                    () -> DimensionSortRanking.applyRanking(
-                      new BDimensionRefModel(),
-                      new DimensionSortRanking.Ranking("top", "=1+1", "Sales", null)));
+                      new BDimensionRefModel(), ranking("=mode", null, "Sales")));
+      assertThrows(IllegalArgumentException.class,
+                   () -> DimensionSortRanking.applyRanking(
+                      new BDimensionRefModel(), ranking("=mode", 5, null)));
+   }
+
+   @Test
+   void refusesJunkNAnEmptyScriptAndAJunkMode() {
       assertThrows(IllegalArgumentException.class,
                    () -> DimensionSortRanking.applyRanking(
                       new BDimensionRefModel(),
@@ -398,6 +437,28 @@ class DimensionSortRankingTest {
                       new DimensionSortRanking.Ranking("top", 2.5, "Sales", null)));
       assertThrows(IllegalArgumentException.class,
                    () -> DimensionSortRanking.applyRanking(
-                      new BDimensionRefModel(), ranking("=mode", 5, "Sales")));
+                      new BDimensionRefModel(),
+                      new DimensionSortRanking.Ranking("top", "=", "Sales", null)));
+      assertThrows(IllegalArgumentException.class,
+                   () -> DimensionSortRanking.applyRanking(
+                      new BDimensionRefModel(), ranking("=", 5, "Sales")));
+
+      IllegalArgumentException emptyMeasure = assertThrows(
+         IllegalArgumentException.class,
+         () -> DimensionSortRanking.applyRanking(
+            new BDimensionRefModel(), ranking("top", 5, "=")));
+      assertTrue(emptyMeasure.getMessage().contains("measure"));
+   }
+
+   @Test
+   void aScriptMeasureIsNotMistakenForAColumnIndex() {
+      BDimensionRefModel dimension = new BDimensionRefModel();
+
+      DimensionSortRanking.applyRanking(dimension, ranking("top", 5, "=2"));
+
+      assertEquals("=2", dimension.getRankingCol());
+      assertThrows(IllegalArgumentException.class,
+                   () -> DimensionSortRanking.applyRanking(
+                      new BDimensionRefModel(), ranking("top", 5, "2")));
    }
 }

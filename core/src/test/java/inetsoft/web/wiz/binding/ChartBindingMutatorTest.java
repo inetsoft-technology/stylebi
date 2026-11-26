@@ -340,6 +340,24 @@ class ChartBindingMutatorTest {
       assertEquals("Sales", region.get("rankingMeasure"));
    }
 
+   /** Bug #82314: a "=script" mode/N/measure passes the ambiguity check and is stored verbatim. */
+   @Test
+   void ranksADimensionByAScriptModeNAndMeasure() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+
+      ChartBindingMutator.setRanking(model, "x", "Region", null,
+         new DimensionSortRanking.Ranking("=Mode.value", "=Spin.value", "=Combo.selectedObject",
+                                          null), true);
+
+      Map<String, Object> described = ChartBindingMutator.describeSorts(model, "x");
+      Map<?, ?> region = (Map<?, ?>) described.get("Region");
+      assertEquals("=Mode.value", region.get("ranking"));
+      assertEquals("=Spin.value", region.get("rankingN"));
+      assertEquals("=Combo.selectedObject", region.get("rankingMeasure"));
+   }
+
    // ── ranking on a map's geo shelf (bug #80334) ─────────────────────────────
 
    private static ChartBindingModel mapWithGeoState(int chartType) {
