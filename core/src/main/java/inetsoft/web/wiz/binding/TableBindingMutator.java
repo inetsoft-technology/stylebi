@@ -2387,11 +2387,13 @@ public final class TableBindingMutator {
     * resolves against a live Form component's value at render time, not against this assembly's
     * bound aggregates now, and {@code BDimensionRefModel.createDataRef()} already writes it into
     * {@code VSDimensionRef}'s own dynamic-value-aware setters unconditionally. Checked with
-    * {@link #isVariableValue}, matching {@code VSUtil.isVariableValue}'s own narrower shape
-    * rather than also allowing a {@code "=script"} expression ({@code VSUtil.isDynamicValue}):
-    * the plugin surface calling this endpoint only ever sends the {@code "$(...)"} form for
-    * {@code sortByField}/{@code measure} today, so accepting only that form keeps this gate
-    * catching an accidental {@code "="}-prefixed value the same way it always has.
+    * {@link #isVariableValue}, matching {@code VSUtil.isVariableValue}'s own narrower shape.
+    *
+    * <p>A {@code "=script"} expression (bug #82314) is exempt too, for a {@code ranking} measure
+    * only: the Composer's ranking pane offers Value/Variable/Expression on the ranking measure,
+    * and the viewsheet sandbox evaluates the script at render time, so it cannot be checked
+    * against the bound aggregates now. {@code sortByField} stays {@code "$(...)"}-only, so this
+    * gate keeps catching an accidental {@code "="}-prefixed sort measure the way it always has.
     */
    private static void requireKnownMeasure(BaseTableBindingModel model, String measure,
                                            String param, boolean ranking)
@@ -2437,7 +2439,9 @@ public final class TableBindingMutator {
          }
       }
 
-      if(isVariableValue(measure)) {
+      if(isVariableValue(measure) ||
+         ranking && measure != null && measure.trim().startsWith("=") && measure.trim().length() > 1)
+      {
          return;
       }
 
