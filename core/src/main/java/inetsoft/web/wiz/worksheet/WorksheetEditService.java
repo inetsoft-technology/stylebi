@@ -66,7 +66,6 @@ import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.composer.ws.joins.JoinUtil;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.wiz.script.PaneScopeService;
-import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.model.DatabaseTableMeta;
 import inetsoft.web.wiz.service.MetadataApiService;
