@@ -936,7 +936,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
 
    private get closedStandaloneDropdownWithBottomBorder(): boolean {
       return !this.inContainer && !!this.model.dropdown && this.isHidden &&
-         !!this.model.objectFormat?.border?.bottom;
+         Tool.getMarginSize(this.model.objectFormat?.border?.bottom) > 0;
    }
 
    getTitleWidth(): number {
@@ -958,7 +958,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    }
 
    getTitleCellHeight(): number {
-      const bottomMargin: number = Tool.getMarginSize(this.model.titleFormat.border.bottom);
+      const bottomMargin: number = Tool.getMarginSize(this.headerBorderBottomEffective) || 0;
       const topMargin: number = Tool.getMarginSize(this.model.titleFormat.border.top);
       return this.getTitleHeight() - bottomMargin - topMargin;
    }

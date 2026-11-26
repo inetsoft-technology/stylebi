@@ -665,7 +665,7 @@ describe("VSSelection �?Pass 3: Display", () => {
 
       async function setup(over: any = {}, objBottom = "1px solid #d1d5db") {
          const { comp } = await renderComponent();
-         comp.model = makeMockListModel({ dropdown: true, hidden: true, container: null,
+         comp.model = makeMockListModel({ dropdown: true, container: null,
             ...over } as any);
          comp.model.objectFormat.border = { top: "1px solid #d1d5db", left: "1px solid #d1d5db",
             right: "1px solid #d1d5db", bottom: objBottom } as any;
@@ -687,6 +687,21 @@ describe("VSSelection �?Pass 3: Display", () => {
          const comp = await setup();
 
          expect(comp.getTitleHeight()).toBe(18);
+         expect(comp.getTitleCellHeight()).toBe(18);
+      });
+
+      it("should not suppress the header bottom when the object bottom is a 0px none border", async () => {
+         const comp = await setup({}, "0px none #d1d5db");
+
+         expect(comp.headerBorderBottomEffective).toBe(realTitleBottom);
+         expect(comp.selectedTextBorderBottom).toBe(realTitleBottom);
+      });
+
+      it("should leave a selection inside a container unchanged", async () => {
+         const comp = await setup({ containerType: "VSSelectionContainer" });
+
+         expect(comp.headerBorderBottomEffective).toBe(realTitleBottom);
+         expect(comp.getTitleHeight()).toBe(20);
       });
 
       it("should keep the title border and height when expanded", async () => {
