@@ -488,6 +488,29 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
    }
 
    /**
+    * Get the total used as the denominator of a percentage. The result is not converted to the
+    * declared type: the percentage numerator is the unconverted result, so a converted
+    * (e.g. truncated to an integer) total would distort every percentage.
+    */
+   @Override
+   public Object getPercentageTotal() {
+      String type = declaredType;
+
+      if(type == null) {
+         return getOriginalResult();
+      }
+
+      declaredType = null;
+
+      try {
+         return getOriginalResult();
+      }
+      finally {
+         declaredType = type;
+      }
+   }
+
+   /**
     * Get formula display name.
     */
    @Override

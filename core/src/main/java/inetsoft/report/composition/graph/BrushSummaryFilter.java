@@ -78,9 +78,9 @@ public class BrushSummaryFilter extends DefaultTableFilter
       int idx = c - gcount;
       Number val = (Number) obj;
       Number btotal =
-         (Number) ((PercentageFormula) bgrands[idx]).getOriginalResult();
+         (Number) ((PercentageFormula) bgrands[idx]).getPercentageTotal();
       Number atotal =
-         (Number) ((PercentageFormula) agrands[idx]).getOriginalResult();
+         (Number) ((PercentageFormula) agrands[idx]).getPercentageTotal();
 
       if(btotal == null || atotal == null || atotal.doubleValue() == 0) {
          return val;

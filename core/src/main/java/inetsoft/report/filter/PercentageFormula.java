@@ -49,5 +49,15 @@ public interface PercentageFormula extends Formula {
     * Get the original formula result without percentage.
     */
    public Object getOriginalResult();
+
+   /**
+    * Get the total that the percentage of another formula is computed against, i.e. the
+    * original result of this formula without percentage. It differs from
+    * {@link #getOriginalResult()} only when the original result is converted for display,
+    * in which case the unconverted value is returned so the percentage is not distorted.
+    */
+   default Object getPercentageTotal() {
+      return getOriginalResult();
+   }
 }
 

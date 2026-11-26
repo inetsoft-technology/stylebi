@@ -1208,7 +1208,7 @@ public class SummaryFilter extends AbstractGroupedTable
       }
 
       for(int i = 0; i < pass.grandtotals.length; i++) {
-         pass.grandtotals[i] = getFormulaTotal(pass.grand[i]);
+         pass.grandtotals[i] = getPercentageTotal(pass.grand[i]);
       }
 
       return pass.grandtotals;
@@ -1225,7 +1225,7 @@ public class SummaryFilter extends AbstractGroupedTable
       Object[] totals = new Object[formulae.length];
 
       for(int i = 0; i < totals.length; i++) {
-         totals[i] = getFormulaTotal(formulae[i]);
+         totals[i] = getPercentageTotal(formulae[i]);
       }
 
       return totals;
@@ -1246,6 +1246,20 @@ public class SummaryFilter extends AbstractGroupedTable
       }
 
       return null;
+   }
+
+   /**
+    * Get the total that percentages of the formula's group or grand total are computed against.
+    *
+    * @param form the specified formula
+    * @return the percentage total value
+    */
+   private Object getPercentageTotal(Formula form) {
+      if(form instanceof PercentageFormula) {
+         return ((PercentageFormula) form).getPercentageTotal();
+      }
+
+      return getFormulaTotal(form);
    }
 
    /**
