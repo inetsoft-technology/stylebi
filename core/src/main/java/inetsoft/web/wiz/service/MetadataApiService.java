@@ -25,6 +25,7 @@ import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.osi.*;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
 import inetsoft.uql.*;
+import inetsoft.uql.path.XSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
@@ -1031,7 +1032,10 @@ public class MetadataApiService {
       table.setSource(extractStructureSource(tableAssembly));
       table.setBaseTables(extractStructureBaseTables(tableAssembly));
       table.setJoins(extractStructureJoins(tableAssembly));
-      table.setConditions(extractStructureConditions(tableAssembly));
+      StructureConditions structureConditions =
+         extractStructureConditionsAndCoverage(tableAssembly);
+      table.setConditions(structureConditions.leaves());
+      table.setConditionsCoverage(structureConditions.coverage());
       table.setAggregate(extractStructureAggregate(tableAssembly.getAggregateInfo()));
       return table;
    }
@@ -1195,8 +1199,19 @@ public class MetadataApiService {
       return joins;
    }
 
+   /**
+    * The condition leaves of one table plus, for free-SQL tables only, how completely the SQL
+    * text's WHERE/HAVING could be expressed as leaves ("full", "partial" or "unavailable").
+    */
+   record StructureConditions(List<WorksheetStructure.ConditionLeaf> leaves, String coverage) {}
+
    static List<WorksheetStructure.ConditionLeaf> extractStructureConditions(
       TableAssembly tableAssembly)
+   {
+      return extractStructureConditionsAndCoverage(tableAssembly).leaves();
+   }
+
+   static StructureConditions extractStructureConditionsAndCoverage(TableAssembly tableAssembly)
    {
       List<WorksheetStructure.ConditionLeaf> conditions = new ArrayList<>();
       collectStructureConditions(tableAssembly.getPreConditionList(), "pre", conditions);
@@ -1206,7 +1221,406 @@ public class MetadataApiService {
       collectStructureConditions(
          tableAssembly.getRankingConditionList(), "ranking", conditions,
          tableAssembly.getAggregateInfo());
-      return conditions;
+      String coverage = null;
+
+      if(tableAssembly instanceof SQLBoundTableAssembly sqlTable) {
+         coverage = collectSqlConditions(sqlTable, conditions);
+      }
+
+      return new StructureConditions(conditions, coverage);
+   }
+
+   /**
+    * Appends the WHERE/HAVING conditions found in a free-SQL table's text. The text is parsed
+    * as a detached copy; the stored definition is never touched (it is saved unparsed on
+    * purpose). Returns the coverage: "full", "partial" (some clause kept as text only) or
+    * "unavailable" (the text could not be parsed completely).
+    */
+   private static String collectSqlConditions(SQLBoundTableAssembly table,
+                                              List<WorksheetStructure.ConditionLeaf> out)
+   {
+      if(!(table.getInfo() instanceof SQLBoundTableAssemblyInfo sqlInfo) ||
+         sqlInfo.getQuery() == null || sqlInfo.getQuery().getSQLDefinition() == null)
+      {
+         return "unavailable";
+      }
+
+      List<WorksheetStructure.ConditionLeaf> found = new ArrayList<>();
+
+      try {
+         JDBCQuery query = sqlInfo.getQuery();
+         String sqlText = query.getSQLDefinition().getSQLString();
+         JDBCDataSource ds = query.getDataSource() instanceof JDBCDataSource jds ? jds : null;
+         UniformSQL parsed = UniformSQL.parseSubquery(sqlText, ds);
+
+         if(parsed == null) {
+            return "unavailable";
+         }
+
+         // join predicates are not filters (mirrors QueryManagerService.getQueryCondition)
+         parsed.removeAllJoins();
+         boolean[] degraded = { false };
+         XSelection selection = parsed.getSelection();
+         boolean[] first = { true };
+         walkSqlCondition(effectiveSqlRoot(parsed.getWhere()), null, "pre", 0, selection, first,
+                          degraded, found);
+         first[0] = true;
+         walkSqlCondition(effectiveSqlRoot(parsed.getHaving()), null, "post", 0, selection,
+                          first, degraded, found);
+         out.addAll(found);
+         return degraded[0] ? "partial" : "full";
+      }
+      catch(Exception ex) {
+         log.debug("Could not extract the SQL conditions of table {}", table.getName(), ex);
+         return "unavailable";
+      }
+   }
+
+   private static void walkSqlCondition(XFilterNode node, String parentRelation, String phase,
+                                        int depth, XSelection selection, boolean[] first,
+                                        boolean[] degraded,
+                                        List<WorksheetStructure.ConditionLeaf> out)
+   {
+      if(node == null) {
+         return;
+      }
+
+      if(node instanceof XSet set) {
+         String relation = set.getRelation();
+         boolean and = XSet.AND.equalsIgnoreCase(relation);
+
+         // a NOT group is not flattened (no De Morgan); neither is a set that is neither AND
+         // nor OR (e.g. a truth test)
+         if(set.isIsNot() || (!and && !XSet.OR.equalsIgnoreCase(relation))) {
+            addSqlLeaf(textOnlySqlLeaf(node, phase), parentRelation, depth, first, out);
+            degraded[0] = true;
+            return;
+         }
+
+         String junction = and ? "AND" : "OR";
+
+         for(XFilterNode child : effectiveSqlChildren(set)) {
+            walkSqlCondition(child, junction, phase, depth + 1, selection, first, degraded, out);
+         }
+
+         return;
+      }
+
+      WorksheetStructure.ConditionLeaf leaf = sqlConditionLeaf(node, phase, selection);
+
+      if(leaf.getOperation() == null || leaf.getField() == null) {
+         degraded[0] = true;
+      }
+
+      addSqlLeaf(leaf, parentRelation, depth, first, out);
+   }
+
+   /**
+    * The parser wraps a clause in several single-purpose sets (including empty ones) and chains
+    * same-relation conditions right-nested; this finds the set the SQL text actually spells.
+    */
+   private static XFilterNode effectiveSqlRoot(XFilterNode root) {
+      if(!(root instanceof XSet set) || !isPlainSqlSet(set)) {
+         return root;
+      }
+
+      List<XFilterNode> children = effectiveSqlChildren(set);
+      return children.size() == 1 ? children.get(0) : root;
+   }
+
+   private static boolean isPlainSqlSet(XSet set) {
+      return !set.isIsNot() &&
+         (XSet.AND.equalsIgnoreCase(set.getRelation()) || XSet.OR.equalsIgnoreCase(set.getRelation()));
+   }
+
+   /**
+    * The children of a set with empty sets dropped, single-child sets unwrapped and sets of the
+    * same relation spliced in, so only a genuinely parenthesised group stays a nested set.
+    */
+   private static List<XFilterNode> effectiveSqlChildren(XSet set) {
+      List<XFilterNode> result = new ArrayList<>();
+
+      for(int i = 0; i < set.getChildCount(); i++) {
+         if(!(set.getChild(i) instanceof XFilterNode child)) {
+            continue;
+         }
+
+         if(child instanceof XSet childSet) {
+            if(childSet.getChildCount() == 0) {
+               continue;
+            }
+
+            if(isPlainSqlSet(childSet)) {
+               List<XFilterNode> inner = effectiveSqlChildren(childSet);
+
+               if(inner.size() <= 1 ||
+                  String.valueOf(set.getRelation()).equalsIgnoreCase(childSet.getRelation()))
+               {
+                  result.addAll(inner);
+                  continue;
+               }
+            }
+         }
+
+         result.add(child);
+      }
+
+      return result;
+   }
+
+   private static void addSqlLeaf(WorksheetStructure.ConditionLeaf leaf, String parentRelation,
+                                  int depth, boolean[] first,
+                                  List<WorksheetStructure.ConditionLeaf> out)
+   {
+      if(!first[0]) {
+         leaf.setJunction(parentRelation);
+      }
+
+      first[0] = false;
+
+      // the WHERE/HAVING root set is depth 1; anything deeper sits in a nested group
+      if(depth > 1) {
+         leaf.setGrouped(true);
+      }
+
+      out.add(leaf);
+   }
+
+   private static WorksheetStructure.ConditionLeaf textOnlySqlLeaf(XFilterNode node,
+                                                                    String phase)
+   {
+      WorksheetStructure.ConditionLeaf leaf = new WorksheetStructure.ConditionLeaf();
+      leaf.setPhase(phase);
+      leaf.setSource("sql");
+      leaf.setText(node.toString());
+      return leaf;
+   }
+
+   private static WorksheetStructure.ConditionLeaf sqlConditionLeaf(XFilterNode node,
+                                                                     String phase,
+                                                                     XSelection selection)
+   {
+      WorksheetStructure.ConditionLeaf leaf = textOnlySqlLeaf(node, phase);
+      XExpression left = null;
+      List<XExpression> operands = new ArrayList<>();
+      String op = null;
+
+      if(node instanceof XTrinaryCondition tri) {
+         if("BETWEEN".equalsIgnoreCase(tri.getOp())) {
+            op = "BETWEEN";
+            left = tri.getExpression1();
+            operands.add(tri.getExpression2());
+            operands.add(tri.getExpression3());
+         }
+      }
+      else if(node instanceof XBinaryCondition bin) {
+         op = bin.getOp() == null ? null : bin.getOp().toUpperCase();
+         left = bin.getExpression1();
+         operands.add(bin.getExpression2());
+      }
+      else if(node instanceof XUnaryCondition un) {
+         if("IS NULL".equalsIgnoreCase(un.getOp())) {
+            op = "IS NULL";
+            left = un.getExpression1();
+         }
+      }
+
+      String operation = null;
+      boolean negated = node.isIsNot();
+      Boolean equal = null;
+
+      if(op != null) {
+         switch(op) {
+         case "=" -> operation = structureOperationName(XCondition.EQUAL_TO);
+         case "<>", "!=" -> {
+            operation = structureOperationName(XCondition.EQUAL_TO);
+            negated = !negated;
+         }
+         case ">" -> {
+            operation = structureOperationName(XCondition.GREATER_THAN);
+            equal = false;
+         }
+         case ">=" -> {
+            operation = structureOperationName(XCondition.GREATER_THAN);
+            equal = true;
+         }
+         case "<" -> {
+            operation = structureOperationName(XCondition.LESS_THAN);
+            equal = false;
+         }
+         case "<=" -> {
+            operation = structureOperationName(XCondition.LESS_THAN);
+            equal = true;
+         }
+         case "LIKE" -> operation = structureOperationName(XCondition.LIKE);
+         case "IN" -> operation = structureOperationName(XCondition.ONE_OF);
+         case "BETWEEN" -> operation = structureOperationName(XCondition.BETWEEN);
+         case "IS NULL" -> operation = structureOperationName(XCondition.NULL);
+         default -> { }
+         }
+      }
+
+      String field = operation == null ? null : sqlFieldName(left, selection);
+
+      if(operation == null || field == null) {
+         return leaf;
+      }
+
+      leaf.setOperation(operation);
+      leaf.setField(field);
+      leaf.setNegated(negated);
+      leaf.setEqual(equal);
+      List<String> values = new ArrayList<>();
+
+      for(XExpression operand : operands) {
+         addSqlLiteralValues(operand, values);
+      }
+
+      leaf.setValues(values);
+      return leaf;
+   }
+
+   /**
+    * Only VALUE literals give raw values; subqueries, expressions, fields and variables stay
+    * out (the leaf's text carries them), so a value-less leaf is never an equivalence proof.
+    */
+   private static void addSqlLiteralValues(XExpression operand, List<String> values) {
+      if(operand == null || operand.getValue() == null) {
+         return;
+      }
+
+      if(XExpression.EXPRESSION.equals(operand.getType())) {
+         addSqlExpressionLiterals(operand, values);
+         return;
+      }
+
+      if(!XExpression.VALUE.equals(operand.getType())) {
+         return;
+      }
+
+      addSqlLiteralValues(operand.getValue(), values);
+   }
+
+   private static void addSqlLiteralValues(Object value, List<String> values) {
+      if(value instanceof Object[] array) {
+         for(Object item : array) {
+            values.add(String.valueOf(item));
+         }
+      }
+      else if(value instanceof java.util.Collection<?> collection) {
+         for(Object item : collection) {
+            values.add(String.valueOf(item));
+         }
+      }
+      else if(value != null) {
+         values.add(unquoteSqlLiteral(String.valueOf(value)));
+      }
+   }
+
+   /**
+    * The parser keeps the quotes of a string literal in the value; a comparison against the
+    * data needs the literal itself.
+    */
+   private static String unquoteSqlLiteral(String text) {
+      String t = text.trim();
+
+      if(t.length() >= 2 && t.startsWith("'") && t.endsWith("'")) {
+         return t.substring(1, t.length() - 1).replace("''", "'");
+      }
+
+      return text;
+   }
+
+   /**
+    * LIKE patterns and IN lists arrive as EXPRESSION text rather than VALUE; a pure literal
+    * (one quoted string, or a parenthesised list of quoted strings/numbers) is decoded, anything
+    * else yields no values.
+    */
+   private static void addSqlExpressionLiterals(XExpression operand, List<String> values) {
+      String text = String.valueOf(operand.getValue()).trim();
+
+      if(text.startsWith("(") && text.endsWith(")")) {
+         text = text.substring(1, text.length() - 1);
+      }
+
+      List<String> found = new ArrayList<>();
+      java.util.regex.Matcher m = SQL_LITERAL_LIST.matcher(text);
+      int end = 0;
+
+      while(m.find()) {
+         if(m.start() != end) {
+            return;
+         }
+
+         String token = m.group(1);
+         found.add(token.startsWith("'") ? unquoteSqlLiteral(token) : token);
+         end = m.end();
+      }
+
+      if(end == text.length() && !found.isEmpty()) {
+         values.addAll(found);
+      }
+   }
+
+   private static final java.util.regex.Pattern SQL_LITERAL_LIST = java.util.regex.Pattern.compile(
+      "\\s*('(?:[^']|'')*'|-?\\d+(?:\\.\\d+)?)\\s*(?:,|$)");
+
+   private static String sqlFieldName(XExpression left, XSelection selection) {
+      if(left == null || left.getValue() == null) {
+         return null;
+      }
+
+      String text = String.valueOf(left.getValue());
+
+      if(XExpression.FIELD.equals(left.getType())) {
+         String bare = unqualifiedSqlName(text);
+
+         for(int i = 0; selection != null && i < selection.getColumnCount(); i++) {
+            String alias = selection.getAlias(i);
+
+            if(alias != null && !alias.isEmpty() &&
+               unqualifiedSqlName(selection.getColumn(i)).equalsIgnoreCase(bare))
+            {
+               return alias;
+            }
+         }
+
+         return bare;
+      }
+
+      if(XExpression.EXPRESSION.equals(left.getType())) {
+         String wanted = collapseSqlText(text);
+
+         for(int i = 0; selection != null && i < selection.getColumnCount(); i++) {
+            if(collapseSqlText(selection.getColumn(i)).equalsIgnoreCase(wanted)) {
+               String alias = selection.getAlias(i);
+               return alias != null && !alias.isEmpty() ? alias : selection.getColumn(i);
+            }
+         }
+      }
+
+      return null;
+   }
+
+   private static String collapseSqlText(String text) {
+      return text == null ? "" : text.trim().replaceAll("\\s+", " ");
+   }
+
+   private static String unqualifiedSqlName(String text) {
+      String name = text == null ? "" : text.trim();
+      int dot = name.lastIndexOf('.');
+
+      if(dot >= 0) {
+         name = name.substring(dot + 1);
+      }
+
+      if(name.length() > 1 && (name.startsWith("\"") && name.endsWith("\"") ||
+                               name.startsWith("`") && name.endsWith("`")))
+      {
+         name = name.substring(1, name.length() - 1);
+      }
+
+      return name;
    }
 
    /**
@@ -1249,6 +1663,10 @@ public class MetadataApiService {
          leaf.setOperation(structureOperationName(xCondition.getOperation()));
          leaf.setNegated(xCondition.isNegated());
          leaf.setPhase(phase);
+
+         if(xCondition instanceof Condition eqCondition) {
+            leaf.setEqual(eqCondition.isEqual());
+         }
 
          if(xCondition instanceof RankingCondition rc) {
             leaf.setOf(WorksheetReadService.rankingOf(rc.getDataRef(), aggregateInfo));
