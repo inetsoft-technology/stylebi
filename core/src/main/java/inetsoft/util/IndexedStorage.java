@@ -275,6 +275,19 @@ public interface IndexedStorage {
    long lastModified(String key, String orgID);
 
    /**
+    * Gets the content digest of the entry with the specified key.
+    *
+    * @param key   the key for the entry.
+    * @param orgID the orgID of the storage to check.
+    *
+    * @return the digest, or null if the entry doesn't exist or the storage cannot provide a
+    *         digest, in which case a cached copy cannot be validated.
+    */
+   default String getDigest(String key, String orgID) {
+      return null;
+   }
+
+   /**
     * Gets the most recent timestamp for the entries with keys that match the
     * specified filter. If the filter is <tt>null</tt>, all entries are used.
     *

@@ -49,6 +49,7 @@ import org.xml.sax.SAXParseException;
 import java.lang.ref.WeakReference;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -2641,7 +2642,9 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       if(modified != lastMod) {
          lastMod = modified;
-         contextmap.clear();
+         // contextmap entries are not cleared, they are revalidated by content digest on the
+         // next hit (Bug #82422)
+         contextGeneration.incrementAndGet();
          sheetmap.clear();
          foldermap.clear();
          bookmarkmap.clear();
@@ -2719,7 +2722,28 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          // optimization, cache context object since it's requested often and
          // parsing a large xml to dom could be expensive
          else if(ctype == AssetContent.CONTEXT) {
-            sheet = contextmap.get(eidentifier);
+            ContextEntry centry = contextmap.get(eidentifier);
+
+            if(centry != null) {
+               long cgen = contextGeneration.get();
+
+               if(centry.generation == cgen) {
+                  sheet = centry.sheet;
+               }
+               else {
+                  // the storage was modified since the entry was validated, keep the parsed
+                  // sheet only if the stored content is unchanged. null digest: cannot validate.
+                  String cdigest = storage.getDigest(identifier, orgID);
+
+                  if(cdigest != null && cdigest.equals(centry.digest)) {
+                     centry.generation = cgen;
+                     sheet = centry.sheet;
+                  }
+                  else {
+                     contextmap.remove(eidentifier);
+                  }
+               }
+            }
          }
          //else if(ctype == AssetContent.ALL) {
          // cache no_data and all in sheetmap
@@ -2730,7 +2754,17 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
 
          if(sheet == null) {
+            long cgen = 0;
+            String cdigest = null;
+
             if(obj == null) {
+               if(ctype == AssetContent.CONTEXT) {
+                  // read the generation and digest before the parse, so a concurrent write at
+                  // worst causes one extra reload
+                  cgen = contextGeneration.get();
+                  cdigest = storage.getDigest(identifier, orgID);
+               }
+
                obj = storage.getXMLSerializable(identifier, ctype, orgID);
             }
 
@@ -2749,7 +2783,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             sheet = (AbstractSheet) obj;
 
             if(ctype == AssetContent.CONTEXT) {
-               contextmap.put(eidentifier, sheet);
+               contextmap.put(eidentifier, new ContextEntry(sheet, cdigest, cgen));
             }
             else if(ctype == AssetContent.ALL) {
                sheetmap.put(eidentifier, sheet);
@@ -5366,7 +5400,9 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    protected Catalog catalog = Catalog.getCatalog();
    private final Map<AssetChangeListener,Object> listeners = new WeakHashMap<>();
    // context cache
-   private DataCache<String, AbstractSheet> contextmap = new DataCache<>(5000, 3600000);
+   private DataCache<String, ContextEntry> contextmap = new DataCache<>(5000, 3600000);
+   // bumped each time the storage timestamp is seen to change, see checkStorageModified
+   private final AtomicLong contextGeneration = new AtomicLong();
    // sheet cache
    private DataCache<String, AbstractSheet> sheetmap = new DataCache<>(100, 3600000);
    // folder cache
@@ -5415,4 +5451,19 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
    private static final Logger LOG =
       LoggerFactory.getLogger(AbstractAssetEngine.class);
+
+   /**
+    * A cached CONTEXT sheet with the content digest and storage generation it was validated at.
+    */
+   private static final class ContextEntry {
+      ContextEntry(AbstractSheet sheet, String digest, long generation) {
+         this.sheet = sheet;
+         this.digest = digest;
+         this.generation = generation;
+      }
+
+      private final AbstractSheet sheet;
+      private final String digest;
+      private volatile long generation;
+   }
 }
