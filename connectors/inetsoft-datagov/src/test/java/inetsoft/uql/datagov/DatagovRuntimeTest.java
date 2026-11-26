@@ -197,9 +197,44 @@ class DatagovRuntimeTest {
       assertFalse(message.toLowerCase().contains("credential"), message);
    }
 
+   @Test
+   void testCatalogObjectReportsShape() throws Exception {
+      assertShapeMessage("{\"results\": [], \"resultSetSize\": 0}");
+   }
+
+   @Test
+   void testViewsMetadataObjectReportsShape() throws Exception {
+      assertShapeMessage("{\"id\": \"abcd-1234\", \"columns\": []}");
+   }
+
+   @Test
+   void testMetaWithoutViewReportsShape() throws Exception {
+      assertShapeMessage("{\"meta\": {}, \"data\": []}");
+   }
+
+   @Test
+   void testMetaWithoutDataReportsShape() throws Exception {
+      assertShapeMessage("{\"meta\": {\"view\": {\"columns\": []}}}");
+   }
+
+   private void assertShapeMessage(String body) throws Exception {
+      String message = failureMessage("obj.json", body);
+      assertTrue(message.contains("rows.json shape"), message);
+      assertFalse(message.contains("Cannot invoke"), message);
+      assertFalse(message.contains("NullPointerException"), message);
+   }
+
    private String failureMessage(String suffix) throws Exception {
+      return failureMessage(suffix, suffix.equals("array.json") ? "[{\"a\": 1}]" : null);
+   }
+
+   private String failureMessage(String suffix, String body) throws Exception {
       java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("datagov");
-      java.nio.file.Files.writeString(dir.resolve("array.json"), "[{\"a\": 1}]");
+
+      if(body != null) {
+         java.nio.file.Files.writeString(dir.resolve(suffix), body);
+      }
+
 
       try {
          DatagovDataSource dataSource = new DatagovDataSource();
@@ -216,7 +251,7 @@ class DatagovRuntimeTest {
       }
       finally {
          CoreTool.clearUserMessage();
-         java.nio.file.Files.deleteIfExists(dir.resolve("array.json"));
+         java.nio.file.Files.deleteIfExists(dir.resolve(suffix));
          java.nio.file.Files.deleteIfExists(dir);
       }
    }
