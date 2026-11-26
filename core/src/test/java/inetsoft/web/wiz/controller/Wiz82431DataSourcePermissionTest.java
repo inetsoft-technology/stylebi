@@ -33,7 +33,28 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.sree.AnalyticRepository;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.jdbc.JDBCDataSource;
+import inetsoft.web.portal.controller.database.LogicalModelService;
 import inetsoft.web.portal.controller.database.DataSourceService;
+import inetsoft.web.portal.data.DataSourceBrowserService;
+import inetsoft.web.security.PermissionPath;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
+import inetsoft.web.security.SecuredAspect;
+import inetsoft.web.admin.authz.ComponentAuthorizationService;
+import inetsoft.sree.internal.SUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.reflect.MethodSignature;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import java.lang.reflect.Method;
+import java.security.Principal;
+import java.util.List;
 import inetsoft.web.wiz.WizUtil;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,7 +70,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -184,6 +209,106 @@ class Wiz82431DataSourcePermissionTest {
       gates.requireFolderPermission("/", ResourceAction.WRITE, granted);
       gates.requireDataSourcePermission(DS, ResourceAction.WRITE,
                                         principal("a", 12L, true, ROLE_ADM));
+   }
+
+   /** Models the engine approving a wiz-tagged principal and refusing everyone else. */
+   private AssetRepository bypassAssetRepository() throws Exception {
+      AssetRepository assets = mock(AssetRepository.class);
+      doAnswer(i -> {
+         if(!SRPrincipal.isWizPrincipal(i.getArgument(0))) {
+            throw new inetsoft.sree.security.SecurityException("denied");
+         }
+
+         return null;
+      }).when(assets).checkAssetPermission(any(Principal.class), any(AssetEntry.class), any());
+      return assets;
+   }
+
+   @Test
+   void assetEntryAndModelChecks_wizPrincipal_areEvaluatedForRealUser() throws Exception {
+      AssetRepository assets = bypassAssetRepository();
+      DataSourceService service = new DataSourceService(assets, engine, mock(XRepository.class),
+                                                        mock(DataSourceRegistry.class));
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
+                                        DS + "/model", null);
+      assertFalse(service.checkPermission(entry, ResourceAction.READ, principal("n5", 13L, true)));
+
+      LogicalModelService models = mock(LogicalModelService.class, Mockito.CALLS_REAL_METHODS);
+      ReflectionTestUtils.setField(models, "assetRepository", assets);
+      assertFalse(models.checkPermission(DS, null, "model", null, ResourceAction.READ,
+                                         principal("n6", 14L, true)));
+   }
+
+   @Test
+   void browse_wizPrincipalWithoutGrant_filtersSourceOut() throws Exception {
+      JDBCDataSource source = mock(JDBCDataSource.class);
+      when(source.getName()).thenReturn(DS);
+      when(source.getFullName()).thenReturn(DS);
+      XRepository repository = mock(XRepository.class);
+      when(repository.getDataSourceFullNames()).thenReturn(new String[] { DS });
+      when(repository.getDataSource(DS)).thenReturn(source);
+      DataSourceBrowserService browser = new DataSourceBrowserService(
+         engine, null, repository, service(), mock(DataSourceRegistry.class), null, null);
+
+      assertTrue(browser.getDatabaseDataSources(principal("n7", 15L, true))
+                    .dataSources().isEmpty());
+      assertEquals(1, browser.getDatabaseDataSources(principal("g3", 16L, true, ROLE_X))
+                    .dataSources().size());
+   }
+
+   public static class SecuredFixture {
+      @Secured({
+         @RequiredPermission(resourceType = ResourceType.DATA_SOURCE, actions = ResourceAction.READ)
+      })
+      public String read(@PermissionPath String path, Principal principal) {
+         return path;
+      }
+   }
+
+   @Test
+   void securedAspect_dataSourceRoute_wizPrincipalWithoutGrantIsRefused() throws Throwable {
+      AnalyticRepository replet = mock(AnalyticRepository.class);
+      when(replet.checkPermission(any(Principal.class), any(ResourceType.class), anyString(),
+                                  any(ResourceAction.class))).thenAnswer(inv ->
+         engine.checkPermission(inv.<Principal>getArgument(0), inv.<ResourceType>getArgument(1),
+                                inv.<String>getArgument(2), inv.<ResourceAction>getArgument(3)));
+      HttpServletRequest request = mock(HttpServletRequest.class);
+      when(request.getRequestURI()).thenReturn("/api/wiz/databases/definition");
+      SecuredAspect aspect = new SecuredAspect(mock(DataSourceRegistry.class),
+                                               mock(ComponentAuthorizationService.class));
+      Method method = SecuredFixture.class.getMethod("read", String.class, Principal.class);
+
+      try(MockedStatic<SUtil> sutil = Mockito.mockStatic(SUtil.class,
+                                                        Mockito.CALLS_REAL_METHODS))
+      {
+         sutil.when(SUtil::getRepletRepository).thenReturn(replet);
+         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+         try {
+            for(boolean granted : new boolean[] { false, true }) {
+               SRPrincipal p = granted ? principal("g4", 17L, true, ROLE_X)
+                                       : principal("n8", 18L, true);
+               when(request.getUserPrincipal()).thenReturn(p);
+               MethodSignature signature = mock(MethodSignature.class);
+               when(signature.getMethod()).thenReturn(method);
+               ProceedingJoinPoint jp = mock(ProceedingJoinPoint.class);
+               when(jp.getSignature()).thenReturn(signature);
+               when(jp.getArgs()).thenReturn(new Object[] { DS, p });
+
+               if(granted) {
+                  aspect.authorize(jp);
+                  verify(jp).proceed();
+               }
+               else {
+                  assertThrows(java.lang.SecurityException.class, () -> aspect.authorize(jp));
+                  verify(jp, never()).proceed();
+               }
+            }
+         }
+         finally {
+            RequestContextHolder.resetRequestAttributes();
+         }
+      }
    }
 
    @Autowired

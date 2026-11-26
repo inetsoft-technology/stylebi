@@ -32,6 +32,7 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.web.portal.controller.database.*;
 import inetsoft.web.portal.model.database.*;
 import inetsoft.web.portal.service.database.PhysicalGraphService;
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.controller.WizDataModelErrors.DmFailure;
 import inetsoft.web.wiz.controller.WizDataModelWire.Err;
 import inetsoft.web.wiz.controller.WizPhysicalViewDiff.*;
@@ -996,7 +997,7 @@ final class WizPhysicalViewSession {
             boolean allowed;
 
             try {
-               allowed = securityEngine.checkPermission(
+               allowed = WizUtil.checkPermission(securityEngine,
                   principal, ResourceType.CROSS_JOIN, "*", ResourceAction.ACCESS);
             }
             catch(Exception e) {
