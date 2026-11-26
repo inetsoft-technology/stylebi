@@ -2938,6 +2938,21 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    }
 
    /**
+    * Remove the ws file from the specified organization's storage.
+    */
+   public void removeWorksheet(String orgID) {
+      try {
+         MVWorksheetStorage.getInstance().removeWorksheet(getWorksheetPath(), orgID);
+      }
+      catch(FileNotFoundException ignore) {
+         // already removed
+      }
+      catch(IOException e) {
+         LOG.warn("Failed to remove MV worksheet", e);
+      }
+   }
+
+   /**
     * Parse the ws file.
     */
    private Worksheet parseWorksheet() throws Exception {
