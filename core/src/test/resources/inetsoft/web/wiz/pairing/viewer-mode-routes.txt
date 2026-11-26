@@ -147,6 +147,7 @@ DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/form-table/insert-row
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/form-table/read
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/form-table/set-cell
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/format
+DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/format/copy
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/hierarchy/dimensions
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/hierarchy/dimensions/delete
 DENIED POST /api/wiz/v1/agent/viewsheet/{sessionToken}/hierarchy/dimensions/update

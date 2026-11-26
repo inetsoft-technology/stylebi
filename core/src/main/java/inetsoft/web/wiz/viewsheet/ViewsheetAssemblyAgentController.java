@@ -498,6 +498,24 @@ public class ViewsheetAssemblyAgentController {
    }
 
    /**
+    * Several format writes as one undo step ({@code copy_format}, Bug #82419). Each part is the
+    * body of a {@link #format} or {@link #setChartRegionFormat} call and is applied through the
+    * same code, but the whole copy adds a single checkpoint; see
+    * {@link ViewsheetFormatService#copyFormat}.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/format/copy")
+   public ViewsheetFormatService.FormatCopyResult formatCopy(
+      @PathVariable String sessionToken,
+      @RequestBody ViewsheetFormatService.FormatCopyRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return formatService.copyFormat(sessionToken, user, request, linkUri);
+   }
+
+   /**
     * Reads back the format stored for one target ({@code get_format}); the read counterpart of
     * {@link #format}.
     */

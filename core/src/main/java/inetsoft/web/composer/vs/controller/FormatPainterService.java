@@ -1945,6 +1945,64 @@ public class FormatPainterService {
    }
 
    /**
+    * Which keys of one chart text region the user stored, as opposed to the defaults the
+    * effective read ({@link #getChartRegionFormatModel}) reports for a region nobody formatted
+    * (Bug #82419: a format copy has to tell the two apart exactly).
+    *
+    * @return the user-defined keys (see {@link #definedKeys}), empty when the region has never
+    *         been formatted, null when the region has no format object at all
+    */
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public ArrayList<String> getChartRegionDefinedKeys(@ClusterProxyKey String runtimeId,
+                                                      Principal principal,
+                                                      String name, String region, int index,
+                                                      String columnName,
+                                                      boolean ignoreTextField)
+      throws Exception
+   {
+      CompositeTextFormat format = getChartRegionFormat(
+         runtimeId, principal, name, region, index, columnName, ignoreTextField).format;
+      return format == null ? null : new ArrayList<>(definedKeys(format));
+   }
+
+   /**
+    * The keys of {@code format}'s user-defined layer that are set, named as the format model names
+    * them. The user layer keeps one "defined" flag per key, so a value that merely equals the
+    * default but was written by the user is still reported, and a default read through the
+    * effective getters (theme, built-in default) never is.
+    */
+   static List<String> definedKeys(CompositeTextFormat format) {
+      TextFormat user = format.getUserDefinedFormat();
+      List<String> keys = new ArrayList<>();
+
+      if(user.isColorDefined()) {
+         keys.add("color");
+      }
+
+      if(user.isBackgroundDefined()) {
+         keys.add("backgroundColor");
+      }
+
+      if(user.isAlphaDefined()) {
+         keys.add("backgroundAlpha");
+      }
+
+      if(user.isFontDefined()) {
+         keys.add("font");
+      }
+
+      if(user.isAlignmentDefined()) {
+         keys.add("align");
+      }
+
+      if(user.getFormat() != null && !user.getFormat().isEmpty()) {
+         keys.add("format");
+      }
+
+      return keys;
+   }
+
+   /**
     * Copies the value format the user stored on a chart text region into {@code model}, so a
     * read returns what a write put there. Only the user-defined layer is read: the effective
     * format also carries the default {@code fixAxisDefaultFormat} derives from the data, and

@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -101,6 +102,7 @@ import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.wiz.binding.CalcTableService;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.wiz.dispatch.CommandErrorException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -1292,8 +1294,22 @@ public class ViewsheetFormatService {
       }
    }
 
-   /** The effective format of a chart sub-region, read back after a write or on request. */
-   public record ChartRegionFormatResult(VSObjectFormatInfoModel format, List<String> warnings) {
+   /**
+    * The effective format of a chart sub-region, read back after a write or on request.
+    *
+    * @param definedKeys on a read, the keys of {@code format} the user stored on the region
+    *                    ({@code color, backgroundColor, backgroundAlpha, font, align, format});
+    *                    the other keys are defaults, so an empty list means the region was never
+    *                    formatted (Bug #82419). Null (omitted from the JSON) after a write, and
+    *                    when the answer is not known.
+    */
+   public record ChartRegionFormatResult(VSObjectFormatInfoModel format, List<String> warnings,
+                                         @JsonInclude(JsonInclude.Include.NON_NULL)
+                                         List<String> definedKeys)
+   {
+      public ChartRegionFormatResult(VSObjectFormatInfoModel format, List<String> warnings) {
+         this(format, warnings, null);
+      }
    }
 
    private record ChartRegion(String painterRegion, String column, int index) {
@@ -1548,11 +1564,28 @@ public class ViewsheetFormatService {
    {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       ChartRegion region = resolveChartRegion(rvs, request);
+      VSObjectFormatInfoModel model = painter.getChartRegionFormatModel(
+         rvs.getID(), user, request.assembly(), region.painterRegion(), region.index(),
+         region.column(), false);
       return new ChartRegionFormatResult(
-         painter.getChartRegionFormatModel(rvs.getID(), user, request.assembly(),
-                                           region.painterRegion(), region.index(),
-                                           region.column(), false),
-         List.of());
+         model, List.of(),
+         model == null ? null : definedRegionKeys(rvs.getID(), user, request.assembly(),
+                                                  region.painterRegion(), region.index(),
+                                                  region.column(), false));
+   }
+
+   /**
+    * The keys the user stored on a chart text region (see {@code
+    * FormatPainterService#getChartRegionDefinedKeys}), or null when the painter has no answer, so
+    * the read still answers and the caller falls back to the effective values.
+    */
+   private List<String> definedRegionKeys(String runtimeId, Principal user, String assembly,
+                                          String painterRegion, int index, String column,
+                                          boolean ignoreTextField)
+      throws Exception
+   {
+      return painter.getChartRegionDefinedKeys(runtimeId, user, assembly, painterRegion, index,
+                                               column, ignoreTextField);
    }
 
    public ChartRegionFormatResult setChartRegionFormat(String sessionToken, Principal user,
@@ -1607,6 +1640,120 @@ public class ViewsheetFormatService {
          rvs.getID(), user, request.assembly(), region.painterRegion(), region.index(),
          region.column(), false);
       return new ChartRegionFormatResult(after, new ArrayList<>(warnings));
+   }
+
+   /**
+    * One part of a {@link #copyFormat} call: the body of an existing {@code set_format}
+    * ({@code kind} "format") or {@code set_chart_region_format} ({@code kind} "region") request.
+    */
+   public record FormatCopyPart(String kind, FormatRequest format, ChartRegionFormatRequest region)
+   {
+   }
+
+   /** The parts of a Format Painter copy, in the order they are applied. */
+   public record FormatCopyRequest(List<FormatCopyPart> parts) {
+   }
+
+   /**
+    * What one part did.
+    *
+    * @param ok       false when the part was refused or failed; nothing else is rolled back
+    * @param error    the refusal or failure message when {@code ok} is false, else null
+    * @param warnings the warnings that part's own route reports
+    */
+   public record FormatCopyPartResult(String kind, boolean ok, String error, List<String> warnings)
+   {
+   }
+
+   /**
+    * @param parts     one entry per requested part, in request order
+    * @param undoSteps how many undo steps the whole copy added: 1 when any part was applied
+    * @param warnings  call-level warnings (the paired browser was not refreshed)
+    */
+   public record FormatCopyResult(List<FormatCopyPartResult> parts, int undoSteps,
+                                  List<String> warnings)
+   {
+   }
+
+   /** The most parts one copy may carry. */
+   static final int MAX_COPY_PARTS = 500;
+
+   /**
+    * Applies several format writes as ONE undo step (Bug #82419, the Format Painter): every part
+    * goes through the same {@link #setFormat} / {@link #setChartRegionFormat} a single write
+    * does, so each part's validation, refusals and warnings are unchanged, but the session adds a
+    * single checkpoint and does a single refresh for the lot ({@link
+    * ViewsheetSessionService#batch}). A part that is refused or fails is reported and the rest
+    * still run; nothing is rolled back, and the one checkpoint covers whatever was applied.
+    */
+   public FormatCopyResult copyFormat(String sessionToken, Principal user,
+                                      FormatCopyRequest request, String linkUri)
+      throws Exception
+   {
+      if(request == null || request.parts() == null || request.parts().isEmpty()) {
+         throw new IllegalArgumentException(
+            "format/copy requires 'parts' with at least one part.");
+      }
+
+      if(request.parts().size() > MAX_COPY_PARTS) {
+         throw new IllegalArgumentException(
+            "format/copy takes at most " + MAX_COPY_PARTS + " parts; got " +
+            request.parts().size() + ".");
+      }
+
+      for(int i = 0; i < request.parts().size(); i++) {
+         FormatCopyPart part = request.parts().get(i);
+         String where = "format/copy parts[" + i + "]";
+
+         if(part == null || part.kind() == null) {
+            throw new IllegalArgumentException(
+               where + " needs a 'kind': \"format\" (with 'format') or \"region\" (with 'region').");
+         }
+
+         if("format".equals(part.kind())) {
+            if(part.format() == null) {
+               throw new IllegalArgumentException(
+                  where + ": kind \"format\" requires 'format', a set_format request body.");
+            }
+         }
+         else if("region".equals(part.kind())) {
+            if(part.region() == null) {
+               throw new IllegalArgumentException(
+                  where + ": kind \"region\" requires 'region', a set_chart_region_format " +
+                  "request body.");
+            }
+         }
+         else {
+            throw new IllegalArgumentException(
+               where + ": unknown kind '" + part.kind() + "'; use \"format\" or \"region\".");
+         }
+      }
+
+      List<FormatCopyPartResult> results = new ArrayList<>();
+      ViewsheetSessionService.BatchResult<Void> batch = sessions.batch(
+         sessionToken, user, () -> {
+            for(FormatCopyPart part : request.parts()) {
+               try {
+                  List<String> warnings = "format".equals(part.kind()) ?
+                     setFormat(sessionToken, user, part.format(), linkUri).warnings() :
+                     setChartRegionFormat(sessionToken, user, part.region(), linkUri).warnings();
+                  results.add(new FormatCopyPartResult(
+                     part.kind(), true, null, warnings == null ? List.of() : warnings));
+               }
+               catch(IllegalArgumentException | IllegalStateException |
+                     CommandErrorException e)
+               {
+                  results.add(new FormatCopyPartResult(part.kind(), false, e.getMessage(),
+                                                       List.of()));
+               }
+            }
+
+            return null;
+         });
+
+      return new FormatCopyResult(
+         results, batch.checkpoints(),
+         batch.notDelivered() == null ? List.of() : List.of(batch.notDelivered()));
    }
 
    public FormatResult setFormat(String sessionToken, Principal user, FormatRequest request,
@@ -4360,6 +4507,16 @@ public class ViewsheetFormatService {
                }
 
                out.put("format", toChartTextWireFormat(model));
+               List<String> defined = definedRegionKeys(
+                  rvs.getID(), user, assembly,
+                  PLOT_LABEL.equals(target) ? ChartFormatConstants.PLOT_AREA :
+                     ChartFormatConstants.TEXT, 0, column, PLOT_LABEL.equals(target));
+
+               if(defined != null) {
+                  // which keys the user stored; the rest of 'format' is the effective default
+                  out.put("definedKeys", defined);
+               }
+
                return out;
             }
 

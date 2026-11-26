@@ -417,4 +417,64 @@ class ViewsheetFormatServiceChartRegionTest {
          () -> write(request("axis_labels", "y", null, null), rvsFor(info)));
       assertTrue(e.getMessage().contains("has no field on the y axis"), e.getMessage());
    }
+
+   // ── Bug #82419: a region read says which of its keys the user stored ──
+
+   private static ViewsheetFormatService.ChartRegionFormatResult readRegion(
+      FormatPainterService painter) throws Exception
+   {
+      return new ViewsheetFormatService(sessionsFor(rvs(0)), FormatPainterProxies.local(painter),
+                                        mock(CalcTableService.class), null)
+         .getChartRegionFormat("tok", principal(), request("axis_labels", "x", null, null));
+   }
+
+   private static FormatPainterService painterReading(java.util.List<String> defined)
+      throws Exception
+   {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel model = new VSObjectFormatInfoModel();
+      model.setColor("#2b2b2b");
+      when(painter.getChartRegionFormatModel(anyString(), any(), anyString(), anyString(),
+                                             anyInt(), any(), anyBoolean())).thenReturn(model);
+      when(painter.getChartRegionDefinedKeys(anyString(), any(), anyString(), anyString(),
+                                             anyInt(), any(), anyBoolean()))
+         .thenReturn(defined == null ? null : new java.util.ArrayList<>(defined));
+      return painter;
+   }
+
+   @Test
+   void aRegionReadReportsTheKeysTheUserStored() throws Exception {
+      assertEquals(java.util.List.of("color", "font"),
+                   readRegion(painterReading(java.util.List.of("color", "font"))).definedKeys());
+   }
+
+   @Test
+   void aNeverFormattedRegionReadsAnEmptyDefinedKeysNotNull() throws Exception {
+      ViewsheetFormatService.ChartRegionFormatResult result =
+         readRegion(painterReading(java.util.List.of()));
+
+      assertEquals(java.util.List.of(), result.definedKeys());
+      assertEquals("#2b2b2b", result.format().getColor());
+   }
+
+   @Test
+   void aPainterWithNoAnswerLeavesDefinedKeysUnknownAndTheReadIntact() throws Exception {
+      ViewsheetFormatService.ChartRegionFormatResult result = readRegion(painterReading(null));
+
+      assertNull(result.definedKeys());
+      assertEquals("#2b2b2b", result.format().getColor());
+   }
+
+   @Test
+   void definedKeysIsOmittedFromTheJsonWhenUnknownAndPresentWhenEmpty() throws Exception {
+      com.fasterxml.jackson.databind.ObjectMapper mapper =
+         new com.fasterxml.jackson.databind.ObjectMapper();
+
+      assertFalse(mapper.writeValueAsString(
+         new ViewsheetFormatService.ChartRegionFormatResult(null, java.util.List.of()))
+                     .contains("definedKeys"));
+      assertTrue(mapper.writeValueAsString(
+         new ViewsheetFormatService.ChartRegionFormatResult(
+            null, java.util.List.of(), java.util.List.of())).contains("\"definedKeys\":[]"));
+   }
 }
