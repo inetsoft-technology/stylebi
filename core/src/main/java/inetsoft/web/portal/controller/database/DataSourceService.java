@@ -17,6 +17,7 @@
  */
 package inetsoft.web.portal.controller.database;
 
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.SecurityException;
@@ -79,7 +80,7 @@ public class DataSourceService {
       throws Exception
    {
       // Bug #78249, an additional connection path P/add is checked as P::add
-      return securityEngine.checkPermission(
+      return WizUtil.checkPermission(securityEngine,
          principal, ResourceType.DATA_SOURCE,
          ResourcePermissionService.getDataSourcePermissionName(databasePath, dataSourceRegistry),
          action);
@@ -102,7 +103,7 @@ public class DataSourceService {
          return checkPermission(databasePath, action, principal);
       }
 
-      return securityEngine.checkPermission(principal, ResourceType.DATA_MODEL_FOLDER,
+      return WizUtil.checkPermission(securityEngine, principal, ResourceType.DATA_MODEL_FOLDER,
          SUtil.appendPath(databasePath, folder), action);
    }
 
@@ -290,7 +291,7 @@ public class DataSourceService {
       boolean result = true;
 
       try {
-         assetRepository.checkAssetPermission(principal, entry, action);
+         assetRepository.checkAssetPermission(WizUtil.toolbarCheckPrincipal(principal), entry, action);
       }
       catch(Exception ignore) {
          result = false;
@@ -504,7 +505,7 @@ public class DataSourceService {
                                                   Principal principal)
       throws SecurityException
    {
-      return securityEngine.checkPermission(principal, ResourceType.DATA_MODEL_FOLDER,
+      return WizUtil.checkPermission(securityEngine, principal, ResourceType.DATA_MODEL_FOLDER,
          folderFullPath, action);
    }
 

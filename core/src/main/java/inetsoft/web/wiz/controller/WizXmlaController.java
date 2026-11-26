@@ -18,6 +18,7 @@
 
 package inetsoft.web.wiz.controller;
 
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -100,7 +101,7 @@ public class WizXmlaController {
 
       DataSourceXmlaDefinition stored = xmlaDatasourceService.getDataSourceModel(source, principal);
       boolean deletable =
-         securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, source,
+         WizUtil.checkPermission(securityEngine, principal, ResourceType.DATA_SOURCE, source,
                                         ResourceAction.DELETE);
 
       return toWizDefinition(stored, deletable);

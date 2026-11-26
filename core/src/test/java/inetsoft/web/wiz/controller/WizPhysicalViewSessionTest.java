@@ -18,7 +18,9 @@
 package inetsoft.web.wiz.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.erm.*;
 import inetsoft.web.portal.model.database.PhysicalTableModel;
 import inetsoft.web.wiz.controller.WizDataModelWire.Failure;
@@ -81,6 +83,25 @@ class WizPhysicalViewSessionTest extends WizPhysicalViewTestBase {
    }
 
    // -- C1: no runtime left, no runtime id out -------------------------------------------------
+
+   /**
+    * Redmine #82431: the cross join permission is checked for the real user. The engine approves a
+    * wiz-tagged principal, so the check has to be made on the de-tagged copy.
+    */
+   @Test
+   void unjoinedTablesRefusedForWizPrincipalWithoutCrossJoinPermission() throws Exception {
+      when(security.checkPermission(any(), eq(ResourceType.CROSS_JOIN), anyString(), any()))
+         .thenAnswer(i -> SRPrincipal.isWizPrincipal(i.getArgument(0)));
+      SRPrincipal wiz = new SRPrincipal(new IdentityID("carol", "org1"), new IdentityID[0],
+                                        new String[0], "org1", 21L);
+      wiz.setProperty("wiz", "true");
+
+      Object failure = physicalController.create(new WriteRequest(
+         ds, null, null, definition("cross82431", tables(plain("T1"), plain("T2"))), null), wiz);
+
+      assertEquals(WizDataModelWire.UNJOINED_TABLES_PROHIBITED, ((Failure) failure).reason());
+      assertNull(storedView("cross82431"));
+   }
 
    @Test
    void runtimeAlwaysDestroyedOnFailure() throws Exception {

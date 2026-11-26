@@ -18,6 +18,7 @@
 
 package inetsoft.web.wiz.controller;
 
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -405,7 +406,7 @@ public class WizCubeController {
       while(all.hasMoreElements()) {
          Object next = all.nextElement();
 
-         if(next instanceof Cube cube && securityEngine.checkPermission(
+         if(next instanceof Cube cube && WizUtil.checkPermission(securityEngine,
             principal, ResourceType.CUBE, source + "::" + cube.getName(), ResourceAction.READ))
          {
             cubes.add(cube);
@@ -442,7 +443,7 @@ public class WizCubeController {
 
       for(String name : xrepository.getDataSourceFullNames()) {
          if(xrepository.getDataSource(name) instanceof XMLADataSource &&
-            securityEngine.checkPermission(
+            WizUtil.checkPermission(securityEngine,
                principal, ResourceType.DATA_SOURCE, name, ResourceAction.READ))
          {
             names.add(name);

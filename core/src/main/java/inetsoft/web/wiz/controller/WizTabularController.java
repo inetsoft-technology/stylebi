@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.controller;
 
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -1109,7 +1110,7 @@ public class WizTabularController {
    private void requireDataSourcePermission(String path, ResourceAction action, Principal principal)
       throws Exception
    {
-      if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, path, action)) {
+      if(!WizUtil.checkPermission(securityEngine, principal, ResourceType.DATA_SOURCE, path, action)) {
          throw new SecurityException(
             "Unauthorized access to data source \"" + path + "\" by user " + principal);
       }
@@ -1191,11 +1192,11 @@ public class WizTabularController {
     */
    private void requireCreatePermission(String parentPath, Principal principal) throws Exception {
       boolean root = parentPath == null;
-      boolean allowed = securityEngine.checkPermission(
+      boolean allowed = WizUtil.checkPermission(securityEngine,
          principal, ResourceType.DATA_SOURCE_FOLDER, root ? "/" : parentPath, ResourceAction.WRITE);
 
       if(!allowed && root) {
-         allowed = securityEngine.checkPermission(
+         allowed = WizUtil.checkPermission(securityEngine,
             principal, ResourceType.CREATE_DATA_SOURCE, "*", ResourceAction.ACCESS);
       }
 

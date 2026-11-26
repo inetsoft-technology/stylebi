@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.controller;
 
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -79,7 +80,7 @@ public class WizDataModelFolderController {
          gates.requireVisibleJdbcDataModel(source, database, principal);
 
          // the grant first: only a caller who may create the folder learns that it exists
-         if(!securityEngine.checkPermission(principal, ResourceType.DATA_MODEL_FOLDER,
+         if(!WizUtil.checkPermission(securityEngine, principal, ResourceType.DATA_MODEL_FOLDER,
                                             database + "/" + name, ResourceAction.WRITE))
          {
             throw new SecurityException("Unauthorized access to resource \"" + database + "/" +
@@ -261,7 +262,7 @@ public class WizDataModelFolderController {
                                    Principal principal)
       throws Exception
    {
-      if(!securityEngine.checkPermission(principal, ResourceType.DATA_MODEL_FOLDER,
+      if(!WizUtil.checkPermission(securityEngine, principal, ResourceType.DATA_MODEL_FOLDER,
                                          database + "/" + folder, action))
       {
          throw new SecurityException("Unauthorized access to resource \"" + database + "/" +
@@ -278,7 +279,7 @@ public class WizDataModelFolderController {
                "Unauthorized access to resource \"" + database + "\" by user " + principal);
          }
       }
-      else if(!securityEngine.checkPermission(principal, ResourceType.DATA_MODEL_FOLDER,
+      else if(!WizUtil.checkPermission(securityEngine, principal, ResourceType.DATA_MODEL_FOLDER,
                                               database + "/" + folder, ResourceAction.WRITE))
       {
          throw new SecurityException(

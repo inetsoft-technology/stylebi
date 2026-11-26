@@ -24,7 +24,10 @@ import inetsoft.report.filter.DCMergeCell;
 import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
@@ -88,6 +91,19 @@ public class WizUtil {
     */
    public static Principal toolbarCheckPrincipal(Principal user) {
       return user instanceof XPrincipal ? saveCheckPrincipal((XPrincipal) user) : user;
+   }
+
+   /**
+    * Redmine #82431: {@code securityEngine.checkPermission} evaluated for the real user. The engine
+    * approves every wiz-tagged principal, so data source, data model and data discovery checks
+    * made with the request principal never refused anything. A non-wiz principal is checked as is.
+    */
+   public static boolean checkPermission(SecurityEngine engine, Principal principal,
+                                         ResourceType type, String resource,
+                                         ResourceAction action)
+      throws SecurityException
+   {
+      return engine.checkPermission(toolbarCheckPrincipal(principal), type, resource, action);
    }
 
    /**

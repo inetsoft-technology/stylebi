@@ -17,6 +17,7 @@
  */
 package inetsoft.web.portal.controller.database;
 
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
@@ -105,7 +106,8 @@ public class LogicalModelService {
       entry.setProperty("folder", modelFolder);
 
       try {
-         assetRepository.checkAssetPermission(principal, entry, action);
+         assetRepository.checkAssetPermission(
+            WizUtil.toolbarCheckPrincipal(principal), entry, action);
          return true;
       }
       catch(Exception e) {
