@@ -27,16 +27,27 @@ import inetsoft.web.api.schedule.ScheduleTask;
  */
 public class ScheduleTaskEntry extends ScheduleTask {
    public ScheduleTaskEntry(ScheduleTask task, String path) {
+      this(task, path, null);
+   }
+
+   public ScheduleTaskEntry(ScheduleTask task, String path, String timeZone) {
       super(task.getName(), task.getOwner(), task.isEnabled(), task.isDeleteIfNotScheduledToRun(),
             task.getStartDate(), task.getEndDate(), task.getDescription(), task.getLocale(),
             task.getExecuteAsID());
       setStatus(task.getStatus());
       this.path = path;
+      this.timeZone = timeZone;
    }
 
    public String getPath() {
       return path;
    }
 
+   /** The task-level time zone id, {@code null} when the task has none. */
+   public String getTimeZone() {
+      return timeZone;
+   }
+
    private final String path;
+   private final String timeZone;
 }

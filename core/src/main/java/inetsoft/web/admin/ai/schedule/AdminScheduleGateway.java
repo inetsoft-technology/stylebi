@@ -135,7 +135,7 @@ public class AdminScheduleGateway {
          .map(scheduleManager::getScheduleTask)
          .filter(Objects::nonNull)
          .filter(s -> organizationid == null || s.getOwner().getOrgID().equals(organizationid))
-         .map(t -> new ScheduleTaskEntry(convertTask(t), getFolderPath(t)))
+         .map(t -> new ScheduleTaskEntry(convertTask(t), getFolderPath(t), t.getTimeZone()))
          .forEach(list.getTasks()::add);
       return list;
    }
@@ -167,6 +167,23 @@ public class AdminScheduleGateway {
                                Principal user)
       throws Exception
    {
+      addScheduleTask(taskMetaData, enabled, deleteIfNotScheduledToRun, startDate, endDate,
+                      description, locale, executeAsID, conditions, actions, organizationid,
+                      linkUri, folder, null, user);
+   }
+
+   /**
+    * Adds a schedule task in {@code folder} with the task-level {@code timeZone}, the root folder
+    * for a {@code null} folder and no task zone for a blank {@code timeZone}.
+    */
+   public void addScheduleTask(ScheduleTaskMetaData taskMetaData, boolean enabled,
+                               boolean deleteIfNotScheduledToRun, long startDate, long endDate,
+                               String description, String locale, ScheduleTask.ExecuteAsID executeAsID,
+                               List<ScheduleCondition> conditions, List<ScheduleAction> actions,
+                               String organizationid, String linkUri, AssetEntry folder,
+                               String timeZone, Principal user)
+      throws Exception
+   {
       checkPermission(user);
       String taskId = taskMetaData.getTaskId();
       inetsoft.sree.schedule.ScheduleTask task = repository.getScheduleTask(taskId);
@@ -183,7 +200,7 @@ public class AdminScheduleGateway {
 
       task = buildNewTask(taskMetaData, owner, enabled, deleteIfNotScheduledToRun, startDate,
                           endDate, description, locale, executeAsID, conditions, actions, linkUri,
-                          user);
+                          timeZone, user);
 
       if(folder == null) {
          scheduleManager.setScheduleTask(task.getTaskId(), task, user);
@@ -343,6 +360,10 @@ public class AdminScheduleGateway {
          candidate.setEndDate(patch.getEndDate() > 0 ? new Date(patch.getEndDate()) : null);
       }
 
+      if(patch.getTimeZone() != null) {
+         candidate.setTimeZone(normalizeTaskTimeZone(patch.getTimeZone()));
+      }
+
       if(patch.getConditions() != null) {
          for(int i = candidate.getConditionCount() - 1; i >= 0; i--) {
             candidate.removeCondition(i);
@@ -482,6 +503,24 @@ public class AdminScheduleGateway {
     */
    public String getScheduleTaskPath(String taskId, Principal user) throws Exception {
       return getFolderPath(getTask(taskId, user));
+   }
+
+   /**
+    * Gets the task-level time zone id of the schedule task (the portal Options tab's Time Zone),
+    * {@code null} when it has none. The public {@link ScheduleTask} DTO has no time zone, so it is
+    * read from the task itself. Same permission checks as {@link #getScheduleTask}.
+    */
+   public String getScheduleTaskTimeZone(String taskId, Principal user) throws Exception {
+      return getTask(taskId, user).getTimeZone();
+   }
+
+   /**
+    * A blank task time zone is stored as {@code null}, which the scheduler reads in the JVM
+    * default zone. The Enterprise Manager Options tab stores {@code ""} for the same choice, which
+    * the scheduler resolves to GMT, so the two do not behave identically.
+    */
+   private static String normalizeTaskTimeZone(String timeZone) {
+      return timeZone == null || timeZone.isBlank() ? null : timeZone.strip();
    }
 
    private static String getFolderPath(inetsoft.sree.schedule.ScheduleTask task) {
@@ -934,12 +973,14 @@ public class AdminScheduleGateway {
       ScheduleTaskMetaData taskMetaData, IdentityID owner, boolean enabled,
       boolean deleteIfNotScheduledToRun, long startDate, long endDate, String description,
       String locale, ScheduleTask.ExecuteAsID executeAsID, List<ScheduleCondition> conditions,
-      List<ScheduleAction> actions, String linkUri, Principal user)
+      List<ScheduleAction> actions, String linkUri, String timeZone, Principal user)
       throws Exception
    {
       String name = taskMetaData.getTaskName();
       Identity identity = checkOwnerPermission(user, owner, executeAsID);
       inetsoft.sree.schedule.ScheduleTask task = convertTask(new ScheduleTask(name, owner, enabled, deleteIfNotScheduledToRun, startDate, endDate, description, locale, executeAsID), identity);
+
+      task.setTimeZone(normalizeTaskTimeZone(timeZone));
 
       conditions.stream()
          .map(ScheduleConditionConverter::convertCondition)
@@ -996,7 +1037,7 @@ public class AdminScheduleGateway {
 
       inetsoft.sree.schedule.ScheduleTask task = buildNewTask(taskMetaData, owner, enabled,
          deleteIfNotScheduledToRun, startDate, endDate, description, locale, executeAsID,
-         conditions, actions, linkUri, user);
+         conditions, actions, linkUri, null, user);
       scheduleManager.checkScheduleTaskSave(task.getTaskId(), task, user);
    }
 

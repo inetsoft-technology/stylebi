@@ -88,6 +88,7 @@ public class AdminScheduleController {
       requireSiteAdmin(user);
       return new ScheduleTaskView(taskId,
          scheduleGateway.getScheduleTaskPath(taskId, user),
+         scheduleGateway.getScheduleTaskTimeZone(taskId, user),
          scheduleGateway.getScheduleTask(taskId, null, user),
          scheduleGateway.getTaskConditionsLenient(taskId, null, user),
          scheduleGateway.getTaskActionsLenient(taskId, null, user));

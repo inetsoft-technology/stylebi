@@ -1429,4 +1429,146 @@ class ScheduleChangePlanServiceTest {
       task.setEnabled(true);
       return task;
    }
+
+   // -------------------------------------------------------------------------
+   // task-level time zone (the portal Options tab's Time Zone)
+   // -------------------------------------------------------------------------
+
+   private ResolvedPlan resolveCreateWithZone(String zone) throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      ScheduleChangeRequest change = createChange(spec);
+      change.setTimeZone(zone);
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), "t1");
+      lenient().when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      lenient().when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      return service.resolve(request("task", List.of(change)), user);
+   }
+
+   @Test void resolveCreateShowsTheTaskTimeZoneInThePlan() throws Exception {
+      ResolvedPlan plan = resolveCreateWithZone("America/New_York");
+
+      assertTrue(plan.changes().get(0).proposedValue().endsWith(";timeZone=America/New_York"));
+   }
+
+   @Test void resolveCreateWithoutATaskTimeZoneKeepsTheProjectionAndHash() throws Exception {
+      String none = resolveCreateWithZone(null).changes().get(0).proposedValue();
+      String blank = resolveCreateWithZone("  ").changes().get(0).proposedValue();
+
+      assertFalse(none.contains(";timeZone="));
+      assertEquals(none, blank);
+      assertNotEquals(none, resolveCreateWithZone("Asia/Tokyo").changes().get(0).proposedValue());
+   }
+
+   @Test void resolveCreateRefusesAnUnknownTaskTimeZoneNamingTheField() {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> resolveCreateWithZone("Mars/Base"));
+
+      assertTrue(ex.getMessage().startsWith("changes[0].timeZone: \"Mars/Base\""),
+                 ex.getMessage());
+      assertThrows(IllegalArgumentException.class, () -> resolveCreateWithZone("GMT+99"));
+   }
+
+   // A5 differential: the task zone and a time condition's zone accept and refuse the same ids
+   @Test void taskTimeZoneAndConditionTimeZoneAreValidatedIdentically() throws Exception {
+      String[] ids = {"America/New_York", "UTC", "utc", "GMT", "Etc/UTC", "GMT+8", "Asia/Tokyo",
+                      "Mars/Base", "GMT+99", "Not/AZone", "new_york"};
+
+      for(String id : ids) {
+         boolean taskAccepts;
+         boolean conditionAccepts;
+
+         try {
+            resolveCreateWithZone(id);
+            taskAccepts = true;
+         }
+         catch(IllegalArgumentException e) {
+            taskAccepts = false;
+         }
+
+         try {
+            TimeCondition condition = timeCondition(9, 0);
+            condition.setTimeZone(id);
+            resolveCreateOf(specWith(condition));
+            conditionAccepts = true;
+         }
+         catch(IllegalArgumentException e) {
+            conditionAccepts = false;
+         }
+
+         assertEquals(conditionAccepts, taskAccepts, id);
+      }
+   }
+
+   @Test void resolveUpdateAcceptsAPatchOfOnlyATimeZone() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = sreeTask("t1", "admin");
+      inetsoft.sree.schedule.ScheduleTask candidate = sreeTask("t1", "admin");
+      candidate.setTimeZone("Asia/Tokyo");
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(stored);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("Asia/Tokyo");
+      when(scheduleGateway.buildUpdatedTask("t1", patch, null, user)).thenReturn(candidate);
+
+      PlanChange change = service.resolve(
+         request("task", List.of(updateChange("t1", patch))), user).changes().get(0);
+
+      assertFalse(change.currentValue().contains("timeZone="));
+      assertTrue(change.proposedValue().contains("timeZone=\"Asia/Tokyo\""),
+                 change.proposedValue());
+   }
+
+   @Test void resolveUpdateWithTheSameTaskTimeZoneIsTheNoOpRefusal() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = sreeTask("t1", "admin");
+      stored.setTimeZone("Asia/Tokyo");
+      inetsoft.sree.schedule.ScheduleTask candidate = sreeTask("t1", "admin");
+      candidate.setTimeZone("Asia/Tokyo");
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(stored);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("Asia/Tokyo");
+      when(scheduleGateway.buildUpdatedTask("t1", patch, null, user)).thenReturn(candidate);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateChange("t1", patch))), user));
+      assertTrue(ex.getMessage().contains("nothing to update"));
+   }
+
+   @Test void resolveUpdateWithABlankTaskTimeZoneIsAClearNotAnEmptyPatch() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask stored = sreeTask("t1", "admin");
+      stored.setTimeZone("Asia/Tokyo");
+      inetsoft.sree.schedule.ScheduleTask candidate = sreeTask("t1", "admin");
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(stored);
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("");
+      when(scheduleGateway.buildUpdatedTask("t1", patch, null, user)).thenReturn(candidate);
+
+      PlanChange change = service.resolve(
+         request("task", List.of(updateChange("t1", patch))), user).changes().get(0);
+
+      assertTrue(change.currentValue().contains("timeZone=\"Asia/Tokyo\""));
+      assertFalse(change.proposedValue().contains("timeZone="));
+   }
+
+   @Test void resolveUpdateRefusesAnUnknownTaskTimeZoneNamingTheField() {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setTimeZone("Mars/Base");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateChange("t1", patch))), user));
+
+      assertTrue(ex.getMessage().startsWith("changes[0].patch.timeZone: \"Mars/Base\""),
+                 ex.getMessage());
+   }
+
+   @Test void resolveUpdateAndDeleteRefuseAChangeLevelTimeZone() {
+      ScheduleChangeRequest update = updateChange("t1", enabledPatch(false));
+      update.setTimeZone("Asia/Tokyo");
+      ScheduleChangeRequest delete = deleteChange("t1");
+      delete.setTimeZone("Asia/Tokyo");
+
+      assertTrue(assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(update)), user))
+         .getMessage().startsWith("changes[0].timeZone:"));
+      assertTrue(assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(delete)), user))
+         .getMessage().startsWith("changes[0].timeZone:"));
+   }
 }
