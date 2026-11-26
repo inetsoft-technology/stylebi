@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
 import org.w3c.dom.Element;
 
@@ -108,6 +109,13 @@ public class CalculateRef extends ColumnRef {
    @Override
    protected void writeAttributes(PrintWriter writer) {
       super.writeAttributes(writer);
+
+      // ColumnRef omits dataType="string". For a calc field the outer type is
+      // the user's declared type (the inner ExpressionRef is always typed), so
+      // keep a declared String; an undeclared field still writes nothing.
+      if(super.isDataTypeSet() && XSchema.STRING.equals(getDataType())) {
+         writer.print(" dataType=\"" + XSchema.STRING + "\"");
+      }
 
       if(!baseOnDetail) {
          writer.print(" baseOnDetail=\"" + baseOnDetail + "\"");
