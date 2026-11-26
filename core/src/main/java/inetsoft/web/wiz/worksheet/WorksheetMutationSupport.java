@@ -5176,6 +5176,17 @@ public final class WorksheetMutationSupport {
     */
    public record ModelAttributeSpec(String entity, String attribute, String ref) {}
 
+   /**
+    * A dimension level of an XMLA cube for {@code add_cube_table}, named as
+    * {@code get_cube_details} reports it.
+    *
+    * @param dimension the dimension name.
+    * @param hierarchy the hierarchy holding the level; needed only when the level name occurs in
+    *                  several hierarchies of the dimension.
+    * @param level     the level name.
+    */
+   public record CubeLevelSpec(String dimension, String hierarchy, String level) {}
+
    // =========================================================================
    // Internal helpers
    // =========================================================================

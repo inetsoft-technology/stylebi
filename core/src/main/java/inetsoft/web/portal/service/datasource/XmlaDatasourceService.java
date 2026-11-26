@@ -479,6 +479,53 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       return CubeRefreshResult.ok(url, count);
    }
 
+   /**
+    * Edits the stored cube metadata of an XMLA data source in place: the patch is applied to a
+    * copy of the stored domain, which then replaces it, and the saved domain is read back. Nothing
+    * is rebuilt from a Portal model, so what the model does not carry (drill and format info
+    * included) stays; the same keys as {@link #mergeDomainMetadata} are what a later refresh
+    * matches the edits by. The patch throws to abandon the edit before anything is saved.
+    *
+    * @param path  the full path of an existing XMLA data source with stored cube metadata.
+    * @param patch changes the copy of the stored domain.
+    *
+    * @return the domain as read back after saving.
+    *
+    * @throws FileNotFoundException if there is no XMLA data source or no stored domain at the path.
+    */
+   public XDomain updateStoredDomain(String path, java.util.function.Consumer<Domain> patch)
+      throws Exception
+   {
+      XDataSource stored = getRepository().getDataSource(path);
+
+      if(!(stored instanceof XMLADataSource)) {
+         throw new FileNotFoundException("Data source not found: " + path);
+      }
+
+      String name = stored.getFullName();
+      XDomain odomain = getRepository().getDomain(name);
+
+      if(!(odomain instanceof Domain)) {
+         throw new FileNotFoundException("No cube metadata is stored for: " + path);
+      }
+
+      Domain domain = (Domain) ((Domain) odomain).clone();
+      patch.accept(domain);
+      domain.setDataSource(name);
+      getRepository().updateDomain(domain, true);
+      XDomain saved = getRepository().getDomain(name);
+
+      try {
+         dependencyHandler.updateCubeDomainDependencies(odomain, false);
+         dependencyHandler.updateCubeDomainDependencies(domain, true);
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to update the cube dependencies of {}: {}", path, ex.getMessage());
+      }
+
+      return saved;
+   }
+
    private static Set<String> cubeNames(Enumeration<?> cubes) {
       Set<String> names = new TreeSet<>();
 
@@ -503,7 +550,7 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
     * {@code originalOrder} and each level's and measure's meta info, matched by the same keys the
     * Portal's metadata editor uses.
     */
-   static void mergeDomainMetadata(Domain fresh, XDomain old) {
+   public static void mergeDomainMetadata(Domain fresh, XDomain old) {
       Set<String> keepOrder = new HashSet<>();
       Map<String, XMetaInfo> metas = new HashMap<>();
 

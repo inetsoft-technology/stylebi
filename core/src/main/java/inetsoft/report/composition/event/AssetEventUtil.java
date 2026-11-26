@@ -258,7 +258,7 @@ public class AssetEventUtil {
    /**
     * Convert an XCube to a tree model node.
     */
-   private static Node getCubeNode(XCube cube, String datasource,
+   public static Node getCubeNode(XCube cube, String datasource,
       boolean showMeasures, boolean showDimensions, Viewsheet vs,
       AssetSelector filter)
    {
