@@ -57,9 +57,18 @@ public class ScheduleChangeRequest {
    public String getPath() { return path; }
    public void setPath(String v) { this.path = v; }
 
+   /**
+    * The task-level time zone a {@code create} stores on the new task (the portal Options tab's
+    * Time Zone), the zone its start and end dates are read in. {@code null} or blank means none.
+    * Not used for the other verbs; an update sends it in {@link ScheduleTaskPatch#getTimeZone()}.
+    */
+   public String getTimeZone() { return timeZone; }
+   public void setTimeZone(String v) { this.timeZone = v; }
+
    private String verb;
    private String taskId;
    private CreateScheduleTaskRequest spec;
    private ScheduleTaskPatch patch;
    private String path;
+   private String timeZone;
 }

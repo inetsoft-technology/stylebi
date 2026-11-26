@@ -143,7 +143,7 @@ public class ScheduleChangesetApplyService {
             try {
                if(ScheduleChangeRequest.VERB_CREATE.equals(original.getVerb())) {
                   applyCreate(txId, reviewedTask, taskId, original.getSpec(), original.getPath(),
-                             backupRef, req.getReviewOutcome(), user, linkURI, results, undoable,
+                             original.getTimeZone(), backupRef, req.getReviewOutcome(), user, linkURI, results, undoable,
                              mutationEntered);
                }
                else if(ScheduleChangeRequest.VERB_UPDATE.equals(original.getVerb())) {
@@ -214,7 +214,8 @@ public class ScheduleChangesetApplyService {
    }
 
    private void applyCreate(String txId, String task, String taskId,
-                            CreateScheduleTaskRequest spec, String path, String backupRef,
+                            CreateScheduleTaskRequest spec, String path, String timeZone,
+                            String backupRef,
                             String reviewOutcome, Principal user, String linkURI,
                             List<ApplyOutcome> results, List<Undo> undoable,
                             AtomicBoolean mutationEntered)
@@ -237,18 +238,10 @@ public class ScheduleChangesetApplyService {
       AssetEntry folder = scheduleGateway.resolveCreateFolder(path, user);
       mutationEntered.set(true);
 
-      if(folder == null) {
-         scheduleGateway.addScheduleTask(meta, spec.isEnabled(), spec.isDeleteIfNotScheduledToRun(),
-            spec.getStartDate(), spec.getEndDate(), spec.getDescription(), spec.getLocale(),
-            spec.getExecuteAsID(), spec.getConditions(), spec.getActions(),
-            spec.getOwner().getOrgID(), link, user);
-      }
-      else {
-         scheduleGateway.addScheduleTask(meta, spec.isEnabled(), spec.isDeleteIfNotScheduledToRun(),
-            spec.getStartDate(), spec.getEndDate(), spec.getDescription(), spec.getLocale(),
-            spec.getExecuteAsID(), spec.getConditions(), spec.getActions(),
-            spec.getOwner().getOrgID(), link, folder, user);
-      }
+      scheduleGateway.addScheduleTask(meta, spec.isEnabled(), spec.isDeleteIfNotScheduledToRun(),
+         spec.getStartDate(), spec.getEndDate(), spec.getDescription(), spec.getLocale(),
+         spec.getExecuteAsID(), spec.getConditions(), spec.getActions(),
+         spec.getOwner().getOrgID(), link, folder, timeZone, user);
 
       String after = ScheduleXmlProjection.project(scheduleManager.getScheduleTask(taskId));
       boolean verified = after != null;

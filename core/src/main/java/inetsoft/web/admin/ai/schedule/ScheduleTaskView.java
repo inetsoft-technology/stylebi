@@ -40,6 +40,13 @@ public class ScheduleTaskView {
    public ScheduleTaskView(String taskId, String path, ScheduleTask task,
                            List<Object> conditions, List<Object> actions)
    {
+      this(taskId, path, null, task, conditions, actions);
+   }
+
+   public ScheduleTaskView(String taskId, String path, String timeZone, ScheduleTask task,
+                           List<Object> conditions, List<Object> actions)
+   {
+      this.timeZone = timeZone;
       this.taskId = taskId;
       this.path = path;
       this.task = task;
@@ -56,6 +63,14 @@ public class ScheduleTaskView {
       return path;
    }
 
+   /**
+    * The task-level time zone id (the portal Options tab's Time Zone), {@code null} when the task
+    * has none. Not on the public {@link ScheduleTask} DTO, which is also the public REST body.
+    */
+   public String getTimeZone() {
+      return timeZone;
+   }
+
    public ScheduleTask getTask() {
       return task;
    }
@@ -70,6 +85,7 @@ public class ScheduleTaskView {
 
    private final String taskId;
    private final String path;
+   private final String timeZone;
    private final ScheduleTask task;
    private final List<Object> conditions;
    private final List<Object> actions;

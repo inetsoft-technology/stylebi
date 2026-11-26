@@ -174,6 +174,8 @@ public class ScheduleChangePlanService {
          throw new IllegalArgumentException(label + ".spec.owner: " + e.getMessage());
       }
 
+      // the same rule a time condition's own zone is held to
+      ScheduleConditionConverter.requireKnownTimeZone(label, change.getTimeZone());
       requireSupportedConditions(label + ".spec", spec.getConditions());
       requireNoPermissionResets(label, spec.getConditions(), user);
       requireSupportedActions(label + ".spec", spec.getActions());
@@ -243,6 +245,10 @@ public class ScheduleChangePlanService {
          proposed += ";path=" + AdminScheduleFolderGateway.normalizePath(change.getPath());
       }
 
+      if(change.getTimeZone() != null && !change.getTimeZone().isBlank()) {
+         proposed += ";timeZone=" + change.getTimeZone().strip();
+      }
+
       return new PlanChange(taskId, spec.getOwner().getOrgID(), null, proposed,
                             AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true,
                             "create schedule task");
@@ -288,16 +294,24 @@ public class ScheduleChangePlanService {
             "area's moveTask");
       }
 
+      if(change.getTimeZone() != null) {
+         throw new IllegalArgumentException(
+            label + ".timeZone: not used for verb=update; send it as patch.timeZone");
+      }
+
       ScheduleTaskPatch patch = change.getPatch();
 
       if(patch == null || patch.getDescription() == null && patch.getLocale() == null &&
          patch.getEnabled() == null && patch.getDeleteIfNotScheduledToRun() == null &&
          patch.getStartDate() == null && patch.getEndDate() == null &&
-         patch.getConditions() == null && patch.getActions() == null)
+         patch.getConditions() == null && patch.getActions() == null &&
+         patch.getTimeZone() == null)
       {
          throw new IllegalArgumentException(
             label + ".patch: at least one field to change is required for verb=update");
       }
+
+      ScheduleConditionConverter.requireKnownTimeZone(label + ".patch", patch.getTimeZone());
 
       requireUnseen(label, taskId, seenTaskIds);
       inetsoft.sree.schedule.ScheduleTask existing = scheduleManager.getScheduleTask(taskId);
@@ -371,6 +385,11 @@ public class ScheduleChangePlanService {
       if(change.getSpec() != null) {
          throw new IllegalArgumentException(
             label + ".spec: not used for verb=delete; remove it or use verb=create");
+      }
+
+      if(change.getTimeZone() != null) {
+         throw new IllegalArgumentException(
+            label + ".timeZone: not used for verb=delete; remove it or use verb=create");
       }
 
       requireUnseen(label, taskId, seenTaskIds);
