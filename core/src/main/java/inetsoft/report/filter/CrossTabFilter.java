@@ -3412,7 +3412,7 @@ public class CrossTabFilter extends AbstractTableLens
             if(totalMapObj instanceof PercentageFormula) {
                PercentageFormula totalMapF = (PercentageFormula) totalMapObj;
 
-               mapF.setTotal(totalMapF.getOriginalResult());
+               mapF.setTotal(totalMapF.getPercentageTotal());
             }
             else if(totalMapObj instanceof Formula) {
                Formula totalMapF = (Formula) totalMapObj;
