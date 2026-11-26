@@ -139,8 +139,13 @@ public class DatagovRuntime extends TabularRuntime implements TabularCatalogProv
       case 404:
          return prefix + "not found (HTTP 404), the dataset or path does not exist";
       case 410:
-         return prefix + "gone (HTTP 410), Socrata has retired this endpoint; use the dataset's " +
-            "/resource/<id>.json path";
+         // only the retired rows.json export has a supported replacement to point at; a 410 from
+         // /resource/ or any other endpoint must not be answered with a suggestion to use itself
+         return url != null && url.contains("/rows.json")
+            ? prefix + "gone (HTTP 410), Socrata has retired the rows.json endpoint; use the " +
+               "dataset's /resource/<id>.json path"
+            : prefix + "gone (HTTP 410), the site answered that this endpoint is gone and has " +
+               "retired it";
       case 401:
       case 403:
          return prefix + "access denied (HTTP " + status + "), check the data source credentials";

@@ -478,6 +478,24 @@ class DatagovSodaTest {
          assertTrue(message.contains("410") && message.contains("gone"), message);
          assertFalse(message.contains("404"), message);
          assertFalse(message.contains("does not exist"), message);
+         assertFalse(message.contains("/resource/<id>.json"),
+            "a 410 from /resource/ must not suggest /resource/: " + message);
+      }
+   }
+
+   @Test
+   void aGoneRowsJsonSuggestsTheResourceEndpointAndOtherGoneEndpointsDoNot() {
+      String retired = DatagovRuntime.describeFailure("u", new DatagovHttpException(410,
+         "https://h/api/views/erm2-nwe9/rows.json?max_rows=3", ""));
+      assertTrue(retired.contains("rows.json") && retired.contains("/resource/<id>.json"), retired);
+
+      for(String url : List.of("https://h/resource/erm2-nwe9.json?$limit=3",
+                               "https://h/api/views/erm2-nwe9.json", "https://h/other"))
+      {
+         String message = DatagovRuntime.describeFailure("u",
+            new DatagovHttpException(410, url, ""));
+         assertTrue(message.contains("gone (HTTP 410)") && message.contains(url), message);
+         assertFalse(message.contains("/resource/<id>.json"), message);
       }
    }
 
