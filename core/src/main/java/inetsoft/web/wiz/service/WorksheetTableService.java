@@ -524,13 +524,30 @@ public class WorksheetTableService {
     * <p>Deliberately identical to {@code WorksheetPreviewService.toJsonSafe}: both hand worksheet
     * cell values to the same caller, and two rules for the same value would mean a date that is a
     * string in one answer and an object in the other. Numbers, strings and booleans pass through as
-    * themselves; a date or {@code Temporal} becomes its {@code toString()} rather than a Jackson
+    * themselves, except a Long, BigInteger or BigDecimal that a double cannot hold exactly, which
+    * becomes its decimal String so a JSON reader cannot round it (Bug #82291); a date or {@code Temporal} becomes its {@code toString()} rather than a Jackson
     * object graph or an epoch number nothing labels; {@code byte[]} becomes a marker because a
     * base64 blob is never what a sample is read for.</p>
     */
    private static Object toSampleCell(Object value) {
       if(value == null) {
          return null;
+      }
+
+      if(value instanceof Long || value instanceof java.math.BigInteger) {
+         java.math.BigInteger big = value instanceof Long ?
+            java.math.BigInteger.valueOf((Long) value) : (java.math.BigInteger) value;
+         return big.abs().compareTo(java.math.BigInteger.ONE.shiftLeft(53)) > 0 ?
+            big.toString() : value;
+      }
+
+      if(value instanceof java.math.BigDecimal) {
+         java.math.BigDecimal dec = (java.math.BigDecimal) value;
+         double d = dec.doubleValue();
+         // BigDecimal.valueOf uses the shortest text of the double, which is what a JSON reader
+         // prints back, so 12.34 stays a number and only digits a double drops become text
+         return Double.isInfinite(d) || java.math.BigDecimal.valueOf(d).compareTo(dec) != 0 ?
+            dec.toPlainString() : value;
       }
 
       if(value instanceof String || value instanceof Number || value instanceof Boolean) {
