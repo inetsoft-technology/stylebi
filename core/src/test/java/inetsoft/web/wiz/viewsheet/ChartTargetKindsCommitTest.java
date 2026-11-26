@@ -176,6 +176,133 @@ class ChartTargetKindsCommitTest {
          ""))).getStrategy());
    }
 
+   /**
+    * Bug #82310. The edit's whole premise is that {@code updateAllTargets} rewrites an existing
+    * descriptor slot in place when the changed entry carries its list position: this runs the
+    * real read ({@code getTargetInfo}) and the real commit around {@link ChartTargetLineService#edit}.
+    */
+   @Test
+   void editRewritesTheTargetInItsOwnSlotAndLeavesTheOthersAlone() throws Exception {
+      ChartDescriptor descriptor = new ChartDescriptor();
+      service().updateAllTargets(descriptor, new TargetInfo[] {
+         build(h -> h.service.add("tok", user(), "Chart1", null, "3000000", "Goal {0}", null,
+                                  "#cc0000", null, null, "")),
+         build(h -> h.service.addBand("tok", user(), "Chart1", null, "500000", "1000000", "Low {0}",
+                                      "High {0}", "#cce5ff", null, null, null, null, null, "")),
+         build(h -> h.service.addStatistics("tok", user(), "Chart1", null, "percentiles", "50",
+                                            null, null, "Median {0}", null, null, null, null, null,
+                                            "")) });
+      assertEquals(3, descriptor.getTargetCount());
+      GraphTarget bandBefore = descriptor.getTarget(1);
+      GraphTarget statBefore = descriptor.getTarget(2);
+      String bandFrom = valueOf(bandBefore, 0);
+      String statLabel = statBefore.getLabelFormats()[0].getDValue();
+
+      // goal line 3,000,000 -> 2,000,000
+      TargetInfo[] afterLine = edit(descriptor, 0, new ChartTargetLineService.EditFields(
+         null, null, null, null, null, null, "2000000", null, null, null, null, null, null, null,
+         null, null, null, null));
+
+      assertEquals(3, descriptor.getTargetCount(), "an edit neither appends nor removes");
+      assertEquals(3, afterLine.length);
+      GraphTarget line = descriptor.getTarget(0);
+      assertEquals("2000000", valueOf(line, 0), "the line moved");
+      assertEquals("Goal {0}", line.getLabelFormats()[0].getDValue(), "label kept");
+      assertEquals(new java.awt.Color(0xcc, 0x00, 0x00), line.getLineColor(), "colour kept");
+      assertSame(bandBefore, descriptor.getTarget(1), "the band slot was not touched");
+      assertSame(statBefore, descriptor.getTarget(2), "the statistics slot was not touched");
+
+      // band 500000-1000000 -> 500000-1500000, in the band's own slot
+      edit(descriptor, 1, new ChartTargetLineService.EditFields(
+         null, null, null, null, null, null, null, null, null, null, "1500000", null, null, null,
+         null, null, null, null));
+
+      assertEquals(3, descriptor.getTargetCount());
+      GraphTarget band = descriptor.getTarget(1);
+      assertEquals(bandFrom, valueOf(band, 0), "the other boundary is kept");
+      assertEquals("1500000", valueOf(band, 1));
+      assertEquals("Low {0}", band.getLabelFormats()[0].getDValue());
+      assertEquals("High {0}", band.getLabelFormats()[1].getDValue());
+      assertEquals(new java.awt.Color(0xcc, 0xe5, 0xff), band.getBandFill().getColor(0),
+                   "the band fill is kept");
+      assertSame(statBefore, descriptor.getTarget(2));
+
+      // percentile 50 -> 25,75, label kept
+      edit(descriptor, 2, new ChartTargetLineService.EditFields(
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         "25,75", null, null));
+
+      assertEquals(3, descriptor.getTargetCount());
+      GraphTarget stat = descriptor.getTarget(2);
+      assertInstanceOf(PercentileWrapper.class, stat.getStrategy());
+      assertEquals("25,75", ((PercentileWrapper) stat.getStrategy()).getPercentiles());
+      assertEquals(statLabel, stat.getLabelFormats()[0].getDValue(), "statistics label kept");
+      assertEquals("Sum(Total)", stat.getField(), "the measure binding survives the round trip");
+   }
+
+   private static String valueOf(GraphTarget target, int parameter) {
+      return ((DynamicLineWrapper) target.getStrategy()).getParameters()[parameter]
+         .getConstantValue().getDValue();
+   }
+
+   /**
+    * Reads {@code descriptor} the way the Composer's dialog does, runs one edit through the
+    * service, and commits what it wrote the way the dialog's OK does.
+    */
+   private static TargetInfo[] edit(ChartDescriptor descriptor, int index,
+                                    ChartTargetLineService.EditFields fields)
+      throws Exception
+   {
+      TargetInfo[] read = new TargetInfo[descriptor.getTargetCount()];
+
+      for(int i = 0; i < read.length; i++) {
+         read[i] = service().getTargetInfo(chartInfo(), descriptor.getTarget(i), false);
+         // the real read fills the band fill from VisualFrameModelFactoryService, mocked here
+         read[i].setBandFill(new CategoricalColorModel(descriptor.getTarget(i).getBandFill()));
+      }
+
+      ChartTargetLinesPaneModel pane = new ChartTargetLinesPaneModel();
+      pane.setSupportsTarget(true);
+      pane.setChartTargets(read);
+      pane.setNewTargetInfo(template());
+      pane.setAvailableFields(new MeasureInfo[] {
+         new MeasureInfo("", "", false), new MeasureInfo("Sum(Total)", "Sum(Total)", false) });
+
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiStyles()).thenReturn(false);
+      when(info.getChartType()).thenReturn(GraphTypes.CHART_BAR);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      when(chart.getChartDescriptor()).thenReturn(descriptor);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(chart);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getID()).thenReturn("rt1");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      ChartPropertyDialogService chartService = mock(ChartPropertyDialogService.class);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      ChartAdvancedPaneModel advanced = new ChartAdvancedPaneModel();
+      advanced.setChartTargetLinesPaneModel(pane);
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      model.setChartAdvancedPaneModel(advanced);
+      when(chartService.getChartPropertyDialogModel(anyString(), anyString(),
+                                                    any(Principal.class))).thenReturn(model);
+
+      new ChartTargetLineService(sessions, chartService)
+         .edit("tok", user(), "Chart1", index, fields, "");
+
+      TargetInfo[] written = pane.getChartTargets();
+      assertEquals(0, pane.getDeletedIndexList().length);
+      service().updateAllTargets(descriptor, written);
+      return written;
+   }
+
    /** Runs one add against a mocked session and returns the target it appended. */
    private static TargetInfo build(AddCall call) throws Exception {
       ChartTargetLinesPaneModel pane = new ChartTargetLinesPaneModel();

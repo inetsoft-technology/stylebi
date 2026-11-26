@@ -2003,7 +2003,7 @@ public class AssemblyPropertyService {
     *
     * <p>Nothing in this class writes a target -- {@code chartTargets} is a {@code TargetInfo[]}
     * that {@code PropertyPath} cannot build, and {@code PropertyAliases} refuses the whole pane
-    * (use {@code add_chart_target_line}). But every chart patch, however unrelated -- a title, a
+    * (use {@code add_chart_target_line} / {@code edit_chart_target}). But every chart patch, however unrelated -- a title, a
     * tooltip, {@code showValues} -- reads the whole dialog model and writes it back, and
     * {@code ChartPropertyService.updateAllTargets} re-derives every target whose {@code changed}
     * flag is set. {@code getTargetInfo} never clears it and its default is {@code true}, so

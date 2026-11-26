@@ -122,14 +122,14 @@ class DynamicValueTargetsTest {
                   "the binding editor field, fieldConfigs key 'sort.sortByField' of shelf 'x' " +
                   "position 2");
       assertWhere("chartTarget:line.value", "chart",
-                  "line target, add_chart_target_line parameter 'value' (no edit tool for an " +
-                  "existing target)");
+                  "line target, add_chart_target_line parameter 'value' (edit_chart_target for " +
+                  "an existing target)");
       assertWhere("chartTarget:band.fromLabel", "chart",
-                  "band target, add_chart_target parameter 'fromLabel' (no edit tool for an " +
-                  "existing target)");
-      assertWhere("chartTarget:statistics.percentageOf", "chart",
-                  "statistics target, add_chart_target parameter 'percentageOf' (no edit tool " +
+                  "band target, add_chart_target parameter 'fromLabel' (edit_chart_target " +
                   "for an existing target)");
+      assertWhere("chartTarget:statistics.percentageOf", "chart",
+                  "statistics target, add_chart_target parameter 'percentageOf' " +
+                  "(edit_chart_target for an existing target)");
       assertWhere("chartRegion:title/y2/title", "chart",
                   "set_chart_region_properties, region title, target y2, properties.title");
       assertWhere("chartRegion:legend/1/title", "chart",

@@ -3055,6 +3055,18 @@ public class ViewsheetAssemblyAgentController {
    public record TargetLineDeleteRequest(String assembly, List<Integer> indexes) {}
 
    /**
+    * One request for every kind: the service reads the kind off the existing target and refuses
+    * a field that belongs to another one. Null means "keep the current value".
+    */
+   public record EditTargetRequest(String assembly, Integer index, String measure,
+                                   String lineStyle, String lineColor, String fillAboveColor,
+                                   String fillBelowColor, Boolean entireChart, String value,
+                                   String formula, String label, String from, String to,
+                                   String fromLabel, String toLabel, String fillColor,
+                                   String statistic, String statisticValue, Boolean sample,
+                                   String percentageOf) {}
+
+   /**
     * {@code list_chart_target_lines}. The chart's target (goal) lines, with the index each one is
     * removed by, and what this chart will accept.
     */
@@ -3149,8 +3161,7 @@ public class ViewsheetAssemblyAgentController {
 
    /**
     * {@code remove_chart_target_line}. Removes targets by the indexes
-    * {@code list_chart_target_lines} reports -- including band and statistics targets, which that
-    * listing reports as read-only but still addressable.
+    * {@code list_chart_target_lines} reports -- band and statistics targets as well as lines.
     */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/delete")
    public Map<String, Object> removeChartTargetLine(
@@ -3162,6 +3173,30 @@ public class ViewsheetAssemblyAgentController {
       requireEnabled();
       return chartTargetLineService.remove(sessionToken, user, request.assembly(),
                                            request.indexes(), linkUri);
+   }
+
+   /**
+    * {@code edit_chart_target}. Changes an existing target in place, by the index
+    * {@code list_chart_target_lines} reports -- the Targets tab's Edit button. The target keeps
+    * its position and kind; only the fields in the request change.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/edit")
+   public Map<String, Object> editChartTarget(
+      @PathVariable String sessionToken,
+      @RequestBody EditTargetRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      return chartTargetLineService.edit(
+         sessionToken, user, request.assembly(), request.index(),
+         new ChartTargetLineService.EditFields(
+            request.measure(), request.lineStyle(), request.lineColor(),
+            request.fillAboveColor(), request.fillBelowColor(), request.entireChart(),
+            request.value(), request.formula(), request.label(), request.from(), request.to(),
+            request.fromLabel(), request.toLabel(), request.fillColor(), request.statistic(),
+            request.statisticValue(), request.sample(), request.percentageOf()),
+         linkUri);
    }
 
    /**
