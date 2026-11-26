@@ -27,18 +27,6 @@ vi.mock("css-element-queries", () => ({
    },
 }));
 
-// IntersectionObserver is used in ngAfterViewInit to watch the viewerRoot element.
-vi.stubGlobal("IntersectionObserver", class {
-   observe = vi.fn();
-   unobserve = vi.fn();
-   disconnect = vi.fn();
-   constructor(_cb: any, _opts?: any) {}
-});
-
-// globalPostParams is injected by the server into index.html before Angular loads.
-// In tests this global doesn't exist, causing a ReferenceError in openViewsheet0().
-vi.stubGlobal("globalPostParams", null);
-
 import { Component, Directive, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
 import { provideHttpClient } from "@angular/common/http";
 import { render } from "@testing-library/angular";

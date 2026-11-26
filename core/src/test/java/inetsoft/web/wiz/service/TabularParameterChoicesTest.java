@@ -250,6 +250,45 @@ class TabularParameterChoicesTest {
    }
 
    @Test
+   void endpointFormRefusesAnUnparsableDateNamingTheFormat() {
+      FakeChoiceEndpointQuery query = new FakeChoiceEndpointQuery();
+
+      for(String bad : new String[] { "01.01.2020", "13/01/2020", "garbage" }) {
+         String m = refusal(() -> endpointForm(query, params("Since", bad))).getMessage();
+
+         assertTrue(m.contains("Since = '" + bad + "' (must be a date in the format: YYYY-MM-DD)"),
+                    m);
+         assertTrue(m.contains("Since [format: YYYY-MM-DD]"), m);
+      }
+
+      String alt = refusal(() -> endpointForm(query, params("Start Date", "garbage"))).getMessage();
+      assertTrue(alt.contains("Start Date = 'garbage' (must be a date in the format: " +
+                              "yyyy-MM-dd | yyyy-MM-ddTHH:mm:ssZ)"), alt);
+   }
+
+   @Test
+   void endpointFormNormalizesAYearFirstDateAndForwardsAValidOneUnchanged() throws Exception {
+      FakeChoiceEndpointQuery query = new FakeChoiceEndpointQuery();
+
+      String suffix = endpointForm(query, params("Since", "2020/01/01"));
+      assertEquals("2020-01-01", query.getParameters().findParameter("Since").getValue());
+      assertTrue(suffix.contains("2020-01-01"), suffix);
+
+      endpointForm(query, params("Since", "2026-01-31"));
+      assertEquals("2026-01-31", query.getParameters().findParameter("Since").getValue());
+   }
+
+   @Test
+   void queryFormRefusesAnUnparsableDate() {
+      FakeChoiceEndpointQuery query = new FakeChoiceEndpointQuery();
+
+      String m = refusal(() -> queryForm(query, "Report", params("Since", "01.01.2020")))
+         .getMessage();
+
+      assertTrue(m.contains("Since = '01.01.2020' (must be a date in the format: YYYY-MM-DD)"), m);
+   }
+
+   @Test
    void choicesAreEnforcedOnlyForACatalogueEndpoint() {
       FakeChoiceEndpointQuery query = new FakeChoiceEndpointQuery();
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());

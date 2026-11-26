@@ -677,6 +677,15 @@ final class WizLogicalModelValidator {
          String table = attribute.table();
          String column = attribute.column();
          XPartition aliased = partition.applyAutoAliases();
+         List<String> replacements = partition.getAutoAliasReplacements(aliased, table);
+
+         if(!replacements.isEmpty()) {
+            add(path + ".table", "table \"" + table + "\" is no longer in view \"" +
+               partition.getName() + "\": an Auto Alias replaced it with \"" +
+               String.join("\", \"", replacements) + "\". Bind the attribute to one of those " +
+               "tables or remove the Auto Alias", TABLE_NOT_IN_VIEW);
+            return null;
+         }
 
          if(!aliased.containsTable(table)) {
             add(path + ".table", "table \"" + table + "\" is not in view \"" + partition.getName() +

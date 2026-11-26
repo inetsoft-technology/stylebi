@@ -89,6 +89,109 @@ class RestParameterChoicesTest {
    }
 
    @Test
+   void dateFormatsClassifyOnlyYearFirstIsoLayouts() {
+      // every spelling the catalogues use for a year-first ISO date or date-time
+      for(String p : new String[] {
+         "YYYY-MM-DD", "yyyy-MM-dd", "yyyy-mm-dd", "YYYY-mm-dd", "YYYY-MM-DDTHH:MM:SSZ",
+         "yyyy-MM-ddTHH:mm:ss", "yyyy-MM-ddTHH:mm:ssZ", "yyyy-mm-ddThh:mm:ss",
+         "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd’T’HH:mm:ss", "YYYY-MM-DD HH:MM",
+         "yyyy-MM-dd HH:mm:ss", "YYYY-MM-DDTHH:MM:SS", "yyyy-MM-ddTHH:mm:ss.SSSZ",
+         " yyyy-MM-ddTHH:mm:ssZ", "YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ"
+      })
+      {
+         assertFalse(RestParameterChoices.dateFormats(p).isEmpty(), "placeholder: " + p);
+      }
+
+      // day-first, year only, a non-date alternative, a plain hint and no placeholder stay hints
+      for(String p : new String[] {
+         "dd-mm-YYYY", "yyyy", "yyyy-MM-dd|milliseconds", "MM/dd/yyyy", "HH:MM", "Cash|Accrual",
+         "", null
+      })
+      {
+         assertTrue(RestParameterChoices.dateFormats(p).isEmpty(), "placeholder: " + p);
+         assertEquals("anything", RestParameterChoices.resolveDate(p, "anything"));
+      }
+   }
+
+   @Test
+   void resolveDateRefusesWhatTheVendorCannotParse() {
+      String dateOnly = "YYYY-MM-DD";
+
+      assertEquals("2020-01-01", RestParameterChoices.resolveDate(dateOnly, "2020-01-01"));
+      assertEquals("2020-02-29", RestParameterChoices.resolveDate(dateOnly, "2020-02-29"));
+
+      for(String bad : new String[] {
+         "garbage", "01.01.2020", "13/01/2020", "Jan 1 2020", "1 Jan 2020", "2020-13-01",
+         "2021-02-29", "2020-1-1", "Today", "-30days", "1577836800", "2020-01-01T00:00:00Z"
+      })
+      {
+         assertNull(RestParameterChoices.resolveDate(dateOnly, bad), "value: " + bad);
+      }
+   }
+
+   @Test
+   void resolveDateNormalizesOnlyYearFirstShapes() {
+      assertEquals("2020-01-01", RestParameterChoices.resolveDate("YYYY-MM-DD", "2020/01/01"));
+      assertEquals("2020-01-01", RestParameterChoices.resolveDate("YYYY-MM-DD", "2020.01.01"));
+      assertEquals("2020-01-01", RestParameterChoices.resolveDate("YYYY-MM-DD", "20200101"));
+      assertEquals("2020-01-01", RestParameterChoices.resolveDate("YYYY-MM-DD", " 2020-01-01 "));
+      assertNull(RestParameterChoices.resolveDate("YYYY-MM-DD", "2020/13/01"));
+      // the compact form is taken for a date-only placeholder, never for one with a time
+      assertNull(RestParameterChoices.resolveDate("YYYY-MM-DDTHH:MM:SSZ", "20200101"));
+   }
+
+   @Test
+   void resolveDateForADateTimePlaceholder() {
+      String p = "YYYY-MM-DDTHH:MM:SSZ";
+
+      assertEquals("2020-01-01", RestParameterChoices.resolveDate(p, "2020-01-01"));
+      assertEquals("2020-01-01T10:20:30Z",
+                   RestParameterChoices.resolveDate(p, "2020-01-01T10:20:30Z"));
+      assertEquals("2020-01-01T10:20:30.123+08:00",
+                   RestParameterChoices.resolveDate(p, "2020-01-01T10:20:30.123+08:00"));
+      assertEquals("2020-01-01 10:20", RestParameterChoices.resolveDate(p, "2020-01-01 10:20"));
+      // a Unix epoch is a value the vendor accepts for a time
+      assertEquals("1577836800", RestParameterChoices.resolveDate(p, "1577836800"));
+      assertEquals("1577836800123", RestParameterChoices.resolveDate(p, "1577836800123"));
+      assertNull(RestParameterChoices.resolveDate(p, "2020-01-01T25:00:00Z"));
+      assertNull(RestParameterChoices.resolveDate(p, "yesterday"));
+      assertNull(RestParameterChoices.resolveDate(p, "01.01.2020"));
+   }
+
+   @Test
+   void resolveDateForAlternativeFormats() {
+      String p = "YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ";
+
+      assertEquals("2020-01-01", RestParameterChoices.resolveDate(p, "2020-01-01"));
+      assertEquals("2020-01-01T00:00:00Z",
+                   RestParameterChoices.resolveDate(p, "2020-01-01T00:00:00Z"));
+      assertNull(RestParameterChoices.resolveDate(p, "garbage"));
+   }
+
+   @Test
+   void resolveValueKeepsBlankVariableAndClosedListBehaviour() {
+      assertNull(RestParameterChoices.resolveValue("YYYY-MM-DD", "garbage"));
+      assertEquals("$(day)", RestParameterChoices.resolveValue("YYYY-MM-DD", "$(day)"));
+      assertEquals(" ", RestParameterChoices.resolveValue("YYYY-MM-DD", " "));
+      assertEquals("Cash", RestParameterChoices.resolveValue("Cash|Accrual", "cash"));
+      assertNull(RestParameterChoices.resolveValue("Cash|Accrual", "sideways"));
+      assertEquals("whatever", RestParameterChoices.resolveValue("dd-mm-YYYY", "whatever"));
+   }
+
+   @Test
+   void invalidValueTextNamesTheDeclaredDateFormat() {
+      assertEquals(
+         "Date Sent = '01.01.2020' (must be a date in the format: YYYY-MM-DD)",
+         TabularQueryContractSupport.invalidValueText("Date Sent", "01.01.2020", "YYYY-MM-DD"));
+      assertEquals(
+         "Since = 'x' (must be a date in the format: YYYY-MM-DD | YYYY-MM-DDThh:mm:ssZ)",
+         TabularQueryContractSupport.invalidValueText(
+            "Since", "x", "YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ"));
+      assertEquals("Method = 'x' (must be one of: Cash | Accrual)",
+                   TabularQueryContractSupport.invalidValueText("Method", "x", "Cash|Accrual"));
+   }
+
+   @Test
    void caseCollidingChoicesNeedAnExactMatch() {
       assertEquals("a", RestParameterChoices.resolve("a|A", "a"));
       assertEquals("A", RestParameterChoices.resolve("a|A", "A"));

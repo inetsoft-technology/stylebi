@@ -358,7 +358,7 @@ public class AdminScheduleGateway {
       if(patch.getActions() != null) {
          for(ScheduleAction action : patch.getActions()) {
             checkActionOrgBoundary(action, user);
-            checkBackupAssetsPermitted(action, user);
+            checkBackupAssetsPermitted(action, candidate.getOwner(), user);
          }
 
          for(int i = candidate.getActionCount() - 1; i >= 0; i--) {
@@ -423,6 +423,8 @@ public class AdminScheduleGateway {
                   keepPassword(vs.getFilePathInfo(format), oldVs.getFilePathInfo(format));
                }
             }
+
+            keepEmailZipPassword(vs, oldVs);
          }
          else if(requested.get(i) instanceof IndividualAssetBackupAction dto &&
                  dto.getPathInfo() != null && !dto.getPathInfo().isUseCredential() &&
@@ -432,6 +434,25 @@ public class AdminScheduleGateway {
          {
             keepPassword(backup.getServerPath(), oldBackup.getServerPath());
          }
+      }
+   }
+
+   /**
+    * The patch model has no field for the password that encrypts the zip attached to an email
+    * delivery, so a rebuilt action would deliver an unencrypted zip. The stored password, its
+    * credential flag and its secret are kept when the rebuilt action still zips the attachment.
+    * The password protects the delivered zip, not the dashboard, so it is kept whichever
+    * dashboard the action points at, as the public schedule API does.
+    */
+   private static void keepEmailZipPassword(inetsoft.sree.schedule.ViewsheetAction built,
+                                            inetsoft.sree.schedule.ViewsheetAction old)
+   {
+      if(built.isCompressFile() &&
+         (!Tool.isEmptyString(old.getPassword()) || !Tool.isEmptyString(old.getSecretId())))
+      {
+         built.setUseCredential(old.isUseCredential());
+         built.setSecretId(old.getSecretId());
+         built.setPassword(old.getPassword());
       }
    }
 
@@ -929,7 +950,7 @@ public class AdminScheduleGateway {
 
       for(ScheduleAction action : actions) {
          checkActionOrgBoundary(action, user);
-         checkBackupAssetsPermitted(action, user);
+         checkBackupAssetsPermitted(action, owner, user);
       }
 
       actions.stream()
@@ -1143,7 +1164,7 @@ public class AdminScheduleGateway {
     * caller must be permitted to export every asset. Mirrors {@code
     * ScheduleApiService#checkBackupAssetsPermitted} for an added task, which has no stored assets.
     */
-   private void checkBackupAssetsPermitted(ScheduleAction action, Principal user)
+   private void checkBackupAssetsPermitted(ScheduleAction action, IdentityID owner, Principal user)
       throws UnauthorizedAccessException
    {
       if(!(action instanceof IndividualAssetBackupAction backupAction) ||
@@ -1163,6 +1184,41 @@ public class AdminScheduleGateway {
                "The backup asset " + identifier + " may not be exported by " +
                (user == null ? null : user.getName()));
          }
+
+         checkBackupAssetOwnerOrganization(asset, identifier, owner);
+      }
+   }
+
+   /**
+    * Bug #82341, a sheet of another organization than the task owner's is refused, the way the
+    * owner's READ check refuses a viewsheet action sheet. The organization is read from the raw
+    * identifier, {@code XAsset.parseIdentifier()} replaces it with the current organization, so a
+    * site admin's task of another organization would otherwise back up the same path of its own
+    * organization. Only in multi-tenant mode, the same organization comparison as the save check
+    * of the viewsheet action ({@link ScheduleManager#isForeignOrganization}).
+    */
+   private void checkBackupAssetOwnerOrganization(XAsset asset, String identifier,
+                                                  IdentityID owner)
+      throws UnauthorizedAccessException
+   {
+      int idx = identifier.indexOf('^');
+
+      if(!(asset instanceof AbstractSheetAsset) || owner == null || idx < 0 ||
+         !SUtil.isMultiTenant())
+      {
+         return;
+      }
+
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier.substring(idx + 1));
+
+      if(entry != null && entry.getOrgID() != null &&
+         !Tool.equals(entry.getOrgID(), owner.orgID, false) &&
+         ScheduleManager.isForeignOrganization(
+            entry.getOrgID(), owner.orgID, SUtil.getScheduleTaskOwnerPrincipal(owner, null, false)))
+      {
+         throw new UnauthorizedAccessException(
+            "The backup asset " + identifier + " may not be exported by the task owner " +
+            owner.convertToKey() + ", it is in another organization");
       }
    }
 
