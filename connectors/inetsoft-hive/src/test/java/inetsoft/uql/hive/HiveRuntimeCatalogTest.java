@@ -129,6 +129,19 @@ class HiveRuntimeCatalogTest {
    }
 
    @Test
+   void testDataSource_dbNameSet_unreachableHost_surfacesDriverError() {
+      HiveDataSource ds = new HiveDataSource();
+      ds.setName("hive1");
+      ds.setHost(UNROUTABLE_HOST);
+      ds.setDbName("sales");
+      HiveRuntime runtime = new HiveRuntime();
+
+      Exception ex = assertThrows(Exception.class, () -> runtime.testDataSource(ds, null));
+
+      assertFalse(String.valueOf(ex.getMessage()).contains("no database configured"));
+   }
+
+   @Test
    void normalizedDbName_mixedCaseConfiguredName_lowercased() throws Exception {
       // normalizedDbName is a private static, pure-string method reached via reflection --
       // setAccessible(true) changes no source and violates no gate (P4 verifier follow-up).
