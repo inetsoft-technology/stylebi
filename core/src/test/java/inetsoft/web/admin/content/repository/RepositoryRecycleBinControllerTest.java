@@ -51,14 +51,19 @@ package inetsoft.web.admin.content.repository;
  *   [WS folder entry]             isWSFolder() true → RecycleUtils.restoreWSFolder() called
  */
 
+import inetsoft.sree.RepletRegistry;
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.*;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.*;
 import inetsoft.web.*;
 import inetsoft.web.admin.content.repository.model.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -140,6 +145,119 @@ class RepositoryRecycleBinControllerTest {
          autoSaveMock.verify(() -> AutoSaveUtils.deleteRecycledAutoSaveFiles(principal));
          verify(recycleBin, never()).removeEntry(any());
       }
+   }
+
+   // [repository folder] registry folder removed and saved before the guarded repository.removeFolder
+   @Test
+   void clearRecycleBin_repositoryFolder_removesRegistryFolderFirst() throws Exception {
+      AssetEntry folder = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER, "Recycle Bin", null);
+      AssetRepository repository = mock(AssetRepository.class);
+      RepletRegistry registry = mock(RepletRegistry.class);
+      RepletRegistryManager manager = mock(RepletRegistryManager.class);
+      grantClear(folder);
+      when(manager.getRegistry()).thenReturn(registry);
+      when(registry.removeFolder("Recycle Bin")).thenReturn(true);
+
+      try(MockedStatic<AssetUtil> assetUtilMock = mockStatic(AssetUtil.class, withSettings().lenient());
+          MockedStatic<AutoSaveUtils> autoSave = mockStatic(AutoSaveUtils.class, withSettings().lenient());
+          MockedStatic<RepletRegistryManager> mgr = mockStatic(RepletRegistryManager.class))
+      {
+         assetUtilMock.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(repository);
+         mgr.when(RepletRegistryManager::getInstance).thenReturn(manager);
+
+         controller.clearRecycleBin(principal);
+
+         InOrder order = inOrder(registry, repository);
+         order.verify(registry).removeFolder("Recycle Bin");
+         order.verify(registry).save();
+         order.verify(repository).removeFolder(any(AssetEntry.class), eq(principal), eq(true));
+      }
+   }
+
+   // [user-scope repository folder] registry path is prefixed with My Dashboards
+   @Test
+   void clearRecycleBin_userRepositoryFolder_usesMyDashboardPrefix() throws Exception {
+      IdentityID owner = new IdentityID("alice", "host-org");
+      AssetEntry folder = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER, "Recycle Bin", owner);
+      AssetRepository repository = mock(AssetRepository.class);
+      RepletRegistry registry = mock(RepletRegistry.class);
+      RepletRegistryManager manager = mock(RepletRegistryManager.class);
+      grantClear(folder);
+      when(manager.getRegistry(owner)).thenReturn(registry);
+      when(registry.removeFolder(Tool.MY_DASHBOARD + "/Recycle Bin")).thenReturn(true);
+
+      try(MockedStatic<AssetUtil> assetUtilMock = mockStatic(AssetUtil.class, withSettings().lenient());
+          MockedStatic<AutoSaveUtils> autoSave = mockStatic(AutoSaveUtils.class, withSettings().lenient());
+          MockedStatic<RepletRegistryManager> mgr = mockStatic(RepletRegistryManager.class))
+      {
+         assetUtilMock.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(repository);
+         mgr.when(RepletRegistryManager::getInstance).thenReturn(manager);
+
+         controller.clearRecycleBin(principal);
+
+         verify(registry).removeFolder(Tool.MY_DASHBOARD + "/Recycle Bin");
+         verify(registry).save();
+         verify(repository).removeFolder(any(AssetEntry.class), eq(principal), eq(true));
+      }
+   }
+
+   // [worksheet folder] registry never touched
+   @Test
+   void clearRecycleBin_worksheetFolder_doesNotTouchRegistry() throws Exception {
+      AssetEntry folder = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, "Recycle Bin", null);
+      AssetRepository repository = mock(AssetRepository.class);
+      grantClear(folder);
+
+      try(MockedStatic<AssetUtil> assetUtilMock = mockStatic(AssetUtil.class, withSettings().lenient());
+          MockedStatic<AutoSaveUtils> autoSave = mockStatic(AutoSaveUtils.class, withSettings().lenient());
+          MockedStatic<RepletRegistryManager> mgr = mockStatic(RepletRegistryManager.class))
+      {
+         assetUtilMock.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(repository);
+
+         controller.clearRecycleBin(principal);
+
+         mgr.verifyNoInteractions();
+         verify(repository).removeFolder(any(AssetEntry.class), eq(principal), eq(true));
+      }
+   }
+
+   // [registry removal fails] clear stops without calling the guarded repository.removeFolder
+   @Test
+   void clearRecycleBin_registryRemoveFails_stopsBeforeRepositoryRemove() throws Exception {
+      AssetEntry folder = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER, "Recycle Bin", null);
+      AssetRepository repository = mock(AssetRepository.class);
+      RepletRegistry registry = mock(RepletRegistry.class);
+      RepletRegistryManager manager = mock(RepletRegistryManager.class);
+      grantClear(folder);
+      when(manager.getRegistry()).thenReturn(registry);
+      when(registry.removeFolder("Recycle Bin")).thenReturn(false);
+
+      try(MockedStatic<AssetUtil> assetUtilMock = mockStatic(AssetUtil.class, withSettings().lenient());
+          MockedStatic<AutoSaveUtils> autoSave = mockStatic(AutoSaveUtils.class, withSettings().lenient());
+          MockedStatic<RepletRegistryManager> mgr = mockStatic(RepletRegistryManager.class))
+      {
+         assetUtilMock.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(repository);
+         mgr.when(RepletRegistryManager::getInstance).thenReturn(manager);
+
+         assertThrows(MessageException.class, () -> controller.clearRecycleBin(principal));
+
+         verify(registry, never()).save();
+         verifyNoInteractions(repository);
+         verify(recycleBin, never()).removeEntry(any());
+      }
+   }
+
+   private void grantClear(AssetEntry trashEntry) throws Exception {
+      when(securityEngine.getSecurityProvider()).thenReturn(engineProvider);
+      when(engineProvider.checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/content/repository", ResourceAction.ACCESS))
+         .thenReturn(true);
+      when(indexedStorage.getKeys(any())).thenReturn(Set.of(trashEntry.toIdentifier()));
+      lenient().when(recycleBin.getEntries()).thenReturn(List.of());
    }
 
    // -------------------------------------------------------------------------

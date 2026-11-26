@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin.content.repository;
 
+import inetsoft.sree.RepletRegistry;
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
@@ -110,6 +112,10 @@ public class RepositoryRecycleBinController {
       for(AssetEntry assetEntry : assetsInTrash) {
          LOG.debug("Removing asset: " + assetEntry);
          if(assetEntry.isFolder()) {
+            if(assetEntry.isRepositoryFolder()) {
+               removeRegistryFolder(assetEntry);
+            }
+
             repository.removeFolder(assetEntry, principal, true);
          }
          else {
@@ -129,6 +135,24 @@ public class RepositoryRecycleBinController {
       }
 
       AutoSaveUtils.deleteRecycledAutoSaveFiles(principal);
+   }
+
+   /**
+    * Remove the registry side of a repository folder in the recycle bin. The asset repository
+    * refuses to remove a repository folder while the registry still contains it.
+    */
+   private void removeRegistryFolder(AssetEntry entry) throws Exception {
+      IdentityID owner = entry.getUser();
+      String path = owner != null ? Tool.MY_DASHBOARD + "/" + entry.getPath() : entry.getPath();
+      RepletRegistry registry = owner != null ?
+         RepletRegistryManager.getInstance().getRegistry(owner) :
+         RepletRegistryManager.getInstance().getRegistry();
+
+      if(!registry.removeFolder(path)) {
+         throw new MessageException("Failed to remove repository folder from registry: " + path);
+      }
+
+      registry.save();
    }
 
    private List<AssetEntry> getAssetsInTrash() throws Exception {
