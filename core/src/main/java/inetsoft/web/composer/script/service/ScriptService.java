@@ -30,6 +30,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.InetsoftUserDocumentation;
 import inetsoft.util.ItemMap;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
+import inetsoft.web.binding.GeneratedScriptDefinitions;
 import inetsoft.web.binding.model.ScriptTreeNodeData;
 import inetsoft.web.composer.model.TreeNodeModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -178,13 +179,7 @@ public class ScriptService {
    public void createStaticDefinitions(ObjectMapper mapper, ObjectNode library) throws IOException {
       ObjectNode functions = (ObjectNode)
          mapper.readTree(getClass().getResource("/inetsoft/web/binding/js-functions.json"));
-      ObjectNode generated = (ObjectNode) mapper.readTree(
-         getClass().getResource("/inetsoft/web/binding/js-functions.generated.json"));
-
-      for(Iterator<Map.Entry<String, JsonNode>> it = generated.fields(); it.hasNext(); ) {
-         Map.Entry<String, JsonNode> e = it.next();
-         functions.set(e.getKey(), e.getValue());
-      }
+      ObjectNode generatedDefine = GeneratedScriptDefinitions.addGenerated(mapper, functions);
 
       // remove reporting only scripts from function tree
       functions.remove(sreeOnly);
@@ -195,6 +190,7 @@ public class ScriptService {
       }
 
       library.setAll(functions);
+      GeneratedScriptDefinitions.mergeDefine(library, generatedDefine);
       InetsoftUserDocumentation.rewriteScriptApiDocUrls(library);
 
       ObjectNode chartConstants = (ObjectNode) library.get("Chart");
