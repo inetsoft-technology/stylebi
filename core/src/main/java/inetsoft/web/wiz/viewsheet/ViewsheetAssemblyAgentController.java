@@ -69,6 +69,7 @@ import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AuditRecordUtils;
 import inetsoft.util.audit.BookmarkRecord;
+import inetsoft.util.gui.ObjectInfo;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService;
 import inetsoft.web.admin.content.repository.RepletRegistryService;
@@ -4155,6 +4156,9 @@ public class ViewsheetAssemblyAgentController {
                                            trimmedPath, null, uname.orgID);
          entry.setProperty("prefix", datasourceName);
          entry.setProperty("source", modelName);
+         // The viewsheet dependency handlers recognise a logical-model base entry by this property
+         // (as the Composer tree entries carry it); without it the model dependency is not recorded.
+         entry.setProperty("mainType", ObjectInfo.LOGICAL_MODEL);
          // Viewsheet.getWorksheet reads this to build a SourceInfo when the viewsheet is opened.
          entry.setProperty("type", XSourceInfo.MODEL + "");
 

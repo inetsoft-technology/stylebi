@@ -191,6 +191,11 @@ public final class UpdateDependencyHandler {
          boolean physicalTable = false;
          boolean worksheetType = false;
 
+         // the entry type identifies a logical model even when "mainType" is absent
+         if(String.valueOf(AssetEntry.Type.LOGIC_MODEL.id()).equals(Tool.getAttribute(assetEntry, "type"))) {
+            type = ObjectInfo.LOGICAL_MODEL;
+         }
+
          for(int j = 0; j < propertyList.getLength(); j++) {
             Element property = (Element) propertyList.item(j);
             Element keyE = Tool.getChildNodeByTagName(property, "key");
