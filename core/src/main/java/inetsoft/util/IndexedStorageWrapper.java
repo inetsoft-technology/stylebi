@@ -364,6 +364,11 @@ public class IndexedStorageWrapper implements IndexedStorage {
    }
 
    @Override
+   public String getDigest(String key, String orgID) {
+      return storage.getDigest(key, orgID);
+   }
+
+   @Override
    public long lastModified(Filter filter) {
       return storage.lastModified(filter);
    }

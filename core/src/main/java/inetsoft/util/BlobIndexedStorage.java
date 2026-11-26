@@ -395,6 +395,16 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    }
 
    @Override
+   public String getDigest(String key, String orgID) {
+      try {
+         return getMetadataStorage(orgID).getDigest(key);
+      }
+      catch(FileNotFoundException ignore) {
+         return null;
+      }
+   }
+
+   @Override
    public long lastModified(Filter filter) {
       long ts = 0;
 
