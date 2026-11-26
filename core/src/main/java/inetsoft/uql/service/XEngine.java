@@ -42,7 +42,6 @@ import inetsoft.util.*;
 import inetsoft.util.credential.CloudCredential;
 import inetsoft.web.cluster.ClearLocalNodeMetaDataCacheMessage;
 import inetsoft.web.cluster.RefreshMetaDataMessage;
-import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -74,10 +73,6 @@ public class XEngine implements XRepository, XQueryRepository {
       this.uqlConfig = uqlConfig;
       this.dataSourceRegistry = dataSourceRegistry;
       this.connectionPoolFactory = connectionPoolFactory;
-   }
-
-   @PostConstruct
-   public void setMessageListener() {
       cluster.addMessageListener(messageListener);
    }
 

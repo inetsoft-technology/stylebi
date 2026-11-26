@@ -111,6 +111,10 @@ public class EngineConfiguration {
     * The data source / query engine. Declaring {@code AnalyticRepository} as a parameter
     * ensures it is initialized first (RepletEngine.init() accesses XRepository via
     * DesignSession, so the ordering prevents a half-initialized state).
+    * <p>
+    * The bean is typed as the {@code XRepository} interface, so Spring AOT cannot see lifecycle
+    * annotations on {@code XEngine} ({@code @PostConstruct} is never invoked). XEngine must do
+    * its setup in the constructor.
     */
    @Bean
    @Lazy
