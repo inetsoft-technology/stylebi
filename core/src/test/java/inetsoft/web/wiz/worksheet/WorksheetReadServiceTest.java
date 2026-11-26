@@ -33,11 +33,14 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.jdbc.JDBCQuery;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.schema.XValueNode;
 import inetsoft.web.wiz.pairing.TestWorksheets;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.MockedStatic;
 
 import java.awt.Point;
@@ -1326,6 +1329,146 @@ class WorksheetReadServiceTest {
       assertEquals(List.of("TODAY", "YESTERDAY"), choices.values());
       assertEquals(List.of("Today", "Yesterday"), choices.labels());
       assertEquals("date_combobox", choices.displayStyle());
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #82399: numeric range options and variable default kind on the read model
+   // -------------------------------------------------------------------------
+
+   /** A numeric range column built the way addNumericRangeColumn builds one. */
+   private static EmbeddedTableAssembly tableWithNumericRange(
+      Worksheet ws, boolean lessThanMin, boolean greaterThanMax, InclusiveType inclusive)
+   {
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "amount", "other");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ColumnRef base = (ColumnRef) cs.getAttribute("amount");
+      NumericRangeRef range = new NumericRangeRef("amount_range", base.getDataRef());
+      ValueRangeInfo info = new ValueRangeInfo();
+      info.setValues(new double[] { 50, 200 });
+      info.setShowBottomValue(lessThanMin);
+      info.setShowTopValue(greaterThanMax);
+      info.setInclusiveType(inclusive);
+      range.setValueRangeInfo(info);
+      ColumnRef colRef = new ColumnRef(range);
+      colRef.setDataType(XSchema.STRING);
+      cs.addAttribute(colRef);
+      t.setColumnSelection(cs, false);
+      ws.addAssembly(t);
+      return t;
+   }
+
+   private static WorksheetModel.ColumnModel columnNamed(WorksheetModel m, String name) {
+      return tableNamed(m, "T").columns().stream().filter(c -> name.equals(c.name()))
+         .findFirst().orElseThrow();
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      "true,  true,  LOWER",
+      "true,  true,  UPPER",
+      "false, false, UPPER",
+      "false, true,  LOWER",
+      "true,  false, UPPER"
+   })
+   void numericRangeColumnReportsItsRangeOptions(boolean lessThanMin, boolean greaterThanMax,
+                                                 InclusiveType inclusive)
+   {
+      Worksheet ws = new Worksheet();
+      tableWithNumericRange(ws, lessThanMin, greaterThanMax, inclusive);
+
+      WorksheetModel.RangeOptionsModel options =
+         columnNamed(read(ws), "amount_range").rangeOptions();
+
+      assertNotNull(options);
+      assertEquals(lessThanMin, options.lessThanMin());
+      assertEquals(greaterThanMax, options.greaterThanMax());
+      assertEquals(inclusive == InclusiveType.UPPER, options.upperInclusive());
+      assertNull(options.inclusiveType(), "only NONE needs the raw name");
+   }
+
+   @Test
+   void numericRangeColumnWithNoInclusiveTypeReportsTheRawName() {
+      Worksheet ws = new Worksheet();
+      tableWithNumericRange(ws, true, true, InclusiveType.NONE);
+
+      WorksheetModel.RangeOptionsModel options =
+         columnNamed(read(ws), "amount_range").rangeOptions();
+
+      assertFalse(options.upperInclusive());
+      assertEquals("NONE", options.inclusiveType());
+   }
+
+   @Test
+   void otherColumnsHaveNoRangeOptionsAndTheirJsonIsUnchanged() throws Exception {
+      Worksheet ws = new Worksheet();
+      tableWithNumericRange(ws, true, true, InclusiveType.LOWER);
+      WorksheetModel m = read(ws);
+
+      assertNull(columnNamed(m, "amount").rangeOptions());
+      String plain = new com.fasterxml.jackson.databind.ObjectMapper()
+         .writeValueAsString(columnNamed(m, "amount"));
+      assertFalse(plain.contains("rangeOptions"), plain);
+      String range = new com.fasterxml.jackson.databind.ObjectMapper()
+         .writeValueAsString(columnNamed(m, "amount_range"));
+      assertTrue(range.contains("\"rangeOptions\":{\"lessThanMin\":true,\"greaterThanMax\":true,"
+                                + "\"upperInclusive\":false}"), range);
+   }
+
+   private static DefaultVariableAssembly variable(Worksheet ws, String name, String type,
+                                                   XValueNode valueNode, boolean noNode)
+   {
+      AssetVariable var = new AssetVariable(name);
+      var.setTypeNode(XSchema.createPrimitiveType(type));
+
+      if(valueNode != null) {
+         var.setValueNode(valueNode);
+      }
+      else if(noNode) {
+         var.setValueNode(null);
+      }
+
+      DefaultVariableAssembly va = new DefaultVariableAssembly(ws, name);
+      va.setVariable(var);
+      ws.addAssembly(va);
+      return va;
+   }
+
+   @Test
+   void variableReportsWhetherItsDefaultIsAValueAnExpressionOrNone() throws Exception {
+      Worksheet ws = new Worksheet();
+      ExpressionValue ev = new ExpressionValue();
+      ev.setType(ExpressionValue.JAVASCRIPT);
+      ev.setExpression("new Date()");
+      variable(ws, "expr", "date", XValueNode.createValueNodeByType("expr", "date", ev), false);
+      variable(ws, "lit", "string", XValueNode.createValueNodeByType("lit", "string", "=user"),
+               false);
+      // createVariable with no default: a typed node holding no value (setTypeNode creates it)
+      variable(ws, "empty", "integer", null, false);
+      // the native "None": no node at all
+      variable(ws, "none", "integer", null, true);
+
+      WorksheetModel m = read(ws);
+
+      WorksheetModel.VariableModel expr = variableNamed(m, "expr");
+      assertEquals("new Date()", expr.defaultValue(), "the script, not ExpressionValue.toString");
+      assertEquals("expression", expr.defaultValueType());
+      assertNull(expr.none());
+
+      WorksheetModel.VariableModel lit = variableNamed(m, "lit");
+      assertEquals("=user", lit.defaultValue());
+      assertEquals("value", lit.defaultValueType());
+      assertNull(lit.none());
+
+      for(String name : new String[] { "empty", "none" }) {
+         WorksheetModel.VariableModel v = variableNamed(m, name);
+         assertNull(v.defaultValue(), name);
+         assertNull(v.defaultValueType(), name);
+         assertEquals(Boolean.TRUE, v.none(), name);
+      }
+
+      String json = new com.fasterxml.jackson.databind.ObjectMapper()
+         .writeValueAsString(variableNamed(m, "lit"));
+      assertFalse(json.contains("\"none\""), json);
    }
 
    private static WorksheetModel.TableModel tableNamed(WorksheetModel m, String name) {
