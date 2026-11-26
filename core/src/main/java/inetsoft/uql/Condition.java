@@ -1609,8 +1609,27 @@ public class Condition extends AbstractCondition {
       else if(target instanceof Float && value instanceof String) {
          value = Float.valueOf(value.toString());
       }
+      else if(value instanceof Float && target instanceof Number && !(target instanceof Float)) {
+         value = toDecimalDouble((Float) value);
+      }
 
       return value;
+   }
+
+   /**
+    * Read a float condition value (e.g. from a Float variable) as the decimal the user
+    * typed, so 0.15f compares equal to a Double or BigDecimal 0.15 instead of being widened
+    * to 0.15000000596046448. Integral and non-finite floats are returned unchanged, since
+    * widening is exact for them and Float.toString() would round large integers.
+    */
+   static Object toDecimalDouble(Float value) {
+      float f = value;
+
+      if(Float.isNaN(f) || Float.isInfinite(f) || f == Math.rint(f)) {
+         return value;
+      }
+
+      return Double.valueOf(Float.toString(f));
    }
 
    /**
