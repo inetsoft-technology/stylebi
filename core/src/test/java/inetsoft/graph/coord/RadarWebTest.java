@@ -280,15 +280,19 @@ class RadarWebTest {
    }
 
    @Test
-   void classicRingsKeepTodaysRadius() {
+   void classicRingsLandOnTheDataRadius() {
+      // Bug #82032 (main) fixed the grid rings being scaled to the plot size twice, for every
+      // polar chart. The epic used to keep the classic rings at that doubly scaled radius
+      // (outer^2 / 250 for ring 0) and exempt only the modern web; the merge of main into the
+      // epic took main's fix for the classic rings too, so ring k is at (k + 1) / 4 of the
+      // outer radius, where the data and the ticks are.
       VGraph vgraph = vgraph(true, new double[] { 100, 7, 2000 }, GraphConstants.THIN_LINE,
                              false, 400, 240);
       double outer = outerRadius(vgraph);
 
       for(DefaultAxis spoke : spokesOf(vgraph)) {
          for(int k = 0; k < 3; k++) {
-            assertEquals((k + 1) / 4.0 * 4 * outer * outer / 1000, paintedRadius(spoke, k), 0.5,
-                         "ring " + k);
+            assertEquals((k + 1) / 4.0 * outer, paintedRadius(spoke, k), 0.5, "ring " + k);
          }
       }
    }

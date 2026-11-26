@@ -91,6 +91,9 @@ class ScriptPropertyRoundTripTest {
       KNOWN.put("Chart.barCornerRadius", "clamped to 0.5");
       KNOWN.put("Chart.mapType", "a map type from a fixed set");
       KNOWN.put("Chart.webMapStyle", "a style name from a fixed set");
+      // exposed on the epic only (Bug #75067 tooltipStyle, the tree chart layout)
+      KNOWN.put("Chart.tooltipStyle", "a style name from a fixed set");
+      KNOWN.put("Chart.treeLayout", "a layout name from a fixed set");
       KNOWN.put("Table.size", "clamped to the minimum size of the table");
       KNOWN.put("Thermometer.ranges", "the ranges are numbers");
       KNOWN.put("SlidingScale.ranges", "the ranges are numbers");

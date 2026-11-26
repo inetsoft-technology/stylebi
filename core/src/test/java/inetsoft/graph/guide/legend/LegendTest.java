@@ -74,6 +74,10 @@ class LegendTest {
    private static final int RIGHT = GraphConstants.RIGHT;
    private static final int TOP = GraphConstants.TOP;
    private static final Color DEFAULT_SYMBOL = new Color(0x759595);
+   // The epic's legend look and feel (#3503) deliberately pads an item 4 pixels on each side;
+   // main's Legend has 2 on the left and 0 on the right, which these tests were written against.
+   private static final int ITEM_LEFT_PADDING = 4;
+   private static final int ITEM_RIGHT_PADDING = 4;
 
    private String savedMaxCount;
 
@@ -276,8 +280,8 @@ class LegendTest {
       CategoricalColorFrame frame = color("S", "A", "B", "C", "D", "E");
       double p = maxItemWidth(frame, RIGHT);
       Legend legend = legend(frame, RIGHT);
-      // usable width is 2 * p: W minus the left padding of 2
-      layout(legend, 2 * p + 2, 1000);
+      // usable width is 2 * p: W minus the left and right padding of an item
+      layout(legend, 2 * p + ITEM_LEFT_PADDING + ITEM_RIGHT_PADDING, 1000);
       LegendItem[][] grid = legend.getItems();
 
       assertEquals(3, grid.length);
@@ -444,7 +448,7 @@ class LegendTest {
       Legend plain = legend(frame, RIGHT);
       plain.setBounds(10, 0, 300, 100);
       plain.layout();
-      assertEquals(12, items(plain).get(0).getBounds().getX(), 1e-9);
+      assertEquals(10 + ITEM_LEFT_PADDING, items(plain).get(0).getBounds().getX(), 1e-9);
 
       frame.getLegendSpec().setPadding(new Insets(0, 7, 0, 0));
       Legend padded = legend(frame, RIGHT);
