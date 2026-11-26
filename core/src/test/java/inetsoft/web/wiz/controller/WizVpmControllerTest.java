@@ -597,6 +597,64 @@ class WizVpmControllerTest {
    }
 
    @Test
+   void aGlobalRoleIsKnownToTheRoleCheckAndTestButAnUnknownOneIsNot() throws Exception {
+      RecordingProcessor processor = new RecordingProcessor();
+      Object old = installProcessor(processor);
+
+      try {
+         create(definition("T"), false);
+         when(support.securityProvider.getRole(any(IdentityID.class))).thenAnswer(i -> {
+            IdentityID id = i.getArgument(0);
+            return id.getOrgID() == null && "Administrator".equals(id.getName()) ?
+               mock(Role.class) : null;
+         });
+
+         WizVpmWire.TestResponse response = assertInstanceOf(WizVpmWire.TestResponse.class,
+            controller.test(new WizVpmWire.TestRequest(
+               support.ds, "T", null, "role", "Administrator"), support.bob));
+         assertTrue(response.ok());
+         assertEquals(1, processor.calls);
+         assertEquals("no role \"NoSuchRole\" in the current organization", failure(
+            controller.test(new WizVpmWire.TestRequest(
+               support.ds, "T", null, "role", "NoSuchRole"), support.bob)).message());
+
+         for(String role : new String[] { "Administrator", "NoSuchRole" }) {
+            Map<String, Object> definition = definition("H" + role);
+            Map<String, Object> hidden = new LinkedHashMap<>();
+            hidden.put("roles", List.of(role));
+            hidden.put("columns", List.of(column("ORDERS", "COST")));
+            definition.put("hidden", hidden);
+            WizVpmWire.WriteResponse written = assertInstanceOf(
+               WizVpmWire.WriteResponse.class, create(definition, true));
+            assertEquals("Administrator".equals(role), written.warnings().stream()
+               .noneMatch(w -> w.startsWith("ROLE_UNKNOWN")), role + ": " + written.warnings());
+         }
+      }
+      finally {
+         restoreProcessor(old);
+      }
+   }
+
+   @Test
+   void anOrganizationRoleWinsOverAGlobalRoleOfTheSameName() throws Exception {
+      RecordingProcessor processor = new RecordingProcessor();
+      Object old = installProcessor(processor);
+
+      try {
+         create(definition("T"), false);
+         when(support.securityProvider.getRole(any(IdentityID.class))).thenReturn(mock(Role.class));
+         controller.test(new WizVpmWire.TestRequest(
+            support.ds, "T", null, "role", "Analyst"), support.bob);
+         verify(support.securityProvider, never()).getRole(
+            argThat((IdentityID id) -> id != null && id.getOrgID() == null));
+         assertEquals(1, processor.calls);
+      }
+      finally {
+         restoreProcessor(old);
+      }
+   }
+
+   @Test
    void testOfADraftValidatesItAndStoresNothing() throws Exception {
       RecordingProcessor processor = new RecordingProcessor();
       Object old = installProcessor(processor);
