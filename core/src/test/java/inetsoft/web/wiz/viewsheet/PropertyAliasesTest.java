@@ -1208,6 +1208,75 @@ class PropertyAliasesTest {
       assertEquals("Visible in External Dashboards", PropertyAliases.labelFor("primary"));
    }
 
+   /**
+    * Bug #81681 feedback: the whole Data Tip View group of a table, crosstab and calc table
+    * carried label null (only tipOnClick was captioned), so a request phrased as "Data Tip View"
+    * could not be matched to tipView.
+    */
+   @Test
+   void dataTipViewGroupIsLabelledOnTableCrosstabAndCalcTable() {
+      for(String type : List.of("table", "crosstab", "calctable")) {
+         Map<String, String> aliases = PropertyAliases.forType(type).aliases();
+
+         for(String name : List.of("tipOption", "tipView", "alpha", "flyOverViews",
+                                   "flyOnClick", "tipOnClick"))
+         {
+            String path = aliases.get(name);
+            assertNotNull(path, type + "." + name + " is not aliased");
+            assertNotNull(PropertyAliases.labelFor(name, path), type + "." + name + " has no label");
+         }
+
+         assertTrue(PropertyAliases.labelFor("tipView", aliases.get("tipView"))
+                       .contains("Data Tip View"), type);
+         assertTrue(PropertyAliases.labelFor("alpha", aliases.get("alpha"))
+                       .contains("Data Tip View"), type);
+      }
+   }
+
+   /** The same alias name on a chart or text is a different control and must not be relabelled. */
+   @Test
+   void alphaOutsideTheTipPaneKeepsNoDataTipLabel() {
+      for(String type : List.of("chart", "text", "image")) {
+         String path = PropertyAliases.forType(type).aliases().get("alpha");
+         assertNotNull(path, type);
+         assertNull(PropertyAliases.labelFor("alpha", path), type);
+      }
+
+      assertNull(PropertyAliases.labelFor("alpha"));
+   }
+
+   /**
+    * A text's tip pane is tooltip-only: its tipOption is the "Tooltip" checkbox (true enables the
+    * tooltip), so it must not carry the Data Tip View caption used by the other assemblies.
+    */
+   @Test
+   void textTipOptionIsCaptionedAsTooltipNotDataTipView() {
+      String path = PropertyAliases.forType("text").aliases().get("tipOption");
+      assertEquals("textGeneralPaneModel.tipPaneModel.tipOption", path);
+      String label = PropertyAliases.labelFor("tipOption", path);
+      assertNotNull(label);
+      assertTrue(label.startsWith("Tooltip"), label);
+      assertFalse(label.contains("instead of the tooltip"), label);
+      assertTrue(PropertyAliases.labelFor("tipOption", PropertyAliases.forType("chart")
+                    .aliases().get("tipOption")).contains("Data Tip View"));
+   }
+
+   /** Slider's two same-worded "label" properties must be told apart by their captions. */
+   @Test
+   void sliderLabelAndShowLabelHaveDistinctCaptions() {
+      Map<String, String> aliases = PropertyAliases.forType("slider").aliases();
+      String label = PropertyAliases.labelFor("label", aliases.get("label"));
+      String showLabel = PropertyAliases.labelFor("showLabel", aliases.get("showLabel"));
+
+      assertNotNull(label);
+      assertNotNull(showLabel);
+      assertNotEquals(label, showLabel);
+      assertTrue(label.contains("Show Labels"), label);
+      assertTrue(showLabel.contains("Label tab"), showLabel);
+      // a submit button's "label" is its text, not the slider's tick-mark label
+      assertNull(PropertyAliases.labelFor("label", "submitGeneralPaneModel.labelPropPaneModel.label"));
+   }
+
    /** An alias with no better caption than its own name must not fabricate one. */
    @Test
    void anOrdinaryAliasHasNoLabel() {
