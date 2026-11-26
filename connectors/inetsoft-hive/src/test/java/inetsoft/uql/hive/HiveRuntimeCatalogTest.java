@@ -132,11 +132,13 @@ class HiveRuntimeCatalogTest {
    void testDataSource_dbNameSet_unreachableHost_surfacesDriverError() {
       HiveDataSource ds = new HiveDataSource();
       ds.setName("hive1");
-      ds.setHost(UNROUTABLE_HOST);
+      ds.setHost("127.0.0.1");
+      ds.setPort(1);
       ds.setDbName("sales");
       HiveRuntime runtime = new HiveRuntime();
 
-      Exception ex = assertThrows(Exception.class, () -> runtime.testDataSource(ds, null));
+      Exception ex = assertTimeout(Duration.ofSeconds(5),
+         () -> assertThrows(Exception.class, () -> runtime.testDataSource(ds, null)));
 
       assertFalse(String.valueOf(ex.getMessage()).contains("no database configured"));
    }
