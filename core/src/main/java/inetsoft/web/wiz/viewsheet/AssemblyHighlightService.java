@@ -98,7 +98,14 @@ public class AssemblyHighlightService {
    }
 
    /** The outcome of a highlight write: anything the caller should be told (bug #78567). */
-   public record SetResult(List<String> warnings) {}
+   public record SetResult(List<String> warnings, String appliedName, Integer appliedPosition) {
+      public SetResult(List<String> warnings) {
+         this(warnings, null, null);
+      }
+   }
+
+   /** {@code position} value meaning "after the last highlight of the same kind". */
+   public static final int LAST = -1;
 
    /** Where a highlight lives. All-defaults means the assembly itself. */
    public record Region(Integer row, Integer col, String colName, boolean axis, boolean text,
@@ -207,8 +214,33 @@ public class AssemblyHighlightService {
    public SetResult set(String sessionToken, Principal user, String assemblyName, Region region,
                         Highlight highlight, boolean replace, String linkUri) throws Exception
    {
+      return set(sessionToken, user, assemblyName, region, highlight, replace, linkUri, null, null);
+   }
+
+   /**
+    * Same as the seven-argument form, and with {@code replace} set it can also rename the
+    * highlight and move it within the list (bug #82309).
+    *
+    * <p>The highlight is still found by {@code highlight.name()}; {@code newName} is the name it is
+    * stored under afterwards (a case-only change of its own name is allowed; a name another
+    * highlight of the assembly already uses is refused). {@code position} is the 0-based index the
+    * highlight takes among the highlights of its own kind after the update ({@link #LAST} = at
+    * the end): cell-level and apply-to-row highlights are stored in separate lists, so an order
+    * across the two kinds does not exist. Both need {@code replace}. Still one
+    * {@code sessions.mutate}, so one undo checkpoint.
+    */
+   public SetResult set(String sessionToken, Principal user, String assemblyName, Region region,
+                        Highlight highlight, boolean replace, String linkUri, String newName,
+                        Integer position) throws Exception
+   {
       requireName(highlight);
+      requireReplaceForMove(replace, newName, position);
+      String storedName = newName == null ? highlight.name() : newName;
+      Highlight stored = newName == null ? highlight : new Highlight(
+         newName, highlight.foreground(), highlight.background(), highlight.font(),
+         highlight.conditions(), highlight.applyRow());
       List<String> warnings = new ArrayList<>();
+      int[] appliedPosition = {-1};
 
       // Refuse before mutate(): a refused call inside it still costs an undo step and a revision.
       // Checked again inside the mutation in case the assembly changed in between.
@@ -238,6 +270,9 @@ public class AssemblyHighlightService {
 
          List<HighlightModel> highlights = new ArrayList<>();
          boolean found = false;
+         int matched = -1;
+
+         requireNameFree(model, highlight.name(), newName, assemblyName);
 
          for(HighlightModel existing : model.getHighlights() == null
             ? new HighlightModel[0] : model.getHighlights())
@@ -255,11 +290,16 @@ public class AssemblyHighlightService {
                      "different name.");
                }
 
-               highlights.add(build(highlight, model));
+               matched = highlights.size();
+               highlights.add(build(stored, model));
             }
             else {
                highlights.add(existing);
             }
+         }
+
+         if(found && position != null) {
+            appliedPosition[0] = move(highlights, matched, position, assemblyName);
          }
 
          if(!found) {
@@ -298,7 +338,77 @@ public class AssemblyHighlightService {
          warnings.addAll(sessionWarnings);
       }
 
-      return new SetResult(warnings);
+      return new SetResult(warnings, newName == null ? null : storedName,
+                           position == null ? null : appliedPosition[0]);
+   }
+
+   private static void requireReplaceForMove(boolean replace, String newName, Integer position) {
+      if(newName != null && newName.isBlank()) {
+         throw new IllegalArgumentException("'newName' must not be blank.");
+      }
+
+      if(!replace && (newName != null || position != null)) {
+         throw new IllegalArgumentException(
+            "'" + (newName != null ? "newName" : "position") + "' renames or moves an existing " +
+            "highlight, so it needs replace:true.");
+      }
+
+      if(position != null && position < LAST) {
+         throw new IllegalArgumentException(
+            "'position' must be a 0-based index (0 = first), got " + position + ".");
+      }
+   }
+
+   /** Refuses a rename onto a name another highlight already uses (names compare ignoring case). */
+   private static void requireNameFree(HighlightDialogModel model, String name, String newName,
+                                       String assemblyName)
+   {
+      if(newName == null || model.getHighlights() == null) {
+         return;
+      }
+
+      for(HighlightModel other : model.getHighlights()) {
+         if(other != null && newName.equalsIgnoreCase(other.getName()) &&
+            !name.equalsIgnoreCase(other.getName()))
+         {
+            throw new IllegalArgumentException(
+               "Cannot rename to '" + newName + "': '" + assemblyName + "' already has a " +
+               "highlight with that name.");
+         }
+      }
+   }
+
+   /**
+    * Moves the entry at {@code from} so it is the {@code position}th of its own kind (cell-level or
+    * apply-to-row), because the two kinds are persisted in separate lists.
+    *
+    * @return the index it now has among the highlights of its kind.
+    */
+   private static int move(List<HighlightModel> highlights, int from, int position,
+                           String assemblyName)
+   {
+      HighlightModel moving = highlights.remove(from);
+      List<Integer> sameKind = new ArrayList<>();
+
+      for(int i = 0; i < highlights.size(); i++) {
+         if(highlights.get(i) != null && highlights.get(i).isApplyRow() == moving.isApplyRow()) {
+            sameKind.add(i);
+         }
+      }
+
+      int target = position == LAST ? sameKind.size() : position;
+
+      if(target > sameKind.size()) {
+         throw new IllegalArgumentException(
+            "'position' " + position + " is out of range: '" + assemblyName + "' has " +
+            (sameKind.size() + 1) + " " + (moving.isApplyRow() ? "apply-to-row" : "cell-level") +
+            " highlights here, so the position is 0.." + sameKind.size() + ".");
+      }
+
+      int at = target < sameKind.size() ? sameKind.get(target)
+         : sameKind.isEmpty() ? highlights.size() : sameKind.get(sameKind.size() - 1) + 1;
+      highlights.add(at, moving);
+      return target;
    }
 
    /**

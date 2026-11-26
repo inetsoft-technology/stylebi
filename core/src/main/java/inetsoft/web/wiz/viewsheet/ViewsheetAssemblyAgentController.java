@@ -3299,7 +3299,7 @@ public class ViewsheetAssemblyAgentController {
                                   String name, String foreground, String background,
                                   FontRequest fontInfo,
                                   List<ConditionClause> conditions, Boolean applyRow,
-                                  Boolean replace) {
+                                  Boolean replace, String newName, Integer position) {
       AssemblyHighlightService.Region region() {
          return highlightRegion(row, col, colName, axis, text);
       }
@@ -3376,9 +3376,18 @@ public class ViewsheetAssemblyAgentController {
       requireEnabled();
       AssemblyHighlightService.SetResult result = highlightService.set(
          sessionToken, user, request.assembly(), request.region(), request.highlight(),
-         Boolean.TRUE.equals(request.replace()), linkUri);
+         Boolean.TRUE.equals(request.replace()), linkUri, request.newName(), request.position());
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("ok", true);
+
+      // Echo what was applied so a client can tell this server from one that predates rename/move.
+      if(result.appliedName() != null) {
+         out.put("renamedTo", result.appliedName());
+      }
+
+      if(result.appliedPosition() != null) {
+         out.put("position", result.appliedPosition());
+      }
 
       if(!result.warnings().isEmpty()) {
          out.put("warning", String.join(" ", result.warnings()));
