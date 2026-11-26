@@ -52,6 +52,11 @@ import java.util.Map;
  *   <li>{@code remove_join} — {@code name}</li>
  *   <li>{@code remove_join_edge} — removes ONE edge of an existing join in place (the join and its dependents stay): {@code name}, {@code leftTable}, {@code rightTable} (the edge, either order), optional {@code leftKey}+{@code rightKey} to drop just that one key condition instead of the whole edge. Refused when it would disconnect the join, for a CROSS edge, or for the only edge (use {@code remove_join}). The join reads back in stored orientation</li>
  *   <li>{@code add_table} — {@code table}, optional {@code datasource} (when provided, creates a bound table from the named datasource); optional {@code logicalModel} (when provided alongside datasource, {@code table} is an entity name within that logical model); optional {@code endpoint} (+ optional {@code parameters}/{@code lookup}/{@code lookupExpandArrays}/{@code lookupTopLevelOnly}) to bind a named REST/JSON connector's pre-built endpoint (and, optionally, one of its pre-built "Join With" lookup chains) instead of a physical table or logical model entity — {@code table} then names the NEW worksheet table rather than a physical path; optional {@code suffix} (+ optional {@code customLookups}) to bind a GENERIC/CUSTOM REST-JSON datasource's hand-authored URL suffix (and, optionally, up to 5 hand-authored custom lookup levels) instead — mutually exclusive with {@code endpoint}/{@code parameters}/{@code lookup}; or optional {@code queryParams} (a flat connector-property map) for a METADATA/FILE/Rest.XML datasource with no predefined endpoint catalogue and no simple URL-suffix shape — mutually exclusive with all of the above. {@code maxRows} (see its own doc below) also applies to the physical-table and logical-model forms, and a negative value is refused; {@code schema}/{@code catalog} name a physical table and are refused together with {@code logicalModel}. For the three tabular forms above: when the resolved query paginates ({@code TabularEndpointBindingSupport.requireRowCapWhenPaged}), a positive {@code maxRows} is effectively required, since the call otherwise refuses to create the table.</li>
+ *   <li>{@code add_cube_table} — {@code datasource} (an XMLA data source), {@code cube},
+ *       {@code levels} ({@code [{dimension, hierarchy?, level}]}) and/or {@code measures} (names);
+ *       optional {@code table} (the new table's name, the cube's name otherwise). Builds a worksheet
+ *       table from the cube with the names {@code get_cube_details} reports; levels and measures
+ *       may be mixed in one table</li>
  *   <li>{@code edit_table} — {@code table} (the existing tabular/REST-JSON table to edit in
  *       place); exactly one of the same three source forms {@code add_table} accepts:
  *       {@code endpoint} (+ optional {@code parameters}/{@code lookup}/{@code lookupExpandArrays}/
@@ -615,8 +620,76 @@ public record EditRequest(
     * For add_variable / edit_variable: {@code true} stores no default at all -- the Composer
     * Variable dialog's "None" checkbox. Mutually exclusive with {@code defaultValue}.
     */
-   Boolean none
+   Boolean none,
+   /**
+    * For {@code add_cube_table}: the cube of the XMLA data source named by {@code datasource}
+    * (see {@code list_cubes}).
+    */
+   String cube,
+   /**
+    * For {@code add_cube_table}: the dimension levels that become columns, each
+    * {@code {dimension, hierarchy?, level}} with the names {@code get_cube_details} reports.
+    */
+   List<WorksheetMutationSupport.CubeLevelSpec> levels,
+   /**
+    * For {@code add_cube_table}: the measure names that become columns. {@code levels} and
+    * {@code measures} may be given together; at least one is required.
+    */
+   List<String> measures
 ) {
+   /**
+    * Compatibility constructor for callers built before {@code cube}, {@code levels} and
+    * {@code measures} (add_cube_table) were added -- defaults them to {@code null}.
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables, String sourceTable,
+      String attribute, String endpoint, Map<String, String> parameters, List<String> lookup,
+      Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups, Boolean crosstab,
+      List<String> labels, WorksheetMutationSupport.VariableChoicesSpec choices,
+      List<WorksheetMutationSupport.JoinPathSpec> joinPaths, Boolean mergeable,
+      Boolean visibleInViewsheet, Boolean confirmed, Integer rowCount, Boolean concatDistinct,
+      List<WorksheetMutationSupport.RankingSpec> rankings, Map<String, Object> queryParams,
+      Map<String, Object> extraProperties,
+      List<WorksheetMutationSupport.ConditionNode> mvUpdatePreConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvUpdatePostConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvDeletePreConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvDeletePostConditions,
+      Boolean mvForceAppendUpdates, String path, String scope, String format,
+      List<WorksheetMutationSupport.ModelAttributeSpec> attributes, List<String> joinOperators,
+      String sourceSession, Boolean cut, Boolean lessThanMin, Boolean greaterThanMax,
+      Boolean upperInclusive, String defaultValueType, Boolean none)
+   {
+      this(
+         op, table, column, name, type, newName, field, operation, values, direction, groups,
+         aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType, visible,
+         tables, source, concatType, conditions, ranking, headerColumns, dateOption, boundaries,
+         datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row, col, value, index,
+         alias, description, maxRows, distinct, columnOrder, groupMappings, groupOthers,
+         variableValues, x, y, label, defaultValue, mode, insert, subtables, sourceTable,
+         attribute, endpoint, parameters, lookup, lookupExpandArrays, lookupTopLevelOnly, suffix,
+         customLookups, crosstab, labels, choices, joinPaths, mergeable, visibleInViewsheet,
+         confirmed, rowCount, concatDistinct, rankings, queryParams, extraProperties,
+         mvUpdatePreConditions, mvUpdatePostConditions, mvDeletePreConditions,
+         mvDeletePostConditions, mvForceAppendUpdates, path, scope, format, attributes,
+         joinOperators, sourceSession, cut, lessThanMin, greaterThanMax, upperInclusive,
+         defaultValueType, none,
+         null, null, null);
+   }
+
    /**
     * Compatibility constructor for callers built before {@code lessThanMin}, {@code greaterThanMax},
     * {@code upperInclusive}, {@code defaultValueType} and {@code none} were added -- defaults them

@@ -29,6 +29,7 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
 import inetsoft.uql.asset.SNamedGroupInfo;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
@@ -1133,6 +1134,14 @@ public final class FieldRefFactory {
          return;
       }
 
+      // A measure of a cube table is already aggregated by the cube, so a native drop gives it
+      // the formula None (VSChartBindingHandler.createChartRef, VSCrosstabBindingHandler.createAgg,
+      // ChartDndHandler); the Sum a numeric column would get here would aggregate it a second time.
+      if(ref.getFormula() == null && isCubeMeasure(model, rvs, source, column)) {
+         ref.setFormula(NONE);
+         return;
+      }
+
       if(ref.getFormula() == null) {
          // A detail calc field is not in the worksheet column list dataTypeOf reads, so its own
          // declared type is the only place its numeric-ness is recorded.
@@ -1148,6 +1157,43 @@ public final class FieldRefFactory {
 
          ref.setFormula(dataType != null && NUMERIC_TYPES.contains(dataType) ? SUM : COUNT);
       }
+   }
+
+   /**
+    * Whether {@code column} is a measure of a cube table of the viewsheet's base worksheet: the
+    * bound table is (or mirrors) a {@code CubeTableAssembly} and the column's ref type carries
+    * {@code CUBE_MEASURE}. False for anything that cannot be resolved, so every non-cube source
+    * keeps the data-type default.
+    */
+   static boolean isCubeMeasure(BindingModel model, RuntimeViewsheet rvs, SourceInfo source,
+                                String column)
+   {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      Worksheet ws = vs == null ? null : vs.getBaseWorksheet();
+      String table = effectiveSource(model, source);
+
+      if(ws == null || table == null || column == null ||
+         !(ws.getAssembly(table) instanceof TableAssembly assembly) ||
+         AssetUtil.getBaseCubeTable(assembly) == null)
+      {
+         return false;
+      }
+
+      ColumnSelection columns = assembly.getColumnSelection(true);
+      String bare = TableBindingService.unqualified(column);
+
+      for(int i = 0; columns != null && i < columns.getAttributeCount(); i++) {
+         DataRef ref = columns.getAttribute(i);
+         String name = ref.getName();
+
+         if(column.equalsIgnoreCase(name) || bare.equalsIgnoreCase(name) ||
+            column.equalsIgnoreCase(TableBindingService.unqualified(name)))
+         {
+            return (ref.getRefType() & DataRef.CUBE_MEASURE) == DataRef.CUBE_MEASURE;
+         }
+      }
+
+      return false;
    }
 
    /**

@@ -57,10 +57,12 @@ public record WizCubeDetails(String datasource, String name, String caption, Str
     * @param entity      the tree entry's {@code entity} of every level of this hierarchy.
     * @param caption     the hierarchy caption.
     * @param userDefined whether the hierarchy is user defined in the cube.
+    * @param originalOrder whether this hierarchy keeps the cube's original member order (the
+    *                    Portal's "Keep Original Order").
     * @param levels      the levels, in level order.
     */
    public record Hierarchy(String entity, String caption, boolean userDefined,
-                           List<Level> levels)
+                           boolean originalOrder, List<Level> levels)
    {
    }
 
@@ -71,8 +73,13 @@ public record WizCubeDetails(String datasource, String name, String caption, Str
     * @param caption     the level caption.
     * @param dtype       the level data type.
     * @param levelNumber the zero-based position in the hierarchy.
+    * @param asDate      the Portal's "As Date": the member captions are parsed as dates.
+    * @param locale      the Portal's "Database Locale" used to parse them, or null.
+    * @param datePattern the Portal's "Parse Pattern", or null.
     */
-   public record Level(String name, String caption, String dtype, int levelNumber) {
+   public record Level(String name, String caption, String dtype, int levelNumber, boolean asDate,
+                       String locale, String datePattern)
+   {
    }
 
    /**

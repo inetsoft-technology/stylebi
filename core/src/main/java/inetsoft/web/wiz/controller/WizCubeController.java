@@ -26,20 +26,26 @@ import inetsoft.uql.XCubeMember;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XDimension;
 import inetsoft.uql.XDomain;
+import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.xmla.*;
+import inetsoft.util.Tool;
 import inetsoft.web.security.PermissionPath;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
+import inetsoft.web.portal.service.datasource.XmlaDatasourceService;
 import inetsoft.web.wiz.model.WizCubeDetails;
 import inetsoft.web.wiz.model.WizCubeList;
+import inetsoft.web.wiz.model.WizCubeSettingsResult;
+import inetsoft.web.wiz.request.WizCubeSettingsRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.FileNotFoundException;
 import java.security.Principal;
 import java.util.*;
 
@@ -61,9 +67,12 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/wiz")
 public class WizCubeController {
-   public WizCubeController(SecurityEngine securityEngine, XRepository xrepository) {
+   public WizCubeController(SecurityEngine securityEngine, XRepository xrepository,
+                            XmlaDatasourceService xmlaDatasourceService)
+   {
       this.securityEngine = securityEngine;
       this.xrepository = xrepository;
+      this.xmlaDatasourceService = xmlaDatasourceService;
       this.gates = new WizDatasourceGates(securityEngine);
    }
 
@@ -134,24 +143,95 @@ public class WizCubeController {
       Cube cube = resolveCube(cubes, cubeName.trim());
 
       if(cube == null) {
-         List<String> names = new ArrayList<>();
-
-         for(Cube c : cubes) {
-            names.add(c.getName());
-         }
-
-         throw new ResponseStatusException(
-            HttpStatus.NOT_FOUND,
-            "cube: no cube \"" + cubeName.trim() + "\" in data source \"" + source + "\"; " +
-               (names.isEmpty() ? "it has no readable cubes (run refresh_data_source_metadata " +
-                  "to load them)" : "valid cubes: " + names));
+         throw unknownCube(source, cubeName.trim(), cubes);
       }
 
       return describe(source, cube);
    }
 
-   /** Builds the cube description. Package-visible for the unit test. */
-   static WizCubeDetails describe(String source, Cube cube) {
+   private static ResponseStatusException unknownCube(String source, String cubeName,
+                                                      List<Cube> cubes)
+   {
+      List<String> names = new ArrayList<>();
+
+      for(Cube c : cubes) {
+         names.add(c.getName());
+      }
+
+      return new ResponseStatusException(
+         HttpStatus.NOT_FOUND,
+         "cube: no cube \"" + cubeName + "\" in data source \"" + source + "\"; " +
+            (names.isEmpty() ? "it has no readable cubes (run refresh_data_source_metadata " +
+               "to load them)" : "valid cubes: " + names));
+   }
+
+   /**
+    * Edits the Portal's "OLAP Data" settings of one cube: Keep Original Order per dimension and As
+    * Date, Database Locale and Parse Pattern per level.
+    *
+    * <p>Needs WRITE on the data source, as the Portal save that stores the same domain does, and
+    * the cube must be readable. The stored domain is patched directly, see
+    * {@link WizCubeSettingsPatcher}; an unknown name or an invalid value is a 400 that names the
+    * field and lists the valid values, and nothing is saved. The answer is read back from the
+    * saved domain, and a difference from what was applied is a 500.</p>
+    */
+   @PostMapping(value = "/xmla/cube-settings", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WizCubeSettingsResult updateCubeSettings(@RequestBody WizCubeSettingsRequest request,
+                                                   Principal principal)
+      throws Exception
+   {
+      if(request == null) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "datasource is required");
+      }
+
+      String source = requirePath(request.path());
+
+      if(request.cube() == null || request.cube().isBlank()) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "cube is required");
+      }
+
+      gates.requireDataSourcePermission(source, ResourceAction.WRITE, principal);
+      XDomain domain = requireXmla(source, principal);
+      List<Cube> cubes = readableCubes(source, domain, principal);
+      Cube cube = resolveCube(cubes, request.cube().trim());
+
+      if(cube == null) {
+         throw unknownCube(source, request.cube().trim(), cubes);
+      }
+
+      String cubeName = cube.getName();
+      WizCubeSettingsResult[] applied = new WizCubeSettingsResult[1];
+      XDomain saved;
+
+      try {
+         saved = xmlaDatasourceService.updateStoredDomain(source, copy -> {
+            applied[0] = WizCubeSettingsPatcher.apply((Cube) copy.getCube(cubeName), source,
+                                                      request);
+         });
+      }
+      catch(IllegalArgumentException ex) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
+      }
+      catch(FileNotFoundException ex) {
+         throw new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getMessage());
+      }
+
+      XCube savedCube = saved == null ? null : saved.getCube(cubeName);
+      WizCubeSettingsResult readBack = savedCube instanceof Cube c ?
+         WizCubeSettingsPatcher.snapshot(source, c, applied[0]) : null;
+
+      if(!applied[0].equals(readBack)) {
+         throw new ResponseStatusException(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "The cube settings of \"" + source + "\" were not saved as given (applied " +
+               applied[0] + ", read back " + readBack + ").");
+      }
+
+      return readBack;
+   }
+
+   /** Builds the cube description. */
+   public static WizCubeDetails describe(String source, Cube cube) {
       return new WizCubeDetails(source, cube.getName(), cube.getCaption(), cube.getType(),
                                 dimensionsOf(cube), measuresOf(cube));
    }
@@ -162,7 +242,7 @@ public class WizCubeController {
     * hierarchies, otherwise a folder per dimension holding itself. Names that are also a measure
     * and dimensions without a level are left out; folders and hierarchies are in caption order.
     */
-   static List<WizCubeDetails.Dimension> dimensionsOf(XCube cube) {
+   public static List<WizCubeDetails.Dimension> dimensionsOf(XCube cube) {
       List<WizCubeDetails.Dimension> result = new ArrayList<>();
       Map<?, ?> groups = XMLAUtil.getDimensionGroups(cube);
 
@@ -228,21 +308,29 @@ public class WizCubeController {
          XCubeMember member = dim.getLevelAt(i);
          String caption = member instanceof DimMember dm ? dm.getCaption() : null;
          caption = caption == null ? member.getName() : caption;
-         levels.add(new WizCubeDetails.Level(member.getName(), caption, member.getType(), i));
+         XMetaInfo meta = member.getXMetaInfo();
+         String pattern = meta == null || Tool.isEmptyString(meta.getDatePattern()) ? null :
+            meta.getDatePattern();
+         String locale = meta == null || meta.getLocale() == null ? null :
+            XMetaInfo.formatLocale(meta.getLocale());
+         levels.add(new WizCubeDetails.Level(
+            member.getName(), caption, member.getType(), i, meta != null && meta.isAsDate(),
+            locale, pattern));
       }
 
       String caption = AssetUtil.getCaption(dim);
 
       return new WizCubeDetails.Hierarchy(
          dim.getName(), caption == null ? dim.getName() : caption,
-         dim instanceof HierDimension h && h.isUserDefined(), levels);
+         dim instanceof HierDimension h && h.isUserDefined(),
+         dim instanceof Dimension d && d.isOriginalOrder(), levels);
    }
 
    /**
     * The measures as {@code AssetEventUtil.appendCubeMeasures} lists them: a member that is also a
     * dimension is a measure only when its data reference says so. In caption order.
     */
-   static List<WizCubeDetails.Measure> measuresOf(XCube cube) {
+   public static List<WizCubeDetails.Measure> measuresOf(XCube cube) {
       List<WizCubeDetails.Measure> result = new ArrayList<>();
       Enumeration<?> measures = cube.getMeasures();
 
@@ -274,7 +362,7 @@ public class WizCubeController {
    }
 
    /** The name, then the caption, then a unique case-insensitive match of either. */
-   static Cube resolveCube(List<Cube> cubes, String name) {
+   public static Cube resolveCube(List<Cube> cubes, String name) {
       for(Cube cube : cubes) {
          if(name.equals(cube.getName())) {
             return cube;
@@ -374,5 +462,6 @@ public class WizCubeController {
 
    private final SecurityEngine securityEngine;
    private final XRepository xrepository;
+   private final XmlaDatasourceService xmlaDatasourceService;
    private final WizDatasourceGates gates;
 }

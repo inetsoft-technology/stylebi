@@ -63,6 +63,8 @@ import inetsoft.uql.tabular.TabularSchemaExtractor;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.text.TextOutput;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.xmla.Cube;
+import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.EmptyTableToEmbeddedException;
 import inetsoft.uql.util.XEmbeddedTable;
@@ -94,6 +96,7 @@ import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.composer.ws.service.SaveWorksheetService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.WizUtil;
+import inetsoft.web.wiz.controller.WizCubeController;
 import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.ExportCellCapScanner;
@@ -488,6 +491,12 @@ public class WorksheetAgentController {
       if("set_primary_assembly".equals(req.op()) && madeVisibleHolder != null) {
          editService.apply(sessionToken, user,
                            editor -> madeVisibleHolder[0] = editor.setPrimaryAssembly(req.table()));
+         return;
+      }
+
+      // add_cube_table builds a worksheet table from an XMLA cube; see addCubeTable.
+      if("add_cube_table".equals(req.op())) {
+         addCubeTable(sessionToken, req, user, resolvedNameHolder);
          return;
       }
 
@@ -1192,6 +1201,101 @@ public class WorksheetAgentController {
 
          positionBelowExisting(ws, assembly);
          ws.addAssembly(assembly);
+         return null;
+      });
+   }
+
+   /**
+    * Create a {@link CubeTableAssembly} from an XMLA cube ({@code add_cube_table}).
+    *
+    * <p>{@code req.datasource()} is the XMLA data source and {@code req.cube()} one of its cubes;
+    * {@code req.levels()} and/or {@code req.measures()} name the columns with the names
+    * {@code get_cube_details} reports, and {@code req.table()} optionally names the new table (the
+    * cube's name otherwise; never the reserved {@code ___inetsoft_cube_} prefix, which a saved
+    * worksheet may not carry). The data source READ permission and the cube READ permission
+    * ({@link AssetEventUtil#getXCube}) are checked here, as the Composer's drop checks them, before
+    * the worksheet is touched; the columns are built by {@link WorksheetCubeTableBuilder}.</p>
+    */
+   private void addCubeTable(String sessionToken, EditRequest req, Principal user,
+                             String[] resolvedNameHolder)
+      throws Exception
+   {
+      String datasourceName = req.datasource();
+
+      if(datasourceName == null || datasourceName.isBlank()) {
+         throw new PairingException("datasource is required for add_cube_table.");
+      }
+
+      if(req.cube() == null || req.cube().isBlank()) {
+         throw new PairingException("cube is required for add_cube_table (see list_cubes).");
+      }
+
+      String other = req.logicalModel() != null && !req.logicalModel().isBlank() ? "logicalModel" :
+         req.schema() != null ? "schema" : req.catalog() != null ? "catalog" :
+         req.endpoint() != null ? "endpoint" : req.suffix() != null ? "suffix" :
+         req.queryParams() != null ? "queryParams" : null;
+
+      if(other != null) {
+         throw new PairingException("add_cube_table cannot carry " + other + " -- it names a " +
+            "table form of add_table; a cube table takes datasource, cube, levels and measures.");
+      }
+
+      if(!dataSourceService.checkPermission(datasourceName, ResourceAction.READ, user)) {
+         throw new PairingException(
+            "Access denied: no READ permission on datasource " + datasourceName);
+      }
+
+      XDataSource dataSource = xrepository.getDataSource(datasourceName);
+
+      if(dataSource == null) {
+         throw new PairingException("datasource: no data source at \"" + datasourceName + "\".");
+      }
+
+      if(!(dataSource instanceof XMLADataSource)) {
+         throw new PairingException("datasource: \"" + datasourceName + "\" is a " +
+            dataSource.getType() + " data source, not an XMLA (cube) data source; use add_table " +
+            "for its tables.");
+      }
+
+      XDomain domain = xrepository.getDomain(datasourceName);
+      List<Cube> readable = new ArrayList<>();
+
+      if(domain != null) {
+         for(Enumeration<?> cubes = domain.getCubes(); cubes.hasMoreElements();) {
+            Object next = cubes.nextElement();
+
+            // the cube READ permission, the one the Composer's drop applies
+            if(next instanceof Cube c && AssetEventUtil.getXCube(
+               datasourceName, c.getName(), user) != null)
+            {
+               readable.add(c);
+            }
+         }
+      }
+
+      Cube cube = WizCubeController.resolveCube(readable, req.cube().trim());
+
+      if(cube == null) {
+         List<String> names = new ArrayList<>();
+         readable.forEach(c -> names.add(c.getName()));
+         throw new PairingException("cube: no cube \"" + req.cube().trim() + "\" in data " +
+            "source \"" + datasourceName + "\"; " + (names.isEmpty() ?
+            "it has no readable cubes (run refresh_data_source_metadata to load them)" :
+            "valid cubes: " + names));
+      }
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         AbstractTableAssembly table = WorksheetCubeTableBuilder.build(
+            ws, user, cube, datasourceName, req.levels(), req.measures(), req.table(),
+            sinfo -> queryManagerService.checkSourceReadPermission(sinfo, user));
+
+         if(resolvedNameHolder != null) {
+            resolvedNameHolder[0] = table.getName();
+         }
+
+         positionBelowExisting(ws, table);
+         ws.addAssembly(table);
          return null;
       });
    }

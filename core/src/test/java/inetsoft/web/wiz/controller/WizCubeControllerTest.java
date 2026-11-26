@@ -27,10 +27,14 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.xmla.*;
 import inetsoft.web.wiz.model.WizCubeDetails;
 import inetsoft.web.wiz.model.WizCubeList;
+import inetsoft.web.wiz.model.WizCubeSettingsResult;
+import inetsoft.web.wiz.request.WizCubeSettingsRequest;
+import inetsoft.web.portal.service.datasource.XmlaDatasourceService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -58,13 +62,116 @@ class WizCubeControllerTest {
 
       for(Method method : WizCubeController.class.getDeclaredMethods()) {
          GetMapping get = method.getAnnotation(GetMapping.class);
+         PostMapping post = method.getAnnotation(PostMapping.class);
 
          if(get != null) {
-            paths.add(prefix + get.value()[0]);
+            paths.add("GET " + prefix + get.value()[0]);
+         }
+
+         if(post != null) {
+            paths.add("POST " + prefix + post.value()[0]);
          }
       }
 
-      assertEquals(Set.of("/api/wiz/xmla/cubes", "/api/wiz/xmla/cube"), paths);
+      assertEquals(Set.of("GET /api/wiz/xmla/cubes", "GET /api/wiz/xmla/cube",
+                          "POST /api/wiz/xmla/cube-settings"), paths);
+   }
+
+   // ---- cube settings -----------------------------------------------------------------------
+
+   @Test
+   void updateCubeSettings_patchesTheStoredDomainAndAnswersFromTheReadBack() throws Exception {
+      Fixture f = new Fixture();
+      String time = WizCubeController.describe("OLAP/FoodMart", f.storedCube("Sales"))
+         .dimensions().stream().filter(d -> d.name().equals("Time")).findFirst().orElseThrow()
+         .hierarchies().get(0).entity();
+
+      WizCubeSettingsResult result = f.controller.updateCubeSettings(
+         new WizCubeSettingsRequest(
+            "OLAP/FoodMart", "Sales",
+            List.of(new WizCubeSettingsRequest.Dimension("Store", null, true)),
+            List.of(new WizCubeSettingsRequest.Level(
+               "Time", time, "Year", true, "en_US", "yyyy"))),
+         f.principal);
+
+      assertEquals("Sales", result.cube());
+      assertTrue(result.dimensions().get(0).originalOrder());
+      assertEquals("en_US", result.levels().get(0).locale());
+      assertEquals("yyyy", result.levels().get(0).datePattern());
+      verify(f.xmla).updateStoredDomain(eq("OLAP/FoodMart"), any());
+      // the patch went to a copy: the stored domain's own cube is untouched until it is saved
+      assertFalse(WizCubeController.describe("OLAP/FoodMart", f.storedCube("Sales")).dimensions()
+         .stream().filter(d -> d.name().equals("Store")).findFirst().orElseThrow()
+         .originalOrder());
+   }
+
+   @Test
+   void updateCubeSettings_needsWriteOnTheDataSource() throws Exception {
+      Fixture f = new Fixture();
+      f.denyAction(ResourceType.DATA_SOURCE, "OLAP/FoodMart", ResourceAction.WRITE);
+
+      assertThrows(SecurityException.class, () -> f.controller.updateCubeSettings(
+         storeOrder("OLAP/FoodMart", "Sales"), f.principal));
+      verify(f.xmla, never()).updateStoredDomain(any(), any());
+   }
+
+   @Test
+   void updateCubeSettings_anUnreadableCubeIsUnknown() throws Exception {
+      Fixture f = new Fixture();
+      f.deny(ResourceType.CUBE, "OLAP/FoodMart::HR");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> f.controller.updateCubeSettings(storeOrder("OLAP/FoodMart", "HR"), f.principal));
+
+      assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+      assertTrue(ex.getReason().contains("valid cubes: [Sales]"), ex.getReason());
+      verify(f.xmla, never()).updateStoredDomain(any(), any());
+   }
+
+   @Test
+   void updateCubeSettings_aBadNameIsA400NamingTheFieldAndSavesNothing() throws Exception {
+      Fixture f = new Fixture();
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> f.controller.updateCubeSettings(new WizCubeSettingsRequest(
+            "OLAP/FoodMart", "Sales",
+            List.of(new WizCubeSettingsRequest.Dimension("Nope", null, true)), null),
+            f.principal));
+
+      assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+      assertTrue(ex.getReason().startsWith("dimensions[0].dimension: no dimension \"Nope\""),
+                 ex.getReason());
+      // the service saves only when the patch returns: the patch threw, so its copy was dropped
+      assertFalse(WizCubeController.describe("OLAP/FoodMart", f.storedCube("Sales")).dimensions()
+         .stream().anyMatch(d -> d.originalOrder() && d.name().equals("Store")));
+   }
+
+   @Test
+   void updateCubeSettings_aWriteThatReadsBackDifferentlyIsAnError() throws Exception {
+      Fixture f = new Fixture();
+      f.saveFails = true;
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> f.controller.updateCubeSettings(
+            storeOrder("OLAP/FoodMart", "Sales"), f.principal));
+
+      assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, ex.getStatusCode());
+      assertTrue(ex.getReason().contains("were not saved as given"), ex.getReason());
+   }
+
+   @Test
+   void updateCubeSettings_aNonXmlaSourceIs422() throws Exception {
+      Fixture f = new Fixture();
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> f.controller.updateCubeSettings(storeOrder("db/orders", "Sales"), f.principal));
+
+      assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+   }
+
+   private static WizCubeSettingsRequest storeOrder(String path, String cube) {
+      return new WizCubeSettingsRequest(
+         path, cube, List.of(new WizCubeSettingsRequest.Dimension("Store", null, true)), null);
    }
 
    // ---- list -------------------------------------------------------------------------------
@@ -373,13 +480,15 @@ class WizCubeControllerTest {
          hr.setDimensions(List.of(employee, count));
          hr.setMeasures(List.of(measure("Count", false)));
 
-         Domain domain = new Domain();
+         domain = new Domain();
          domain.setDataSource("OLAP/FoodMart");
          domain.setCubes(List.of(sales, hr));
 
          when(security.checkPermission(any(), any(ResourceType.class), anyString(),
                                        any(ResourceAction.class))).thenAnswer(
-            inv -> !denied.contains(inv.getArgument(1) + "|" + inv.getArgument(2)));
+            inv -> !denied.contains(inv.getArgument(1) + "|" + inv.getArgument(2)) &&
+               !denied.contains(inv.getArgument(1) + "|" + inv.getArgument(2) + "|" +
+                                   inv.getArgument(3)));
          when(repository.getDataSourceFullNames()).thenReturn(
             new String[] { "OLAP/FoodMart", "db/orders" });
          when(repository.getDataSource("OLAP/FoodMart")).thenReturn(mock(XMLADataSource.class));
@@ -387,13 +496,30 @@ class WizCubeControllerTest {
          when(jdbc.getType()).thenReturn("jdbc");
          when(repository.getDataSource("db/orders")).thenReturn(jdbc);
          when(repository.getDomain("OLAP/FoodMart")).thenReturn(domain);
-         controller = new WizCubeController(security, repository);
+         when(xmla.updateStoredDomain(eq("OLAP/FoodMart"), any())).thenAnswer(inv -> {
+            Domain copy = (Domain) domain.clone();
+            inv.<java.util.function.Consumer<Domain>>getArgument(1).accept(copy);
+
+            return saveFails ? domain : copy;
+         });
+         controller = new WizCubeController(security, repository, xmla);
       }
 
       void deny(ResourceType type, String path) {
          denied.add(type + "|" + path);
       }
 
+      void denyAction(ResourceType type, String path, ResourceAction action) {
+         denied.add(type + "|" + path + "|" + action);
+      }
+
+      Cube storedCube(String name) {
+         return (Cube) domain.getCube(name);
+      }
+
+      final Domain domain;
+      final XmlaDatasourceService xmla = mock(XmlaDatasourceService.class);
+      boolean saveFails;
       final SecurityEngine security = mock(SecurityEngine.class);
       final XRepository repository = mock(XRepository.class);
       final Principal principal = mock(Principal.class);

@@ -382,10 +382,52 @@ public class WorksheetOpenAssetService extends WorksheetControllerService {
          return null;
       }
 
+      return createTable(ws, principal, rws.getUser(), entries, pos,
+                         sinfo -> queryManagerService.checkSourceReadPermission(sinfo, principal),
+                         null, null);
+   }
+
+   /**
+    * Checks that the caller may read the source a table is about to be built on. Called before the
+    * source's model is resolved or its table is created.
+    */
+   @FunctionalInterface
+   public interface SourceCheck {
+      void check(SourceInfo sinfo) throws Exception;
+   }
+
+   /**
+    * Builds the table assembly a drop of {@code entries} (leaf column entries of the data tree)
+    * makes, without adding it to the worksheet. This is the one place that turns dropped tree
+    * entries into a table: the Composer's drop and the agent's {@code add_cube_table} both call it.
+    * It is static, and public, because the agent caller sits in another package and this class is a
+    * cluster proxy bean.
+    *
+    * <p>By default only the entries that share the first entry's source, prefix and {@code type}
+    * are kept (a drop yields a table of one kind). With {@code forcedType} the {@code type}
+    * filter is lifted and the source is stored with that type instead, which is how a cube table
+    * holds dimension levels and measures together ({@code SourceInfo.CUBE}); the caller must pass
+    * only entries of one source.</p>
+    *
+    * @param ws          the worksheet the table is for.
+    * @param principal   the user principal.
+    * @param sessionUser the runtime worksheet's user, or null.
+    * @param entries     the entries to build from, none of them a folder.
+    * @param pos         the position to place the table at.
+    * @param sourceCheck the permission check run on the source.
+    * @param forcedType  the source type to store, or null to take the first entry's.
+    * @param tableName   the table name to use, or null to derive it as a drop does.
+    *
+    * @return the new table assembly, or null if no entry qualified.
+    */
+   public static AbstractTableAssembly createTable(
+      Worksheet ws, Principal principal, Principal sessionUser, AssetEntry[] entries, Point pos,
+      SourceCheck sourceCheck, Integer forcedType, String tableName) throws Exception
+   {
       AssetEntry entry = entries[0];
       String prefix = entry.getProperty("prefix");
       String source = entry.getProperty("source");
-      String type = entry.getProperty("type");
+      String type = forcedType != null ? forcedType + "" : entry.getProperty("type");
       String folderDesc = entry.getProperty("folder_description");
       String levelNumber = entry.getProperty("level_number");
       java.util.List<String> attributes = new ArrayList<>();
@@ -399,7 +441,7 @@ public class WorksheetOpenAssetService extends WorksheetControllerService {
          if(e2.isColumn() && prefix2 != null && source2 != null &&
             Tool.equals(prefix2, prefix) &&
             Tool.equals(source2, source) &&
-            Tool.equals(e2.getProperty("type"), type))
+            (forcedType != null || Tool.equals(e2.getProperty("type"), type)))
          {
             if(list.size() >= max) {
                Tool.addUserMessage(Util.getColumnLimitMessage());
@@ -419,7 +461,7 @@ public class WorksheetOpenAssetService extends WorksheetControllerService {
          Integer.parseInt(type), prefix, source);
       // the source is built from the client's entry properties and nothing downstream checks
       // it, so check it before its model is resolved or its table is created (Bug #77400)
-      queryManagerService.checkSourceReadPermission(sinfo, principal);
+      sourceCheck.check(sinfo);
       sinfo.setProperty(SourceInfo.QUERY_FOLDER, folderDesc);
       String name = source;
 
@@ -438,8 +480,7 @@ public class WorksheetOpenAssetService extends WorksheetControllerService {
       XQuery query = null;
 
       if(sinfo.getType() == XSourceInfo.MODEL) {
-         lmodel = XUtil.getLogicModel(sinfo, rws.getUser() == null ?
-            principal : rws.getUser());
+         lmodel = XUtil.getLogicModel(sinfo, sessionUser == null ? principal : sessionUser);
       }
 
       for(AssetEntry temp : list) {
@@ -520,8 +561,15 @@ public class WorksheetOpenAssetService extends WorksheetControllerService {
          }
       }
 
-      name = AssetUtil.normalizeTable(name);
-      name = AssetUtil.getNextName(ws, name);
+      if(tableName != null) {
+         name = AssetUtil.normalizeTable(tableName);
+         // a name the caller chose is used as given when it is free
+         name = AssetUtil.getNextName(ws, name, name);
+      }
+      else {
+         name = AssetUtil.normalizeTable(name);
+         name = AssetUtil.getNextName(ws, name);
+      }
       AbstractTableAssembly table;
 
       if(sinfo.getType() == SourceInfo.MODEL) {
