@@ -20,6 +20,7 @@ package inetsoft.mv.formula;
 import inetsoft.report.filter.Formula2;
 import inetsoft.uql.XConstants;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 /**
  * Calculate the correlation.
  *
@@ -56,148 +57,97 @@ public class CompositeCorrelationFormula implements Formula2 {
    @Override
    public void reset() {
       sumwt = 0;
-      cntx = 0;
+      cnt = 0;
       sumx = 0;
       sumy = 0;
       sumsqx = 0;
-      cnty = 0;
       sumsqy = 0;
    }
 
-   /**
-    * Add a double value to the formula.
-    */
    @Override
    public void addValue(double v) {
       throw new RuntimeException("Unsupported method called!");
    }
 
    /**
-    * Add double value to the formula.
+    * Add the sub-aggregates of a sub-group, in the order of
+    * AggregateFormula.CORRELATION.getSubAggregates(): SUMWT(x, y), PAIRSUM(x, y),
+    * PAIRSUM(y, x), PAIRCOUNT(x, y), PAIRSUMSQ(x, y), PAIRSUMSQ(y, x), all over the rows
+    * where both x and y are not null (Bug #82375). For a correlation of a column with itself
+    * the duplicates are left out (SUMWT, PAIRSUM, PAIRCOUNT, PAIRSUMSQ). A null sub-aggregate
+    * (Tool.NULL_DOUBLE, no row in the sub-group) adds 0.
     */
    @Override
    public void addValue(double[] v) {
-      if(v.length < 7) {
-      	 // very special case, might be self correlation
-         if(v.length == 4) {
-            sumwt += v[0];
-            sumx += v[1];
-            sumy += v[1];
-            cntx += v[2];
-            sumsqx += v[3];
-            cnty += v[2];
-            sumsqy += v[3];
-         }
-
+      if(v == null) {
          return;
       }
 
-      sumwt += v[0];
-      sumx += v[1];
-      sumy += v[2];
-      cntx += v[3];
-      sumsqx += v[4];
-      cnty += v[5];
-      sumsqy += v[6];
+      if(v.length == 4) {
+         add(v[0], v[1], v[1], v[2], v[3], v[3]);
+      }
+      else if(v.length >= 6) {
+         add(v[0], v[1], v[2], v[3], v[4], v[5]);
+      }
    }
 
-   /**
-    * Add a float value to the formula.
-    */
+   private void add(double wt, double x, double y, double n, double sqx, double sqy) {
+      sumwt += value(wt);
+      sumx += value(x);
+      sumy += value(y);
+      cnt += value(n);
+      sumsqx += value(sqx);
+      sumsqy += value(sqy);
+   }
+
+   private static double value(double val) {
+      return val == Tool.NULL_DOUBLE ? 0 : val;
+   }
+
    @Override
    public void addValue(float v) {
       throw new RuntimeException("Unsupported method called!");
    }
 
-   /**
-    * Add a long value to the formula.
-    */
    @Override
    public void addValue(long v) {
       throw new RuntimeException("Unsupported method called!");
    }
 
-   /**
-    * Add an int value to the formula.
-    */
    @Override
    public void addValue(int v) {
       throw new RuntimeException("Unsupported method called!");
    }
 
-   /**
-    * Add a short value to the formula.
-    */
    @Override
    public void addValue(short v) {
       throw new RuntimeException("Unsupported method called!");
    }
 
    /**
-    * Add a value to the formula.
+    * Add the sub-aggregates as objects, in the same order as addValue(double[]).
     */
    @Override
    public void addValue(Object v) {
-      if(v == null || !(v instanceof Object[])) {
+      if(!(v instanceof Object[] data)) {
          return;
       }
 
-      double osumwt = sumwt;
-      int ocntx = cntx;
-      double osumx = sumx;
-      double osumy = sumy;
-      double osumsqx = sumsqx;
-      int ocnty = cnty;
-      double osumsqy = sumsqy;
-
       try {
-         Object[] data = (Object[]) v;
-         // result = SIGMA(xV * yV) / SIGMA(yV);
-         Number val1 = (data[0] instanceof Number) ?
-            (Number) data[0] : Double.parseDouble(data[0] + "");
-         Number val2 = (data[1] instanceof Number) ?
-            (Number) data[1] : Double.parseDouble(data[1] + "");
-         Number val3 = (data[2] instanceof Number) ?
-            (Number) data[2] : Double.parseDouble(data[2] + "");
-         Number val4 = (data[3] instanceof Number) ?
-            (Number) data[3] : Double.parseDouble(data[3] + "");
-         Number val5 = (data[4] instanceof Number) ?
-            (Number) data[4] : Double.parseDouble(data[4] + "");
-         Number val6 = (data[5] instanceof Number) ?
-            (Number) data[5] : Double.parseDouble(data[5] + "");
-         Number val7 = (data[6] instanceof Number) ?
-            (Number) data[6] : Double.parseDouble(data[6] + "");
+         double[] vals = new double[data.length];
 
-         if(val1 == null || val2 == null || val3 == null || val4 == null ||
-            val5 == null || val6 == null || val7 == null)
-         {
-            return;
+         for(int i = 0; i < data.length; i++) {
+            vals[i] = data[i] == null ? Tool.NULL_DOUBLE : (data[i] instanceof Number)
+               ? ((Number) data[i]).doubleValue() : Double.parseDouble(data[i] + "");
          }
 
-         sumwt += val1.doubleValue();
-         sumx += val2.doubleValue();
-         sumy += val3.doubleValue();
-         cntx += val4.intValue();
-         sumsqx += val5.doubleValue();
-         cnty += val6.intValue();
-         sumsqy += val7.doubleValue();
+         addValue(vals);
       }
-      catch(Exception e) {
-         sumwt = osumwt;
-         cntx = ocntx;
-         sumx = osumx;
-         sumy = osumy;
-         sumsqx = osumsqx;
-         cnty = ocnty;
-         sumsqy = osumsqy;
+      catch(NumberFormatException ignore) {
+         // a sub-aggregate that is not a number, the sub-group is skipped
       }
    }
 
-   /**
-    * Set the default result option of this formula.
-    * @param def <tt>true</tt> to use the default value of a formula if no
-    * result, <tt>false</tt> to just return null.
-    */
    @Override
    public void setDefaultResult(boolean def) {
       this.def = def;
@@ -220,7 +170,7 @@ public class CompositeCorrelationFormula implements Formula2 {
     */
    @Override
    public Object getResult() {
-      if(cntx == 0 || cnty == 0) {
+      if(cnt <= 0) {
          return def ? Double.valueOf(0) : null;
       }
 
@@ -242,7 +192,7 @@ public class CompositeCorrelationFormula implements Formula2 {
     */
    @Override
    public boolean isNull() {
-      return cntx == 0 || cnty == 0 || Double.isNaN(correlation());
+      return cnt <= 0 || Double.isNaN(correlation());
    }
 
    /**
@@ -252,7 +202,7 @@ public class CompositeCorrelationFormula implements Formula2 {
     * @return the correlation, or NaN when there is none (no rows, or a zero variance of x or y).
     */
    private double correlation() {
-      if(cntx == 0 || cnty == 0) {
+      if(cnt <= 0) {
          return Double.NaN;
       }
 
@@ -262,8 +212,8 @@ public class CompositeCorrelationFormula implements Formula2 {
       // ZERO_VARIANCE_TOLERANCE of the term it is cancelled from carries no information
       // (that is ~4500 ulps of the double precision) and is treated as zero variance.
       // Data with a standard deviation above ~1e-6 of its mean is not affected.
-      double scalex = cntx * sumsqx;
-      double scaley = cnty * sumsqy;
+      double scalex = cnt * sumsqx;
+      double scaley = cnt * sumsqy;
       double varnumx = scalex - (sumx * sumx);
       double varnumy = scaley - (sumy * sumy);
 
@@ -273,9 +223,9 @@ public class CompositeCorrelationFormula implements Formula2 {
          return Double.NaN;
       }
 
-      double sdevx = Math.sqrt(varnumx / ((double) cntx * cntx));
-      double sdevy = Math.sqrt(varnumy / ((double) cnty * cnty));
-      double covar = (sumwt / cntx) - ((sumx * sumy) / ((double) cntx * cntx));
+      double sdevx = Math.sqrt(varnumx / (cnt * cnt));
+      double sdevy = Math.sqrt(varnumy / (cnt * cnt));
+      double covar = (sumwt / cnt) - ((sumx * sumy) / (cnt * cnt));
       double result = covar / (sdevx * sdevy);
 
       return Double.isInfinite(result) ? Double.NaN : result;
@@ -314,11 +264,11 @@ public class CompositeCorrelationFormula implements Formula2 {
 
    private int[] cols;
    private double sumwt = 0;
-   private int cntx = 0;
+   // count of the pairs (the same for x and y), a double so that the square does not overflow
+   private double cnt = 0;
    private double sumx = 0;
    private double sumy = 0;
    private double sumsqx = 0;
-   private int cnty = 0;
    private double sumsqy = 0;
 
    private boolean def = false;

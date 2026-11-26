@@ -20,6 +20,8 @@ package inetsoft.mv.formula;
 
 import inetsoft.test.*;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -95,17 +97,19 @@ class CompositeCovarianceFormulaTest {
       assertEquals(2.125, formula.getResult());
       assertEquals(2.125, formula.getDoubleResult());
 
-      //cnt_c1 is zero
+      // no pair (count 0): no result, and isNull() agrees with getResult()
       formula.reset();
       formula.addValue(new double[]{10, 2, 3, 0});
-      assertFalse(formula.isNull());
+      assertTrue(formula.isNull());
       assertNull(formula.getResult());
       assertEquals(0.0, formula.getDoubleResult());
 
-      // Invalid double array (length < 4)
+      // covariance of a column with itself: SUMWT, SUMx, N (the duplicate sum is removed),
+      // the same as the object array path
       formula.reset();
       formula.addValue(new double[]{10, 2, 3});
-      assertTrue(formula.isNull());
+      assertFalse(formula.isNull());
+      assertEquals(10.0 / 3 - 4.0 / 9, (Double) formula.getResult(), 1e-12);
    }
 
    @Test
@@ -155,6 +159,45 @@ class CompositeCovarianceFormulaTest {
    @Test
    void testGetName() {
       assertEquals(XConstants.COVARIANCE_FORMULA, formula.getName());
+   }
+
+   // Bug #82375: a sub-group without a pair (null sub-aggregates) adds nothing
+   @Test
+   void nullSubAggregatesAddNothing() {
+      formula.addValue(new double[]{ 10, 2, 3, 4 });
+      formula.addValue(new double[]{ Tool.NULL_DOUBLE, Tool.NULL_DOUBLE, Tool.NULL_DOUBLE,
+                                     Tool.NULL_DOUBLE });
+      assertEquals(2.125, (Double) formula.getResult(), 1e-12);
+
+      // a sum of products of 0 (null from SumWTFormula) is 0, not a huge negative value
+      formula.reset();
+      formula.addValue(new double[]{ Tool.NULL_DOUBLE, 0, 3, 2 });
+      assertEquals(0.0, (Double) formula.getResult(), 1e-12);
+   }
+
+   // Bug #82375: the pair count is squared without an int overflow (> 46340 pairs)
+   @Test
+   void largeCountDoesNotOverflow() {
+      formula.addValue(new double[]{ 50000, 50000, 50000, 50000 });
+      assertEquals(0.0, (Double) formula.getResult(), 1e-12);
+   }
+
+   // Bug #82375: decimal sums in the object path are not cut to int
+   @Test
+   void objectPathKeepsDecimalSums() {
+      formula.addValue(new Object[]{ 2.25, 1.5, 1.5, 1.0 });
+      assertEquals(0.0, (Double) formula.getResult(), 1e-12);
+   }
+
+   // Bug #82375: the pair sub-aggregates resolve by name (sub MV query XML)
+   @Test
+   void pairSubAggregatesAreRegistered() {
+      for(String name : new String[]{ "PAIRSUM", "PAIRCOUNT", "PAIRSUMSQ" }) {
+         AggregateFormula form = AggregateFormula.getFormula(name);
+         assertNotNull(form, name);
+         assertEquals(name, form.getName());
+         assertTrue(form.isTwoColumns(), name);
+      }
    }
 
    @Test

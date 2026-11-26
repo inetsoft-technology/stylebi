@@ -620,7 +620,7 @@ class CorrelationFormulaTest {
       double[] ys = { 2.1, 3.9, 6.2, 7.8, 10.3, 11.9, 14.2, 16.1, 17.8, 20.4 };
       inetsoft.mv.formula.CompositeCorrelationFormula mv =
          new inetsoft.mv.formula.CompositeCorrelationFormula(new int[] { 1 });
-      // the partials: sumxy, sumx, sumy, cntx, sumsqx, cnty, sumsqy
+      // the partials over the pairs: sumxy, sumx, sumy, n, sumsqx, sumsqy (Bug #82375)
       double sxy = 0;
       double sx = 0;
       double sy = 0;
@@ -635,7 +635,7 @@ class CorrelationFormulaTest {
          syy += ys[i] * ys[i];
       }
 
-      mv.addValue(new double[] { sxy, sx, sy, xs.length, sxx, xs.length, syy });
+      mv.addValue(new double[] { sxy, sx, sy, xs.length, sxx, syy });
       assertEquals(corr(xs, ys), ((Number) mv.getResult()).doubleValue(), 1e-9);
    }
 

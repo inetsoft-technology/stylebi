@@ -88,13 +88,17 @@ class CompositeCorrelationFormulaTest {
       assertEquals("Unsupported method called!", exceptionShort.getMessage());
    }
 
+   // covariance 1/4 - 2*3/16 = -0.125, sdev x = sqrt((4*5 - 4)/16) = 1,
+   // sdev y = sqrt((4*7 - 9)/16)
+   private static final double EXPECTED_6 = -0.125 / Math.sqrt(19.0 / 16);
+
    @Test
    void testAddValueGetResult() {
-      //double array, 7 value
-      formula.addValue(new double[]{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0});
+      // double array, 6 values: SUMWT, SUMx, SUMy, N, SUMSQx, SUMSQy over the pairs
+      formula.addValue(new double[]{1.0, 2.0, 3.0, 4.0, 5.0, 7.0});
       assertFalse(formula.isNull());
-      assertEquals(-0.13055824196677338, formula.getResult());
-      assertEquals(-0.13055824196677338, formula.getDoubleResult());
+      assertEquals(EXPECTED_6, (Double) formula.getResult(), 1e-15);
+      assertEquals(EXPECTED_6, formula.getDoubleResult(), 1e-15);
 
       //double array, 4 value
       formula.reset();
@@ -105,7 +109,7 @@ class CompositeCorrelationFormulaTest {
 
       //zero standard deviation
       formula.reset();
-      formula.addValue(new double[]{1.0, 1.0, 1.0, 1, 1.0, 1, 1.0}); // Values that lead to zero standard deviation
+      formula.addValue(new double[]{1.0, 1.0, 1.0, 1, 1.0, 1.0}); // Values that lead to zero standard deviation
       assertNull(formula.getResult());
       assertEquals(0, formula.getDoubleResult());
    }
@@ -113,20 +117,20 @@ class CompositeCorrelationFormulaTest {
    @Test
    void testAddValueWithObjectArray() {
       //number value
-      Object[] values = {1, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0};
+      Object[] values = {1, 2.0, 3.0, 4.0, 5.0, 7.0};
       formula.addValue(values);
       assertFalse(formula.isNull());
-      assertEquals(-0.13055824196677338, formula.getResult());
-      assertEquals(-0.13055824196677338, formula.getDoubleResult());
+      assertEquals(EXPECTED_6, (Double) formula.getResult(), 1e-15);
+      assertEquals(EXPECTED_6, formula.getDoubleResult(), 1e-15);
       formula.reset();
       assertTrue(formula.isNull());
 
       //string value
-      values = new Object[]{"1.0", "2.0", "3.0", "4.0", "5.0", "6.0", "7.0"};
+      values = new Object[]{"1.0", "2.0", "3.0", "4.0", "5.0", "7.0"};
       formula.addValue(values);
       assertFalse(formula.isNull());
-      assertEquals(-0.13055824196677338, formula.getResult());
-      assertEquals(-0.13055824196677338, formula.getDoubleResult());
+      assertEquals(EXPECTED_6, (Double) formula.getResult(), 1e-15);
+      assertEquals(EXPECTED_6, formula.getDoubleResult(), 1e-15);
    }
 
    @Test
@@ -161,7 +165,7 @@ class CompositeCorrelationFormulaTest {
    /** Feeds one row per call, as the per-group sub-aggregates the MV merge stage sums up. */
    private static void feed(CompositeCorrelationFormula f, double[][] rows) {
       for(double[] r : rows) {
-         f.addValue(new double[] { r[0] * r[1], r[0], r[1], 1, r[0] * r[0], 1, r[1] * r[1] });
+         f.addValue(new double[] { r[0] * r[1], r[0], r[1], 1, r[0] * r[0], r[1] * r[1] });
       }
    }
 
