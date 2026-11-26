@@ -329,12 +329,18 @@ public class WizVpmController {
    private boolean roleExists(String role) {
       try {
          SecurityProvider provider = securityEngine.getSecurityProvider();
-         return provider == null || provider.getRole(
-            new IdentityID(role, OrganizationManager.getInstance().getCurrentOrgID())) != null;
+         return provider == null || roleKnown(provider, role);
       }
       catch(Exception e) {
          return true;
       }
+   }
+
+   /** The organization's role of that name, else a global one such as the built-in Administrator. */
+   private static boolean roleKnown(SecurityProvider provider, String role) {
+      IdentityID id = new IdentityID(role, OrganizationManager.getInstance().getCurrentOrgID());
+      return provider.getRole(id) != null ||
+         id.getOrgID() != null && provider.getRole(new IdentityID(role, null)) != null;
    }
 
    /** A test against an unknown user or role would say nothing; refuse it by name first. */
@@ -343,7 +349,7 @@ public class WizVpmController {
       IdentityID id = new IdentityID(principalName,
                                      OrganizationManager.getInstance().getCurrentOrgID());
       boolean known = provider == null || ("user".equals(type) ? provider.getUser(id) != null :
-         provider.getRole(id) != null);
+         roleKnown(provider, principalName));
 
       if(!known) {
          String message = "no " + type + " \"" + principalName + "\" in the current organization";
