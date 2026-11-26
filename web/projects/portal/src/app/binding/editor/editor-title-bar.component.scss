@@ -162,7 +162,7 @@
     max-width: 24em;
     opacity: 0.85;
 
-    // the icon font's default grey is nearly invisible on the dark bar: use the text's colour
+    // the icon font's default grey is too faint beside the text: use the text's colour
     i {
       flex: none;
       color: inherit;
@@ -175,7 +175,9 @@
     opacity: 0.7;
   }
 
-  .title h4 {
+  // (the rules below that say editor-title-band are for the editor's own band only: the object
+  // wizard's toolbar shares this stylesheet and keeps its look)
+  &.editor-title-band .title h4 {
     font-size: 15px;
     font-weight: 600;
     white-space: nowrap;
@@ -213,17 +215,22 @@
     align-items: center;
   }
 
-  // the help and AI icons share one size, with a 32px target
   button.btn.help-button,
   button.btn.ai-assistant-icon {
     background-color: transparent;
+    padding: 0;
+    flex-grow: 0;
+    font-size: 24px;
+    margin-left: var(--inet-space-2);
+  }
+
+  // in the editor's band the help and AI icons share one size, with a 32px target
+  &.editor-title-band button.btn.help-button,
+  &.editor-title-band button.btn.ai-assistant-icon {
     display: inline-grid;
     place-items: center;
     width: 32px;
     height: 32px;
-    padding: 0;
-    flex-grow: 0;
     font-size: 20px;
-    margin-left: var(--inet-space-2);
   }
 }

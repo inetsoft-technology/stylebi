@@ -311,11 +311,6 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
    }
 
    /**
-    * The gap under the designer panel: its bottom edge is level with the layout button, so the panel
-    * (and its OK and Cancel) sit beside the button and not at the far bottom of the editor, and
-    * rows added to it grow it upward. Kept inside the editor, with room for the panel.
-    */
-   /**
     * The name of the sheet being edited, for the title bar's breadcrumb. The asset id is
     * "scope^type^user^path^org"; the sheet is the last segment of the path.
     */
@@ -324,6 +319,11 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
       return path ? path.substring(path.lastIndexOf("/") + 1) : null;
    }
 
+   /**
+    * The gap under the designer panel: its bottom edge is level with the layout button, so the panel
+    * (and its OK and Cancel) sit beside the button and not at the far bottom of the editor, and
+    * rows added to it grow it upward. Kept inside the editor, with room for the panel.
+    */
    private getLayoutDesignerBottom(): number {
       const host: HTMLElement = this.hostEl?.nativeElement;
       const button = host?.querySelector(".layout-designer-btn");
