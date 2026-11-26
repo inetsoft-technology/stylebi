@@ -4180,6 +4180,14 @@ public class CoreTool {
       return message;
    }
 
+   /**
+    * The user messages pending on this thread as they were added, oldest first: not merged like
+    * {@link #getUserMessages(Type)} and not cleared like {@link #getUserMessage()}.
+    */
+   public static List<UserMessage> peekUserMessages() {
+      return new ArrayList<>(USER_MESSAGE_LOCAL.get());
+   }
+
    public static List<UserMessage> getUserMessages(Type level) {
       List<UserMessage> userMessages = USER_MESSAGE_LOCAL.get().stream()
          .filter(Objects::nonNull)

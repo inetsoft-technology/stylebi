@@ -34,6 +34,7 @@ import inetsoft.graph.scale.Scale;
 import inetsoft.graph.visual.PointVO;
 import inetsoft.graph.visual.PolygonVO;
 import inetsoft.report.*;
+import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.execution.DataMap;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.region.*;
@@ -59,6 +60,7 @@ import inetsoft.util.graphics.SVGSupport;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.BindingFieldShelfException;
+import inetsoft.util.script.ScriptException;
 import inetsoft.util.swap.DataUnavailable;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
@@ -459,6 +461,18 @@ public class VGraphPair {
 
             Throwable scriptError = executeScript(scope, script, cname, true);
             creator.setScriptExecuted(true);
+
+            // an export builds the graph once, and this run ignores the failure; without this the
+            // failure of the chart's own script is lost, and the wiz Console cannot show it
+            // (Bug #82316). It is recorded only when this thread has a list: the wiz console
+            // scope installs one, and so do a few sandbox sites on any thread.
+            if(export && scriptError instanceof ScriptException) {
+               List<Exception> exceptions = WorksheetService.ASSET_EXCEPTIONS.get();
+
+               if(exceptions != null) {
+                  exceptions.add((Exception) scriptError);
+               }
+            }
 
             EGraph oegraph = null;
             DataSet nset = null;

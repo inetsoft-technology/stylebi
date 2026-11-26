@@ -137,6 +137,7 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
       }
       finally {
          MessageContextHolder.setMessageAttributes(previousAttributes);
+         ConsoleMessageCapture.recordCommands(dispatcher.captured);
       }
    }
 
@@ -322,6 +323,15 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
       }
 
       return -1;
+   }
+
+   /**
+    * {@code message} without the "Script failed" label in front of an assembly-script failure
+    * (which {@code VGraphPair} and {@code VSObjectPropertyService} add), else unchanged.
+    */
+   static String withoutScriptFailedLabel(String message) {
+      int label = scriptFailedLabelLength(message);
+      return label < 0 ? message : message.substring(label);
    }
 
    private static final String ENGLISH_LABEL = "Script failed:";
