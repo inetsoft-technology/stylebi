@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { AfterViewInit, Component, EventEmitter, Input, OnDestroy, OnInit, Output, ViewChild } from "@angular/core";
+import { AfterViewInit, Component, ElementRef, EventEmitter, inject, Input, OnDestroy, OnInit, Output, ViewChild } from "@angular/core";
 import { DataRef } from "../../common/data/data-ref";
 import { FormatInfoModel } from "../../common/data/format-info-model";
 import { GraphTypes } from "../../common/graph-types";
@@ -103,6 +103,10 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
    layoutDesignerLayout: TextLayoutModel | null = null;
    layoutDesignerTextFields: AestheticInfo[] = [];
    layoutDesignerAggregateName: string | null = null;
+   // Where the designer panel ends, in px from the bottom of the editor: level with the Text shelf's
+   // layout button that opened it, so the panel sits next to its button and grows upward.
+   layoutDesignerBottom: number = 12;
+   private readonly hostEl = inject(ElementRef);
    // FIELD item type constant (mirrors TextLayoutDesignerComponent.FIELD).
    private readonly LAYOUT_FIELD_TYPE = 0;
    private _bindingModel: BindingModel;
@@ -302,7 +306,27 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
          }
       }
 
+      this.layoutDesignerBottom = this.getLayoutDesignerBottom();
       this.showLayoutDesigner = true;
+   }
+
+   /**
+    * The gap under the designer panel: its bottom edge is level with the layout button, so the panel
+    * (and its OK and Cancel) sit beside the button and not at the far bottom of the editor, and
+    * rows added to it grow it upward. Kept inside the editor, with room for the panel.
+    */
+   private getLayoutDesignerBottom(): number {
+      const host: HTMLElement = this.hostEl?.nativeElement;
+      const button = host?.querySelector(".layout-designer-btn");
+      const container = host?.querySelector(".right-binding-container");
+
+      if(!button || !container) {
+         return 12;
+      }
+
+      const gap = container.getBoundingClientRect().bottom - button.getBoundingClientRect().bottom - 8;
+      const room = container.getBoundingClientRect().height - 240;
+      return Math.round(Math.max(12, Math.min(gap, room)));
    }
 
    /**

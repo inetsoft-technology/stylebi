@@ -1,18 +1,21 @@
-// ─── Panel layout: header / scrolling body / pinned footer ───────────────────
-// The host fills the height-bounded .layout-designer-overlay (a flex column with
-// overflow:hidden). Making the host a flex column lets the body absorb the remaining
-// space and scroll, while the footer stays pinned to the bottom and never clips.
+// ─── Panel layout: header / body / footer ────────────────────────────────────
+// The host is a floating panel (see .layout-designer-overlay in the binding editor) that is as
+// tall as its content, up to the height of the editor. The body keeps the Add Row bar in view and
+// only the row grid scrolls, so the OK and Cancel footer is always right under the rows.
 
 :host {
    display: flex;
    flex-direction: column;
-   height: 100%;
+   min-height: 0;
    overflow: hidden;
 }
 
 .layout-designer-panel-body {
-   flex: 1;
-   overflow-y: auto;
+   flex: 1 1 auto;
+   min-height: 0;
+   display: flex;
+   flex-direction: column;
+   overflow: hidden;
 }
 
 .layout-designer-panel-footer {
@@ -24,6 +27,7 @@
 // ─── Top bar ───────────────────────────────────────────────────────────────
 
 .top-bar {
+   flex-shrink: 0;
    flex-wrap: nowrap;
    align-items: stretch;   // properties panel fills the full height of the left column
 }
@@ -98,7 +102,10 @@
 // ─── Grid ────────────────────────────────────────────────────────────────────
 
 .layout-grid {
-   min-height: 24rem;
+   flex: 0 1 auto;
+   // the global .bordered-box fixes a height of 10em, which would stop the grid growing with its rows
+   height: auto;
+   min-height: 8rem;
    max-height: 45vh;
    overflow-y: auto;
    padding: 0.5rem;
