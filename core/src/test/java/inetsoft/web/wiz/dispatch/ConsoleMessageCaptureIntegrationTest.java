@@ -98,6 +98,76 @@ class ConsoleMessageCaptureIntegrationTest {
       assertEquals("T", snapshot.entries().get(0).assembly());
    }
 
+   /**
+    * F1 (live verification): a chart whose own assemblyMain script fails is rendered past it, and
+    * the failure is reported by {@code VGraphPair} only as a user message, not through
+    * ASSET_EXCEPTIONS, so a scope that watched only the exception list recorded nothing for
+    * {@code get_viewsheet_image target=<chart>}. The graph pair is built the way
+    * {@code getAssemblyImage} builds it (export, on the caller's thread), on a real chart.
+    */
+   @Test
+   void aChartsOwnScriptFailureWhileItsGraphIsBuiltIsRecordedUnderTheScope() throws Exception {
+      Viewsheet vs = box().getViewsheet();
+      addChart(vs, "B5Chart");
+      vs.getAssembly("B5Chart").getVSAssemblyInfo().setScript("var x = noSuchFunctionB7();");
+      vs.getAssembly("B5Chart").getVSAssemblyInfo().setScriptEnabled(true);
+      box().resetDataMap("B5Chart");
+
+      ConsoleMessageCapture.scope(runtimeId(), () -> {
+         var pair = box().getVGraphPair("B5Chart", false, null, true, 1);
+         assertTrue(pair.isPlotted(), "the chart still renders past its script failure");
+         return null;
+      });
+
+      ConsoleMessageBuffer.Snapshot snapshot =
+         ConsoleMessageCapture.buffer(runtimeId()).read(null, 200, 0);
+      assertEquals(1, snapshot.entries().size(), snapshot.entries().toString());
+      ConsoleMessageBuffer.Entry entry = snapshot.entries().get(0);
+      assertEquals("INFO", entry.type());
+      assertEquals("B5Chart", entry.assembly());
+      assertTrue(entry.message().startsWith("Script execution error in assembly: B5Chart"),
+                 entry.message());
+      assertTrue(entry.message().contains("noSuchFunctionB7 is not defined"), entry.message());
+      inetsoft.util.Tool.clearUserMessage();
+   }
+
+   /** The same build outside a scope records nothing; messages pending beforehand are not rows. */
+   @Test
+   void aUserMessageThatWasAlreadyPendingWhenTheScopeStartedIsNotARow() throws Exception {
+      inetsoft.util.Tool.addUserMessage("left over from earlier work");
+
+      try {
+         ConsoleMessageCapture.scope(runtimeId(), () -> null);
+         assertEquals(0, ConsoleMessageCapture.buffer(runtimeId()).read(null, 50, 0).entries().size());
+      }
+      finally {
+         inetsoft.util.Tool.clearUserMessage();
+      }
+   }
+
+   private static void addChart(Viewsheet vs, String name) {
+      TableVSAssembly table = (TableVSAssembly) vs.getAssembly("TableView1");
+      ChartVSAssembly chart = new ChartVSAssembly(vs, name);
+      chart.setSourceInfo((inetsoft.uql.asset.SourceInfo) table.getSourceInfo().clone());
+      var info = chart.getVSChartInfo();
+      var dim = new inetsoft.uql.viewsheet.graph.VSChartDimensionRef(
+         new inetsoft.uql.asset.ColumnRef(new inetsoft.uql.erm.AttributeRef(null, "type")));
+      dim.setGroupColumnValue("type");
+      info.addXField(dim);
+      var agg = new inetsoft.uql.viewsheet.graph.VSChartAggregateRef();
+      agg.setColumnValue("wind");
+      agg.setFormulaValue("Sum");
+      info.addYField(agg);
+      vs.addAssembly(chart);
+   }
+
+   /** The sandbox sets a list on the test thread when none is scoped; leave none for the next test. */
+   @org.junit.jupiter.api.AfterEach
+   void clearThreadLocals() {
+      inetsoft.report.composition.WorksheetService.ASSET_EXCEPTIONS.remove();
+      inetsoft.util.Tool.clearUserMessage();
+   }
+
    private void reset() throws Exception {
       ViewsheetSandbox box = box();
       box.reset(null, box.getViewsheet().getAssemblies(), new ChangedAssemblyList(), true, true,

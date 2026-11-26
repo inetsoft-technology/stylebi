@@ -84,6 +84,8 @@ class ScriptImageServiceConsoleTest {
    /** The chart path, with the retry loop running the failing script on every attempt. */
    @Test
    void theChartRenderRetryLoopRecordsTheFailureOnce() throws Exception {
+      // another test on this thread may have left a list behind
+      WorksheetService.ASSET_EXCEPTIONS.remove();
       RuntimeViewsheet rvs = rvs();
       AtomicInteger attempts = new AtomicInteger();
       AssemblyImageService imageService = mock(AssemblyImageService.class);

@@ -19,7 +19,9 @@ package inetsoft.web.wiz.dispatch;
 
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.uql.asset.ConfirmException;
+import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
+import inetsoft.util.Tool;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.viewsheet.command.MessageCommand;
@@ -420,6 +422,56 @@ class ConsoleMessageCaptureTest {
                    entries.get(0).message().length());
       assertTrue(entries.get(0).message().endsWith(ConsoleMessageBuffer.TRUNCATION_MARK));
       assertEquals("short", entries.get(1).message());
+   }
+
+   /** F1: alert() and a chart's own script failure travel as user messages, at their own level. */
+   @Test
+   void userMessagesAddedInsideTheScopeAreRecordedAtTheirLevelWithoutTheScriptFailedLabel()
+      throws Exception {
+      Tool.clearUserMessage();
+
+      try {
+         ConsoleMessageCapture.scope(runtimeId, () -> {
+            Tool.addUserMessage("alert error", ConfirmException.ERROR);
+            Tool.addUserMessage("alert warning", ConfirmException.WARNING);
+            Tool.addUserMessage(Catalog.getCatalog().getString("Script failed") + FAILURE);
+            Tool.addUserMessage("asks a question", ConfirmException.CONFIRM);
+            return null;
+         });
+
+         ConsoleMessageBuffer.Snapshot snapshot = read();
+         assertEquals(3, snapshot.entries().size(), snapshot.entries().toString());
+         assertEquals(1, snapshot.error());
+         assertEquals(1, snapshot.warning());
+         assertEquals(1, snapshot.info());
+         ConsoleMessageBuffer.Entry failure = snapshot.entries().stream()
+            .filter(e -> e.type().equals("INFO")).findFirst().orElseThrow();
+         assertEquals("B5Chart", failure.assembly());
+         assertTrue(failure.message().startsWith(BaseTableService.SCRIPT_FAILURE_PREFIX),
+                    failure.message());
+      }
+      finally {
+         Tool.clearUserMessage();
+      }
+   }
+
+   /** The chart's user message and the exception list carry one failure; it is one row. */
+   @Test
+   void aUserMessageAndAListEntryForTheSameFailureAreOneRow() throws Exception {
+      Tool.clearUserMessage();
+
+      try {
+         ConsoleMessageCapture.scope(runtimeId, () -> {
+            Tool.addUserMessage(Catalog.getCatalog().getString("Script failed") + FAILURE);
+            WorksheetService.ASSET_EXCEPTIONS.get().add(new ScriptException(FAILURE));
+            return null;
+         });
+
+         assertEquals(1, read().entries().size(), read().entries().toString());
+      }
+      finally {
+         Tool.clearUserMessage();
+      }
    }
 
    private static MessageCommand message(MessageCommand.Type type, String text) {

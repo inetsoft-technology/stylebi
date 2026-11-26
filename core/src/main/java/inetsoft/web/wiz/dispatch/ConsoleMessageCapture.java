@@ -20,6 +20,8 @@ package inetsoft.web.wiz.dispatch;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.util.MessageException;
+import inetsoft.util.Tool;
+import inetsoft.util.UserMessage;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.command.MessageCommand;
@@ -49,6 +51,10 @@ import java.util.regex.Pattern;
  *       script failures are recorded as {@code INFO}, the type the Composer Console gives them;</li>
  *   <li>{@link CapturingCommandDispatcher#withCapturingDispatcher} records the INFO, WARNING and
  *       ERROR {@code MessageCommand}s it captured;</li>
+ *   <li>the user messages ({@code Tool.addUserMessage}) added during the scope are recorded at their
+ *       level: {@code alert()}, onLoad failures and a chart's own script failure, which
+ *       {@code VGraphPair} reports that way (and, when exporting as {@code getAssemblyImage} does,
+ *       adds to the list);</li>
  *   <li>{@link AssetScriptFailureWarnings#collect}, which consumes its own list and so would
  *       starve the scope's, records what it found.</li>
  * </ul>
@@ -86,6 +92,7 @@ public final class ConsoleMessageCapture {
       }
 
       Scope scope = new Scope(runtimeId, buffer(runtimeId));
+      Set<String> pending = pendingUserMessages();
       List<Exception> previous = WorksheetService.ASSET_EXCEPTIONS.get();
       ScopedList mine = new ScopedList();
       CURRENT.set(scope);
@@ -117,6 +124,7 @@ public final class ConsoleMessageCapture {
          }
 
          recordExceptions(scope, mine.all());
+         recordUserMessages(scope, pending);
 
          if(live != null && live != mine) {
             recordExceptions(scope, live);
@@ -164,6 +172,41 @@ public final class ConsoleMessageCapture {
             }
          }
       }
+   }
+
+   /**
+    * The user messages pending on this thread, as keys. A chart whose own script fails is rendered
+    * past it, and {@code VGraphPair} reports the failure only as a user message
+    * ({@code Tool.addUserMessage}), as does {@code alert()}; the Composer sends them from
+    * {@code EventAspect}, which no wiz call goes through. They are read, not cleared: the servlet
+    * filter clears them at the start and the end of every request.
+    */
+   private static Set<String> pendingUserMessages() {
+      Set<String> keys = new HashSet<>();
+
+      for(MessageCommand.Type type : RECORDED_TYPES) {
+         for(UserMessage message : Tool.getUserMessages(type)) {
+            keys.add(userMessageKey(message));
+         }
+      }
+
+      return keys;
+   }
+
+   /** Records the user messages that were not already pending when the scope started. */
+   private static void recordUserMessages(Scope scope, Set<String> pending) {
+      for(MessageCommand.Type type : RECORDED_TYPES) {
+         for(UserMessage message : Tool.getUserMessages(type)) {
+            if(message.getMessage() != null && !pending.contains(userMessageKey(message))) {
+               String text = CapturingCommandDispatcher.withoutScriptFailedLabel(message.getMessage());
+               scope.record(type.name(), text, message.getAssemblyName());
+            }
+         }
+      }
+   }
+
+   private static String userMessageKey(UserMessage message) {
+      return message.getLevel() + "|" + message.getAssemblyName() + "|" + message.getMessage();
    }
 
    /** Records the INFO, WARNING and ERROR messages among {@code commands} in the open scope. */
@@ -277,6 +320,8 @@ public final class ConsoleMessageCapture {
       private final Set<String> seen = new HashSet<>();
    }
 
+   private static final MessageCommand.Type[] RECORDED_TYPES = {
+      MessageCommand.Type.ERROR, MessageCommand.Type.WARNING, MessageCommand.Type.INFO };
    private static final Pattern ASSEMBLY =
       Pattern.compile("Script execution error in assembly:\\s*(\\S+)");
    private static final String SCRIPT_FAILED_MARKER = "Script failed:\n";
