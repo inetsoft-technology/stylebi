@@ -1261,12 +1261,10 @@ public class MetadataApiService {
          parsed.removeAllJoins();
          boolean[] degraded = { false };
          XSelection selection = parsed.getSelection();
-         boolean[] first = { true };
-         walkSqlCondition(effectiveSqlRoot(parsed.getWhere()), null, "pre", 0, selection, first,
+         walkSqlCondition(effectiveSqlRoot(parsed.getWhere()), null, "pre", 0, selection,
                           degraded, found);
-         first[0] = true;
          walkSqlCondition(effectiveSqlRoot(parsed.getHaving()), null, "post", 0, selection,
-                          first, degraded, found);
+                          degraded, found);
          out.addAll(found);
          return degraded[0] ? "partial" : "full";
       }
@@ -1276,8 +1274,14 @@ public class MetadataApiService {
       }
    }
 
-   private static void walkSqlCondition(XFilterNode node, String parentRelation, String phase,
-                                        int depth, XSelection selection, boolean[] first,
+   /**
+    * @param junction the junction joining this node to the element before it in the flat
+    *                 leaf order (null for the first element of the phase). The first leaf of a
+    *                 nested group carries the junction joining the group to its predecessor;
+    *                 later leaves carry the group's own relation.
+    */
+   private static void walkSqlCondition(XFilterNode node, String junction, String phase,
+                                        int depth, XSelection selection,
                                         boolean[] degraded,
                                         List<WorksheetStructure.ConditionLeaf> out)
    {
@@ -1292,15 +1296,17 @@ public class MetadataApiService {
          // a NOT group is not flattened (no De Morgan); neither is a set that is neither AND
          // nor OR (e.g. a truth test)
          if(set.isIsNot() || (!and && !XSet.OR.equalsIgnoreCase(relation))) {
-            addSqlLeaf(textOnlySqlLeaf(node, phase), parentRelation, depth, first, out);
+            addSqlLeaf(textOnlySqlLeaf(node, phase), junction, depth, out);
             degraded[0] = true;
             return;
          }
 
-         String junction = and ? "AND" : "OR";
+         String own = and ? "AND" : "OR";
+         List<XFilterNode> children = effectiveSqlChildren(set);
 
-         for(XFilterNode child : effectiveSqlChildren(set)) {
-            walkSqlCondition(child, junction, phase, depth + 1, selection, first, degraded, out);
+         for(int i = 0; i < children.size(); i++) {
+            walkSqlCondition(children.get(i), i == 0 ? junction : own, phase, depth + 1,
+                             selection, degraded, out);
          }
 
          return;
@@ -1312,7 +1318,7 @@ public class MetadataApiService {
          degraded[0] = true;
       }
 
-      addSqlLeaf(leaf, parentRelation, depth, first, out);
+      addSqlLeaf(leaf, junction, depth, out);
    }
 
    /**
@@ -1368,15 +1374,11 @@ public class MetadataApiService {
       return result;
    }
 
-   private static void addSqlLeaf(WorksheetStructure.ConditionLeaf leaf, String parentRelation,
-                                  int depth, boolean[] first,
+   private static void addSqlLeaf(WorksheetStructure.ConditionLeaf leaf, String junction,
+                                  int depth,
                                   List<WorksheetStructure.ConditionLeaf> out)
    {
-      if(!first[0]) {
-         leaf.setJunction(parentRelation);
-      }
-
-      first[0] = false;
+      leaf.setJunction(junction);
 
       // the WHERE/HAVING root set is depth 1; anything deeper sits in a nested group
       if(depth > 1) {
@@ -1392,7 +1394,7 @@ public class MetadataApiService {
       WorksheetStructure.ConditionLeaf leaf = new WorksheetStructure.ConditionLeaf();
       leaf.setPhase(phase);
       leaf.setSource("sql");
-      leaf.setText(node.toString());
+      leaf.setText(normalizeSqlText(node.toString()));
       return leaf;
    }
 
@@ -1600,6 +1602,10 @@ public class MetadataApiService {
       }
 
       return null;
+   }
+
+   private static String normalizeSqlText(String text) {
+      return collapseSqlText(text).replace("( ", "(").replace(" )", ")");
    }
 
    private static String collapseSqlText(String text) {

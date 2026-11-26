@@ -91,8 +91,8 @@ class MetadataApiServiceSqlConditionsTest {
       assertEquals("EQUAL_TO", l.getOperation());
       assertTrue(l.getValues().isEmpty());
       assertEquals("sql", l.getSource());
-      assertTrue(l.getText().toUpperCase().contains("SELECT"), l.getText());
-      System.out.println("HAVING_TEXT=[" + l.getText() + "]");
+      assertEquals("COUNT(distinct cat.CATEGORY_ID) = (select COUNT(*) from SA.CATEGORIES)",
+                   l.getText());
       assertNull(l.getJunction());
       assertNull(l.getGrouped());
    }
@@ -134,17 +134,50 @@ class MetadataApiServiceSqlConditionsTest {
       assertEquals("full", r.coverage());
    }
 
+   private static void assertLeaf(inetsoft.web.wiz.model.WorksheetStructure.ConditionLeaf l,
+                                  String field, String junction, Boolean grouped)
+   {
+      assertEquals(field, l.getField());
+      assertEquals(junction, l.getJunction(), field);
+      assertEquals(grouped, l.getGrouped(), field);
+   }
+
    @Test
    void nestedGroupLeavesAreGrouped() {
       var r = run("SELECT a.a, a.b, a.c FROM T a WHERE a.a = 1 OR (a.b = 2 AND a.c = 3)");
       assertEquals(3, r.leaves().size());
-      assertNull(r.leaves().get(0).getGrouped());
-      assertNull(r.leaves().get(0).getJunction());
-      assertEquals("AND", r.leaves().get(1).getJunction());
-      assertEquals(Boolean.TRUE, r.leaves().get(1).getGrouped());
-      assertEquals("AND", r.leaves().get(2).getJunction());
-      assertEquals(Boolean.TRUE, r.leaves().get(2).getGrouped());
+      assertLeaf(r.leaves().get(0), "a", null, null);
+      assertLeaf(r.leaves().get(1), "b", "OR", true);
+      assertLeaf(r.leaves().get(2), "c", "AND", true);
       assertEquals("full", r.coverage());
+   }
+
+   @Test
+   void groupFirstThenOutsideLeaf() {
+      var r = run("SELECT a.a, a.b, a.c FROM T a WHERE (a.a = 1 AND a.b = 2) OR a.c = 3");
+      assertEquals(3, r.leaves().size());
+      assertLeaf(r.leaves().get(0), "a", null, true);
+      assertLeaf(r.leaves().get(1), "b", "AND", true);
+      assertLeaf(r.leaves().get(2), "c", "OR", null);
+   }
+
+   @Test
+   void twoLevelNesting() {
+      var r = run("SELECT a.a, a.b, a.c, a.d FROM T a " +
+                  "WHERE a.a = 1 AND (a.b = 2 OR (a.c = 3 AND a.d = 4))");
+      assertEquals(4, r.leaves().size());
+      assertLeaf(r.leaves().get(0), "a", null, null);
+      assertLeaf(r.leaves().get(1), "b", "AND", true);
+      assertLeaf(r.leaves().get(2), "c", "OR", true);
+      assertLeaf(r.leaves().get(3), "d", "AND", true);
+   }
+
+   @Test
+   void notGroupCarriesPositionJunction() {
+      var r = run("SELECT a.a, a.b FROM T a WHERE a.a = 1 OR NOT (a.b = 2 AND a.a = 3)");
+      assertEquals(2, r.leaves().size());
+      assertEquals("OR", r.leaves().get(1).getJunction());
+      assertNull(r.leaves().get(1).getField());
    }
 
    @Test
