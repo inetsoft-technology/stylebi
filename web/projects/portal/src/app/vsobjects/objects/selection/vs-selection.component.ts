@@ -923,7 +923,20 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    }
 
    getTitleHeight(): number {
-      return this.model.titleFormat.height;
+      const height = this.model.titleFormat.height;
+
+      // closed standalone dropdown is all header; keep it inside the object's own border
+      if(this.closedStandaloneDropdownWithBottomBorder) {
+         return height - Tool.getMarginSize(this._model.objectFormat.border.top) -
+            Tool.getMarginSize(this._model.objectFormat.border.bottom);
+      }
+
+      return height;
+   }
+
+   private get closedStandaloneDropdownWithBottomBorder(): boolean {
+      return !this.inContainer && !!this.model.dropdown && this.isHidden &&
+         !!this.model.objectFormat?.border?.bottom;
    }
 
    getTitleWidth(): number {
@@ -2276,7 +2289,16 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
     * (no stylesheet default), otherwise a title with its border set to none still shows a line.
     */
    get selectedTextBorderBottom(): string {
-      return this.headerBorderBottom || "none";
+      return this.headerBorderBottomEffective || "none";
+   }
+
+   /**
+    * A closed standalone dropdown is all header, so its own bottom border would draw a second
+    * line next to the object's border. The title's default bottom border is always set, so it is
+    * dropped whatever its value.
+    */
+   get headerBorderBottomEffective(): string {
+      return this.closedStandaloneDropdownWithBottomBorder ? "none" : this.headerBorderBottom;
    }
 
 
