@@ -70,7 +70,8 @@
     @if (this.showSortIcon && isActionVisibleInViewer('Sort Axis')) {
       <div
         class="axis__sort-icon axis__sort-icon--surface"
-        [style.top.px]="getSortIconTop(chartObject.axisOps)"
+        [class.axis__sort-icon--horizontal]="chartObject.axisType != 'y'"
+        [style.top.px]="getSortIconTop()"
         title="_#(Sort Axis)"
         (click)="clickSort($event)">
         <span class="floating-icon" [class.sort-icon]="chartObject.sortOp === ''"
@@ -91,42 +92,28 @@
     (onMouseleave)="hideDrill(true)">
     @if (chartObject.axisOps) {
       @for (op of chartObject.axisOps; track trackByFn(i, op); let i = $index) {
-        <div class="axis-drill-area__icon-container"
-          [style.top.px]="chartObject.axisType == 'y' ? chartObject.layoutBounds.height - 22 : getDrillIconPosition(i)"
-          [style.left.px]="getDrillIconLeft(i)">
-          @if (op === '+') {
-            <i
-              title="_#(Drill Down)"
-              (click)="drillDown(i)"
-              class="plus-box-outline-icon floating-icon"
-              [style.visibility]="drillVisible ? 'visible' : 'hidden'"
-              aria-hidden="true">
-            </i>
-          }
-          @if (op === '-') {
-            <i
-              title="_#(Drill Up)"
-              (click)="drillUp(i)"
-              class="minus-box-outline-icon floating-icon"
-              [style.visibility]="drillVisible ? 'visible' : 'hidden'"
-              aria-hidden="true">
-            </i>
-          }
-          @if (op === '-+') {
+        @if (op) {
+          <!-- one small pill per drillable field: a direction the field cannot drill stays, dimmed -->
+          <div class="axis-drill-area__icon-container axis-drill-pill"
+            [class.axis-drill-pill--vertical]="chartObject.axisType == 'y'"
+            [style.top.px]="getDrillIconTop(i)"
+            [style.left.px]="getDrillIconLeft(i)">
             <i title="_#(Drill Down)"
               (click)="drillDown(i)"
-              class="plus-box-outline-icon floating-icon"
+              class="axis-drill-pill__btn axis-drill-pill__btn--plus floating-icon"
+              [class.axis-drill-pill__off]="!op.includes('+')"
               [style.visibility]="drillVisible ? 'visible' : 'hidden'"
               aria-hidden="true">
             </i>
             <i title="_#(Drill Up)"
               (click)="drillUp(i)"
-              class="minus-box-outline-icon floating-icon"
+              class="axis-drill-pill__btn axis-drill-pill__btn--minus floating-icon"
+              [class.axis-drill-pill__off]="!op.includes('-')"
               [style.visibility]="drillVisible ? 'visible' : 'hidden'"
               aria-hidden="true">
             </i>
-          }
-        </div>
+          </div>
+        }
       }
     }
   </div>

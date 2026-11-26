@@ -28,6 +28,7 @@
  * in chart-axis-area.component.interaction.tl.spec.ts.
  */
 
+import { ChartAxisArea } from "./chart-axis-area.component";
 import { createComponent, makeAxis } from "./chart-axis-area.component.test-helpers";
 
 afterEach(() => vi.restoreAllMocks());
@@ -271,18 +272,18 @@ describe("ChartAxisArea — getDrillIconLeft", () => {
       expect(comp.getDrillIconLeft(1)).toBe(comp.getDrillIconPosition(1));
    });
 
-   it("should use the negative capped layout-bounds x offset for an x axis", () => {
+   it("should put the pill at the trailing end of an x axis", () => {
       const { comp } = createComponent({
-         axis: makeAxis({ axisType: "x", layoutBounds: { x: 5, y: 0, width: 10, height: 10 } as any })
+         axis: makeAxis({ axisType: "x", layoutBounds: { x: 5, y: 0, width: 300, height: 10 } as any })
       });
-      expect(comp.getDrillIconLeft(0)).toBe(-5);
+      expect(comp.getDrillIconLeft(0)).toBe(300 - ChartAxisArea.DRILL_PILL_LENGTH);
    });
 
-   it("should cap the negative offset at -18 for an x axis with a large layout-bounds x", () => {
+   it("should not put the pill before the start of a short x axis", () => {
       const { comp } = createComponent({
          axis: makeAxis({ axisType: "x", layoutBounds: { x: 50, y: 0, width: 10, height: 10 } as any })
       });
-      expect(comp.getDrillIconLeft(0)).toBe(-18);
+      expect(comp.getDrillIconLeft(0)).toBe(0);
    });
 
    it("should return null for an axis type that is neither x nor y", () => {
@@ -291,37 +292,48 @@ describe("ChartAxisArea — getDrillIconLeft", () => {
    });
 });
 
+describe("ChartAxisArea — getDrillIconTop", () => {
+   it("should put the pill at the top of a y axis", () => {
+      const { comp } = createComponent({ axis: makeAxis({ axisType: "y", axisSizes: [10, 25] }) });
+      expect(comp.getDrillIconTop(1)).toBe(0);
+   });
+
+   it("should centre the pill on the labels of the field's row on an x axis", () => {
+      const { comp } = createComponent({ axis: makeAxis({ axisType: "x", axisSizes: [10, 25] }) });
+      expect(comp.getDrillIconTop(0)).toBeCloseTo(0 + 10 * 0.7);
+      expect(comp.getDrillIconTop(1)).toBeCloseTo(comp.getDrillIconPosition(1) + 25 * 0.7);
+   });
+});
+
 describe("ChartAxisArea — getSortIconTop", () => {
-   it("should subtract both the drill-icon height and the 20px sort gap for a y axis with a drill icon visible", () => {
+   it("should put the sort icon at the bottom of a y axis, whether or not drill is visible", () => {
       const { comp } = createComponent({
          axis: makeAxis({ axisType: "y", layoutBounds: { x: 0, y: 0, width: 10, height: 100 } as any })
       });
-      (comp as any).drillVisible = true;
-      expect(comp.getSortIconTop(["+"])).toBe(100 - 22 - 20);
+
+      for(const visible of [true, false]) {
+         (comp as any).drillVisible = visible;
+         expect(comp.getSortIconTop()).toBe(100 - ChartAxisArea.DRILL_PILL_LENGTH - 2);
+      }
    });
 
-   it("should only subtract the drill-icon height for a y axis when the drill icon is hidden", () => {
-      const { comp } = createComponent({
-         axis: makeAxis({ axisType: "y", layoutBounds: { x: 0, y: 0, width: 10, height: 100 } as any })
-      });
-      (comp as any).drillVisible = false;
-      expect(comp.getSortIconTop(["+"])).toBe(100 - 22);
-   });
-
-   it("should only subtract the 20px sort gap for an x axis with a drill icon visible (no drill-icon height)", () => {
+   it("should put the sort icon on the label centre of an x axis, whether or not drill is visible", () => {
       const { comp } = createComponent({
          axis: makeAxis({ axisType: "x", layoutBounds: { x: 0, y: 0, width: 10, height: 100 } as any })
       });
-      (comp as any).drillVisible = true;
-      expect(comp.getSortIconTop(["+"])).toBe(100 - 20);
+
+      for(const visible of [true, false]) {
+         (comp as any).drillVisible = visible;
+         expect(comp.getSortIconTop()).toBeCloseTo(100 * 0.7);
+      }
    });
 
-   it("should treat an all-empty axisOps as having no drill icon", () => {
+   it("should keep the sort icon of a short x axis row inside the axis area", () => {
       const { comp } = createComponent({
-         axis: makeAxis({ axisType: "y", layoutBounds: { x: 0, y: 0, width: 10, height: 100 } as any })
+         axis: makeAxis({ axisType: "x", layoutBounds: { x: 0, y: 0, width: 10, height: 24 } as any })
       });
-      (comp as any).drillVisible = true;
-      expect(comp.getSortIconTop(["", ""])).toBe(100 - 22);
+      // 24 * 0.7 = 16.8 would put the 18px icon below the row
+      expect(comp.getSortIconTop()).toBe(24 - 9);
    });
 });
 
@@ -359,6 +371,20 @@ describe("ChartAxisArea — showSortIcon", () => {
       (comp as any).drillVisible = true;
       (comp.chartObject as any).sortFieldIsCalc = false;
       expect(comp.showSortIcon).toBe(true);
+   });
+
+   it("should be false when the axis cannot be sorted (sort op none)", () => {
+      const { comp } = createComponent();
+      comp.hideSortIcon = false;
+      (comp as any).drillVisible = true;
+      (comp.chartObject as any).sortFieldIsCalc = false;
+      (comp.chartObject as any).sortOp = "none";
+      expect(comp.showSortIcon).toBe(false);
+
+      for(const op of ["", "Asc", "Desc"]) {
+         (comp.chartObject as any).sortOp = op;
+         expect(comp.showSortIcon).toBe(true);
+      }
    });
 
    it("should be true via onTitle alone when there is no chartObject to check sortFieldIsCalc", () => {
