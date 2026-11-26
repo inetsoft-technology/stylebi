@@ -289,6 +289,29 @@ class DependencyStorageServiceBatchTest {
    }
 
    @Test
+   void flushActionsRunOnceAtCloseAndAttachmentsAreDropped() throws Exception {
+      List<String> ran = new ArrayList<>();
+
+      try(DependencyStorageService.Batch batch = service.beginBatch()) {
+         List<String> a = batch.attachment("k", ArrayList::new);
+         assertSame(a, batch.attachment("k", ArrayList::new));
+         batch.addFlushAction(() -> ran.add("first"));
+         batch.addFlushAction(() -> {
+            throw new IllegalStateException("one action fails");
+         });
+         batch.addFlushAction(() -> ran.add("third"));
+         assertTrue(ran.isEmpty(), "deferred until the flush");
+
+         batch.flush();
+         assertEquals(List.of("first", "third"), ran, "a failing action does not stop the rest");
+         assertNotSame(a, batch.attachment("k", ArrayList::new), "dropped by the flush");
+      }
+
+      assertEquals(2, ran.size(), "each action runs once");
+      assertNull(DependencyStorageService.currentBatch(), "the thread is plain after the close");
+   }
+
+   @Test
    void nestedBatchDoesNotFlushEarly() throws Exception {
       inOrg(() -> {
          String key = target("/nested");

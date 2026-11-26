@@ -288,6 +288,19 @@ public class LocalDependencyHandler implements DependencyHandler {
       }
 
       XRepository xrep = getXRepository();
+      DependencyStorageService.Batch batch = DependencyStorageService.currentBatch();
+
+      if(batch != null) {
+         ModelWork work = getModelWork(batch, xrep, dxname, logicalName, logicalName);
+
+         if(work != null) {
+            updateAttributesDependency(work.working, columns, entry, add, cache);
+            work.saved = true;
+         }
+
+         return;
+      }
+
       XDataModel xdm = xrep.getDataModel(dxname);
 
       if(xdm == null) {
@@ -300,6 +313,43 @@ public class LocalDependencyHandler implements DependencyHandler {
          updateAttributesDependency(logical, columns, entry, add, cache);
          xdm.addLogicalModel(logical, true);
          xrep.updateDataModel(xdm.clone());
+      }
+   }
+
+   private void deferDataSourceOuter(DependencyStorageService.Batch batch, String dsName,
+                                     Object entry)
+   {
+      Map<String, Set<Object>> pending =
+         batch.attachment(Arrays.asList(this, "dataSourceOuters"), LinkedHashMap::new);
+      Set<Object> entries = pending.get(dsName);
+
+      if(entries == null) {
+         Set<Object> added = new LinkedHashSet<>();
+         pending.put(dsName, added);
+         entries = added;
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+         batch.addFlushAction(() -> flushDataSourceOuters(dsName, orgId, added));
+      }
+
+      entries.add(entry);
+   }
+
+   private void flushDataSourceOuters(String dsName, String orgId, Set<Object> entries) {
+      try {
+         OrganizationManager.runInOrgScope(orgId, () -> {
+            XDataSource dataSource = getXRepository().getDataSource(dsName);
+
+            if(dataSource != null) {
+               entries.forEach(dataSource::addOuterDependency);
+               DataSourceRegistry.getRegistry()
+                  .setDataSource(dataSource, null, false, false, false, true);
+            }
+
+            return null;
+         });
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to add the outer dependencies to data source: {}", dsName, ex);
       }
    }
 
@@ -319,6 +369,13 @@ public class LocalDependencyHandler implements DependencyHandler {
       }
 
       XRepository xrep = getXRepository();
+      DependencyStorageService.Batch batch = DependencyStorageService.currentBatch();
+
+      if(!add && batch != null) {
+         // a removal must see what the import has deferred
+         batch.flush();
+      }
+
       XDataSource dataSource = xrep.getDataSource(dsName);
 
       if(dataSource == null) {
@@ -331,6 +388,12 @@ public class LocalDependencyHandler implements DependencyHandler {
          dataSource.addOuterDependency(entry);
          addDependencyToFile(getAssetId(id, AssetEntry.Type.DATA_SOURCE),
             (AssetObject) entry, cache);
+
+         if(batch != null) {
+            // Bug #82450, the data source is written once per import, not once per asset
+            deferDataSourceOuter(batch, dsName, entry);
+            return;
+         }
       }
       else {
          dataSource.removeOuterDependency(entry);
@@ -899,6 +962,13 @@ public class LocalDependencyHandler implements DependencyHandler {
          return;
       }
 
+      // an import running on this thread may have deferred outer dependency writes
+      DependencyStorageService.Batch batch = DependencyStorageService.currentBatch();
+
+      if(batch != null) {
+         batch.flush();
+      }
+
       // data source name -> names of the logical models bound in it
       Map<String, Set<String>> models = new LinkedHashMap<>();
       Set<String> dataSources = new LinkedHashSet<>();
@@ -1317,6 +1387,13 @@ public class LocalDependencyHandler implements DependencyHandler {
       }
 
       XRepository xrep = getXRepository();
+      DependencyStorageService.Batch batch = DependencyStorageService.currentBatch();
+
+      if(batch != null) {
+         updateLogicalModelsDeferred(batch, xrep, vs, base, entry, add, cache);
+         return;
+      }
+
       XDataModel xdm = xrep.getDataModel(base.getProperty("prefix"));
 
       if(xdm != null) {
@@ -1360,6 +1437,261 @@ public class LocalDependencyHandler implements DependencyHandler {
             xrep.updateDataModel(xdm.clone());
          }
       }
+   }
+
+   /**
+    * The logical model part of {@link #updateViewsheetDependencies} while an import batch is open:
+    * the outer dependencies are changed on in-memory copies of the models, which are written once
+    * per model when the batch is flushed.
+    */
+   private void updateLogicalModelsDeferred(DependencyStorageService.Batch batch,
+                                            XRepository xrep, Viewsheet vs, AssetEntry base,
+                                            AssetEntry entry, boolean add, boolean cache)
+      throws Exception
+   {
+      String prefix = base.getProperty("prefix");
+      String source = base.getProperty("source");
+      ModelWork top = getModelWork(batch, xrep, prefix, source, source);
+
+      if(top == null && xrep.getDataModel(prefix) == null) {
+         return;
+      }
+
+      List<ModelWork> works = new ArrayList<>();
+      works.add(top);
+
+      if(top != null) {
+         for(String extendName : top.working.getLogicalModelNames()) {
+            works.add(getModelWork(batch, xrep, prefix, source, extendName));
+         }
+      }
+
+      updateModelDependency(DependencyHandler.getUniqueSource(prefix, source), entry, add, cache);
+
+      for(ModelWork work : works) {
+         if(work == null) {
+            continue;
+         }
+
+         for(Assembly assembly : vs.getAssemblies()) {
+            if(assembly != null) {
+               updateAttributesDependency((VSAssembly) assembly, entry, work.working, add, cache);
+            }
+         }
+
+         work.saved = true;
+      }
+   }
+
+   /**
+    * Gets the in-memory copy of a logical model (or of a model that extends it) that the open
+    * batch keeps for the import, reading it from the data model the first time.
+    *
+    * @return the copy, or {@code null} if there is no such model.
+    */
+   ModelWork getModelWork(DependencyStorageService.Batch batch, XRepository xrep,
+                                  String prefix, String source, String name)
+      throws Exception
+   {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      DeferredModels deferred =
+         batch.attachment(Arrays.asList(this, "logicalModels", orgId), DeferredModels::new);
+      List<String> key = Arrays.asList(prefix, source, name);
+      ModelWork work = deferred.works.get(key);
+
+      if(work != null) {
+         return work;
+      }
+
+      XModelRead read = readModel(xrep, prefix, source, name);
+
+      if(read == null) {
+         return null;
+      }
+
+      work = new ModelWork(prefix, source, name, read.model, snapshotOuters(read.model));
+      deferred.works.put(key, work);
+
+      if(deferred.prefixes.add(prefix)) {
+         batch.addFlushAction(
+            () -> flushModels(xrep, orgId, prefix, deferred.works.values()));
+      }
+
+      return work;
+   }
+
+   private record XModelRead(XDataModel xdm, XLogicalModel model) {
+   }
+
+   private XModelRead readModel(XRepository xrep, String prefix, String source, String name)
+      throws Exception
+   {
+      XDataModel xdm = xrep.getDataModel(prefix);
+
+      if(xdm == null) {
+         return null;
+      }
+
+      XLogicalModel model = xdm.getLogicalModel(source);
+
+      if(model != null && !Tool.equals(source, name)) {
+         model = model.getLogicalModel(name);
+      }
+
+      return model == null ? null : new XModelRead(xdm, model);
+   }
+
+   /**
+    * Writes the logical models changed during an import, once each, applying only the outer
+    * dependencies the import added or removed to the model as it is stored now.
+    */
+   private void flushModels(XRepository xrep, String orgId, String prefix,
+                            Collection<ModelWork> allWorks)
+   {
+      List<ModelWork> works = new ArrayList<>();
+
+      for(ModelWork work : allWorks) {
+         if(work.saved && Tool.equals(work.prefix, prefix)) {
+            works.add(work);
+         }
+      }
+
+      try {
+         OrganizationManager.runInOrgScope(orgId, () -> {
+            XDataModel xdm = xrep.getDataModel(prefix);
+            boolean changed = false;
+
+            if(xdm == null) {
+               return null;
+            }
+
+            for(ModelWork work : works) {
+               XModelRead read = readModel(xrep, prefix, work.source, work.name);
+
+               if(read == null ||
+                  !applyOuterChanges(read.model, work.base, snapshotOuters(work.working)))
+               {
+                  continue;
+               }
+
+               XLogicalModel logical = read.model;
+
+               if(logical.getConnection() != null || logical.getBaseModel() != null) {
+                  xdm.getLogicalModel(work.source).addLogicalModel(logical, false);
+               }
+               else {
+                  xdm.addLogicalModel(logical, true);
+               }
+
+               changed = true;
+            }
+
+            if(changed) {
+               xrep.updateDataModel(xdm.clone());
+            }
+
+            return null;
+         });
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to save the outer dependencies of the logical models of {}",
+                   prefix, ex);
+      }
+   }
+
+   private static final String MODEL_PATH = "";
+
+   /**
+    * Copies the outer dependencies of a model and of its attributes, by path.
+    */
+   private static Map<String, List<Object>> snapshotOuters(XLogicalModel model) {
+      Map<String, List<Object>> map = new HashMap<>();
+      map.put(MODEL_PATH, new ArrayList<>(Arrays.asList(model.getOuterDependencies())));
+      Enumeration<XEntity> entities = model.getEntities();
+
+      while(entities.hasMoreElements()) {
+         XEntity entity = entities.nextElement();
+         Enumeration<XAttribute> attributes = entity.getAttributes();
+
+         while(attributes.hasMoreElements()) {
+            XAttribute attribute = attributes.nextElement();
+            map.put(entity.getName() + "\u0000" + attribute.getName(),
+                    new ArrayList<>(Arrays.asList(attribute.getOuterDependencies())));
+         }
+      }
+
+      return map;
+   }
+
+   /**
+    * Applies the difference between two snapshots to a model.
+    *
+    * @return true if the model changed.
+    */
+   private static boolean applyOuterChanges(XLogicalModel target, Map<String, List<Object>> base,
+                                            Map<String, List<Object>> changed)
+   {
+      boolean result = false;
+      Set<String> paths = new LinkedHashSet<>(changed.keySet());
+      paths.addAll(base.keySet());
+
+      for(String path : paths) {
+         List<Object> before = base.getOrDefault(path, Collections.emptyList());
+         List<Object> after = changed.getOrDefault(path, Collections.emptyList());
+         Set<Object> beforeSet = new HashSet<>(before);
+         Set<Object> afterSet = new HashSet<>(after);
+         XAttribute attribute = null;
+
+         if(!MODEL_PATH.equals(path)) {
+            int idx = path.indexOf('\u0000');
+            XEntity entity = target.getEntity(path.substring(0, idx));
+            attribute = entity == null ? null : entity.getAttribute(path.substring(idx + 1));
+
+            if(attribute == null) {
+               continue;
+            }
+         }
+
+         for(Object o : after) {
+            if(!beforeSet.contains(o)) {
+               result |= attribute == null ? target.addOuterDependency(o) :
+                  attribute.addOuterDependency(o);
+            }
+         }
+
+         for(Object o : before) {
+            if(!afterSet.contains(o)) {
+               result |= attribute == null ? target.removeOuterDependency(o) :
+                  attribute.removeOuterDependency(o);
+            }
+         }
+      }
+
+      return result;
+   }
+
+   private static final class DeferredModels {
+      final Map<List<String>, ModelWork> works = new LinkedHashMap<>();
+      final Set<String> prefixes = new HashSet<>();
+   }
+
+   static final class ModelWork {
+      ModelWork(String prefix, String source, String name, XLogicalModel working,
+                Map<String, List<Object>> base)
+      {
+         this.prefix = prefix;
+         this.source = source;
+         this.name = name;
+         this.working = working;
+         this.base = base;
+      }
+
+      final String prefix;
+      final String source;
+      final String name;
+      final XLogicalModel working;
+      final Map<String, List<Object>> base;
+      boolean saved;
    }
 
    private void updateRunQueryDependencies(Viewsheet vs, AssetEntry entry, boolean add,

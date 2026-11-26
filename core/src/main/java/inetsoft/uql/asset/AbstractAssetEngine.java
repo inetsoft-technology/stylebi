@@ -3015,9 +3015,24 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
             // maintain sheet dependency
             if(entry.getScope() != REPORT_SCOPE) {
+               // Bug #82450, during an import the shared sheets (the worksheet used by many
+               // dashboards) are rewritten once at the end, not once per saved asset
+               DependencyStorageService.Batch batch = DependencyStorageService.currentBatch();
+               Map<String, Set<AssetEntry>> deferredOuters = batch == null ? null :
+                  batch.attachment(Arrays.asList(this, "sheetOuters"), LinkedHashMap::new);
+
                nextd:
                for(AssetEntry dentry : dentries) {
                   AbstractSheet dsheet = null;
+
+                  if(deferredOuters != null) {
+                     Set<AssetEntry> pending = deferredOuters.get(dentry.toIdentifier());
+
+                     if(pending != null) {
+                        pending.add(entry);
+                        continue;
+                     }
+                  }
 
                   try {
                      dsheet = getSheet(dentry, user, false, AssetContent.CONTEXT);
@@ -3037,6 +3052,14 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                      if(entry.equals(outer)) {
                         continue nextd;
                      }
+                  }
+
+                  if(batch != null) {
+                     Set<AssetEntry> pending = new LinkedHashSet<>();
+                     pending.add(entry);
+                     deferredOuters.put(dentry.toIdentifier(), pending);
+                     batch.addFlushAction(() -> flushSheetOuterDependencies(dentry, user, pending));
+                     continue;
                   }
 
                   //Set correct org context for the dependent worksheet's org
@@ -4649,6 +4672,58 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
     * @param dentry  the specified dependent asset entry.
     * @return the existing asset entries.
     */
+   /**
+    * Adds the outer dependencies deferred by {@link #setSheet} to the stored sheet, merging with
+    * what the sheet holds now, and writes it once.
+    */
+   private void flushSheetOuterDependencies(AssetEntry dentry, Principal user,
+                                            Set<AssetEntry> outers)
+   {
+      lockWrite();
+      String prevOrgId = OrganizationContextHolder.getCurrentOrgId();
+
+      try {
+         if(dentry.getOrgID() != null) {
+            OrganizationContextHolder.setCurrentOrgId(dentry.getOrgID());
+         }
+
+         AbstractSheet dsheet = getSheet(dentry, user, false, AssetContent.ALL);
+
+         if(dsheet == null) {
+            return;
+         }
+
+         Set<AssetEntry> existing = new HashSet<>(Arrays.asList(dsheet.getOuterDependencies()));
+         boolean changed = false;
+
+         for(AssetEntry outer : outers) {
+            if(!existing.contains(outer)) {
+               dsheet.addOuterDependency(outer);
+               changed = true;
+            }
+         }
+
+         if(changed) {
+            String didentifier = dentry.toIdentifier();
+            getStorage(dentry).putXMLSerializable(didentifier, dsheet);
+            sheetmap.put(didentifier, dsheet);
+         }
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to add the outer dependencies to sheet: {}", dentry, ex);
+      }
+      finally {
+         if(prevOrgId != null) {
+            OrganizationContextHolder.setCurrentOrgId(prevOrgId);
+         }
+         else {
+            OrganizationContextHolder.clear();
+         }
+
+         unlockWrite();
+      }
+   }
+
    private AssetEntry[] getExistingEntries(AssetEntry[] entries, AssetEntry dentry)
       throws Exception
    {

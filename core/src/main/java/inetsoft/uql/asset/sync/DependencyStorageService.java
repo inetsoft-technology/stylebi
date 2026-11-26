@@ -162,8 +162,11 @@ public final class DependencyStorageService {
        */
       public void flush() {
          Map<BatchKey, Pending> records = new LinkedHashMap<>(dirty);
+         List<Runnable> actions = new ArrayList<>(flushActions);
          dirty.clear();
          loaded.clear();
+         attachments.clear();
+         flushActions.clear();
 
          for(Map.Entry<BatchKey, Pending> e : records.entrySet()) {
             try {
@@ -174,6 +177,34 @@ public final class DependencyStorageService {
                          "this operation are missing from it", e.getKey().key(), ex);
             }
          }
+
+         for(Runnable action : actions) {
+            try {
+               action.run();
+            }
+            catch(Exception ex) {
+               LOG.error("Failed to write the deferred dependency changes of an import", ex);
+            }
+         }
+      }
+
+      /**
+       * Gets the object kept by this batch under the key, creating it the first time. For other
+       * dependency writes (the outer dependencies kept inside a worksheet, logical model or data
+       * source) that are deferred the same way; the object is dropped by the next flush.
+       */
+      public <T> T attachment(Object key, java.util.function.Supplier<T> factory) {
+         @SuppressWarnings("unchecked")
+         T value = (T) attachments.computeIfAbsent(key, k -> factory.get());
+         return value;
+      }
+
+      /**
+       * Adds an action that runs once, on the thread that flushes, at the next flush. Each action
+       * must set up whatever org context it needs and merge into what is stored at that time.
+       */
+      public void addFlushAction(Runnable action) {
+         flushActions.add(action);
       }
 
       private void flush(BatchKey bkey, Pending pending) throws Exception {
@@ -255,6 +286,17 @@ public final class DependencyStorageService {
       private final boolean owner;
       private final Map<BatchKey, Base> loaded = new HashMap<>();
       private final Map<BatchKey, Pending> dirty = new LinkedHashMap<>();
+      private final Map<Object, Object> attachments = new HashMap<>();
+      private final List<Runnable> flushActions = new ArrayList<>();
+   }
+
+   /**
+    * Gets the write batch open on the calling thread.
+    *
+    * @return the batch, or {@code null} if no import is running on this thread.
+    */
+   public static Batch currentBatch() {
+      return BATCH.get();
    }
 
    public RenameTransformObject getWithOrg(String key, String orgid) throws Exception {
