@@ -607,6 +607,27 @@ $dark-surface-hovers: (
   }
 }
 
+// Secondary text on a selected row: the default text colour (5.34:1 on #4A4750), not the muted one
+// (3.91:1) (Bug #81984). The muted token is re-declared on the row so every descendant that reads it
+// inherits the change; the derived tokens resolve at :root, so the whole chain is re-declared. Left out on
+// purpose: --inet-dark-drag-indicator-text-color and --inet-viz-sorted-color (a drag indicator and a viz
+// scope, not row text). Dashboard content is excluded and re-declares its own chain.
+$selected-rows: ".selected, .bg-selected, .bg-node-selected, .bg-bold-selected, .bg-portal-node-selected, "
+    + ".table-active, .task-row--selected, .folder-list-item.bg-selected, .list-group-item.active, "
+    + ".files-browser__item.active, .data-sources-browser__item.active, .data-model-folder-browser__item.active, "
+    + ".logical-model-tree-node--selected, .condition-builder__list-item--selected, "
+    + ".auto-drill-panel__list-item--selected, .tree-view .active, "
+    + ".physical-table-tree-node__row--selected, .physical-model-table-tree-node__row--selected";
+
+:root.shell-dark :is(#{$selected-rows})#{$outside-content} {
+  --inet-text-muted-color: var(--inet-text-color);
+  --inet-shell-text-muted: var(--inet-text-color);
+  --inet-table-heading-text-color: var(--inet-text-color);
+  --inet-ui-neutral-color: var(--inet-text-color);
+  --inet-button-default-text-color: var(--inet-text-color);
+  --bs-secondary-color: var(--inet-text-color);
+}
+
 /***
  * Dashboard content
  *

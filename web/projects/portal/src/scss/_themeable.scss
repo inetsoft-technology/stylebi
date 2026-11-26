@@ -1541,11 +1541,11 @@ wizard-binding-tree .bg-node-selected {
 }
 
 // Selection binds to the shipped focus family: a selection is a focus state, and #dc581e was an
-// orphan orange in no palette. --inet-focus-ring-color is already the primary at ~30% alpha, which
-// is what the old fill was approximating. drawRegions reads `color` as its fill and `border-color`
+// orphan orange in no palette. --inet-focus-ring-canvas-color is the focus family's ~30% alpha orange, which
+// is what the old fill was approximating (not --inet-focus-ring-color: a themed ring is solid, Bug #81984). drawRegions reads `color` as its fill and `border-color`
 // as its stroke from this rule's computed style. Chrome areas take --inet-viz-assembly-outline instead.
 .viz-modern .chart-object-canvas {
-  color: var(--inet-focus-ring-color);
+  color: var(--inet-focus-ring-canvas-color);
   border-color: var(--inet-primary-color);
 }
 
