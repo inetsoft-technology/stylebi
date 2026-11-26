@@ -1228,6 +1228,22 @@ class PropertyAliasesTest {
       assertNull(PropertyAliases.labelFor("alpha"));
    }
 
+   /**
+    * A text's tip pane is tooltip-only: its tipOption is the "Tooltip" checkbox (true enables the
+    * tooltip), so it must not carry the Data Tip View caption used by the other assemblies.
+    */
+   @Test
+   void textTipOptionIsCaptionedAsTooltipNotDataTipView() {
+      String path = PropertyAliases.forType("text").aliases().get("tipOption");
+      assertEquals("textGeneralPaneModel.tipPaneModel.tipOption", path);
+      String label = PropertyAliases.labelFor("tipOption", path);
+      assertNotNull(label);
+      assertTrue(label.startsWith("Tooltip"), label);
+      assertFalse(label.contains("instead of the tooltip"), label);
+      assertTrue(PropertyAliases.labelFor("tipOption", PropertyAliases.forType("chart")
+                    .aliases().get("tipOption")).contains("Data Tip View"));
+   }
+
    /** Slider's two same-worded "label" properties must be told apart by their captions. */
    @Test
    void sliderLabelAndShowLabelHaveDistinctCaptions() {

@@ -465,7 +465,8 @@ public final class PropertyAliases {
     * different captions, so {@link #LABELS} (keyed by alias name alone) would mislabel one of
     * them (bug #81681): {@code alpha} is the Data Tip View popup's alpha on a table, crosstab
     * and calc table but the element opacity on a chart, text or image; {@code label} on a slider
-    * is Advanced > Show Labels > Label, not the Label tab's {@code showLabel}.
+    * is Advanced > Show Labels > Label, not the Label tab's {@code showLabel}; {@code tipOption} on
+    * a text is the tooltip-only tip pane's Tooltip checkbox, not a Data Tip View choice.
     */
    private static final Map<String, String> PATH_LABELS = Map.of(
       "tableAdvancedPaneModel.tipPaneModel.alpha", "Alpha (of the Data Tip View popup)",
@@ -474,7 +475,9 @@ public final class PropertyAliases {
       "sliderAdvancedPaneModel.sliderLabelPaneModel.label",
       "Label (Advanced > Show Labels > Label: label the tick marks; not the Label tab's showLabel)",
       "inputLabelPaneModel.showLabel",
-      "Show Label (Label tab: show the label beside the input; not Advanced > Show Labels > Label)");
+      "Show Label (Label tab: show the label beside the input; not Advanced > Show Labels > Label)",
+      "textGeneralPaneModel.tipPaneModel.tipOption",
+      "Tooltip (checked: show a tooltip; the text's tip pane is tooltip-only, no Data Tip View)");
 
    /**
     * Where a property's caption is itself model state rather than a fixed string, keyed by the
