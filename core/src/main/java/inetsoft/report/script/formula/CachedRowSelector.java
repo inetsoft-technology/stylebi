@@ -100,7 +100,8 @@ class CachedRowSelector extends AbstractGroupRowSelector {
          }
       }
 
-      TupleValues tupleValues = new TupleValues();
+      // keep null apart from "", as the detail rows (and equalsGroup) do (Bug #82397)
+      TupleValues tupleValues = new TupleValues(true);
 
       for(int i = 0; i < values.length; i++) {
          Object value = values[i];
@@ -176,7 +177,7 @@ class CachedRowSelector extends AbstractGroupRowSelector {
     * Create a vector containing the group column values.
     */
    private Tuple createTuple(XTable table, int row) {
-      TupleValues vec = new TupleValues();
+      TupleValues vec = new TupleValues(true);
 
       for(int i = 0; i < gcolumns.length; i++) {
          Object value = getValue(table, row, i);

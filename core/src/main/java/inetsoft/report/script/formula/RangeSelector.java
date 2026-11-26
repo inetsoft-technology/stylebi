@@ -93,8 +93,25 @@ public abstract class RangeSelector {
 
    // force string comparison
    static class TupleValues extends ArrayList {
+      TupleValues() {
+         this(false);
+      }
+
+      /**
+       * @param keepNull true to add null as null, so that a null group stays apart from an
+       *                 empty-string group. When false, null is added as "" (the crosstab
+       *                 lookup relies on this, its null group label is an empty string).
+       */
+      TupleValues(boolean keepNull) {
+         this.keepNull = keepNull;
+      }
+
       @Override
       public boolean add(Object obj) {
+         if(obj == null && keepNull) {
+            return super.add(null);
+         }
+
          if(obj instanceof Number) {
             obj = ((Number) obj).doubleValue();
          }
@@ -102,6 +119,8 @@ public abstract class RangeSelector {
          obj = toGroupString(obj);
          return super.add(obj);
       }
+
+      private final boolean keepNull;
    }
 
    static class SelectorKey {
