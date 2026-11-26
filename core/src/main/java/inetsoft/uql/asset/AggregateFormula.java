@@ -2412,7 +2412,8 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
       @Override
       public String getExpression(String column, String col2,
                                   AggregateHelper helper) {
-         return "SUM(" + addParens(column) + ")";
+         // skip the rows where the second value is null (the pair is dropped), like Sum2Formula
+         return pairSum(column, col2);
       }
 
       /**
