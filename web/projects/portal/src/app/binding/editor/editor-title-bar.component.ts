@@ -15,24 +15,23 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, OnChanges, Output, EventEmitter, SimpleChanges } from "@angular/core";
+import { Component, EventEmitter, inject, Input, Output } from "@angular/core";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { ComponentTool } from "../../common/util/component-tool";
 import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { AiAssistantDialogService } from "../../common/services/ai-assistant-dialog.service";
 import { VSWizardConstants } from "../../vs-wizard/model/vs-wizard-constants";
 import { VSWizardUtil } from "../../vs-wizard/util/vs-wizard-util";
-import { ToolbarActionGroup } from "../../widget/toolbar/toolbar-action-group";
-import { ToolbarAction } from "../../widget/toolbar/toolbar-action";
 import { HelpLinkDirective } from "../../widget/help-link/help-link.directive";
-import { ToolbarGroup } from "../../widget/toolbar/toolbar-group/toolbar-group.component";
 
 @Component({
     selector: "editor-title-bar",
-    templateUrl: "editor-title-bar.component.html",
+    templateUrl: "editor-title-bar-return.component.html",
     styleUrls: ["editor-title-bar.component.scss",
         "../../composer/gui/toolbar/composer-toolbar.component.scss"],
-    imports: [ToolbarGroup, HelpLinkDirective]
+    imports: [HelpLinkDirective]
 })
-export class EditorTitleBar implements OnChanges {
+export class EditorTitleBar {
    private _elementName: string;
 
    @Input() set elementName(name: string) {
@@ -50,8 +49,9 @@ export class EditorTitleBar implements OnChanges {
    }
 
    @Input() sourceName: string;
+   /** The name of the sheet being edited, shown in the breadcrumb beside the way back to it. */
+   @Input() sheetName: string;
    @Input() objectType: string;
-   assemblyTypeIcon: string = "";
    @Input() goToWizardVisible: boolean = false;
    @Input() backToReportWizardVisible: boolean = false;
    @Input() reportMode: number;
@@ -60,13 +60,9 @@ export class EditorTitleBar implements OnChanges {
    @Output() onOpenReportWizard = new EventEmitter<any>();
    @Output() onChangeReportMode = new EventEmitter<number>();
 
-   constructor(public aiAssistantDialogService: AiAssistantDialogService, private aiAssistantService: AiAssistantService) {
-   }
+   private readonly modalService = inject(NgbModal);
 
-   ngOnChanges(changes: SimpleChanges): void {
-      if(changes["objectType"]) {
-         this.assemblyTypeIcon = this.getAssemblyTypeIcon();
-      }
+   constructor(public aiAssistantDialogService: AiAssistantDialogService, private aiAssistantService: AiAssistantService) {
    }
 
    done() {
@@ -77,29 +73,30 @@ export class EditorTitleBar implements OnChanges {
       this.onClose.emit(false);
    }
 
-   getAssemblyTypeIcon(): string {
-      switch(this.objectType) {
-         case "VSChart":
-            return "chart-icon";
-         case "VSCrosstab":
-            return "crosstab-icon";
-         case "VSTable":
-            return "table-icon";
-         case "VSGauge":
-            return "gauge-icon";
-         case "VSText":
-            return "text-icon";
-         case "VSSelectionList":
-            return "selection-list-icon";
-         case "VSSelectionTree":
-            return "selection-tree-icon";
-         case "VSCalendar":
-            return "calendar-icon";
-         case "VSRangeSlider":
-            return "range-slider-icon";
-         default:
-            return "";
-      }
+   /**
+    * Go back to the sheet the editor was opened from. The editor does not know whether anything was
+    * changed, so it asks what to do with the edit: apply it (as Done does), discard it (as Cancel
+    * does) or keep editing.
+    */
+   back(): void {
+      ComponentTool.showMessageDialog(this.modalService, "_#(js:Return to the dashboard)",
+         "_#(js:Apply or discard your changes before returning to the dashboard.)",
+         {
+            apply: "_#(js:Apply and return)",
+            discard: "_#(js:Discard changes)",
+            keep: "_#(js:Keep editing)"
+         })
+         .then(choice => {
+            if(choice == "apply") {
+               this.done();
+            }
+            else if(choice == "discard") {
+               this.cancel();
+            }
+         })
+         .catch(() => {
+            // a duplicate message was ignored; the dialog is already open
+         });
    }
 
    get helpLink(): string {
@@ -116,58 +113,6 @@ export class EditorTitleBar implements OnChanges {
             return null;
       }
    }
-
-   get actionGroup(): ToolbarActionGroup {
-      return <ToolbarActionGroup> {
-         label: "",
-         iconClass: "",
-         buttonClass: "",
-         enabled: () => true,
-         visible: () => true,
-         action: () => {},
-         actions: this.actions
-      };
-   }
-
-   actions: ToolbarAction[] =
-      [
-         {
-            label: "_#(js:To Wizard)",
-            iconClass: "edit-icon",
-            buttonClass: "wizard-button",
-            tooltip: () => "<b>_#(js:Go To Wizard)</b>",
-            enabled: () => true,
-            visible: () => this.goToWizardVisible,
-            action: () => this.onOpenWizardPane.emit()
-         },
-         {
-            label: "_#(js:To Wizard)",
-            iconClass: "edit-icon",
-            buttonClass: "wizard-button",
-            tooltip: () => "<b>_#(js:Back To Wizard)</b>",
-            enabled: () => true,
-            visible: () => this.backToReportWizardVisible,
-            action: () => this.onOpenReportWizard.emit()
-         },
-         {
-            label: "_#(js:Finish)",
-            iconClass: "submit-icon",
-            buttonClass: "finish-button",
-            tooltip: () => "<b>_#(js:Finish Editing)</b>",
-            enabled: () => true,
-            visible: () => true,
-            action: () => this.done()
-         },
-         {
-            label: "_#(js:Cancel)",
-            iconClass: "close-icon",
-            buttonClass: "close-button",
-            tooltip: () => "<b>_#(js:Cancel)<b>",
-            enabled: () => true,
-            visible: () => true,
-            action: () => this.cancel()
-         }
-      ];
 
    openAiAssistantDialog(): void {
       this.aiAssistantService.lastBindingObject =

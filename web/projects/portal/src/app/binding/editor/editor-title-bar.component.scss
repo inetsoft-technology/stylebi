@@ -50,6 +50,15 @@
     padding-left: 10px;
 }
 
+// This title bar is a band of the normal shell surface, not the composer's dark toolbar: the buttons
+// in it are the standard secondary and primary ones, and the band reads as a different mode from the
+// composer it covers. (The object wizard's toolbar shares this stylesheet and keeps its dark look.)
+.title-bar.editor-title-band {
+  color: var(--inet-text-color);
+  background-color: var(--inet-shell-surface-default);
+  box-shadow: inset 0 -1px 0 0 var(--inet-border-strong-color);
+}
+
 .title-bar {
   display: flex;
   justify-content: flex-start;
@@ -99,12 +108,122 @@
     flex-grow: 0;
   }
 
+  // the way back: a bordered button at the left, then where we are: sheet > object > data source.
+  // The text is one scale: 13px for the back button, the sheet and the source, 15px for the object.
+  button.btn.editor-back-button,
+  button.btn.wizard-button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--inet-space-1, 2px);
+    flex-grow: 0;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  button.btn.editor-back-button i {
+    color: inherit;
+  }
+
+  // a global rule shrinks the text of a span inside a button; the label is the button's own size
+  button.btn.editor-back-button span {
+    font-size: inherit;
+  }
+
+  button.btn.editor-back-button {
+    margin-left: var(--inet-space-4, 12px);
+    padding: 4px 12px 4px 6px;
+    font-weight: 600;
+  }
+
+  // To Wizard is a quiet text button, the same height as Cancel and Done
+  button.btn.wizard-button {
+    padding: 5px 12px;
+  }
+
+  .editor-sheet-name,
+  .editor-source {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .editor-sheet-name {
+    max-width: 16em;
+    margin-left: var(--inet-space-4, 12px);
+    opacity: 0.85;
+  }
+
+  .editor-source {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--inet-space-2, 4px);
+    max-width: 24em;
+    opacity: 0.85;
+
+    // the icon font's default grey is nearly invisible on the dark bar: use the text's colour
+    i {
+      flex: none;
+      color: inherit;
+      font-size: 16px;
+    }
+  }
+
+  .editor-crumb-sep {
+    margin: 0 var(--inet-space-3, 8px);
+    opacity: 0.7;
+  }
+
+  .title h4 {
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  // everything at the right edge: the wizard button, then Cancel and Done, then help
+  .editor-actions {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    gap: var(--inet-space-3, 8px);
+    padding-right: var(--inet-space-3, 8px);
+  }
+
+  // Cancel and Done say what they do; Done is the filled one
+  .editor-exit-buttons {
+    display: flex;
+    align-items: center;
+    gap: var(--inet-space-3, 8px);
+
+    button.btn {
+      flex-grow: 0;
+      white-space: nowrap;
+      font-size: var(--inet-font-size-base, 13px);
+      font-weight: 500;
+    }
+
+    button.btn.finish-button {
+      font-weight: 600;
+    }
+  }
+
+  .editor-help {
+    display: flex;
+    align-items: center;
+  }
+
+  // the help and AI icons share one size, with a 32px target
   button.btn.help-button,
   button.btn.ai-assistant-icon {
     background-color: transparent;
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
     padding: 0;
     flex-grow: 0;
-    font-size: 24px;
+    font-size: 20px;
     margin-left: var(--inet-space-2);
   }
 }

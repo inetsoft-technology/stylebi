@@ -315,6 +315,15 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
     * (and its OK and Cancel) sit beside the button and not at the far bottom of the editor, and
     * rows added to it grow it upward. Kept inside the editor, with room for the panel.
     */
+   /**
+    * The name of the sheet being edited, for the title bar's breadcrumb. The asset id is
+    * "scope^type^user^path^org"; the sheet is the last segment of the path.
+    */
+   get sheetName(): string | null {
+      const path = this.assetId ? this.assetId.split("^")[3] : null;
+      return path ? path.substring(path.lastIndexOf("/") + 1) : null;
+   }
+
    private getLayoutDesignerBottom(): number {
       const host: HTMLElement = this.hostEl?.nativeElement;
       const button = host?.querySelector(".layout-designer-btn");
