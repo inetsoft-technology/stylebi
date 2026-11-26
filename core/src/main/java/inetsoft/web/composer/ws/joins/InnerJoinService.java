@@ -857,7 +857,7 @@ public class InnerJoinService extends WorksheetControllerService {
     * set, notifyOp omitted LEFT/RIGHT, and exchange() mirrored nothing at all while still swapping
     * the operands -- silently turning `A LEFT JOIN B` into `B LEFT JOIN A`.
     */
-   private static int mirrorOperation(int op) {
+   public static int mirrorOperation(int op) {
       return switch(op) {
          case TableAssemblyOperator.GREATER_JOIN       -> TableAssemblyOperator.LESS_JOIN;
          case TableAssemblyOperator.LESS_JOIN          -> TableAssemblyOperator.GREATER_JOIN;

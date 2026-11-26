@@ -42,15 +42,26 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * hidden table visible to viewsheets, as the native primary-assembly action does; the key is
  * absent otherwise.</p>
  *
+ * <p>{@code paste_assemblies} populates {@code paste}: the names the pasted assemblies got, what
+ * was skipped and why (see {@link PasteAssembliesOutcome}).</p>
+ *
  * <p>{@code set_sort} populates {@code note} only when {@code direction} {@code NONE} found no
  * sort on the column to remove (a successful removal stays an empty {@code 204}).</p>
  */
 public record EditResponse(@JsonInclude(JsonInclude.Include.NON_NULL) String assemblyName,
                            @JsonInclude(JsonInclude.Include.NON_NULL) String assemblyKind,
                            @JsonInclude(JsonInclude.Include.NON_NULL) Boolean madeVisible,
-                           @JsonInclude(JsonInclude.Include.NON_NULL) String note)
+                           @JsonInclude(JsonInclude.Include.NON_NULL) String note,
+                           @JsonInclude(JsonInclude.Include.NON_NULL)
+                           PasteAssembliesOutcome paste)
 {
    public EditResponse(String assemblyName, String assemblyKind) {
-      this(assemblyName, assemblyKind, null, null);
+      this(assemblyName, assemblyKind, null, null, null);
+   }
+
+   public EditResponse(String assemblyName, String assemblyKind, Boolean madeVisible,
+                       String note)
+   {
+      this(assemblyName, assemblyKind, madeVisible, note, null);
    }
 }

@@ -142,6 +142,14 @@ import java.util.List;
  *                         crosstab refs. Mutually exclusive with {@code secondaryY}.
  *                         {@code null}/absent on write means "not specified": a matched previous
  *                         ref's value is kept.
+ * @param allRows          the Composer Field Option "Include all rows": every row of this field's
+ *                         source table (logical-model entity) is kept, outer joined to the other
+ *                         tables, even when no row of them matches. Table and crosstab fields
+ *                         only. It is a property of the field's <em>table</em>, so every field of
+ *                         one table reads back the same value and fields of one table that
+ *                         disagree in one write are refused. {@code null}/absent on write means
+ *                         "not specified": the table's current setting is kept; reads report
+ *                         {@code true} only for a table that includes all rows.
  */
 public record FieldRef(String column, String type, String aggregate, String dateLevel,
                        String namedGroup, Integer chartType, Integer runtimeChartType,
@@ -151,7 +159,23 @@ public record FieldRef(String column, String type, String aggregate, String date
                        CalculateInfo calculateInfo,
                        String label, Boolean secondaryY, Boolean visible, Boolean timeSeries,
                        String secondaryColumn,
-                       @JsonProperty("n") String operand, Boolean discrete) {
+                       @JsonProperty("n") String operand, Boolean discrete, Boolean allRows) {
+   /**
+    * The shape before {@code allRows} was added -- kept so that addition did not touch every call
+    * site that already named {@code discrete} (this was the record's own canonical constructor
+    * before {@code allRows} was appended).
+    */
+   public FieldRef(String column, String type, String aggregate, String dateLevel,
+                   String namedGroup, Integer chartType, Integer runtimeChartType,
+                   NamedGroupValues namedGroupValues, CalculateInfo calculateInfo, String label,
+                   Boolean secondaryY, Boolean visible, Boolean timeSeries,
+                   String secondaryColumn, String operand, Boolean discrete)
+   {
+      this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
+           namedGroupValues, calculateInfo, label, secondaryY, visible, timeSeries,
+           secondaryColumn, operand, discrete, null);
+   }
+
    /**
     * The shape before {@code discrete} was added -- kept so that addition did not touch every call
     * site that already named {@code operand} (this was the record's own canonical constructor
@@ -165,7 +189,7 @@ public record FieldRef(String column, String type, String aggregate, String date
    {
       this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
            namedGroupValues, calculateInfo, label, secondaryY, visible, timeSeries,
-           secondaryColumn, operand, null);
+           secondaryColumn, operand, null, null);
    }
 
    /**
@@ -181,7 +205,7 @@ public record FieldRef(String column, String type, String aggregate, String date
    {
       this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
            namedGroupValues, calculateInfo, label, secondaryY, visible, timeSeries,
-           secondaryColumn, null, null);
+           secondaryColumn, null, null, null);
    }
 
    /**
@@ -210,14 +234,14 @@ public record FieldRef(String column, String type, String aggregate, String date
    public FieldRef withLabel(String label) {
       return new FieldRef(column, type, aggregate, dateLevel, namedGroup, chartType,
                           runtimeChartType, namedGroupValues, calculateInfo, label, secondaryY,
-                          visible, timeSeries, secondaryColumn, operand, discrete);
+                          visible, timeSeries, secondaryColumn, operand, discrete, allRows);
    }
 
    /** A copy with the visible flag replaced and every other component, any clear included. */
    public FieldRef withVisible(Boolean visible) {
       return new FieldRef(column, type, aggregate, dateLevel, namedGroup, chartType,
                           runtimeChartType, namedGroupValues, calculateInfo, label, secondaryY,
-                          visible, timeSeries, secondaryColumn, operand, discrete);
+                          visible, timeSeries, secondaryColumn, operand, discrete, allRows);
    }
 
    /**
@@ -228,7 +252,14 @@ public record FieldRef(String column, String type, String aggregate, String date
    public FieldRef withColumns(String column, String secondaryColumn) {
       return new FieldRef(column, type, aggregate, dateLevel, namedGroup, chartType,
                           runtimeChartType, namedGroupValues, calculateInfo, label, secondaryY,
-                          visible, timeSeries, secondaryColumn, operand, discrete);
+                          visible, timeSeries, secondaryColumn, operand, discrete, allRows);
+   }
+
+   /** A copy with the allRows flag replaced and every other component, any clear included. */
+   public FieldRef withAllRows(Boolean allRows) {
+      return new FieldRef(column, type, aggregate, dateLevel, namedGroup, chartType,
+                          runtimeChartType, namedGroupValues, calculateInfo, label, secondaryY,
+                          visible, timeSeries, secondaryColumn, operand, discrete, allRows);
    }
 
    /** Whether the caller sent an explicit {@code calculateInfo: null}, asking to remove it. */
