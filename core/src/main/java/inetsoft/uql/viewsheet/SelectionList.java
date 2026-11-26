@@ -34,6 +34,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import java.io.*;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.text.Format;
@@ -899,6 +900,22 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
    }
 
    /**
+    * Set whether the values of the list are of more than one type (number, date, boolean
+    * or text), e.g. a column of a rotated table. The values of such a list are sorted by
+    * their parsed value: numbers, then dates, then the other values.
+    */
+   public void setMixedType(boolean mixedType) {
+      this.mixedType = mixedType;
+   }
+
+   /**
+    * Check whether the values of the list are of more than one type.
+    */
+   public boolean isMixedType() {
+      return mixedType;
+   }
+
+   /**
     * Set the special comparator.
     * @param comp the specified comparator.
     */
@@ -1174,6 +1191,10 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
             return comp.compare(v1.getLabel(), v2.getLabel());
          }
 
+         if(mixedType) {
+            return compareMixedValue(v1.getValue(), v2.getValue());
+         }
+
          if(strcomp) {
             return textComp.compare(v1.getLabel(), v2.getLabel());
          }
@@ -1182,6 +1203,61 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
          Object o2 = Tool.getData(dtype, s2);
 
          return Tool.compare(o1, o2);
+      }
+
+      /**
+       * Compare the values of a mixed type list: numbers, then dates, then the other
+       * values (as Tool.compare sorts mixed types), each in its own order.
+       */
+      private int compareMixedValue(String s1, String s2) {
+         Object o1 = parseMixedValue(s1);
+         Object o2 = parseMixedValue(s2);
+         int rank1 = getMixedRank(o1);
+         int rank2 = getMixedRank(o2);
+
+         if(rank1 != rank2) {
+            return rank1 - rank2;
+         }
+
+         int rc = 0;
+
+         if(o1 instanceof BigDecimal && o2 instanceof BigDecimal) {
+            rc = ((BigDecimal) o1).compareTo((BigDecimal) o2);
+         }
+         else if(o1 instanceof Date && o2 instanceof Date) {
+            rc = Long.compare(((Date) o1).getTime(), ((Date) o2).getTime());
+         }
+
+         if(rc == 0 && s1 != null && s2 != null) {
+            rc = textComp.compare(s1, s2);
+         }
+
+         return rc;
+      }
+
+      /**
+       * Get the number, date or string of a value string.
+       */
+      private Object parseMixedValue(String str) {
+         if(str == null || str.isEmpty()) {
+            return str;
+         }
+
+         return mixedValues.computeIfAbsent(str, s -> {
+            try {
+               return new BigDecimal(s);
+            }
+            catch(NumberFormatException ex) {
+               // not a number
+            }
+
+            Object date = Tool.getData(XSchema.TIME_INSTANT, s);
+            return date instanceof Date ? date : s;
+         });
+      }
+
+      private int getMixedRank(Object val) {
+         return val instanceof BigDecimal ? 0 : val instanceof Date ? 1 : 2;
       }
 
       @Override
@@ -1250,6 +1326,7 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
 
       private int type;
       private boolean strcomp;
+      private final Map<String, Object> mixedValues = new HashMap<>();
    }
 
    /**
@@ -1332,6 +1409,7 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
 
    private ArrayList<SelectionValue> list;
    private String dtype;
+   private boolean mixedType;
    private Comparator comp;
    // ConcurrentHashMap instead of HashMap: writeFormats() iterates this map while other
    // threads may call clear() (via writeData/writeXML). Using entrySet() guarantees

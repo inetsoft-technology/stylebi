@@ -73,6 +73,13 @@ public class SelectionSet extends ObjectOpenHashSet<Object> {
    @Override
    public boolean contains(Object obj) {
       obj = normalize(obj);
+
+      // a column may mix value types (e.g. a rotated table), so look up the value as it is
+      // before converting it to the type of the first value added
+      if(super.contains(obj)) {
+         return true;
+      }
+
       Class cls = obj == null ? null : obj.getClass();
 
       if(dtype != null && cls != null && !cls.equals(dtype) &&

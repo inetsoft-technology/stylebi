@@ -25,8 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * This class holds a unique list of items of a column, and maintain the
@@ -106,18 +105,22 @@ class ColumnMetaData implements Cloneable, Serializable {
          if(mixedType) {
             // don't perform type conversion for mixed type
          }
-         if(fval != null && !val.getClass().equals(fval.getClass())) {
+         else if(fval != null && !val.getClass().equals(fval.getClass())) {
             String ntype = Tool.getDataType(val);
 
             // allow integer and boolean to be treated as same. this was the
-            // logic before the mixedType support.
-            if(dataType.equals(XSchema.BOOLEAN) && val instanceof Integer) {
+            // logic before the mixedType support. only 0/1 integers are merged with
+            // booleans, any other value would be changed (e.g. 23 to true, false to 0)
+            if(dataType.equals(XSchema.BOOLEAN) && isZeroOrOne(val)) {
                val = (Integer) val != 0;
             }
-            else if(dataType.equals(XSchema.INTEGER) && val instanceof Boolean) {
+            else if(dataType.equals(XSchema.INTEGER) && val instanceof Boolean &&
+               isZeroOrOneColumn())
+            {
                val = val == Boolean.TRUE ? 1 : 0;
             }
-            else if(XSchema.isNumericType(dataType) && !XSchema.isNumericType(ntype) ||
+            else if(dataType.equals(XSchema.BOOLEAN) || val instanceof Boolean ||
+               XSchema.isNumericType(dataType) && !XSchema.isNumericType(ntype) ||
                XSchema.isDateType(dataType) && !XSchema.isDateType(ntype) ||
                XSchema.STRING.equals(dataType) && !XSchema.STRING.equals(ntype))
             {
@@ -138,6 +141,7 @@ class ColumnMetaData implements Cloneable, Serializable {
          idx = items.size();
          infomap.put(val, idx);
          items.add(val);
+         strmap = null;
       }
 
       if(fval == null && val != null) {
@@ -154,6 +158,26 @@ class ColumnMetaData implements Cloneable, Serializable {
       return result;
    }
 
+   /**
+    * Check if the value is an integer 0 or 1, which may be merged with a boolean.
+    */
+   private static boolean isZeroOrOne(Object val) {
+      return val instanceof Integer && ((Integer) val == 0 || (Integer) val == 1);
+   }
+
+   /**
+    * Check if all the values added so far are integer 0 or 1.
+    */
+   private boolean isZeroOrOneColumn() {
+      for(Object item : items) {
+         if(item != null && !isZeroOrOne(item)) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
    private void enlargeNumberType(Object val) {
       dataType = Tool.getDataType(val);
       fval = val;
@@ -168,12 +192,30 @@ class ColumnMetaData implements Cloneable, Serializable {
       }
 
       infomap = ninfomap;
+      strmap = null;
    }
 
    /**
     * Get the index of the value in the column value list.
     */
    public int getValueIndex(Object val) {
+      // a mixed type column keeps the values unconverted
+      if(mixedType && val != null) {
+         Integer info = infomap.get(val);
+
+         if(info != null) {
+            return info;
+         }
+
+         // a selected value usually arrives as its string (the selection list value), which
+         // converting to the first value's type would miss or turn into another value
+         info = getStringIndexMap().get(Tool.getDataString(val));
+
+         if(info != null) {
+            return info;
+         }
+      }
+
       if(val != null && fval != null && !val.getClass().equals(fval.getClass())) {
          val = Tool.getData(dataType, val);
       }
@@ -183,11 +225,35 @@ class ColumnMetaData implements Cloneable, Serializable {
    }
 
    /**
+    * Get the map from the string of each value (as the selection list shows it) to its index.
+    */
+   private Map<String, Integer> getStringIndexMap() {
+      Map<String, Integer> map = strmap;
+
+      if(map == null) {
+         map = new HashMap<>();
+
+         for(int i = 0; i < items.size(); i++) {
+            Object item = items.get(i);
+
+            if(item != null) {
+               map.putIfAbsent(Tool.getDataString(item), i);
+            }
+         }
+
+         strmap = map;
+      }
+
+      return map;
+   }
+
+   /**
     * Dispose the column metadata.
     */
    public void dispose() {
       items.clear();
       infomap.clear();
+      strmap = null;
    }
 
    /**
@@ -200,6 +266,7 @@ class ColumnMetaData implements Cloneable, Serializable {
 
          obj.items = (ArrayList<Object>) items.clone();
          obj.infomap = (SelectionMap) infomap.clone();
+         obj.strmap = null;
 
          return obj;
       }
@@ -219,6 +286,8 @@ class ColumnMetaData implements Cloneable, Serializable {
    private transient Object pval = null; // previous value
    private transient int pidx = 0; // previous value index
    private transient boolean mixedType = false;
+   // value string -> index, built on use for a mixed type column, reset when the items change
+   private transient volatile Map<String, Integer> strmap = null;
 
    private static final Logger LOG = LoggerFactory.getLogger(ColumnMetaData.class);
 }
