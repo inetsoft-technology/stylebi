@@ -472,7 +472,42 @@ public class MVSupportService {
          })
          .map(Map.Entry::getKey)
          .toList()
-         .forEach(map::remove);
+         .forEach(key -> removeAnalysisEntry(map, key));
+   }
+
+   /**
+    * Removes an analysis status from the map and deletes the persisted worksheets of its
+    * definitions that never became a registered MV.
+    */
+   private void removeAnalysisEntry(Map<String, AnalysisStatus> map, String key) {
+      AnalysisStatus status = map.remove(key);
+
+      if(status == null) {
+         return;
+      }
+
+      try {
+         List<MVStatus> results = status.getResults();
+
+         if(results == null) {
+            return;
+         }
+
+         String orgId = status.getOrgId() != null ? status.getOrgId() :
+            OrganizationManager.getInstance().getCurrentOrgID();
+
+         for(MVStatus result : results) {
+            MVDef def = result.getDefinition();
+
+            // checked right before the delete, a registered MV owns its worksheet
+            if(def != null && mvManager.get(def.getName(), orgId) == null) {
+               def.removeWorksheet(orgId);
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove worksheets of expired MV analysis {}", key, e);
+      }
    }
 
    /**
@@ -933,7 +968,7 @@ public class MVSupportService {
          .filter(e -> e.getValue().createdTime < limit)
          .map(Map.Entry::getKey)
          .toList() // copy to temp list before removing
-         .forEach(map::remove);
+         .forEach(key -> removeAnalysisEntry(map, key));
    }
 
    /**
