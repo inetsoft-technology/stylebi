@@ -1172,7 +1172,8 @@ public final class FieldRefFactory {
     * not reproduce, so the table is read from the viewsheet's base worksheet. A formula that
     * needs a second column or an N ({@code isTwoColumns()}/{@code hasN()}) cannot be expressed
     * by a bare column binding and falls back to the data-type default; so does a name
-    * {@code AggregateFormula} does not know.
+    * {@code AggregateFormula} does not know, and {@code None}, which is how an unset formula
+    * reads.
     *
     * @param table the bound table's name, or the source naming it.
     */
@@ -1216,11 +1217,15 @@ public final class FieldRefFactory {
 
       AggregateFormula resolved = AggregateFormula.getFormula(formula.trim());
 
-      if(resolved == null || resolved.isTwoColumns() || resolved.hasN()) {
+      // None is how a measure with no formula reads here: a model cannot store a None formula,
+      // so it means "unset" and takes the data-type default like any other measure
+      if(resolved == null || resolved == AggregateFormula.NONE || resolved.isTwoColumns() ||
+         resolved.hasN())
+      {
          return null;
       }
 
-      return resolved == AggregateFormula.NONE ? NONE : resolved.getFormulaName();
+      return resolved.getFormulaName();
    }
 
    private static boolean sameColumn(String name, String column) {

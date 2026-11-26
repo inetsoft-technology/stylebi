@@ -61,8 +61,8 @@ class WorksheetModelMeasureAggregateDefaultTest {
    }
 
    @Test
-   void aModelFormulaOfNoneIsKeptAsNone() {
-      assertEquals("None", defaultFormula("Raw Amt"));
+   void aMeasureWhoseDefaultFormulaReadsNoneIsUnsetAndStaysSum() {
+      assertEquals("Sum", defaultFormula("Raw Amt"));
    }
 
    @Test
