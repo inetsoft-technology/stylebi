@@ -521,8 +521,28 @@ public class WizDataModelItemController {
          }
       }
 
+      // folders are prechecked first: the models inside a folder that passes are deleted by this
+      // call too, so a view they use is not "in use" by them
       for(int i = 0; i < items.size(); i++) {
-         results[i] = precheckDelete(ctx, items.get(i), inCall);
+         DeleteItem item = items.get(i);
+
+         if(KIND_FOLDER.equals(item.kind())) {
+            results[i] = precheckDelete(ctx, item, inCall);
+
+            if(results[i] == null) {
+               for(Ref ref : contents(dataModel, item.name())) {
+                  if(KIND_LOGICAL_MODEL.equals(ref.kind())) {
+                     inCall.add(ref.kind() + ":" + ref.name());
+                  }
+               }
+            }
+         }
+      }
+
+      for(int i = 0; i < items.size(); i++) {
+         if(!KIND_FOLDER.equals(items.get(i).kind())) {
+            results[i] = precheckDelete(ctx, items.get(i), inCall);
+         }
       }
 
       // folders first, then models and VPMs, then physical views (a view goes after the models
