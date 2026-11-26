@@ -1198,6 +1198,14 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Get the qualifier appended after a UNION keyword when a worksheet union is pushed down.
+    * Empty by default (a bare UNION is a distinct union).
+    */
+   public String getUnionQualifier(boolean distinct) {
+      return distinct ? "" : "ALL ";
+   }
+
+   /**
     * Find the index of the first FROM keyword that is not inside parentheses or quotes.
     */
    private static int findFromIndex(String sql) {
