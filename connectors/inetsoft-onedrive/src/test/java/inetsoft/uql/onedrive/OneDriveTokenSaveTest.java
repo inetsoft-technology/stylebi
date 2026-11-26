@@ -154,6 +154,30 @@ class OneDriveTokenSaveTest {
          .expiration(System.currentTimeMillis() + 3_600_000L).build();
    }
 
+   // Bug #82260: a failed refresh is not swallowed, the query must not go on with the stale token
+   @Test
+   void failedRefreshThrowsAndKeepsTheStaleToken() throws Exception {
+      registry.setDataSource(source("odFailDs"), false);
+      OneDriveDataSource runtime = (OneDriveDataSource) registry.getDataSource("odFailDs").clone();
+
+      try(MockedStatic<AuthorizationClient> client = mockStatic(AuthorizationClient.class)) {
+         client.when(() -> AuthorizationClient.refresh(
+            any(), any(), any(), any(), any(), any(), anyBoolean(), any()))
+            .thenThrow(new Exception("Failed to refresh token [invalid_grant]: expired"));
+
+         RuntimeException ex = assertThrows(RuntimeException.class, runtime::refreshTokens);
+
+         String message = ex.getMessage();
+         assertTrue(message.contains("odFailDs"), message);
+         assertTrue(message.toLowerCase().contains("refresh"), message);
+         assertTrue(message.contains("invalid_grant"), message);
+         assertTrue(message.toLowerCase().contains("authorize"), message);
+         assertNotNull(ex.getCause());
+      }
+
+      assertEquals("tok-A", runtime.getAccessToken());
+   }
+
    private static OneDriveDataSource source(String name) {
       OneDriveDataSource ds = new OneDriveDataSource();
       ds.setName(name);

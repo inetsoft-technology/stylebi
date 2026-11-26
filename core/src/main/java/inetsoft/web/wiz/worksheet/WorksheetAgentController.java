@@ -19,6 +19,7 @@ package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.TableLens;
 import inetsoft.report.internal.XNodeMetaTable;
+import inetsoft.report.composition.QueryTreeModel;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
@@ -78,6 +79,7 @@ import inetsoft.util.CoreTool;
 import inetsoft.util.FileSystemService;
 import inetsoft.util.MessageException;
 import inetsoft.util.TimedQueue;
+import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
 import inetsoft.web.composer.ws.ConvertEmbeddedService;
 import inetsoft.web.composer.ws.LayoutGraphService;
@@ -87,6 +89,7 @@ import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.command.WSCollectVariablesCommand;
 import inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy;
 import inetsoft.web.composer.ws.dialog.ImportCSVDialogService;
+import inetsoft.web.composer.ws.dialog.ShowPlanServiceProxy;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.composer.ws.service.SaveWorksheetService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
@@ -160,6 +163,7 @@ public class WorksheetAgentController {
                                    SheetOpenService openService,
                                    AssetDataCache assetDataCache,
                                    AssemblyConditionDialogServiceProxy dialogServiceProxy,
+                                   ShowPlanServiceProxy showPlanServiceProxy,
                                    RawDataService rawDataService)
    {
       this.feature = feature;
@@ -181,6 +185,7 @@ public class WorksheetAgentController {
       this.openService = openService;
       this.assetDataCache = assetDataCache;
       this.dialogServiceProxy = dialogServiceProxy;
+      this.showPlanServiceProxy = showPlanServiceProxy;
       this.rawDataService = rawDataService;
    }
 
@@ -392,11 +397,12 @@ public class WorksheetAgentController {
       boolean[] madeVisibleHolder = new boolean[1];
       boolean[] sortNoOpHolder = new boolean[1];
       String[] refreshNoteHolder = new String[1];
+      PasteAssembliesOutcome[] pasteHolder = new PasteAssembliesOutcome[1];
       editOp(sessionToken, req, user, resolvedNameHolder, madeVisibleHolder, sortNoOpHolder,
-             refreshNoteHolder);
+             refreshNoteHolder, pasteHolder);
 
       if(resolvedNameHolder[0] == null && !madeVisibleHolder[0] && !sortNoOpHolder[0] &&
-         refreshNoteHolder[0] == null)
+         refreshNoteHolder[0] == null && pasteHolder[0] == null)
       {
          return ResponseEntity.noContent().build();
       }
@@ -407,7 +413,8 @@ public class WorksheetAgentController {
          sortNoOpHolder[0]
             ? "Column '" + req.field() + "' has no sort on table '" + req.table()
                + "'; nothing was removed."
-            : refreshNoteHolder[0]));
+            : refreshNoteHolder[0],
+         pasteHolder[0]));
    }
 
    /**
@@ -427,7 +434,7 @@ public class WorksheetAgentController {
    public void editOp(String sessionToken, EditRequest req, Principal user)
       throws Exception
    {
-      editOp(sessionToken, req, user, null, null, null, null);
+      editOp(sessionToken, req, user, null, null, null, null, null);
    }
 
    /** Aggregate-dialog parity for the warn-only trap check (Bug #80958). */
@@ -447,10 +454,25 @@ public class WorksheetAgentController {
     */
    private void editOp(String sessionToken, EditRequest req, Principal user,
                        String[] resolvedNameHolder, boolean[] madeVisibleHolder,
-                       boolean[] sortNoOpHolder, String[] refreshNoteHolder)
+                       boolean[] sortNoOpHolder, String[] refreshNoteHolder,
+                       PasteAssembliesOutcome[] pasteHolder)
       throws Exception
    {
       requireEnabled();
+
+      // paste_assemblies reports the names the pasted assemblies got and what it skipped (see
+      // PasteAssembliesOutcome); the caller cannot work out either from the request.
+      if("paste_assemblies".equals(req.op())) {
+         PasteAssembliesOutcome outcome = editService.pasteAssemblies(
+            sessionToken, req.sourceSession(), req.cut() != null && req.cut(), req.tables(),
+            req.x(), req.y(), user);
+
+         if(pasteHolder != null) {
+            pasteHolder[0] = outcome;
+         }
+
+         return;
+      }
 
       // set_sort NONE on a column with no sort changes nothing; the caller is told so (see
       // EditResponse#note) rather than getting a 204 that reads as a removal.
@@ -4594,7 +4616,7 @@ public class WorksheetAgentController {
             else {
                editor.addJoin(req.name(), req.leftTable(), req.leftKey(),
                               req.rightTable(), req.rightKey(), req.joinType(),
-                              req.leftKeys(), req.rightKeys());
+                              req.leftKeys(), req.rightKeys(), req.joinOperators());
             }
          }
          case "remove_join" ->
@@ -4618,7 +4640,8 @@ public class WorksheetAgentController {
          // edit_join/remove_join_edge reuse leftTable/rightTable as the optional edge selector.
          case "edit_join" ->
             editor.editJoin(req.name(), req.leftKey(), req.rightKey(), req.joinType(),
-                            req.leftKeys(), req.rightKeys(), req.leftTable(), req.rightTable());
+                            req.leftKeys(), req.rightKeys(), req.leftTable(), req.rightTable(),
+                            req.joinOperators());
          case "remove_join_edge" ->
             editor.removeJoinEdge(req.name(), req.leftTable(), req.rightTable(),
                                   req.leftKey(), req.rightKey());
@@ -6606,12 +6629,17 @@ public class WorksheetAgentController {
    // ---------------------------------------------------------------------------
 
    /**
-    * Returns the SQL query string for a SQL-bound table assembly.
+    * Returns the query plan of a worksheet table: the same plan tree the Composer's
+    * "Show Plan..." dialog shows (what actually runs, with worksheet conditions, merged
+    * joins and the in-memory steps), plus the stored SQL text of a SQL-bound table.
     *
     * @param sessionToken the token obtained at join time
     * @param table        the table assembly name
     * @param user         the authenticated agent principal
-    * @return the SQL string, or an error message if the table is not SQL-bound
+    * @return {@code table}; {@code sql}, the stored SQL of a SQL-bound table ({@code ""}
+    *         otherwise); {@code plan}, the runtime plan tree or {@code null} when the table
+    *         has none (then {@code message}, or {@code planError} when building it failed)
+    * @throws ResponseStatusException (404) if the worksheet has no table of that name
     */
    @GetMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/query-plan")
    public Map<String, Object> getQueryPlan(@PathVariable String sessionToken,
@@ -6621,24 +6649,52 @@ public class WorksheetAgentController {
    {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
-      RuntimeWorksheet rws = editService.resolve(sessionToken, user);
-      Worksheet ws = rws.getWorksheet();
+      WorksheetEditService.ResolvedSession resolved =
+         editService.resolveWithSession(sessionToken, user);
+      Worksheet ws = resolved.rws().getWorksheet();
       Assembly a = ws.getAssembly(table);
 
-      if(!(a instanceof SQLBoundTableAssembly sqlTable)) {
-         return Map.of("table", table, "sql", "",
-                        "message", "Not a SQL-bound table — no query plan available.");
+      if(!(a instanceof TableAssembly)) {
+         throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                           "Table '" + table + "' not found in the worksheet");
       }
 
-      SQLBoundTableAssemblyInfo info =
-         (SQLBoundTableAssemblyInfo) sqlTable.getInfo();
+      // the stored SQL is cheap and always returned: preview_worksheet_data's failure hint
+      // reads it to tell a SQL-bound table from the rest
       String sqlStr = "";
 
-      if(info.getQuery() != null && info.getQuery().getSQLDefinition() != null) {
-         sqlStr = info.getQuery().getSQLDefinition().getSQLString();
+      if(a instanceof SQLBoundTableAssembly sqlTable) {
+         SQLBoundTableAssemblyInfo info = (SQLBoundTableAssemblyInfo) sqlTable.getInfo();
+
+         if(info.getQuery() != null && info.getQuery().getSQLDefinition() != null &&
+            info.getQuery().getSQLDefinition().getSQLString() != null)
+         {
+            sqlStr = info.getQuery().getSQLDefinition().getSQLString();
+         }
       }
 
-      return Map.of("table", table, "sql", sqlStr != null ? sqlStr : "");
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("table", table);
+      result.put("sql", sqlStr);
+
+      // best effort: a table whose plan cannot be built must still answer with its sql
+      try {
+         // ShowPlanService decodes the name, as the Composer sends it encoded
+         QueryTreeModel.QueryNode plan =
+            showPlanServiceProxy.showPlan(resolved.runtimeId(), Tool.byteEncode(table), user);
+         result.put("plan", plan);
+
+         if(plan == null) {
+            result.put("message", "No query plan is available for this table.");
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to build the query plan of table {}", table, e);
+         result.put("plan", null);
+         result.put("planError", e.getMessage() != null ? e.getMessage() : e.toString());
+      }
+
+      return result;
    }
 
    // ---------------------------------------------------------------------------
@@ -7398,6 +7454,7 @@ public class WorksheetAgentController {
    private final SheetOpenService openService;
    private final AssetDataCache assetDataCache;
    private final AssemblyConditionDialogServiceProxy dialogServiceProxy;
+   private final ShowPlanServiceProxy showPlanServiceProxy;
    private final RawDataService rawDataService;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetAgentController.class);
 

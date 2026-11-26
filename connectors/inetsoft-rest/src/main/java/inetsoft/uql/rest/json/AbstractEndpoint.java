@@ -131,6 +131,29 @@ public class AbstractEndpoint implements EndpointJsonQuery.Endpoint {
    }
 
    /**
+    * Whether the data of this endpoint is carried in the HTTP response headers, the response having
+    * no body. Optional, defaults to false, and absent from almost every {@code endpoints.json}.
+    *
+    * <p>Some operations answer a successful request with an empty body: Azure Blob's Get Account
+    * Information, Get Container Properties, Get Container Metadata and Get Blob Metadata return
+    * {@code 200} with {@code Content-Length: 0} and put everything in {@code x-ms-*} headers. With
+    * this flag on, the unpaged XML strategy builds one row from the response headers instead of
+    * reading a body (see {@code XMLUnpagedDataIterator}). Without it an empty body stays an empty
+    * result, which is what a generic REST query that legitimately returns nothing needs.</p>
+    *
+    * <p>Part of {@link #equals} and {@link #hashCode()}, since unlike {@code description} it changes
+    * what a query returns.</p>
+    */
+   @Override
+   public boolean isResponseInHeaders() {
+      return responseInHeaders;
+   }
+
+   public void setResponseInHeaders(boolean responseInHeaders) {
+      this.responseInHeaders = responseInHeaders;
+   }
+
+   /**
     * {@code description} and {@code responseSchema} are deliberately excluded here and from
     * {@link #hashCode()}: rewording an endpoint, or declaring what it returns, does not make it a
     * different endpoint, and folding either in would make identity depend on prose or a structure
@@ -144,18 +167,20 @@ public class AbstractEndpoint implements EndpointJsonQuery.Endpoint {
       return Objects.equals(name, that.name) &&
          Objects.equals(suffix, that.suffix) &&
          paged == that.paged &&
+         responseInHeaders == that.responseInHeaders &&
          Objects.equals(lookups, that.lookups);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(name, suffix, lookups, paged);
+      return Objects.hash(name, suffix, lookups, paged, responseInHeaders);
    }
 
    private String name;
    private String description;
    private String suffix;
    private boolean paged;
+   private boolean responseInHeaders;
    private List<JsonLookupEndpoint> lookups = Collections.emptyList();
    private Object responseSchema;
    private List<String> excludeJsonPaths = Collections.emptyList();

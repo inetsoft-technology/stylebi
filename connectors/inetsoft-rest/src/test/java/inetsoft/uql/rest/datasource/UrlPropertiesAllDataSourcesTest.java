@@ -56,7 +56,10 @@ class UrlPropertiesAllDataSourcesTest {
       for(BeanDefinition definition : scanner.findCandidateComponents("inetsoft.uql.rest")) {
          Class<?> type = Class.forName(definition.getBeanClassName());
 
-         if(Modifier.isAbstract(type.getModifiers()) ||
+         // Only top-level classes are production data sources. Nested classes on the test
+         // classpath are test doubles that deliberately pin the URL (for example
+         // AzureBlobHeaderOnlyEndpointsTest.TestAzureBlobDataSource).
+         if(Modifier.isAbstract(type.getModifiers()) || type.isMemberClass() ||
             !type.getPackageName().contains(".datasource.") ||
             inetsoft.uql.rest.datasource.salesforce.SalesforceDataSource.class
                .isAssignableFrom(type))

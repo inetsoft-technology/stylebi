@@ -121,19 +121,52 @@
       "name": "Account",
       "paged": false,
       "suffix": "/?restype=account&comp=properties",
-      "description": "The storage account's kind and SKU. One record, and the context for everything else -- the SKU determines which tiers and features are available at all."
+      "responseInHeaders": true,
+      "description": "The storage account's kind and SKU. One record, and the context for everything else -- the SKU determines which tiers and features are available at all. Azure returns this operation's data in response headers, not a body, so the single row's columns are those headers: x-ms-sku-name, x-ms-account-kind and x-ms-is-hns-enabled.",
+      "responseSchema": {
+        "Response": {
+          "x-ms-sku-name": "string",
+          "x-ms-account-kind": "string",
+          "x-ms-is-hns-enabled": "string"
+        }
+      }
     },
     {
       "name": "Container Properties",
       "paged": false,
       "suffix": "/{Container}?restype=container&timeout={Timeout?}",
-      "description": "One container's properties: last-modified, ETag, lease status and public access. Requires a container name."
+      "responseInHeaders": true,
+      "description": "One container's properties: last-modified, ETag, lease status and public access. Requires a container name. Azure returns these in response headers, not a body, so the single row's columns are those headers (etag, last-modified, x-ms-lease-status, x-ms-lease-state, x-ms-blob-public-access, ...) plus one x-ms-meta-<name> column per metadata entry the container has, so the column set varies by container.",
+      "responseSchema": {
+        "Response": {
+          "etag": "string",
+          "last-modified": "string",
+          "x-ms-lease-status": "string",
+          "x-ms-lease-state": "string",
+          "x-ms-lease-duration": "string",
+          "x-ms-blob-public-access": "string",
+          "x-ms-has-immutability-policy": "string",
+          "x-ms-has-legal-hold": "string",
+          "x-ms-default-encryption-scope": "string",
+          "x-ms-deny-encryption-scope-override": "string",
+          "x-ms-immutable-storage-with-versioning-enabled": "string",
+          "x-ms-meta-*": "string"
+        }
+      }
     },
     {
       "name": "Container Metadata",
       "paged": false,
       "suffix": "/{Container}?restype=container&comp=metadata&timeout={Timeout?}",
-      "description": "The user-defined name-value metadata on one container. Requires a container name. Azure defines no meaning for these, so organisations use them to record things the service has no field for -- worth checking before concluding some attribute is unavailable."
+      "responseInHeaders": true,
+      "description": "The user-defined name-value metadata on one container. Requires a container name. Azure defines no meaning for these, so organisations use them to record things the service has no field for -- worth checking before concluding some attribute is unavailable. Azure returns the metadata in response headers, not a body, so the single row has one x-ms-meta-<name> column per entry, plus etag and last-modified; the column set varies by container, and a container with no metadata has only those two.",
+      "responseSchema": {
+        "Response": {
+          "etag": "string",
+          "last-modified": "string",
+          "x-ms-meta-*": "string"
+        }
+      }
     },
     {
       "name": "Container ACL",
@@ -249,7 +282,15 @@
       "name": "Blob Metadata",
       "paged": false,
       "suffix": "/{Container}/{Blob}?comp=metadata&snapshot={Snapshot?:yyyy-MM-dd’T’HH:mm:ssZ}&timeout={Timeout?}",
-      "description": "The user-defined metadata on one blob. Requires the container and blob names."
+      "responseInHeaders": true,
+      "description": "The user-defined metadata on one blob. Requires the container and blob names. Azure returns the metadata in response headers, not a body, so the single row has one x-ms-meta-<name> column per entry, plus etag and last-modified; the column set varies by blob, and a blob with no metadata has only those two.",
+      "responseSchema": {
+        "Response": {
+          "etag": "string",
+          "last-modified": "string",
+          "x-ms-meta-*": "string"
+        }
+      }
     },
     {
       "name": "Block List",

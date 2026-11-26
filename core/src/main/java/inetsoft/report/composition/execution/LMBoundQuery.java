@@ -264,6 +264,7 @@ public class LMBoundQuery extends BoundQuery {
 
       UniformSQL sql2 = new UniformSQL();
       XRelationship[] rels = partition.findRelationships(originating, others);
+      Set<String> allRowTables = getAllRowTables();
 
       OUTER:
       for(int k = 0; rels != null && k < rels.length; k++) {
@@ -304,7 +305,7 @@ public class LMBoundQuery extends BoundQuery {
             }
          }
 
-         String op = rels[k].getJoinType();
+         String op = getJoinOperation(rels[k].getJoinType(), lalias, ralias, allRowTables);
          String lcolumn = rels[k].getDependentColumn();
          String rcolumn = rels[k].getIndependentColumn();
          XJoin join = new XJoin(
@@ -336,6 +337,55 @@ public class LMBoundQuery extends BoundQuery {
       }
 
       return true;
+   }
+
+   /**
+    * Get the partition tables of the entities whose rows are all included (the "Include all
+    * rows" option of the binding).
+    */
+   private Set<String> getAllRowTables() {
+      Set<String> tables = new HashSet<>();
+      for(String entity : table.getAllRows()) {
+         XEntity xentity = lmodel.getEntity(entity);
+
+         if(xentity == null) {
+            continue;
+         }
+
+         Enumeration<XAttribute> attrs = xentity.getAttributes();
+
+         while(attrs.hasMoreElements()) {
+            String tbl = attrs.nextElement().getTable();
+
+            if(tbl != null) {
+               tables.add(tbl);
+            }
+         }
+      }
+
+      return tables;
+   }
+
+   /**
+    * Get the join operation of a relationship, an outer join on the side of a table whose rows
+    * are all included. Only the equal join is changed; other operations (such as greater than)
+    * are kept, the same rule as {@link inetsoft.report.internal.binding.LMQueryGenerator}.
+    */
+   static String getJoinOperation(String op, String left, String right,
+                                          Set<String> allRowTables)
+   {
+      if(!"=".equals(op) || allRowTables.isEmpty()) {
+         return op;
+      }
+
+      boolean leftAll = allRowTables.contains(left);
+      boolean rightAll = allRowTables.contains(right);
+
+      if(leftAll && rightAll) {
+         return "*=*";
+      }
+
+      return leftAll ? "*=" : rightAll ? "=*" : op;
    }
 
    /**

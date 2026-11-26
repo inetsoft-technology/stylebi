@@ -245,9 +245,22 @@ public final class WorksheetMutationSupport {
     *                   when it is the SOLE edge in the call — combined with any other edge it is
     *                   rejected, since {@link TableAssemblyOperator#checkValidity} refuses an
     *                   exclusive operator once more than one edge is present.
+    * @param operator   the comparison of this edge's key condition: {@code =}, {@code >},
+    *                   {@code <}, {@code >=}, {@code <=} or {@code <>}; {@code null} or {@code =}
+    *                   is the equi condition, which carries {@code joinType}. A non-equi
+    *                   {@code operator} is incompatible with {@code "CROSS"} and with an outer
+    *                   {@code joinType}, which only an equi condition can carry.
     */
    public record JoinPathSpec(String leftTable, String leftKey, String rightTable, String rightKey,
-                              String joinType) {}
+                              String joinType, String operator)
+   {
+      /** An edge whose key condition is an equi condition, as before {@code operator} existed. */
+      public JoinPathSpec(String leftTable, String leftKey, String rightTable, String rightKey,
+                          String joinType)
+      {
+         this(leftTable, leftKey, rightTable, rightKey, joinType, null);
+      }
+   }
 
    /**
     * Builds the {@link ConditionList} for one named-group mapping, honoring the mapping's

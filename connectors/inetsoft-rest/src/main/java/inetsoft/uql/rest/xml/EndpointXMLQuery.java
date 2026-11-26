@@ -47,6 +47,18 @@ public abstract class EndpointXMLQuery <T extends EndpointJsonQuery.Endpoint>
    public abstract Map<String, T> getEndpointMap();
 
    @Override
+   public boolean resolveResponseInHeaders() {
+      final String name = "CUSTOM".equals(endpoint) ? templateEndpoint : endpoint;
+
+      if(name == null) {
+         return false;
+      }
+
+      final T ep = getEndpointMap().get(name);
+      return ep != null && ep.isResponseInHeaders();
+   }
+
+   @Override
    @Property(label = "Join With")
    @PropertyEditor(
       dependsOn = "endpoint",
