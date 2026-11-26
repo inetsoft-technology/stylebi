@@ -130,7 +130,8 @@ public class JsonTable extends BaseJsonTable {
       // Default to string when all column's values are null.
       for(int i = 0; i < types.size(); i++) {
          if(types.get(i) == null) {
-            types.set(i, String.class);
+            final Class<?> declared = declaredNullColumnType(names.get(i));
+            types.set(i, declared != null ? declared : String.class);
          }
       }
 

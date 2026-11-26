@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.invoke.MethodHandles;
 import java.util.*;
+import java.util.function.Supplier;
 
 @View(vertical = true, value = {
    @View1(
@@ -127,6 +128,18 @@ public class GraphQLQuery extends RestJsonQuery implements DerivedRequestBodyQue
       }
 
       return GraphQLSelectionLeaves.declare(queryString, getValidJsonPath());
+   }
+
+   @Override
+   public Supplier<Map<String, String>> declaredColumnTypes() {
+      final String field = GraphQLSelectionLeaves.rootField(getValidJsonPath());
+      final Object ds = getDataSource();
+
+      if(field == null || !(ds instanceof AbstractGraphQLDataSource)) {
+         return null;
+      }
+
+      return () -> GraphQLColumnTypes.resolve((AbstractGraphQLDataSource<?>) ds, field);
    }
 
    @Override

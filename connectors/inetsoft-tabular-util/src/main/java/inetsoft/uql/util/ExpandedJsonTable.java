@@ -157,7 +157,8 @@ public class ExpandedJsonTable extends BaseJsonTable {
 
          // Default to string when all column's values are null.
          if(types[i] == null) {
-            types[i] = String.class;
+            final Class<?> declared = declaredNullColumnType(headers.get(i));
+            types[i] = declared != null ? declared : String.class;
          }
       }
 

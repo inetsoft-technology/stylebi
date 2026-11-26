@@ -37,6 +37,15 @@ final class GraphQLSelectionLeaves {
     * @return object path to recursive leaf paths, both relative to the row root and named the way
     *         the table names columns (response keys, so aliases, dot joined). Empty on any doubt.
     */
+   /**
+    * @return the root query field of a {@code $.data.<field>...} path, or null.
+    */
+   static String rootField(String jsonPath) {
+      final List<String> steps = pathSteps(jsonPath);
+      return steps != null && steps.size() >= 2 && "data".equals(steps.get(0)) ?
+         steps.get(1) : null;
+   }
+
    static Map<String, List<String>> declare(String queryString, String jsonPath) {
       try {
          final List<String> steps = pathSteps(jsonPath);
