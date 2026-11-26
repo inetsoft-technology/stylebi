@@ -24,10 +24,11 @@
  *   Group 2 [Risk 2] — ngOnChanges inactive=true: calls cd.detach(); does NOT call cd.reattach()
  *   Group 3 [Risk 2] — ngOnChanges inactive=false: calls cd.reattach(); calls subscribeVScroll when inactive key changes
  *   Group 4 [Risk 2] — ngOnChanges containerView set: calls subscribeVScroll()
- *   Group 5 [Risk 2] — treeNodesLoaded with bindingRoot: combinationTreeRoot has 2 children; doNotShowNodes contains bindingRoot
- *   Group 6 [Risk 2] — treeNodesLoaded without bindingRoot: combinationTreeRoot has 1 child; doNotShowNodes is empty
+ *   Group 5 [Risk 2] — treeNodesLoaded with bindingRoot: combinationTreeRoot has the binding root only; doNotShowNodes contains bindingRoot
+ *   Group 6 [Risk 2] — treeNodesLoaded without bindingRoot: combinationTreeRoot has no children; doNotShowNodes is empty
  *   Group 7 [Risk 1] — ngOnDestroy: unsubscribes vScrollSubscription (memory-leak guard)
  *   Group 8 [Risk 2] — Bug #76714: replayed binding tree settles useVirtualScroll before the first check (no NG0100)
+ *   Group 9 [Risk 2] — pinned component tiles: one per component, drag data as the tree gave, collapse remembered
  */
 
 import { Component, NO_ERRORS_SCHEMA, SimpleChange } from "@angular/core";
@@ -39,6 +40,8 @@ import { ToolboxPane } from "./toolbox-pane.component";
 import { DomService } from "../../../widget/dom-service/dom.service";
 import { TreeTool } from "../../../common/util/tree-tool";
 import { toolbox, toolboxDeployed } from "./toolbox.config";
+import { GuiTool } from "../../../common/util/gui-tool";
+import { DragService } from "../../../widget/services/drag.service";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { BindingTreeService } from "../../../binding/widget/binding-tree/binding-tree.service";
 import { ComposerBindingTree } from "./composer-binding-tree.component";
@@ -223,7 +226,7 @@ describe("ToolboxPane — ngOnChanges containerView set", () => {
 });
 
 describe("ToolboxPane — treeNodesLoaded with bindingRoot", () => {
-   it("should set combinationTreeRoot with 2 children and doNotShowNodes containing bindingRoot", async () => {
+   it("should set combinationTreeRoot with the binding root only and doNotShowNodes containing it", async () => {
       vi.spyOn(TreeTool, "expandAllNodes").mockImplementation(() => {});
       vi.spyOn(TreeTool, "needUseVirtualScroll").mockReturnValue(false);
       const { fixture } = await renderComponent({});
@@ -240,15 +243,16 @@ describe("ToolboxPane — treeNodesLoaded with bindingRoot", () => {
       const combinationTreeRoot: TreeNodeModel = (comp as any).combinationTreeRoot;
       const doNotShowNodes: TreeNodeModel[] = (comp as any).doNotShowNodes;
 
-      expect(combinationTreeRoot.children).toHaveLength(2);
+      // the components are pinned tiles above the tree, not rows of it
+      expect(combinationTreeRoot.children).toHaveLength(1);
       expect(combinationTreeRoot.children[0]).toBe(bindingRoot);
-      expect(combinationTreeRoot.children[1]).toBe(comp.toolbox);
+      expect(combinationTreeRoot.children).not.toContain(comp.toolbox);
       expect(doNotShowNodes).toContain(bindingRoot);
    });
 });
 
 describe("ToolboxPane — treeNodesLoaded without bindingRoot", () => {
-   it("should set combinationTreeRoot with 1 child and empty doNotShowNodes when bindingRoot is null", async () => {
+   it("should set combinationTreeRoot with no children and empty doNotShowNodes when bindingRoot is null", async () => {
       vi.spyOn(TreeTool, "expandAllNodes").mockImplementation(() => {});
       vi.spyOn(TreeTool, "needUseVirtualScroll").mockReturnValue(false);
       const { fixture } = await renderComponent({});
@@ -259,8 +263,7 @@ describe("ToolboxPane — treeNodesLoaded without bindingRoot", () => {
       const combinationTreeRoot: TreeNodeModel = (comp as any).combinationTreeRoot;
       const doNotShowNodes: TreeNodeModel[] = (comp as any).doNotShowNodes;
 
-      expect(combinationTreeRoot.children).toHaveLength(1);
-      expect(combinationTreeRoot.children[0]).toBe(comp.toolbox);
+      expect(combinationTreeRoot.children).toHaveLength(0);
       expect(doNotShowNodes).toHaveLength(0);
    });
 });
@@ -384,5 +387,111 @@ describe("ToolboxPane — Bug #76714 NG0100 on first check", () => {
       subject.next({ label: "after-destroy", children: [], leaf: false });
 
       expect(spy).not.toHaveBeenCalled();
+   });
+});
+
+describe("ToolboxPane — pinned component tiles", () => {
+   const COLLAPSED_KEY = "inetsoft.composer.toolbox.componentsCollapsed";
+
+   beforeEach(() => localStorage.removeItem(COLLAPSED_KEY));
+   afterEach(() => localStorage.removeItem(COLLAPSED_KEY));
+
+   const leaves = (root: TreeNodeModel): TreeNodeModel[] =>
+      (root.children || []).flatMap(c => c.leaf ? [c] : leaves(c));
+
+   it("should show one tile for every component of the toolbox, named for its tooltip", async () => {
+      const { container } = await renderComponent({});
+      const tiles = Array.from(container.querySelectorAll(".toolbox-components__tile"));
+
+      expect(tiles.map(t => t.getAttribute("aria-label")))
+         .toEqual(leaves(toolbox).map(n => n.label));
+      expect(container.querySelectorAll(".toolbox-components__group").length)
+         .toBe(toolbox.children.length);
+   });
+
+   it("should show the deployed toolbox's components as one row without a group label", async () => {
+      const { container } = await renderComponent({ deployed: true });
+
+      expect(container.querySelectorAll(".toolbox-components__tile").length)
+         .toBe(toolboxDeployed.children.length);
+      expect(container.querySelectorAll(".toolbox-components__label").length).toBe(0);
+   });
+
+   it("should not list the components in the data tree any more", async () => {
+      const { fixture } = await renderComponent({});
+      fixture.componentInstance.treeNodesLoaded(null);
+
+      expect((fixture.componentInstance as any).combinationTreeRoot.children).toEqual([]);
+   });
+
+   it("should fold the tiles away and unfold them again, remembering the choice", async () => {
+      const { container, fixture } = await renderComponent({});
+      const head = container.querySelector(".toolbox-components__head") as HTMLElement;
+
+      head.click();
+      fixture.detectChanges();
+
+      expect(container.querySelectorAll(".toolbox-components__tile").length).toBe(0);
+      expect(head.getAttribute("aria-expanded")).toBe("false");
+      expect(localStorage.getItem(COLLAPSED_KEY)).toBe("true");
+
+      head.click();
+      fixture.detectChanges();
+
+      expect(container.querySelectorAll(".toolbox-components__tile").length)
+         .toBe(leaves(toolbox).length);
+      expect(head.getAttribute("aria-expanded")).toBe("true");
+      expect(localStorage.getItem(COLLAPSED_KEY)).toBe("false");
+   });
+
+   it("should start open and still fold when browser storage is blocked", async () => {
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
+      vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+      const { container, fixture } = await renderComponent({});
+
+      expect(container.querySelectorAll(".toolbox-components__tile").length)
+         .toBe(leaves(toolbox).length);
+
+      (container.querySelector(".toolbox-components__head") as HTMLElement).click();
+      fixture.detectChanges();
+
+      expect(container.querySelectorAll(".toolbox-components__tile").length).toBe(0);
+   });
+
+   it("should list the tiles as labelled list items, since they are dragged and not pressed", async () => {
+      const { container } = await renderComponent({});
+      const tile = container.querySelector(".toolbox-components__tile");
+
+      expect(tile.getAttribute("role")).toBe("listitem");
+      expect(tile.parentElement.getAttribute("role")).toBe("list");
+      expect(tile.getAttribute("aria-label")).toBeTruthy();
+   });
+
+   it("should start folded when it was left folded", async () => {
+      localStorage.setItem(COLLAPSED_KEY, "true");
+      const { container } = await renderComponent({});
+
+      expect(container.querySelectorAll(".toolbox-components__tile").length).toBe(0);
+      expect(container.querySelector(".toolbox-components__head")
+         .getAttribute("aria-expanded")).toBe("false");
+   });
+
+   it("should start a drag with the transfer data the tree gave its leaf nodes", async () => {
+      vi.spyOn(GuiTool, "createDragImage").mockReturnValue(document.createElement("div"));
+      vi.spyOn(GuiTool, "setDragImage").mockResolvedValue(undefined);
+      const { container, fixture } = await renderComponent({});
+      const dragService = fixture.debugElement.injector.get(DragService);
+      const setData = vi.fn();
+      // the first tile is the Chart
+      const chart = container.querySelector(".toolbox-components__tile") as HTMLElement;
+      const event = new Event("dragstart", { bubbles: true }) as any;
+      event.dataTransfer = { getData: () => "", setData };
+
+      chart.dispatchEvent(event);
+
+      expect(setData).toHaveBeenCalledTimes(1);
+      const sent = JSON.parse(setData.mock.calls[0][1]);
+      expect(sent.dragName).toEqual(["dragchart"]);
+      expect(dragService.get("dragchart")).toBeDefined();
    });
 });
