@@ -2537,6 +2537,8 @@ public class LayoutTool {
       for(int i = 0; i < values.size(); i++) {
          String value = values.get(i);
          value = Tool.replaceAll(value, ":", LayoutTool.SCRIPT_ESCAPED_COLON);
+         // the values are joined with ';', so a ';' in a value must not look like a separator
+         value = Tool.replaceAll(value, ";", LayoutTool.SCRIPT_ESCAPED_SEMICOLON);
          buffer.append(value == null || "".equals(value) ? Tool.FAKE_NULL : value);
 
          if(i != values.size() - 1) {
@@ -3727,6 +3729,11 @@ public class LayoutTool {
    protected static final int G_FOOTER = TableDataPath.SUMMARY;
    protected static final int FOOTER = TableDataPath.GRAND_TOTAL;
    public static final String SCRIPT_ESCAPED_COLON = "^_^";
+   /**
+    * Replaces a ';' inside a manual order value in the manualvalues option, where ';' separates
+    * the values. A value without a ';' is written as before.
+    */
+   public static final String SCRIPT_ESCAPED_SEMICOLON = "^__^";
    public static final String PARAM_PREFIX = "parameter.";
 
    private static final Logger LOG =
