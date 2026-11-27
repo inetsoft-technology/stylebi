@@ -37,6 +37,8 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
+import inetsoft.uql.viewsheet.internal.DateComparisonInterval;
+import inetsoft.uql.viewsheet.internal.DateComparisonPeriods;
 import inetsoft.web.composer.model.vs.DateComparisonDialogModel;
 import inetsoft.web.composer.model.vs.DateComparisonPaneModel;
 import inetsoft.web.wiz.model.ApplyDateComparisonModel;
@@ -170,6 +172,13 @@ class WizVsServiceAssemblyStateEndpointsTest {
       WizVsService service = spy(real);
 
       ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
+      // The info is a mock, so the applied comparison never lands on it; report one as defined so
+      // fillAssemblyState still reads it (it skips assemblies with no comparison defined).
+      DateComparisonInfo defined = mock(DateComparisonInfo.class);
+      when(defined.getPeriods()).thenReturn(mock(DateComparisonPeriods.class));
+      when(defined.getInterval()).thenReturn(mock(DateComparisonInterval.class));
+      when(defined.getComparisonOption()).thenReturn(1);
+      when(info.getDateComparisonInfo()).thenReturn(defined);
       VSAssembly assembly = mock(VSAssembly.class);
       when(assembly.getName()).thenReturn("vs_1");
       when(assembly.getVSAssemblyInfo()).thenReturn(info);

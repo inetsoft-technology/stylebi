@@ -60,6 +60,7 @@ import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameContext;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateCompareAbleAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
+import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
@@ -3751,13 +3752,18 @@ public class WizVsService {
       return state;
    }
 
-   /** The normalized comparison, only when one is actually in effect on the assembly. */
+   /**
+    * The normalized comparison, only when one is actually in effect on the assembly. An assembly with
+    * no comparison defined (own or shared) is skipped before the read, so the common non-comparison
+    * chart does not pay the read's runtime lookups.
+    */
    private Map<String, Object> readDateComparison(RuntimeViewsheet rvs, VSAssembly assembly,
                                                   Principal user)
       throws Exception
    {
       if(dateComparisonService == null ||
-         !(assembly.getVSAssemblyInfo() instanceof DateCompareAbleAssemblyInfo))
+         !(assembly.getVSAssemblyInfo() instanceof DateCompareAbleAssemblyInfo) ||
+         !DateComparisonUtil.isDateComparisonDefined(assembly.getVSAssemblyInfo(), true))
       {
          return null;
       }

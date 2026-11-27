@@ -38,6 +38,7 @@ import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.DateCompareAbleAssemblyInfo;
 import inetsoft.web.wiz.model.CreateViewsheetResult;
 import inetsoft.web.wiz.viewsheet.DateComparisonService;
 import org.junit.jupiter.api.BeforeEach;
@@ -106,6 +107,7 @@ class WizVsServiceFillAssemblyStateTest {
       chart.setPreConditionList(AssemblyStateFixtures.nested());
       AssemblyStateFixtures.measure(chart).setHighlightGroup(AssemblyStateFixtures.group(
          "big", AssemblyStateFixtures.condition("Sales", XCondition.GREATER_THAN, 100)));
+      ((DateCompareAbleAssemblyInfo) chart.getVSAssemblyInfo()).setComparisonShareFrom("chart0");
       Map<String, Object> comparison = comparison("chart1", true);
       when(dateComparisonService.read(rvs, "chart1", null)).thenReturn(comparison);
       CreateViewsheetResult result = new CreateViewsheetResult();
@@ -128,6 +130,7 @@ class WizVsServiceFillAssemblyStateTest {
    void crosstabStateOmitsAComparisonThatIsNotInEffect() throws Exception {
       CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, "crosstab1");
       crosstab.setPreConditionList(AssemblyStateFixtures.condition("Region", XCondition.EQUAL_TO, "East"));
+      ((DateCompareAbleAssemblyInfo) crosstab.getVSAssemblyInfo()).setComparisonShareFrom("chart0");
       when(dateComparisonService.read(rvs, "crosstab1", null)).thenReturn(comparison("crosstab1", false));
       CreateViewsheetResult result = new CreateViewsheetResult();
 
@@ -138,6 +141,19 @@ class WizVsServiceFillAssemblyStateTest {
       assertEquals("Region", state.getConditions().get(0).getField());
       assertNull(state.getDateComparison());
       assertNull(state.getTableColumns());
+      verify(dateComparisonService).read(rvs, "crosstab1", null);
+   }
+
+   @Test
+   void aChartWithoutADefinedComparisonNeverReadsOne() throws Exception {
+      ChartVSAssembly chart = AssemblyStateFixtures.chart(vs, "chart1");
+      CreateViewsheetResult result = new CreateViewsheetResult();
+
+      service.fillAssemblyState(rvs, chart, null, result);
+
+      assertNotNull(result.getAssemblyState());
+      assertNull(result.getAssemblyState().getDateComparison());
+      verify(dateComparisonService, never()).read(any(RuntimeViewsheet.class), anyString(), any());
    }
 
    @Test
