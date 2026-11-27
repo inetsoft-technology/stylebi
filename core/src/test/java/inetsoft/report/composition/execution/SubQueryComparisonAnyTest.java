@@ -169,6 +169,53 @@ class SubQueryComparisonAnyTest {
       assertFalse(cond.evaluate(9));
    }
 
+   // the extremes are only used when the values and the row are of one kind: the strings "9"
+   // and "10" compare as text with each other, but as numbers with a number
+   @Test
+   void numericStringsAreComparedWithTheRowAsNumbers() throws Exception {
+      AssetCondition cond = fixedCondition(LT, XSchema.DOUBLE, "9", "10");
+      assertTrue(cond.evaluate(9.5));
+      assertFalse(cond.evaluate(10.5));
+      cond = fixedCondition(GT, XSchema.DOUBLE, "9", "10");
+      assertTrue(cond.evaluate(9.5));
+      assertFalse(cond.evaluate(8.5));
+   }
+
+   @Test
+   void mixedNumberAndStringValuesFallBackToTheLoop() throws Exception {
+      AssetCondition cond = fixedCondition(LT, XSchema.DOUBLE, "9", 10);
+      assertTrue(cond.evaluate(9.5));
+      assertFalse(cond.evaluate(10.5));
+      cond = fixedCondition(GT, XSchema.DOUBLE, 10, "9");
+      assertTrue(cond.evaluate(9.5));
+      assertFalse(cond.evaluate(8.5));
+   }
+
+   private static AssetCondition fixedCondition(int operation, String type, Object... subValues)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new EmbeddedTableAssembly(ws, "S1"));
+      SubQueryValue value = new SubQueryValue();
+      value.setQuery("S1");
+      value.setAttribute(new AttributeRef(null, "v"));
+      assertTrue(value.update(ws));
+      AssetCondition cond = new AssetCondition();
+      cond.setOperation(operation);
+      cond.setType(type);
+      cond.addValue(value);
+      cond.initMainTable(new DefaultTableLens(new Object[][] { { "value" }, { 1.0 } }));
+      Object[][] sub = new Object[subValues.length + 1][];
+      sub[0] = new Object[] { "v" };
+
+      for(int i = 0; i < subValues.length; i++) {
+         sub[i + 1] = new Object[] { subValues[i] };
+      }
+
+      cond.initSubTable(new DefaultTableLens(sub));
+      return cond;
+   }
+
    // ---- helpers ----
 
    /** The values of the main table rows that pass the condition. */

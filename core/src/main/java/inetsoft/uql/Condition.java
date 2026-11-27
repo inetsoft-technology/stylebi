@@ -1606,6 +1606,7 @@ public class Condition extends AbstractCondition {
       Object min;
       Object max;
       boolean sawNull;
+      boolean eligible;
    }
 
    private transient volatile AnyExtremes anyExtremes;
@@ -1617,31 +1618,14 @@ public class Condition extends AbstractCondition {
    private Boolean anyValueMatch(List<Object> values, Object value, Comparer comp,
                                  boolean less)
    {
-      boolean equal = isEqual();
-
       if(!isFixedSubQueryValues()) {
-         boolean sawNull = false;
-
-         for(Object val : values) {
-            Object obj = normalizeValue(val, value);
-
-            if(obj == null) {
-               sawNull = true;
-               continue;
-            }
-
-            int r = comp.compare(value, obj);
-
-            if(less ? (equal ? r <= 0 : r < 0) : (equal ? r >= 0 : r > 0)) {
-               return true;
-            }
-         }
-
-         return sawNull ? null : Boolean.FALSE;
+         return anyValueLoop(values, value, comp, less);
       }
 
       // the values are the same for every row: keep the extremes, the row matches any value
-      // if it matches the max (less) or the min (greater)
+      // if it matches the max (less) or the min (greater). The extremes compare the values
+      // with each other, which is the same as comparing the row with each of them only if
+      // the values and the row are of one kind (strings compare as numbers with a number)
       AnyExtremes ext = anyExtremes;
 
       if(ext == null || ext.source != values || ext.count != values.size() ||
@@ -1649,6 +1633,8 @@ public class Condition extends AbstractCondition {
       {
          ext = new AnyExtremes(values, value.getClass());
          ext.count = values.size();
+         ext.eligible = true;
+         Object kind = valueKind(value);
 
          for(Object val : values) {
             Object obj = normalizeValue(val, value);
@@ -1656,6 +1642,11 @@ public class Condition extends AbstractCondition {
             if(obj == null) {
                ext.sawNull = true;
                continue;
+            }
+
+            if(!kind.equals(valueKind(obj))) {
+               ext.eligible = false;
+               break;
             }
 
             if(ext.min == null || comp.compare(obj, ext.min) < 0) {
@@ -1670,12 +1661,16 @@ public class Condition extends AbstractCondition {
          anyExtremes = ext;
       }
 
+      if(!ext.eligible) {
+         return anyValueLoop(values, value, comp, less);
+      }
+
       Object bound = less ? ext.max : ext.min;
 
       if(bound != null) {
          int r = comp.compare(value, bound);
 
-         if(less ? (equal ? r <= 0 : r < 0) : (equal ? r >= 0 : r > 0)) {
+         if(less ? (isEqual() ? r <= 0 : r < 0) : (isEqual() ? r >= 0 : r > 0)) {
             return true;
          }
       }
@@ -1683,6 +1678,41 @@ public class Condition extends AbstractCondition {
       return ext.sawNull ? null : Boolean.FALSE;
    }
 
+   private Boolean anyValueLoop(List<Object> values, Object value, Comparer comp,
+                                boolean less)
+   {
+      boolean equal = isEqual();
+      boolean sawNull = false;
+
+      for(Object val : values) {
+         Object obj = normalizeValue(val, value);
+
+         if(obj == null) {
+            sawNull = true;
+            continue;
+         }
+
+         int r = comp.compare(value, obj);
+
+         if(less ? (equal ? r <= 0 : r < 0) : (equal ? r >= 0 : r > 0)) {
+            return true;
+         }
+      }
+
+      return sawNull ? null : Boolean.FALSE;
+   }
+
+   private static Object valueKind(Object obj) {
+      if(obj instanceof Number) {
+         return Number.class;
+      }
+
+      if(obj instanceof Date) {
+         return Date.class;
+      }
+
+      return obj.getClass();
+   }
 
    /**
     * Normalize a value.
