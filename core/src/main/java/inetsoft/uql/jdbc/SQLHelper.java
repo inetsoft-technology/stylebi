@@ -1206,6 +1206,14 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Get the SQL for a distinct INTERSECT/EXCEPT/MINUS pushed down from a worksheet. The
+    * bare keyword is already distinct on most databases, so the SQL is returned unchanged.
+    */
+   public String getDistinctSetOperation(String setOperationSql) {
+      return setOperationSql;
+   }
+
+   /**
     * Find the index of the first FROM keyword that is not inside parentheses or quotes.
     */
    private static int findFromIndex(String sql) {

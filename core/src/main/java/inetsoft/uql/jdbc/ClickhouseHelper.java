@@ -149,4 +149,14 @@ public class ClickhouseHelper extends SQLHelper {
    public String getUnionQualifier(boolean distinct) {
       return distinct ? "DISTINCT " : "ALL ";
    }
+
+   /**
+    * ClickHouse INTERSECT/EXCEPT do not de-duplicate their left input and, before 23.3,
+    * accept no ALL/DISTINCT qualifier, so a distinct result is made explicit with an outer
+    * SELECT DISTINCT (Bug #82469).
+    */
+   @Override
+   public String getDistinctSetOperation(String setOperationSql) {
+      return "SELECT DISTINCT * FROM (" + setOperationSql + ")";
+   }
 }

@@ -49,4 +49,24 @@ class ClickhouseUnionQualifierTest {
       assertEquals("", helper.getUnionQualifier(true));
       assertEquals("ALL ", helper.getUnionQualifier(false));
    }
+
+   @Test
+   void clickhouseDistinctIntersectIsWrapped() {
+      assertEquals("SELECT DISTINCT * FROM ((select a from t1) INTERSECT (select a from t2))",
+         new ClickhouseHelper().getDistinctSetOperation(
+            "(select a from t1) INTERSECT (select a from t2)"));
+   }
+
+   @Test
+   void clickhouseDistinctMinusIsWrapped() {
+      assertEquals("SELECT DISTINCT * FROM ((select a from t1) EXCEPT (select a from t2))",
+         new ClickhouseHelper().getDistinctSetOperation(
+            "(select a from t1) EXCEPT (select a from t2)"));
+   }
+
+   @Test
+   void otherDialectsSetOperationUnchanged() {
+      String sql = "(select a from t1) INTERSECT (select a from t2)";
+      assertEquals(sql, new OracleSQLHelper().getDistinctSetOperation(sql));
+   }
 }
