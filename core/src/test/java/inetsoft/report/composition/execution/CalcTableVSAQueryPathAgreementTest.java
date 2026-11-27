@@ -874,6 +874,104 @@ class CalcTableVSAQueryPathAgreementTest {
       }
    }
 
+   // ---- Bug #82487: column names with ' , ( " ) in a Top N or a sort by value. The script path
+   // writes the names into the option string of toList(), where they were not escaped for the
+   // option parser, so the rows were wrong or the script failed. The quick path was always
+   // right, so both paths must give the same rows.
+
+   /** The names that broke the script path, then the names that always worked as controls. */
+   static Stream<String> columnNames() {
+      return Stream.of("O'Brien", "a,b", "(x", "\"q", "x)y(z", ")a(", "a',b", "a b'",
+                       "plain", "x)y", "a)", "a(b)c", "a=b", "a:b", "[x", "100%", "a|b",
+                       "Year(Date)");
+   }
+
+   static Stream<String> columnNamesWithoutDoubleQuote() {
+      return columnNames().filter(n -> n.indexOf('"') < 0);
+   }
+
+   private static Object[][] rankedData(String name) {
+      return new Object[][] {
+         { "g " + name, "v " + name, "w " + name },
+         { "East", 10.0, 1.0 }, { "West", 20.0, 5.0 }, { "East", 30.0, 2.0 },
+         { "North", 5.0, 9.0 }, { "West", 15.0, 3.0 } };
+   }
+
+   /** The group column, the sum of the value column and the sum of a third column. */
+   private static Scenario rankScenario(String name, Consumer<TableCellBinding> group, int cols) {
+      String[] types = { XSchema.STRING, XSchema.DOUBLE, XSchema.DOUBLE };
+      return new Scenario("rank " + name, types, rankedData(name), cols, false, l -> {
+         TableCellBinding g = group("g " + name);
+         group.accept(g);
+         l.setCellBinding(1, 0, g);
+         l.setCellBinding(1, 1, summary("v " + name, "Sum"));
+
+         if(cols > 2) {
+            l.setCellBinding(1, 2, summary("w " + name, "Sum"));
+         }
+      });
+   }
+
+   /** The rows after the header as "group=value", the label of Others trimmed. */
+   private static List<String> rankRows(List<List<Object>> rows) {
+      List<String> list = new ArrayList<>();
+
+      for(int i = 1; i < rows.size(); i++) {
+         list.add(String.valueOf(rows.get(i).get(0)).trim() + "=" +
+                  ((Number) rows.get(i).get(1)).doubleValue());
+      }
+
+      return list;
+   }
+
+   private void assertBothPaths(Scenario sc, List<String> expected) throws Exception {
+      assertEquals(expected, rankRows(run(sc, false)), sc.name + ": quick path");
+      assertEquals(expected, rankRows(run(sc, true)), sc.name + ": script path");
+   }
+
+   @ParameterizedTest(name = "{0}")
+   @MethodSource("columnNames")
+   void topNOfAColumnWithSpecialCharactersAgreesOnBothPaths(String name) throws Exception {
+      Scenario sc = rankScenario(name, g -> g.setTopN(topN(2, false)), 2);
+      assertBothPaths(sc, List.of("East=40.0", "West=35.0"));
+   }
+
+   // not for a double quote: the condition of the Others row reads the name through
+   // rowValue["..."], which is Bug #82488 (the group condition), not the option string of this bug
+   @ParameterizedTest(name = "{0}")
+   @MethodSource("columnNamesWithoutDoubleQuote")
+   void topNWithOthersOfAColumnWithSpecialCharactersAgreesOnBothPaths(String name)
+      throws Exception
+   {
+      Scenario sc = rankScenario(name, g -> g.setTopN(topN(2, true)), 2);
+      assertBothPaths(sc, List.of("East=40.0", "West=35.0", "Others=5.0"));
+   }
+
+   @ParameterizedTest(name = "{0}")
+   @MethodSource("columnNames")
+   void sortByValueOfAColumnWithSpecialCharactersAgreesOnBothPaths(String name) throws Exception {
+      Scenario sc = rankScenario(name, g -> {
+         g.getOrderInfo(true).setOrder(XConstants.SORT_VALUE_DESC);
+         g.getOrderInfo(true).setSortByCol(0);
+      }, 2);
+      assertBothPaths(sc, List.of("East=40.0", "West=35.0", "North=5.0"));
+   }
+
+   /** A Top N by the first sum and then a sort by the second sum: sorton and sorton2. */
+   @ParameterizedTest(name = "{0}")
+   @MethodSource("columnNames")
+   void topNAndSortByAnotherValueOfAColumnWithSpecialCharactersAgreeOnBothPaths(String name)
+      throws Exception
+   {
+      Scenario sc = rankScenario(name, g -> {
+         g.setTopN(topN(2, false));
+         g.getOrderInfo(true).setOrder(XConstants.SORT_VALUE_DESC);
+         g.getOrderInfo(true).setSortByCol(1);
+      }, 3);
+      // East 40 and West 35 are the two largest; West has the larger third column (8 > 3)
+      assertBothPaths(sc, List.of("West=35.0", "East=40.0"));
+   }
+
    /** The messages of an exception and of all its causes. */
    // Bug #82483: a named group whose name or member value holds a special character.
 

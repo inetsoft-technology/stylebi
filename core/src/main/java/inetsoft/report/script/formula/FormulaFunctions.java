@@ -408,6 +408,69 @@ public class FormulaFunctions {
     * @param gmap a map from value to group name (named groups). It should
     * be applied to calculate the aggregate value
     */
+   /**
+    * Characters of a column name that LayoutTool escapes with a backslash in the field, sorton
+    * and sorton2 options, because the option parser would take them as syntax.
+    */
+   private static final String NAME_ESCAPED = ",()'\"";
+
+   /**
+    * Check if the option that starts at start is a field, sorton or sorton2 option.
+    */
+   private static boolean isNameOption(String str, int start, int pos) {
+      int eq = str.indexOf('=', start);
+
+      if(eq < 0 || eq >= pos) {
+         return false;
+      }
+
+      String name = str.substring(start, eq).trim();
+      return name.equalsIgnoreCase("field") || name.equalsIgnoreCase("sorton") ||
+         name.equalsIgnoreCase("sorton2");
+   }
+
+   /**
+    * Decode a column name written by LayoutTool.escapeOptionColName(): '\x' to 'x' for the
+    * characters in NAME_ESCAPED. Other backslashes are kept.
+    */
+   private static String unescapeColumnName(String name) {
+      if(name == null || name.indexOf('\\') < 0) {
+         return name;
+      }
+
+      StringBuilder sb = new StringBuilder();
+
+      for(int i = 0; i < name.length(); i++) {
+         char c = name.charAt(i);
+
+         if(c == '\\' && i + 1 < name.length() && NAME_ESCAPED.indexOf(name.charAt(i + 1)) >= 0) {
+            c = name.charAt(++i);
+         }
+
+         sb.append(c);
+      }
+
+      return sb.toString();
+   }
+
+   /**
+    * Get the index of the first c in str that is not escaped by a backslash.
+    */
+   private static int indexOfUnescaped(String str, char c) {
+      for(int i = 0; i < str.length(); i++) {
+         char ch = str.charAt(i);
+
+         if(ch == '\\' && i + 1 < str.length() && NAME_ESCAPED.indexOf(str.charAt(i + 1)) >= 0) {
+            i++;
+         }
+         else if(ch == c) {
+            return i;
+         }
+      }
+
+      return -1;
+   }
+
    private static Comparator createSortOn(XTable tbl, String sorton,
                                           String group, Options opt,
                                           Map gmap, boolean hasNamedGroup)
@@ -422,7 +485,7 @@ public class FormulaFunctions {
          sort = "desc";
       }
 
-      int idx = sorton.indexOf('(');
+      int idx = indexOfUnescaped(sorton, '(');
       String func = null;
       String field = sorton;
       String field2 = null; // secondary field for functions requires 2 params
@@ -431,17 +494,21 @@ public class FormulaFunctions {
       String interval = opt.getOption("interval", null);
       boolean sortOthersLast = opt.getBoolean("sortotherslast", false);
 
-      if(idx > 0 && sorton.endsWith(")")) {
+      if(idx > 0 && sorton.endsWith(")") && !sorton.endsWith("\\)")) {
          func = sorton.substring(0, idx);
          field = sorton.substring(idx + 1, sorton.length() - 1);
 
-         idx = field.indexOf(',');
+         idx = indexOfUnescaped(field, ',');
 
          if(idx >= 0) {
             field2 = field.substring(idx + 1).trim();
             field = field.substring(0, idx).trim();
          }
       }
+
+      // the column names are escaped by LayoutTool.escapeOptionColName() (82487)
+      field = unescapeColumnName(field);
+      field2 = unescapeColumnName(field2);
 
       int gcol = Util.findColumn(tbl, group);
       int oncol = Util.findColumn(tbl, field);
@@ -1920,6 +1987,15 @@ public class FormulaFunctions {
          for(int i = 0; i < str.length(); i++) {
             char c = str.charAt(i);
 
+            // a column name in field/sorton/sorton2 escapes its ( ) ' " (and ,) as '\x' in
+            // LayoutTool.escapeOptionColName(). they are part of the name, not syntax. (82487)
+            if(c == '\\' && i + 1 < str.length() && NAME_ESCAPED.indexOf(str.charAt(i + 1)) >= 0 &&
+               isNameOption(str, start, i))
+            {
+               i++;
+               continue;
+            }
+
             if(c == lookfor) {
                if(lookfor == ',') {
                   opts.add(str.substring(start, i));
@@ -1953,8 +2029,22 @@ public class FormulaFunctions {
                continue;
             }
 
-            opt = opt.replace("_^ESCAPED_COMMA^_", ",").replace("_^DOUBLE_ESCAPE^_", "\\\\");
             int index = opt.indexOf('=');
+            String key = index > 0 ? opt.substring(0, index).trim().toLowerCase() : "";
+
+            if(key.equals("sorton") || key.equals("sorton2")) {
+               // keep the escapes, createSortOn() splits the function arguments first and
+               // then decodes each column name. (82487)
+               opt = opt.replace("_^ESCAPED_COMMA^_", "\\,");
+            }
+            else if(key.equals("field")) {
+               opt = unescapeColumnName(opt.replace("_^ESCAPED_COMMA^_", ","));
+            }
+            else {
+               opt = opt.replace("_^ESCAPED_COMMA^_", ",");
+            }
+
+            opt = opt.replace("_^DOUBLE_ESCAPE^_", "\\\\");
 
             if(index > 0 && index < opt.length() - 1) {
                String name = opt.substring(0, index);

@@ -572,6 +572,84 @@ public class FormulaFunctionsTest {
       assertEquals(2, result.length);
    }
 
+   // ---- Bug #82487: column names with , ( ) ' " in field, sorton and sorton2. LayoutTool writes
+   // them as '\x' (the text below is what the option parser receives, after the script literal)
+
+   private static String escapeName(String name) {
+      StringBuilder sb = new StringBuilder();
+
+      for(char c : name.toCharArray()) {
+         if(",()'\"".indexOf(c) >= 0) {
+            sb.append('\\');
+         }
+
+         sb.append(c);
+      }
+
+      return sb.toString();
+   }
+
+   private static DefaultTableLens rankTable(String name) {
+      return new DefaultTableLens(new Object[][] {
+         { "g " + name, "v " + name, "w " + name },
+         { "East", 10.0, 1.0 }, { "West", 20.0, 5.0 }, { "East", 30.0, 2.0 },
+         { "North", 5.0, 9.0 }, { "West", 15.0, 3.0 }
+      });
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "O'Brien", "a,b", "(x", "\"q", "x)y(z", ")a(", "a',b", "a b'",
+                            "plain", "x)y", "a(b)c", "a=b", "Year(Date)" })
+   void testToListTopNOnAColumnWithSpecialCharacters(String name) {
+      String e = escapeName(name);
+      Object[] top = (Object[]) FormulaFunctions.toList(
+         rankTable(name), "sort=desc,sort2=asc,field=g " + e + ",sorton=sum(v " + e + "),maxrows=2");
+      assertArrayEquals(new Object[] { "East", "West" }, top, name);
+
+      Object[] others = (Object[]) FormulaFunctions.toList(
+         rankTable(name),
+         "remainder=Others ,sortotherslast=true,sort=desc,sort2=asc,field=g " + e +
+         ",sorton=sum(v " + e + "),maxrows=2");
+      assertArrayEquals(new Object[] { "East", "West", "Others " }, others, name);
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "O'Brien", "a,b", "(x", "\"q", "x)y(z", ")a(", "plain" })
+   void testToListSortOnAColumnWithSpecialCharacters(String name) {
+      String e = escapeName(name);
+      // sorton2 only, sort by value
+      Object[] sorted = (Object[]) FormulaFunctions.toList(
+         rankTable(name), "sort=desc,field=g " + e + ",sorton2=sum(v " + e + ")");
+      assertArrayEquals(new Object[] { "East", "West", "North" }, sorted, name);
+
+      // sorton and sorton2 together, the second sort by another column
+      Object[] both = (Object[]) FormulaFunctions.toList(
+         rankTable(name), "sort=desc,sort2=asc,field=g " + e + ",sorton=sum(v " + e +
+         "),maxrows=2,sorton2=sum(w " + e + ")");
+      assertArrayEquals(new Object[] { "West", "East" }, both, name);
+   }
+
+   // a function of two columns: each column name is escaped on its own
+   @ParameterizedTest
+   @ValueSource(strings = { "O'Brien", "a,b", "(x", "x)y(z" })
+   void testToListSortonWithTwoColumnsOfSpecialNames(String name) {
+      String e = escapeName(name);
+      Object[] result = (Object[]) FormulaFunctions.toList(
+         rankTable(name), "sort=desc,field=g " + e + ",sorton=correl(v " + e + ",w " + e +
+         "),maxrows=2");
+      assertEquals(2, result.length, name);
+   }
+
+   // the new decode applies to column names only: a manual value that has a backslash before a
+   // parenthesis or a quote is data and stays as it is
+   @ParameterizedTest
+   @ValueSource(strings = { "a\\(b", "a\\)b", "a\\'b", "a\\\"b", "C:\\(temp)" })
+   void testToListManualValueWithBackslashBeforeSpecialCharacterIsUnchanged(String value) {
+      Object[] result = (Object[]) FormulaFunctions.toList(
+         new Object[] { "x", value, "c" }, "manualvalues=" + value + ";c,maxrows=2");
+      assertArrayEquals(new Object[] { value, "c" }, result, value);
+   }
+
    // date option: the date part, as number or name
    private static Stream<Arguments> provideToListDatePartTestCases() {
       Object[] dates = { dt(2021, 3, 15, 10, 20, 30), dt(2021, 11, 2, 23, 59, 59),
