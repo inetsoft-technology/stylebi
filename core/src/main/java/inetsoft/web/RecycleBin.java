@@ -64,6 +64,23 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
    }
 
    /**
+    * Gets all entries in a single storage scan, keyed by the storage key that
+    * {@link #getEntry(String)} looks up, so a caller that needs many entries can avoid one
+    * storage read per entry.
+    */
+   public Map<String, Entry> getEntryMap() {
+      try {
+         Map<String, Entry> map = new HashMap<>();
+         getStorage().stream().forEach(p -> map.put(p.getKey(), p.getValue()));
+         return map;
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get recycle bin entries, storage may be unavailable", e);
+         return new HashMap<>();
+      }
+   }
+
+   /**
     * Get all paths in recycle bin.
     */
    public Collection<Entry> getEntries() {
