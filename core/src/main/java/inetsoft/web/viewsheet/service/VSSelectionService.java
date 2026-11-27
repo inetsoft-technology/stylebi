@@ -1460,6 +1460,13 @@ public class VSSelectionService {
       final SelectionList selectionList = assembly.getSelectionList();
       boolean changed = false;
 
+      // a neighbor with no values (e.g. a selection tree whose query returned no usable
+      // data) has nothing to select or deselect; its state is rebuilt when the selection
+      // is executed
+      if(selectionList == null) {
+         return false;
+      }
+
       for(Map.Entry<List<String>, Set<List<String>>> condition : conditions.entrySet()) {
          final List<String> conditionDataRefSublist = condition.getKey();
          List<String> dataRefSublist = null;
@@ -1509,6 +1516,10 @@ public class VSSelectionService {
                                     SelectionList selectionList,
                                     boolean selected)
    {
+      if(selectionList == null) {
+         return;
+      }
+
       final SelectionValue value = selectionList.findValue(path[index]);
 
       if(value == null) {
