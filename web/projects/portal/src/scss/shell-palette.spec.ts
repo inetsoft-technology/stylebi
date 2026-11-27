@@ -1106,3 +1106,47 @@ describe("modern primary button in the dark shell (PR7a)", () => {
       expect(dark.has("--inet-button-primary-bg-color")).toBe(false);
    });
 });
+
+describe("login session-expired notice in the dark shell (PR7b)", () => {
+   const login = () => readRepo("core/src/main/resources/inetsoft/web/resources/css/login.css").replace(/\r\n/g, "\n");
+   const html = () => readRepo("core/src/main/resources/inetsoft/web/resources/login.html");
+   const DARK = ":where(.shell-dark) .login-left .alert-warning";
+
+   it("is a neutral surface with the shell text, a grey border and a warning-coloured left stripe", () => {
+      const rule = block(login(), DARK);
+
+      expect(rule).toMatch(/background:\s*var\(--inet-shell-surface-subtle, #2D2B30\);/);
+      expect(rule).toMatch(/color:\s*var\(--ln-text\);/);
+      expect(rule).toMatch(/border:\s*1px solid var\(--ln-border\);/);
+      expect(rule).toMatch(/border-left:\s*3px solid var\(--ln-warning-dark\);/);
+      // no warning tint anywhere in the dark rule: the muddy brown fill is what this replaces
+      expect(rule).not.toContain("--ln-warning-light");
+   });
+
+   it("marks it with a decorative icon in the stripe colour, hidden from screen readers", () => {
+      const icon = block(login(), `${DARK}::before`);
+
+      expect(icon).toContain('content: "!" / "";');
+      expect(icon).toMatch(/background:\s*var\(--ln-warning-dark\);/);
+      expect(icon).toMatch(/position:\s*absolute;/);
+   });
+
+   it("leaves the light shell's warning alert as it was", () => {
+      expect(block(login(), ".login-left .alert-warning")).toBe(
+         ".login-left .alert-warning {\n" +
+         "  background: var(--ln-warning-light);\n" +
+         "  color: var(--ln-warning-dark);\n" +
+         "  border: 1px solid var(--ln-warning);\n" +
+         "}");
+   });
+
+   it("comes after the light rule, which it ties on specificity", () => {
+      const css = login();
+
+      expect(css.indexOf(`${DARK} {`)).toBeGreaterThan(css.indexOf(".login-left .alert-warning {"));
+   });
+
+   it("is still the session-expired notice's class", () => {
+      expect(html()).toMatch(/id="sessionExpiredMessage" class="alert alert-warning"/);
+   });
+});
