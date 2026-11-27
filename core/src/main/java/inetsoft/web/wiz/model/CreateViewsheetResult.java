@@ -180,6 +180,22 @@ public class CreateViewsheetResult {
       this.title = title;
    }
 
+   public AssemblyState getAssemblyState() {
+      return assemblyState;
+   }
+
+   public void setAssemblyState(AssemblyState assemblyState) {
+      this.assemblyState = assemblyState;
+   }
+
+   public Boolean getAssemblyStateUnavailable() {
+      return assemblyStateUnavailable;
+   }
+
+   public void setAssemblyStateUnavailable(Boolean assemblyStateUnavailable) {
+      this.assemblyStateUnavailable = assemblyStateUnavailable;
+   }
+
    private List<String> headers;
    private List<Map<String, Object>> rows;
    private FlatBinding binding;
@@ -208,6 +224,20 @@ public class CreateViewsheetResult {
     * (rather than empty) when everything applied, so a caller can test the field itself.
     */
    private List<ApplyWarning> warnings;
+   /**
+    * What the visualization assembly itself holds after this endpoint's last change (source, its
+    * own conditions, date comparison, highlights, plain-table columns). Null when it could not be
+    * built; see {@code WizVsService#fillAssemblyState}.
+    */
+   private AssemblyState assemblyState;
+   /**
+    * TRUE when this endpoint tried to fill {@code assemblyState} and produced no state for any reason
+    * (an exception, a missing runtime, a missing or null assembly), so {@code assemblyState} is absent
+    * because it is unknown, not because the endpoint never fills it. Absent when a state was produced
+    * or the endpoint never fills one. The wiz side treats TRUE as "assemblyState is null for this
+    * response" and drops its previous state instead of keeping a stale one.
+    */
+   private Boolean assemblyStateUnavailable;
 
    // -------------------------------------------------------------------------
    // Nested model
@@ -280,5 +310,85 @@ public class CreateViewsheetResult {
       private final boolean honored;
       private final String severity;
       private final String reason;
+   }
+
+   /**
+    * The assembly's own state, read from the assembly model rather than a rendered lens:
+    * {@code conditions} is its own pre-condition list (MetadataApiService leaf format, phase
+    * "chart"), {@code dateComparison} the normalized DateComparisonService read (only when a
+    * comparison is in effect), {@code highlights} every highlight group, {@code tableColumns} the
+    * visible columns of a plain table (null for every other type).
+    */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public static class AssemblyState {
+      public AssemblySource getSource() {
+         return source;
+      }
+
+      public void setSource(AssemblySource source) {
+         this.source = source;
+      }
+
+      public List<WorksheetStructure.ConditionLeaf> getConditions() {
+         return conditions;
+      }
+
+      public void setConditions(List<WorksheetStructure.ConditionLeaf> conditions) {
+         this.conditions = conditions;
+      }
+
+      public Map<String, Object> getDateComparison() {
+         return dateComparison;
+      }
+
+      public void setDateComparison(Map<String, Object> dateComparison) {
+         this.dateComparison = dateComparison;
+      }
+
+      public List<AssemblyHighlight> getHighlights() {
+         return highlights;
+      }
+
+      public void setHighlights(List<AssemblyHighlight> highlights) {
+         this.highlights = highlights;
+      }
+
+      public TableColumns getTableColumns() {
+         return tableColumns;
+      }
+
+      public void setTableColumns(TableColumns tableColumns) {
+         this.tableColumns = tableColumns;
+      }
+
+      private AssemblySource source;
+      private List<WorksheetStructure.ConditionLeaf> conditions = new ArrayList<>();
+      private Map<String, Object> dateComparison;
+      private List<AssemblyHighlight> highlights = new ArrayList<>();
+      private TableColumns tableColumns;
+   }
+
+   /**
+    * Where the assembly reads its data: {@code kind} is "worksheet", "model" or "physical" (from the
+    * viewsheet's base entry), {@code worksheet} the base worksheet's identifier (worksheet kind only),
+    * {@code table} the bound table with the outer-table suffix stripped.
+    */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public record AssemblySource(String kind, String worksheet, String table) {
+   }
+
+   /**
+    * One highlight: {@code target} is the field or cell column it is keyed to (null for a chart-level
+    * or output group), {@code clauses} its conditions in reading order. The clauses are flattened
+    * for display: nesting (junction levels) is not rendered, so they describe the highlight rather
+    * than restate its exact grouping.
+    */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public record AssemblyHighlight(String name, String target, List<String> clauses) {
+   }
+
+   /** The visible columns of a plain table, in display order. */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public record TableColumns(List<String> columns) {
    }
 }

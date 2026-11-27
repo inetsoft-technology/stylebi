@@ -75,6 +75,16 @@ public class WorksheetStructure {
       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
       public String getConditionsCoverage() { return conditionsCoverage; }
       public void setConditionsCoverage(String v) { this.conditionsCoverage = v; }
+      // sql tables only: the aggregate the SQL text itself computes, read from the select list and
+      // GROUP BY (never overwrites `aggregate`, which is the table's worksheet AggregateInfo)
+      private AggregateSummary sqlAggregate;
+      private String sqlAggregateCoverage; // sql tables only: full|partial|unavailable
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public AggregateSummary getSqlAggregate() { return sqlAggregate; }
+      public void setSqlAggregate(AggregateSummary v) { this.sqlAggregate = v; }
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public String getSqlAggregateCoverage() { return sqlAggregateCoverage; }
+      public void setSqlAggregateCoverage(String v) { this.sqlAggregateCoverage = v; }
    }
 
    public static class Column {
@@ -130,6 +140,12 @@ public class WorksheetStructure {
       public String getText() { return text; } public void setText(String v) { this.text = v; }
       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
       public Boolean getGrouped() { return grouped; } public void setGrouped(Boolean v) { this.grouped = v; }
+      // the level of the junction PRECEDING this leaf (null for the first leaf of a phase): StyleBI
+      // splits a condition list on the OR junctions of a level, then its AND junctions, and parses a
+      // run of deeper junctions as one group (ConditionListHandler)
+      private Integer junctionLevel;
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public Integer getJunctionLevel() { return junctionLevel; } public void setJunctionLevel(Integer v) { this.junctionLevel = v; }
    }
 
    public static class AggregateSummary {
@@ -151,5 +167,11 @@ public class WorksheetStructure {
       public String getFormula() { return formula; } public void setFormula(String v) { this.formula = v; }
       public String getSecondaryField() { return secondaryField; } public void setSecondaryField(String v) { this.secondaryField = v; }
       public String getN() { return n; } public void setN(String v) { this.n = v; }
+      private String column; // sqlAggregate only: the output (worksheet) column this item produces
+      private String expression; // sqlAggregate only: the item text when it is not one aggregate call
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public String getColumn() { return column; } public void setColumn(String v) { this.column = v; }
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public String getExpression() { return expression; } public void setExpression(String v) { this.expression = v; }
    }
 }
