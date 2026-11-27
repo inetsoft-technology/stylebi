@@ -91,14 +91,15 @@ class MVAggregatedIntegralTypeTest {
    }
 
    /**
-    * A detail (not aggregated) MV keeps the declared type as before.
+    * A detail (not aggregated) MV keeps the integral type of the data of a measure column
+    * declared double, as the live query returns it (Bug #82257).
     */
    @Test
    void detailMVKeepsTheDeclaredType() throws Exception {
       Map<String, Object> result = maxByGroup(false, 12101, 12024, 3);
 
-      assertEquals(Double.class, storedType);
-      assertEquals(12101.0, result.get("Y"));
+      assertEquals(Integer.class, storedType);
+      assertEquals(12101, result.get("Y"));
    }
 
    /**

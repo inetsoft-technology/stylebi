@@ -930,15 +930,16 @@ public class MVCreatorUtil {
    /**
     * Gets the column type.
     *
-    * @param aggregateOutput true if the column is an aggregate output (measure) of an
-    *                        aggregated MV table. Its declared type is the type of the
+    * @param keepIntegral true if the column is an aggregate output (measure) of an
+    *                        aggregated MV table, or a measure of a detail MV. Its declared
+    *                        type is the type of the
     *                        aggregate formula (e.g. double for Sum), but the live query of
     *                        the table returns the values with the type the database gives
     *                        them (e.g. integer for a SUM of an integer column on DB2), so
     *                        the integral type of the data is kept for it (Bug #82319).
     */
    public static Class getColType(XTable table, MVColumn column, int index,
-                                  boolean aggregateOutput)
+                                  boolean keepIntegral)
    {
       String dtype = column.getColumn() != null ? column.getColumn().getDataType() : null;
       Class result = Tool.getDataClass(dtype);
@@ -963,8 +964,9 @@ public class MVCreatorUtil {
             }
             // the aggregate of an aggregated MV holds the values of its build query, which
             // is the live query of the table, so keep their integral type instead of the
-            // declared double/float, as the live query returns them (Bug #82319)
-            else if(aggregateOutput && (result == Double.class || result == Float.class) &&
+            // declared double/float, as the live query returns them (Bug #82319). The same
+            // for a measure of a detail MV (Bug #82257)
+            else if(keepIntegral && (result == Double.class || result == Float.class) &&
                isIntegralClass(originalCls))
             {
                result = originalCls;
@@ -978,6 +980,19 @@ public class MVCreatorUtil {
    private static boolean isIntegralClass(Class cls) {
       return cls == Integer.class || cls == Long.class || cls == Short.class ||
          cls == Byte.class;
+   }
+
+   public static boolean isMeasureColumn(MVColumn column) {
+      return column != null && column.getColumn() != null && !column.isDimension() &&
+         !(column instanceof DateMVColumn) && !(column instanceof RangeMVColumn);
+   }
+
+   /**
+    * Checks if the integral type of the data should be kept for the column of the MV, instead of
+    * the declared double/float, so the values are returned as the live query returns them.
+    */
+   public static boolean keepIntegralType(MVDef def, MVColumn column, boolean aggregated) {
+      return aggregated ? isAggregateOutput(def, column) : isMeasureColumn(column);
    }
 
    /**
