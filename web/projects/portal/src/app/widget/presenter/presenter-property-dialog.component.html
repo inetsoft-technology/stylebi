@@ -22,10 +22,11 @@
     @if (model.description) {
       <p class="presenter-description text-muted mb-3">{{model.description}}</p>
     }
+    <div class="presenter-fields">
     @for (descriptor of model.descriptors; track descriptor.name; let i = $index) {
-      <div class="form-group row">
+      <div class="presenter-field">
         <label class="text-nowrap mb-0">{{descriptor.displayName}}:</label>
-        <div class="col-9 descriptor-div">
+        <div class="descriptor-div">
           @switch (descriptor.editor) {
             @case ('LinePropertyEditor') {
               <style-dropdown [(style)]="descriptor.value" [isPresenter]="true"></style-dropdown>
@@ -107,6 +108,7 @@
       </div>
     </div>
   }
+    </div>
 </div>
 }
 <div class="modal-footer">

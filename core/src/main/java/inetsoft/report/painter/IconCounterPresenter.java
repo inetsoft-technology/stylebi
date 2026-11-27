@@ -126,15 +126,34 @@ public class IconCounterPresenter implements Presenter {
       if(img != null) {
          Image image = img;
          int iw = icon.getWidth(null), ih = icon.getHeight(null);
-         int top = y + (h - ih) / 2;
 
-         paintStars(g, n, x, y, w, h, iw, g.getColor(), (sg, sx, muted) -> {
-            if(muted && sg instanceof Graphics2D) {
-               ((Graphics2D) sg).setComposite(
-                  AlphaComposite.getInstance(AlphaComposite.SRC_OVER, MUTED_ALPHA));
+         if(iw <= 0 || ih <= 0) {
+            return;
+         }
+
+         // an icon bigger than the cell is scaled down to it, keeping its shape. At its own size
+         // an icon wider than the cell fits no star, so the cell drew empty, and one taller than
+         // the cell was cut off.
+         double scale = Math.min(1.0, Math.min((h - 2) / (double) ih, (w - 4) / (double) iw));
+         int sw = Math.max(1, (int) Math.round(iw * scale));
+         int sh = Math.max(1, (int) Math.round(ih * scale));
+         int top = y + (h - sh) / 2;
+
+         paintStars(g, n, x, y, w, h, sw, g.getColor(), (sg, sx, muted) -> {
+            if(sg instanceof Graphics2D) {
+               Graphics2D g2 = (Graphics2D) sg;
+
+               if(muted) {
+                  g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, MUTED_ALPHA));
+               }
+
+               if(sw != iw) {
+                  g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                                      RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+               }
             }
 
-            sg.drawImage(image, sx, top, null);
+            sg.drawImage(image, sx, top, sw, sh, null);
          });
       }
    }

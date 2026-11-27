@@ -18,6 +18,7 @@
 package inetsoft.web.composer.vs;
 
 import inetsoft.report.Presenter;
+import inetsoft.report.painter.ImagePresenter;
 
 /**
  * What a presenter does with the values it cannot draw, for the presenter dropdown and dialog.
@@ -30,14 +31,22 @@ public final class PresenterValueHint {
    public static final String NUMBERS_AND_BOOLEANS =
       "Draws numbers and true or false values. Other values show as plain text.";
 
+   public static final String IMAGE_URL = "Draws the image at the URL in each cell.";
+
    private PresenterValueHint() {
    }
 
    /**
     * @return the hint for the presenter, or null when it has nothing to say: it takes any text
-    *         (an image URL, HTML, a barcode) or it does not draw numbers.
+    *         (HTML, a barcode) or it does not draw numbers.
     */
    public static String of(Presenter presenter) {
+      // the image comes from the cell's value, not from a setting, so the dialog has nothing else
+      // to show where the image is chosen
+      if(presenter instanceof ImagePresenter) {
+         return IMAGE_URL;
+      }
+
       if(presenter == null || !presenter.isPresenterOf(Number.class)) {
          return null;
       }

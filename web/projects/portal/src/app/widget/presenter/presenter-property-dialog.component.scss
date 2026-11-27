@@ -19,5 +19,19 @@
   display: grid;
   grid-template-columns: max-content 1fr;
   align-items: center;
-  gap: var(--inet-space-4) var(--inet-space-3);
+  gap: var(--inet-space-2) var(--inet-space-3);
+
+  // each row's label and editor become cells of the shared grid
+  .presenter-field {
+    display: contents;
+  }
+
+  .descriptor-div {
+    min-width: 0;
+  }
+
+  .input-group {
+    flex-wrap: nowrap;
+    gap: var(--inet-space-2);
+  }
 }

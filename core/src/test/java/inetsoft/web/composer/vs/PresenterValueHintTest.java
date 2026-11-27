@@ -57,12 +57,17 @@ class PresenterValueHintTest {
 
    @Test
    void presentersThatTakeAnyTextHaveNothingToSay() {
-      for(Presenter p : new Presenter[] { new ImagePresenter(), new HTMLPresenter(),
+      for(Presenter p : new Presenter[] { new HTMLPresenter(),
                                           new ButtonPresenter(), new ShadowPresenter(),
                                           new QRCodePresenter(), new BarcodeCode39Presenter() })
       {
          assertNull(PresenterValueHint.of(p), p.getClass().getSimpleName());
       }
+   }
+
+   @Test
+   void theImagePresenterSaysTheImageIsTheUrlInTheCell() {
+      assertEquals(PresenterValueHint.IMAGE_URL, PresenterValueHint.of(new ImagePresenter()));
    }
 
    @Test
