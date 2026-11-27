@@ -435,6 +435,9 @@ public class WizVsService {
          // collectFlatBinding prefers RT refs, so it must come after. The binding itself is unchanged
          // by the comparison, but recomputing it keeps the response shape identical to /viewsheet/create.
          result.setBinding(collectFlatBinding(assembly));
+         // After the last change to the assembly; best-effort, it never throws, so it cannot trigger
+         // the rollback below.
+         fillAssemblyState(rvs, assembly, user, result);
          result.setAssemblyName(assembly.getName());
          result.setHasData(computeHasData(rvs.getViewsheet().getViewsheetInfo().isMetadata(), result));
 
@@ -1151,6 +1154,9 @@ public class WizVsService {
          // RT refs, so it must come after. The binding is unchanged by highlighting, but recomputing it keeps
          // the response shape identical to /viewsheet/create.
          result.setBinding(collectFlatBinding(assembly));
+         // After the last change to the assembly; best-effort, it never throws, so it cannot trigger
+         // the rollback below.
+         fillAssemblyState(rvs, assembly, user, result);
          result.setAssemblyName(assembly.getName());
          result.setHasData(computeHasData(rvs.getViewsheet().getViewsheetInfo().isMetadata(), result));
 
@@ -2459,6 +2465,10 @@ public class WizVsService {
             }
 
             result.setBinding(binding);
+            // After the last change to the assembly (conditions, pre-aggregation rebind, hook, title)
+            // and outside executeAndExtract. Best-effort: it never throws, so it cannot trigger the
+            // rollback below. Also serves autoBinding and changeType's fast path, which come through here.
+            fillAssemblyState(rvs, assembly, user, result);
             result.setAssemblyName(assembly.getName());
 
             if(createdRuntimeId || restored) {
