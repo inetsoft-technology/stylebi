@@ -3205,6 +3205,11 @@ public class WizAutoBindingService {
             }
          }
 
+         // In its own try, AFTER the catch above and AFTER syncHighlightOnTypeChange, so the state
+         // describes the rebuilt chart with its carried highlight and can never fail the switch.
+         fillChangeTypeAssemblyState(
+            result, !Tool.isEmptyString(result.getRuntimeId()) ? result.getRuntimeId() : wizRuntimeId, user);
+
          return result;
       }
 
@@ -3312,30 +3317,63 @@ public class WizAutoBindingService {
             substitutedType + " chart was used instead.");
       }
 
-      // Populate headers/rows so the caller can generate data insight.
-      // createViewsheetSkipExecution omits row data for speed; fetch it here separately.
-      if(result.getAssemblyName() != null) {
-         try {
-            CreateViewsheetResult dataResult = wizVsService.fetchAssemblyData(
-               result.getRuntimeId(), result.getAssemblyName(), user);
-            result.setHeaders(dataResult.getHeaders());
-            result.setRows(dataResult.getRows());
-            result.setHasData(dataResult.getHasData());
-            result.setTruncated(dataResult.getTruncated());
+      attachChangeTypeData(result, targetAssembly, viewsheetIdentifier, user);
+      return result;
+   }
 
-            // Carry the highlight from the chart being switched away from onto the rebuilt chart,
-            // then invalidate the graph fetchAssemblyData (above) already cached from before the
-            // highlight was attached — see syncHighlightOnTypeChange's javadoc.
-            syncHighlightOnTypeChange(
-               targetAssembly, result.getRuntimeId(), viewsheetIdentifier, result.getAssemblyName(), user);
-         }
-         catch(Exception e) {
-            LOG.warn("changeType: failed to fetch assembly data for insight (non-critical): {}", e.getMessage());
-            LOG.debug("changeType: fetch assembly data stack trace", e);
-         }
+   /**
+    * The tail of changeType's fast path: rows for data insight, the highlight carried from the chart
+    * being switched away from, then {@code assemblyState}. The state is filled in its own try AFTER
+    * the fetch's catch and AFTER the highlight carry, so it describes the chart the caller receives
+    * (carried highlight included) and is filled even when the fetch failed. Package-private so that
+    * order is unit-testable without a full changeType.
+    */
+   void attachChangeTypeData(CreateViewsheetResult result, VSAssembly source,
+                             String viewsheetIdentifier, Principal user)
+   {
+      if(result.getAssemblyName() == null) {
+         return;
       }
 
-      return result;
+      // Populate headers/rows so the caller can generate data insight.
+      // createViewsheetSkipExecution omits row data for speed; fetch it here separately.
+      try {
+         CreateViewsheetResult dataResult = wizVsService.fetchAssemblyData(
+            result.getRuntimeId(), result.getAssemblyName(), user);
+         result.setHeaders(dataResult.getHeaders());
+         result.setRows(dataResult.getRows());
+         result.setHasData(dataResult.getHasData());
+         result.setTruncated(dataResult.getTruncated());
+
+         // Carry the highlight from the chart being switched away from onto the rebuilt chart,
+         // then invalidate the graph fetchAssemblyData (above) already cached from before the
+         // highlight was attached — see syncHighlightOnTypeChange's javadoc.
+         syncHighlightOnTypeChange(
+            source, result.getRuntimeId(), viewsheetIdentifier, result.getAssemblyName(), user);
+      }
+      catch(Exception e) {
+         LOG.warn("changeType: failed to fetch assembly data for insight (non-critical): {}", e.getMessage());
+         LOG.debug("changeType: fetch assembly data stack trace", e);
+      }
+
+      fillChangeTypeAssemblyState(result, result.getRuntimeId(), user);
+   }
+
+   /**
+    * Fills {@code result.assemblyState} for a changeType result from the live assembly. Best-effort:
+    * a failure is logged at debug and never fails the type switch that already succeeded.
+    */
+   void fillChangeTypeAssemblyState(CreateViewsheetResult result, String runtimeId, Principal user) {
+      if(result == null || result.getAssemblyName() == null) {
+         return;
+      }
+
+      try {
+         wizVsService.fillAssemblyState(runtimeId, result.getAssemblyName(), user, result);
+      }
+      catch(Exception e) {
+         LOG.debug("changeType: could not fill the assembly state of '{}'", result.getAssemblyName(), e);
+      }
    }
 
    /**
@@ -3630,6 +3668,10 @@ public class WizAutoBindingService {
       if(result == null) {
          result = new CreateViewsheetResult();
       }
+
+      // After the last change, the fetch and the persist, outside the rollback try and not inside
+      // fetchAssemblyData (which also serves /viewsheet/assembly-data). Best-effort, never throws.
+      wizVsService.fillAssemblyState(rvs, chart, user, result);
 
       result.setRuntimeId(effRuntimeId);
       result.setAssemblyName(targetAssemblyName);
@@ -3953,6 +3995,10 @@ public class WizAutoBindingService {
       if(result == null) {
          result = new CreateViewsheetResult();
       }
+
+      // After the last change, the fetch and the persist, outside the rollback try and not inside
+      // fetchAssemblyData (which also serves /viewsheet/assembly-data). Best-effort, never throws.
+      wizVsService.fillAssemblyState(rvs, chart, user, result);
 
       result.setRuntimeId(effRuntimeId);
       result.setAssemblyName(targetAssemblyName);
