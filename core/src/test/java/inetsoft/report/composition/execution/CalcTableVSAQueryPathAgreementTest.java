@@ -18,6 +18,8 @@ import inetsoft.mv.MVManager;
 import inetsoft.report.*;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
+import inetsoft.report.internal.binding.OrderInfo;
+import inetsoft.report.internal.binding.SimpleNamedGroupInfo;
 import inetsoft.report.internal.binding.TopNInfo;
 import inetsoft.test.*;
 import inetsoft.uql.*;
@@ -698,6 +700,81 @@ class CalcTableVSAQueryPathAgreementTest {
    }
 
    /** The messages of an exception and of all its causes. */
+   // Bug #82483: a named group whose name or member value holds a special character.
+
+   private static final String[] NAMED_GROUP_TEXTS = {
+      "plain", "O'Brien", "Say \"hi\"", "a,b", "a:b", "back\\slash", "a;b", "a?b",
+      "line1\nline2", "caf\u00e9 \u4e2d\u6587 \ud83d\ude00", "lit^_^eral", "a'b\"c\\d:e;f?g@h",
+      "x".repeat(300)
+   };
+
+   static Stream<String> namedGroupTexts() {
+      return Arrays.stream(NAMED_GROUP_TEXTS);
+   }
+
+   /** Region, Cat, Qty, Total: (sp, x, 1, 10), (sp, y, 2, 20), (West, x, 3, 5), (North, x, 4, 1). */
+   private static Scenario namedGroupScenario(String name, String sp, String column, String type,
+                                              String groupName, String... members)
+   {
+      Object[][] data = nested(nrow(sp, "x", 1, 10.0), nrow(sp, "y", 2, 20.0),
+                               nrow("West", "x", 3, 5.0), nrow("North", "x", 4, 1.0));
+      return new Scenario(name, nestedTypes(), data, 2, false, l -> {
+         TableCellBinding g = group(column);
+         SimpleNamedGroupInfo info = new SimpleNamedGroupInfo();
+         AttributeRef ref = new AttributeRef(null, column);
+         ref.setDataType(type);
+         info.setDataRef(ref);
+         info.setGroupValue(groupName, new ArrayList<>(Arrays.asList(members)));
+         g.getOrderInfo(true).setNamedGroupInfo(info);
+         g.getOrderInfo(true).setOthers(OrderInfo.GROUP_OTHERS);
+         l.setCellBinding(1, 0, g);
+         l.setCellBinding(1, 1, summary("Total", "Sum"));
+      });
+   }
+
+   /** The shown group names with the value of the summary next to them. */
+   private static Map<String, Object> namedGroupRows(List<List<Object>> rows) {
+      Map<String, Object> map = new LinkedHashMap<>();
+
+      for(int r = 1; r < rows.size(); r++) {
+         map.put(String.valueOf(rows.get(r).get(0)), rows.get(r).get(1));
+      }
+
+      return map;
+   }
+
+   private void assertNamedGroup(Scenario sc, String group, double groupTotal,
+                                 double othersTotal, String what) throws Exception
+   {
+      Map<String, Object> rows = namedGroupRows(run(sc, true));
+      assertEquals(new LinkedHashSet<>(Arrays.asList(group, "Others")), rows.keySet(),
+                   what + ", the shown names");
+      assertEquals(groupTotal, ((Number) rows.get(group)).doubleValue(), 0.0001, what + ", group");
+      assertEquals(othersTotal, ((Number) rows.get("Others")).doubleValue(), 0.0001,
+                   what + ", Others");
+   }
+
+   @ParameterizedTest(name = "member value {0}")
+   @MethodSource("namedGroupTexts")
+   void namedGroupMemberValueWithSpecialCharacters(String sp) throws Exception {
+      assertNamedGroup(namedGroupScenario("A", sp, "Region", XSchema.STRING, "G", sp),
+                       "G", 30.0, 6.0, "A");
+   }
+
+   @ParameterizedTest(name = "group name {0}")
+   @MethodSource("namedGroupTexts")
+   void namedGroupNameWithSpecialCharacters(String sp) throws Exception {
+      assertNamedGroup(namedGroupScenario("B", "sp", "Region", XSchema.STRING, sp, "West"),
+                       sp, 5.0, 31.0, "B");
+   }
+
+   @Test
+   void namedGroupWithNumberMembersIsUnchanged() throws Exception {
+      // Number members keep the Number(..) form
+      assertNamedGroup(namedGroupScenario("numbers", "sp", "Qty", XSchema.INTEGER, "low", "1", "2"),
+                       "low", 30.0, 6.0, "numbers");
+   }
+
    private static String causes(Throwable e) {
       StringBuilder buf = new StringBuilder();
 
