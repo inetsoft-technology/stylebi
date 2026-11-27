@@ -631,6 +631,10 @@ public final class MVBuilder {
          private int getBlockSize() {
             int size = preferred;
 
+            // only the call that fires the append branch below targets the old last block;
+            // later sub-MVs of the same incremental must go to new blocks
+            subMVBlockIndex = -1;
+
             // append specified row to last block
             if(append && omv != null && omv.getBlockSize() > 0) {
                MVBlockInfo binfo = mv.getBlockInfo(mv.getBlockSize() - 1);
