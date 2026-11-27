@@ -54,11 +54,10 @@ class ServiceNowOneRecordPageTest {
    }
 
    private Result run(String... pages) throws Exception {
-      ServiceNowQuery query = new ServiceNowQuery();
       ServiceNowDataSource ds = new ServiceNowDataSource();
       ds.setURL("http://host");
-      query.setDataSource(ds);
-      query.setEndpoint("Standard Changes");
+      ServiceNowQuery query = ReplaySupport.query(
+         ds, new ServiceNowQuery(), "Table Records", "$.result", Map.of("Table Name", "incident"));
 
       List<String> offsets = new ArrayList<>();
       IHttpHandler handler = new IHttpHandler() {
