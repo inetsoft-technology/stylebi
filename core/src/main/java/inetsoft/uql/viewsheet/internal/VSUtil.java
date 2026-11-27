@@ -3929,7 +3929,10 @@ public final class VSUtil {
          if(formula != null) {
             AggregateFormula parent = formula.getParentFormula();
 
-            if(parent == null) {
+            // concat is order sensitive and its empty stage-1 result is "" (not null), so a
+            // second aggregation over group results adds stray separators and changes the
+            // order. aggregate it once over the detail rows instead.
+            if(parent == null || formula == AggregateFormula.CONCAT) {
                return false;
             }
          }
