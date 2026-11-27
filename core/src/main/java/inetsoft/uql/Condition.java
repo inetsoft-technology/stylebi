@@ -321,8 +321,50 @@ public class Condition extends AbstractCondition {
 
       Object val = values.get(index);
 
+      // Bug #82491: a like, starting with or contains value that is not a number (e.g. 2%)
+      // is kept as is, not turned into the default value 0 of a numeric type. It matches no
+      // row of the numeric column (see isNonNumericPatternValue).
+      if(isNonNumericPatternValue(val)) {
+         return val;
+      }
+
       return (val instanceof String) && ctype && op != DATE_IN ?
          getObject(getType(), (String) val) : val;
+   }
+
+   /**
+    * Check if a value of this condition is a like, starting with or contains value that
+    * can't be compared with the numeric type of this condition: a string that is not a
+    * number. A numeric column has no text to match a pattern against, so such a value
+    * matches no row (bug #82491).
+    * @param val the raw value of this condition.
+    * @return <code>true</code> if the value matches no row of the numeric column.
+    */
+   public boolean isNonNumericPatternValue(Object val) {
+      return (op == LIKE || op == STARTING_WITH || op == CONTAINS) && ctype &&
+         val instanceof String && XSchema.isNumericType(getType()) &&
+         !isNumberString(getType(), (String) val);
+   }
+
+   /**
+    * Check if a string is parsed as a number of the numeric type by getObject() without
+    * falling back to the default value 0.
+    */
+   private static boolean isNumberString(String type, String val) {
+      try {
+         if(XSchema.BYTE.equals(type)) {
+            Byte.valueOf(val);
+         }
+         else {
+            // getObject() parses the other numeric types as a double if needed
+            Double.valueOf(val);
+         }
+
+         return true;
+      }
+      catch(NumberFormatException ex) {
+         return false;
+      }
    }
 
    /**
@@ -594,6 +636,13 @@ public class Condition extends AbstractCondition {
                }
             }
          }
+      }
+
+      // Bug #82491: a like, starting with or contains value that is not a number matches no
+      // row of a numeric column, as in sql ("col <> col") and in the mv. In sync with sql,
+      // null never matches, so the negated condition matches the non-null values.
+      if(values.size() > 0 && isNonNumericPatternValue(values.get(0))) {
+         return value != null && isNegated();
       }
 
       if(op == ONE_OF) {

@@ -319,8 +319,8 @@ public class MVIntColumn extends DictDimIndex implements MVMeasureColumn {
          case "LIKE":
             // Bug #82376: a LIKE without a wildcard matches the whole value (as without MV),
             // not every value containing it. The value reaches the column as a number
-            // (MVConditionListHandler converts it with the column type, a wildcard value such
-            // as '2%' becomes 0), so wildcards on a numeric column are not supported here.
+            // (MVConditionListHandler converts it with the column type). A wildcard value such
+            // as '2%' is not a number and matches no row (SubMV, bug #82491).
             if(rval == dval) {
                found = !found;
             }
