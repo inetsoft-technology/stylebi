@@ -75,8 +75,10 @@ import inetsoft.web.wiz.BindingFieldSettings;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.script.ScriptImageService;
+import inetsoft.web.wiz.viewsheet.DateComparisonService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.awt.Color;
@@ -102,6 +104,15 @@ public class WizVsService {
       this.syncInfoHandler = syncInfoHandler;
       this.temporaryInfoService = temporaryInfoService;
       this.scriptImageService = scriptImageService;
+   }
+
+   /**
+    * The date-comparison reader for {@link #fillAssemblyState}. Setter-injected and optional, so the
+    * constructor (used directly by many tests) is unchanged; without it the comparison is omitted.
+    */
+   @Autowired(required = false)
+   public void setDateComparisonService(DateComparisonService dateComparisonService) {
+      this.dateComparisonService = dateComparisonService;
    }
 
    /**
@@ -3666,6 +3677,90 @@ public class WizVsService {
     * fallback — accurate enough for the echo, but the slots are not RT-resolved. Call
     * after execution when RT-accurate slots are required.
     */
+   /**
+    * Fills {@code result.assemblyState}: what the assembly itself holds after the endpoint's last
+    * change — its source, its own pre-condition list (phase "chart", with junction levels), its date
+    * comparison when one is in effect, every highlight, and a plain table's visible columns.
+    *
+    * <p>Called after the endpoint's LAST change and outside {@link #executeAndExtract}, which also
+    * serves filter controls and validation whose results are discarded. Best-effort: any failure
+    * leaves the field null and is logged at debug; it never fails or rolls back a mutation that
+    * already succeeded.
+    */
+   public void fillAssemblyState(RuntimeViewsheet rvs, VSAssembly assembly, Principal user,
+                                 CreateViewsheetResult result)
+   {
+      if(result == null) {
+         return;
+      }
+
+      try {
+         result.setAssemblyState(buildAssemblyState(rvs, assembly, user));
+      }
+      catch(Exception e) {
+         result.setAssemblyState(null);
+         LOG.debug("Could not read the assembly state of {}",
+                   assembly == null ? null : assembly.getName(), e);
+      }
+   }
+
+   /**
+    * {@link #fillAssemblyState(RuntimeViewsheet, VSAssembly, Principal, CreateViewsheetResult)} for a
+    * caller that holds only the runtime id and assembly name. Reads the live runtime without
+    * restoring a reaped one: a state read must not open a new runtime.
+    */
+   public void fillAssemblyState(String runtimeId, String assemblyName, Principal user,
+                                 CreateViewsheetResult result)
+   {
+      if(result == null) {
+         return;
+      }
+
+      try {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+         Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+         VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+         fillAssemblyState(rvs, assembly, user, result);
+      }
+      catch(Exception e) {
+         result.setAssemblyState(null);
+         LOG.debug("Could not read the assembly state of {} in {}", assemblyName, runtimeId, e);
+      }
+   }
+
+   private CreateViewsheetResult.AssemblyState buildAssemblyState(RuntimeViewsheet rvs,
+                                                                  VSAssembly assembly,
+                                                                  Principal user)
+      throws Exception
+   {
+      if(rvs == null || assembly == null) {
+         return null;
+      }
+
+      CreateViewsheetResult.AssemblyState state = new CreateViewsheetResult.AssemblyState();
+      state.setSource(AssemblyStateReader.readSource(rvs.getViewsheet(), assembly));
+      state.setConditions(AssemblyStateReader.readConditions(assembly));
+      state.setDateComparison(readDateComparison(rvs, assembly, user));
+      state.setHighlights(AssemblyStateReader.readHighlights(assembly));
+      state.setTableColumns(AssemblyStateReader.readTableColumns(assembly));
+      return state;
+   }
+
+   /** The normalized comparison, only when one is actually in effect on the assembly. */
+   private Map<String, Object> readDateComparison(RuntimeViewsheet rvs, VSAssembly assembly,
+                                                  Principal user)
+      throws Exception
+   {
+      if(dateComparisonService == null ||
+         !(assembly.getVSAssemblyInfo() instanceof DateCompareAbleAssemblyInfo))
+      {
+         return null;
+      }
+
+      Map<String, Object> read = dateComparisonService.read(rvs, assembly.getName(), user);
+      return read != null && Boolean.TRUE.equals(read.get("enabled")) ? read : null;
+   }
+
    public CreateViewsheetResult.FlatBinding collectFlatBinding(VSAssembly assembly) {
       if(assembly instanceof ChartVSAssembly chart) {
          return collectChartFlatBinding(chart.getVSChartInfo());
@@ -6301,6 +6396,7 @@ public class WizVsService {
    private final SyncInfoHandler syncInfoHandler;
    private final VSWizardTemporaryInfoService temporaryInfoService;
    private final ScriptImageService scriptImageService;
+   private DateComparisonService dateComparisonService;
 
    private static final Logger LOG = LoggerFactory.getLogger(WizVsService.class);
    private static final Map<Class<?>, BiFunction<Viewsheet, String, VSAssembly>> ASSEMBLY_FACTORIES = Map.of(
