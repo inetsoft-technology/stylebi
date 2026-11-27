@@ -88,6 +88,10 @@ public final class PaginationReplay {
          else if(path.startsWith("$.") && path.endsWith(".length()")) {
             recordsKey = path.substring(2, path.length() - ".length()".length());
          }
+         else if(path.startsWith("$.") && path.indexOf("[?") > 2 && path.endsWith("]")) {
+            // a filter that selects the records: $.<records>[?(...)]
+            recordsKey = path.substring(2, path.indexOf('['));
+         }
       }
 
       // the next offset is the id of the last record: $.<records>[-1].<field>
@@ -152,6 +156,8 @@ public final class PaginationReplay {
       }
       case OFFSET: {
          int max = spec.getMaxResultsPerPage();
+         // the offset of the first record: 0, or 1 for a server that counts from 1
+         int first = spec.getFirstPageIndex();
          expectedRows = max + 30;
          // the OFFSET strategy only stops at a page that has no records
          pages = new String[] {
@@ -163,11 +169,12 @@ public final class PaginationReplay {
 
          // a spec that stops on a short page (Bug #81909, InfluxDB) doesn't ask for the empty one
          if(spec.isStopOnShortPage()) {
-            offsetValues = new String[] { String.valueOf(max) };
+            offsetValues = new String[] { String.valueOf(first + max) };
             expectedRequests = 2;
          }
          else {
-            offsetValues = new String[] { String.valueOf(max), String.valueOf(max + 30) };
+            offsetValues = new String[] { String.valueOf(first + max),
+                                          String.valueOf(first + max + 30) };
             expectedRequests = 3;
          }
 

@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Array;
+import java.util.Collection;
 import java.util.Collections;
 
 /**
@@ -122,6 +123,10 @@ public class JsonPagedOffsetIteratorStrategy extends HttpRestDataIteratorStrateg
             }
             else if(result instanceof Number) {
                return ((Number) result).intValue();
+            }
+            else if(result instanceof Collection) {
+               // a path that selects the records themselves: the matches are the records
+               return ((Collection<?>) result).size();
             }
          }
 

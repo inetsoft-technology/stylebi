@@ -110,7 +110,20 @@ public class ServiceNowQuery extends EndpointJsonQuery<ServiceNowEndpoint> {
       final PaginationType pageType = endpoint.getPageType();
 
       if(endpoint.isPaged()) {
-         if(pageType == PaginationType.OFFSET){
+         if(pageType == PaginationType.OFFSET && isChangeApi(endpoint)) {
+            // The Change Management API reads from record 1, not 0, and ends every list with a
+            // {"__meta": ...} element, so that element is not counted as a record. A page that
+            // is not full is the last one: the Change API has no empty page to wait for.
+            paginationSpec = PaginationSpec.builder()
+               .type(PaginationType.OFFSET)
+               .offsetParam(PaginationParamType.QUERY, "sysparm_offset")
+               .maxResultsPerPageParam(PaginationParamType.QUERY, "sysparm_limit")
+               .maxResultsPerPage(1000)
+               .recordCountPath(CHANGE_API_RECORD_COUNT_PATH)
+               .stopOnShortPage(true)
+               .build();
+         }
+         else if(pageType == PaginationType.OFFSET) {
             paginationSpec = PaginationSpec.builder()
                .type(PaginationType.OFFSET)
                .offsetParam(PaginationParamType.QUERY, "sysparm_offset")
@@ -162,6 +175,17 @@ public class ServiceNowQuery extends EndpointJsonQuery<ServiceNowEndpoint> {
 
       return Singleton.INSTANCE.endpoints;
    }
+
+   private static boolean isChangeApi(ServiceNowEndpoint endpoint) {
+      final String suffix = endpoint.getSuffix();
+      return suffix != null && suffix.startsWith(CHANGE_API_PREFIX);
+   }
+
+   private static final String CHANGE_API_PREFIX = "/sn_chg_rest/";
+
+   /** Selects the elements of {@code result} that are not the trailing {@code __meta} element. */
+   static final String CHANGE_API_RECORD_COUNT_PATH =
+      "$.result[?(!(@.__meta && @.length()==1))]";
 
    private static final String META_ELEMENT_PATH =
       "$.result[?(@.__meta && @.length()==1)]";

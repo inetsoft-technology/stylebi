@@ -171,7 +171,8 @@ class AllEndpointsPaginationReplayTest {
                  "their tests: " + stale);
    }
 
-   // OFFSET paging is zero-based for every connector: the first record is at offset 0.
+   // OFFSET paging is zero-based: the first record is at offset 0, except for a spec that counts
+   // from 1 (the ServiceNow Change API), whose later offsets are checked from there.
    // This runs after the full sweep: replaying every OFFSET source with value checks is slower.
    @Test
    @Order(2)
