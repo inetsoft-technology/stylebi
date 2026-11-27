@@ -122,6 +122,77 @@ public final class MemberObject implements Serializable, Cloneable {
    }
 
    /**
+    * Get the text to parse as a date for an as-date level. The date pattern describes the
+    * member caption ("1997", "01/15/26"), while the full caption of a member may be a bracketed
+    * unique-name path ("[1997]", "[26].[01/26].[01/15/26]") that no date pattern can parse.
+    * @return the caption, else the last segment of the full caption path, else the unique
+    * name, null if the member has none of them.
+    */
+   public String getDateText() {
+      if(caption != null) {
+         return caption;
+      }
+
+      if(fullCaption != null) {
+         return lastSegment(fullCaption);
+      }
+
+      return uName == null ? null : lastSegment(uName);
+   }
+
+   /**
+    * Get the last segment of a bracketed unique-name path, with the escaped "]]" restored to
+    * "]". A text that is not a well-formed bracketed path is returned as is.
+    */
+   private static String lastSegment(String path) {
+      int len = path.length();
+      int i = 0;
+      String last = null;
+
+      while(i < len && path.charAt(i) == '[') {
+         StringBuilder seg = new StringBuilder();
+         i++;
+         boolean closed = false;
+
+         while(i < len) {
+            char ch = path.charAt(i++);
+
+            if(ch == ']') {
+               if(i < len && path.charAt(i) == ']') {
+                  seg.append(']');
+                  i++;
+               }
+               else {
+                  closed = true;
+                  break;
+               }
+            }
+            else {
+               seg.append(ch);
+            }
+         }
+
+         if(!closed) {
+            return path;
+         }
+
+         last = seg.toString();
+
+         if(i == len) {
+            return last;
+         }
+
+         if(path.charAt(i) != '.') {
+            return path;
+         }
+
+         i++;
+      }
+
+      return path;
+   }
+
+   /**
     * Get the hierarchy.
     */
    public String getHierarchy() {
