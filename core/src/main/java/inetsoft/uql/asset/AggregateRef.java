@@ -143,6 +143,39 @@ public class AggregateRef extends AbstractDataRef implements AssetObject,
    }
 
    /**
+    * Get the SQL expression for this aggregate. On a database whose SUM and AVG of an
+    * integral column accumulate in the column type and fail on overflow (Bug #82390) the
+    * column is cast to BIGINT first.
+    * @param helper the aggregate helper.
+    * @param dtype the data type of the aggregated column, as resolved from the table.
+    */
+   public String getExpression(AggregateHelper helper, String dtype) {
+      if(!needsBigintCast(helper.getDBType(), formula, dtype)) {
+         return getExpression(helper);
+      }
+
+      String col = helper.getColumnString(ref);
+      return formula.getExpression("CAST(" + col + " AS BIGINT)", null, helper);
+   }
+
+   /**
+    * Check if the operand of a pushed aggregate must be widened to BIGINT. SQL Server, DB2 and
+    * Derby compute SUM (and AVG) of a tinyint, smallint or integer column in that type, so
+    * the sum of values that are valid in the column raises an overflow error. Other databases,
+    * including Informix and Sybase that are not widened here, are unchanged.
+    * @param dbType the helper type, may be <tt>null</tt>.
+    * @param formula the aggregate formula.
+    * @param dtype the data type of the aggregated column.
+    */
+   public static boolean needsBigintCast(String dbType, AggregateFormula formula, String dtype) {
+      return dbType != null && formula != null &&
+         ("sql server".equals(dbType) || "db2".equals(dbType) || "derby".equals(dbType)) &&
+         (formula == AggregateFormula.SUM || formula == AggregateFormula.AVG) &&
+         (XSchema.INTEGER.equals(dtype) || XSchema.SHORT.equals(dtype) ||
+          XSchema.BYTE.equals(dtype));
+   }
+
+   /**
     * Get an unique id for the formula that can be used to identify an
     * aggregate column.
     */

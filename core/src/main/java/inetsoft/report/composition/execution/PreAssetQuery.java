@@ -2041,7 +2041,15 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          }
       };
 
-      return aggregate.getExpression(ahelper);
+      // the type of the column as resolved from the table, the aggregate's own copy of the
+      // reference may not carry the type (Bug #82390)
+      DataRef dref = aggregate.getDataRef();
+
+      if(dref instanceof ColumnRef) {
+         dref = findColumn(dref);
+      }
+
+      return aggregate.getExpression(ahelper, dref == null ? null : dref.getDataType());
    }
 
    /**
