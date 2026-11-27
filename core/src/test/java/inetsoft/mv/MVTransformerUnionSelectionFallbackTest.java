@@ -27,6 +27,8 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.sree.security.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -62,20 +64,22 @@ class MVTransformerUnionSelectionFallbackTest {
       SreeEnv.resetProperty("mv.union.moveUp", false);
    }
 
-   @Test
-   void oneSidedSelectionWithOnlyTheTopMvRunsWithoutMv() throws Exception {
-      Fixture fx = new Fixture();
-      fx.real("T1", 0, "A");
+   @ParameterizedTest
+   @ValueSource(ints = { 0, 1 })
+   void oneSidedSelectionWithOnlyTheTopMvRunsWithoutMv(int col) throws Exception {
+      Fixture fx = new Fixture(col);
+      fx.real("T1", col, "A");
 
       MVExecutionException mex = fx.transformFails(false);
 
       assertFalse(mex.isNeedRecreateMV(), mex.getMessage());
    }
 
-   @Test
-   void oneSidedSelectionOnTheSecondChildRunsWithoutMv() throws Exception {
-      Fixture fx = new Fixture();
-      fx.real("T2", 0, "B");
+   @ParameterizedTest
+   @ValueSource(ints = { 0, 1 })
+   void oneSidedSelectionOnTheSecondChildRunsWithoutMv(int col) throws Exception {
+      Fixture fx = new Fixture(col);
+      fx.real("T2", col, "B");
 
       MVExecutionException mex = fx.transformFails(false);
 
@@ -168,6 +172,10 @@ class MVTransformerUnionSelectionFallbackTest {
       Set<String> subMvColumns = Set.of("Region", "Region2", "State", "State2");
 
       Fixture() {
+         this(0);
+      }
+
+      Fixture(int col) {
          TableAssembly t1 = bound("T1", "Region", "State");
          TableAssembly t2 = bound("T2", "Region2", "State2");
          TableAssemblyOperator op = new TableAssemblyOperator(
@@ -180,7 +188,7 @@ class MVTransformerUnionSelectionFallbackTest {
          for(String t : new String[] { "T1", "T2" }) {
             SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "List_" + t);
             list.setTableName(t);
-            list.setDataRef(column("T1".equals(t) ? "Region" : "Region2"));
+            list.setDataRef(column(("T1".equals(t) ? "Region" : "Region2").replace("Region", col == 0 ? "Region" : "State")));
             vs.addAssembly(list);
          }
 
