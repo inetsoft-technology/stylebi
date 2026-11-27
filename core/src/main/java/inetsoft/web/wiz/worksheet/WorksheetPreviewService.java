@@ -27,6 +27,7 @@ import inetsoft.report.filter.ColumnMapFilter;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.internal.table.CancellableTableLens;
+import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.CoreTool;
 import inetsoft.util.TimedQueue;
@@ -196,6 +197,15 @@ public class WorksheetPreviewService {
          TableLens l = lens.get();
 
          if(l != null && AssetDataCache.isCancelled(l)) {
+            // a row-fetch failure also leaves the lens cancelled; report its cause, a user
+            // cancel has none
+            Exception loadException = AssetDataCache.getLoadException(l);
+
+            if(loadException != null) {
+               throw new PairingException("Failed to execute worksheet query for '" + tableName
+                  + "': " + XNodeTableLens.getRootCauseMessage(loadException), loadException);
+            }
+
             throw new PairingException("Preview of worksheet table '" + tableName
                + "' was cancelled before it finished (the query was stopped, e.g. the worksheet"
                + " was closed or loading was cancelled), so the rows are incomplete. Retry.");
