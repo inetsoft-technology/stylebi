@@ -44,6 +44,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
 
 import java.security.Principal;
 import java.util.List;
@@ -626,6 +627,111 @@ class SheetOpenServiceSavedSheetTest {
    private SheetOpenService.OpenedSheet attachWorksheet() throws Exception {
       return service.openSavedSheet("tok-acting", agent(), SheetType.WORKSHEET, "Sales/WS", null,
                                     false);
+   }
+
+   @Test
+   void aCleanWorksheetWithAPendingRenameIsReloadedFromStorageInsteadOfAttached()
+      throws Exception
+   {
+      // Bug #82106: a data source move rewrote the stored worksheet and only parked the rename
+      // on the open runtime, which still names the old data source.
+      RuntimeWorksheet tab = openWorksheet("ws-tab", "Sales/WS", mock(Worksheet.class));
+      when(worksheetService.needRenameDep("ws-tab")).thenReturn(true);
+
+      SheetOpenService.OpenedSheet opened = attachWorksheet();
+
+      verify(worksheetService).closeWorksheet("ws-tab", tab.getUser());
+      verify(worksheetService).clearRenameDep("ws-tab");
+      verify(worksheetService).openWorksheet(any(AssetEntry.class), any(Principal.class));
+      assertEquals("tok-ws-new", opened.session().sessionToken());
+   }
+
+   @Test
+   void aWorksheetWithAPendingRenameAndUnsavedEditsIsKeptAndTheCallerIsTold() throws Exception {
+      RuntimeWorksheet tab = openWorksheet("ws-tab", "Sales/WS", mock(Worksheet.class));
+      when(tab.getCurrent()).thenReturn(3);
+      when(tab.getSavePoint()).thenReturn(1);
+      when(worksheetService.needRenameDep("ws-tab")).thenReturn(true);
+
+      SheetOpenService.OpenedSheet opened = attachWorksheet();
+
+      verify(worksheetService, never()).closeWorksheet(anyString(), any());
+      verify(worksheetService, never()).openWorksheet(any(AssetEntry.class), any(Principal.class));
+      assertEquals("tok-ws-tab", opened.session().sessionToken());
+      assertEquals(1, opened.warnings().size());
+      assertTrue(opened.warnings().get(0).contains("pending rename"), opened.warnings().toString());
+   }
+
+   @Test
+   void aWorksheetWithAPendingRenameThatOtherSessionsUseIsKept() throws Exception {
+      openWorksheet("ws-tab", "Sales/WS", mock(Worksheet.class));
+      when(worksheetService.needRenameDep("ws-tab")).thenReturn(true);
+      when(sheetSessions.findAllOnRuntime("ws-tab"))
+         .thenReturn(List.of(session("tok-other", "ws-tab", SheetType.WORKSHEET)));
+
+      SheetOpenService.OpenedSheet opened = attachWorksheet();
+
+      verify(worksheetService, never()).closeWorksheet(anyString(), any());
+      assertEquals("tok-ws-tab", opened.session().sessionToken());
+      assertEquals(1, opened.warnings().size());
+   }
+
+   @Test
+   void aWorksheetWithoutAPendingRenameIsStillAttached() throws Exception {
+      openWorksheet("ws-tab", "Sales/WS", mock(Worksheet.class));
+
+      assertEquals("tok-ws-tab", attachWorksheet().session().sessionToken());
+      verify(worksheetService, never()).closeWorksheet(anyString(), any());
+   }
+
+   @Test
+   void aViewsheetWithAPendingRenameIsReloadedInPlaceBeforeAttaching() throws Exception {
+      RuntimeViewsheet tab = openViewsheet("vs-tab", "Sales/Dashboard", 5L);
+      when(viewsheetService.getRuntimeViewsheets(same(browser)))
+         .thenReturn(new RuntimeViewsheet[] { tab });
+      when(sheetSessions.findAllOnRuntime("vs-tab")).thenReturn(List.of());
+      when(sheetSessions.open(eq("vs-tab"), eq(OWNER), eq(SheetType.VIEWSHEET), any(), any(),
+                              isNull()))
+         .thenReturn(session("tok-vs-tab", "vs-tab", SheetType.VIEWSHEET));
+      when(viewsheetService.needRenameDep("vs-tab")).thenReturn(true);
+
+      try(MockedStatic<StaleViewsheetReloader> reloader =
+             mockStatic(StaleViewsheetReloader.class, CALLS_REAL_METHODS))
+      {
+         reloader.when(() -> StaleViewsheetReloader.reload(any(RuntimeViewsheet.class), any()))
+            .thenReturn(true);
+
+         JoinSession opened = service.openSavedSheet(
+            "tok-acting", agent(), SheetType.VIEWSHEET, "Sales/Dashboard", null, false).session();
+
+         assertEquals("tok-vs-tab", opened.sessionToken());
+         reloader.verify(() -> StaleViewsheetReloader.reload(same(tab), any()));
+      }
+
+      verify(viewsheetService).clearRenameDep("vs-tab");
+      verify(viewsheetService, never()).openViewsheet(any(AssetEntry.class), any(Principal.class),
+                                                      anyBoolean());
+   }
+
+   @Test
+   void aViewsheetWithAPendingRenameAndUnsavedEditsIsKeptAndTheCallerIsTold() throws Exception {
+      RuntimeViewsheet tab = openViewsheet("vs-tab", "Sales/Dashboard", 5L);
+      when(tab.getCurrent()).thenReturn(2);
+      when(tab.getSavePoint()).thenReturn(0);
+      when(viewsheetService.getRuntimeViewsheets(same(browser)))
+         .thenReturn(new RuntimeViewsheet[] { tab });
+      when(sheetSessions.findAllOnRuntime("vs-tab")).thenReturn(List.of());
+      when(sheetSessions.open(eq("vs-tab"), eq(OWNER), eq(SheetType.VIEWSHEET), any(), any(),
+                              isNull()))
+         .thenReturn(session("tok-vs-tab", "vs-tab", SheetType.VIEWSHEET));
+      when(viewsheetService.needRenameDep("vs-tab")).thenReturn(true);
+
+      SheetOpenService.OpenedSheet opened = service.openSavedSheet(
+         "tok-acting", agent(), SheetType.VIEWSHEET, "Sales/Dashboard", null, false);
+
+      verify(viewsheetService, never()).clearRenameDep(anyString());
+      assertEquals(1, opened.warnings().size());
+      assertTrue(opened.warnings().get(0).contains("pending rename"), opened.warnings().toString());
    }
 
    @Test
