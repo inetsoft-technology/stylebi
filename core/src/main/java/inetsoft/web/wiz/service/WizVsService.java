@@ -3685,10 +3685,11 @@ public class WizVsService {
     * comparison when one is in effect, every highlight, and a plain table's visible columns.
     *
     * <p>Called after the endpoint's LAST change and outside {@link #executeAndExtract}, which also
-    * serves filter controls and validation whose results are discarded. Best-effort: any failure
-    * leaves the field null, sets {@code assemblyStateUnavailable} to TRUE (so the caller can tell a
-    * failed read from an endpoint that never fills the state) and is logged at debug; it never fails
-    * or rolls back a mutation that already succeeded. A read that completes clears that flag.
+    * serves filter controls and validation whose results are discarded. Best-effort: when no state
+    * is produced for any reason (an exception, a missing runtime, a missing or null assembly) the
+    * field is left null and {@code assemblyStateUnavailable} is set to TRUE, so the caller can tell
+    * this from an endpoint that never fills the state; failures are logged at debug and never fail
+    * or roll back a mutation that already succeeded. Only a produced state leaves that flag absent.
     */
    public void fillAssemblyState(RuntimeViewsheet rvs, VSAssembly assembly, Principal user,
                                  CreateViewsheetResult result)
@@ -3698,8 +3699,9 @@ public class WizVsService {
       }
 
       try {
-         result.setAssemblyState(buildAssemblyState(rvs, assembly, user));
-         result.setAssemblyStateUnavailable(null);
+         CreateViewsheetResult.AssemblyState state = buildAssemblyState(rvs, assembly, user);
+         result.setAssemblyState(state);
+         result.setAssemblyStateUnavailable(state == null ? Boolean.TRUE : null);
       }
       catch(Exception e) {
          result.setAssemblyState(null);

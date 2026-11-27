@@ -231,10 +231,11 @@ public class CreateViewsheetResult {
     */
    private AssemblyState assemblyState;
    /**
-    * TRUE only when this endpoint tried to fill {@code assemblyState} and the read failed, so
-    * {@code assemblyState} is absent because it is unknown, not because the endpoint never fills it.
-    * Absent otherwise (including on a successful fill). The wiz side treats TRUE as "assemblyState is
-    * null for this response" and drops its previous state instead of keeping a stale one.
+    * TRUE when this endpoint tried to fill {@code assemblyState} and produced no state for any reason
+    * (an exception, a missing runtime, a missing or null assembly), so {@code assemblyState} is absent
+    * because it is unknown, not because the endpoint never fills it. Absent when a state was produced
+    * or the endpoint never fills one. The wiz side treats TRUE as "assemblyState is null for this
+    * response" and drops its previous state instead of keeping a stale one.
     */
    private Boolean assemblyStateUnavailable;
 

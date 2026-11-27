@@ -263,12 +263,49 @@ class WizVsServiceFillAssemblyStateTest {
    }
 
    @Test
-   void aMissingAssemblyOrResultIsIgnored() {
+   void aNullAssemblyIsMarkedUnavailable() {
       CreateViewsheetResult result = new CreateViewsheetResult();
 
       service.fillAssemblyState(rvs, null, null, result);
 
       assertNull(result.getAssemblyState());
+      assertEquals(Boolean.TRUE, result.getAssemblyStateUnavailable());
+   }
+
+   @Test
+   void aNullRuntimeIsMarkedUnavailable() {
+      CreateViewsheetResult result = new CreateViewsheetResult();
+
+      service.fillAssemblyState((RuntimeViewsheet) null, AssemblyStateFixtures.chart(vs, "c1"), null, result);
+
+      assertNull(result.getAssemblyState());
+      assertEquals(Boolean.TRUE, result.getAssemblyStateUnavailable());
+   }
+
+   @Test
+   void byNameWithAnAssemblyThatIsNotFoundIsMarkedUnavailable() {
+      CreateViewsheetResult result = new CreateViewsheetResult();
+
+      assertDoesNotThrow(() -> service.fillAssemblyState("rt-1", "missing", (Principal) null, result));
+
+      assertNull(result.getAssemblyState());
+      assertEquals(Boolean.TRUE, result.getAssemblyStateUnavailable());
+      assertFalse(new ObjectMapper().valueToTree(result).has("assemblyState"));
+   }
+
+   @Test
+   void byNameWithARuntimeThatIsNotFoundIsMarkedUnavailable() throws Exception {
+      when(viewsheetService.getViewsheet("none", null)).thenReturn(null);
+      CreateViewsheetResult result = new CreateViewsheetResult();
+
+      service.fillAssemblyState("none", "chart1", (Principal) null, result);
+
+      assertNull(result.getAssemblyState());
+      assertEquals(Boolean.TRUE, result.getAssemblyStateUnavailable());
+   }
+
+   @Test
+   void aMissingResultIsIgnored() {
       assertDoesNotThrow(() -> service.fillAssemblyState(rvs, AssemblyStateFixtures.chart(vs, "c1"), null, null));
    }
 }
