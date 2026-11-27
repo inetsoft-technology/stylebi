@@ -220,6 +220,40 @@ class LayoutToolTest {
 
    private static final char BS_CHAR = (char) 92;
 
+   // escapeOptionColName (#82487): the text is the content of a single quoted script literal, that
+   // the option parser reads again. Three backslashes + quote and two backslashes + c reach the
+   // option parser as \' and \c; nothing else is doubled.
+   @ParameterizedTest
+   @ValueSource(strings = { ",", "\"", "(", ")" })
+   void escapeOptionColNameEscapesEachSpecialCharacterTwice(String special) {
+      assertEquals("a" + BS + BS + special + "b", LayoutTool.escapeOptionColName("a" + special + "b"));
+   }
+
+   @Test
+   void escapeOptionColNameEscapesAnApostropheForTheLiteralAndTheOptions() {
+      assertEquals("O" + BS + BS + BS + "'Brien", LayoutTool.escapeOptionColName("O'Brien"));
+   }
+
+   @Test
+   void escapeOptionColNameKeepsNestedParenthesesAndEscapesUnpairedOnes() {
+      assertEquals("Year(Date)", LayoutTool.escapeOptionColName("Year(Date)"));
+      assertEquals("a(b)c", LayoutTool.escapeOptionColName("a(b)c"));
+      assertEquals("x" + BS + BS + ")y" + BS + BS + "(z",
+                   LayoutTool.escapeOptionColName("x)y(z"));
+      assertEquals(BS + BS + "(x", LayoutTool.escapeOptionColName("(x"));
+   }
+
+   @Test
+   void escapeOptionColNameEscapesTheOtherMarkersLikeEscapeColName() throws Exception {
+      for(String name : new String[] { "a?b", "a@b", "a{b}", "a=b;c&d", "a:b", "[x", "100%",
+                                       "a|b", "plain", "a b", "", "年度" })
+      {
+         assertEquals(escapeColName(name), LayoutTool.escapeOptionColName(name), name);
+      }
+
+      assertNull(LayoutTool.escapeOptionColName(null));
+   }
+
    private static GroupRef group(String name) {
       ColumnRef col = new ColumnRef(new AttributeRef(name));
       col.setDataType(XSchema.STRING);

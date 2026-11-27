@@ -1404,6 +1404,8 @@ public class LayoutTool {
       String exp = null;
       String opt = "";
       String name = escapeColName(BindingTool.getPureField(fields[idx]).getName());
+      // the column name for the field option of toList(), see escapeOptionColName()
+      String optName = escapeOptionColName(BindingTool.getPureField(fields[idx]).getName());
       String group = name;
 
       // handle topN and sortByValue
@@ -1487,11 +1489,11 @@ public class LayoutTool {
 
       if(sorton != null) {
          FormulaStorage fstore = parseFormula(sorton);
-         opt += ",field=" + name;
-         opt += ",sorton=" + fstore.formula + "(" + trimFormula(sorton);
+         opt += ",field=" + optName;
+         opt += ",sorton=" + fstore.formula + "(" + escapeOptionColName(trimFormula(sorton));
 
          if(fstore.secondf != null) {
-            opt += "," + fstore.secondf;
+            opt += "," + escapeOptionColName(fstore.secondf);
          }
          else if(fstore.n != null) {
             opt += "," + fstore.n;
@@ -1512,13 +1514,13 @@ public class LayoutTool {
          FormulaStorage fstore = parseFormula(sorton2);
 
          if(sorton == null) {
-            opt += ",field=" + name;
+            opt += ",field=" + optName;
          }
 
-         opt += ",sorton2=" + fstore.formula + "(" + trimFormula(sorton2);
+         opt += ",sorton2=" + fstore.formula + "(" + escapeOptionColName(trimFormula(sorton2));
 
          if(fstore.secondf != null) {
-            opt += "," + fstore.secondf;
+            opt += "," + escapeOptionColName(fstore.secondf);
          }
          else if(fstore.n != null) {
             opt += "," + fstore.n;
@@ -2463,6 +2465,63 @@ public class LayoutTool {
       }
 
       return Tool.escapeJavascript(buf.toString());
+   }
+
+   /**
+    * Escape a column name for the field, sorton and sorton2 values of the toList() option
+    * string. The option string is a single quoted script literal that FormulaFunctions.Options
+    * parses again, so a name is escaped twice: the script literal must not end early on a
+    * quote, and Options must not take ',', '(', ')', ''' and '"' as syntax. The result
+    * reaches Options as '\x' for those characters, which Options and createSortOn() decode.
+    * Other special markers are escaped as by escapeColName() and only for the script literal.
+    */
+   static String escapeOptionColName(String name) {
+      if(name == null) {
+         return null;
+      }
+
+      StringBuilder sb = new StringBuilder();
+      // a name whose parentheses are properly nested (e.g. Year(Date)) is read correctly by
+      // Options as is, so keep it unchanged
+      boolean nested = isParenNested(name);
+
+      for(int i = 0; i < name.length(); i++) {
+         char c = name.charAt(i);
+
+         if(c == '\'') {
+            // script literal: \\ -> \ and \' -> ', Options sees \'
+            sb.append("\\\\\\'");
+         }
+         else if(c == ',' || c == '"' || (c == '(' || c == ')') && !nested) {
+            // script literal: \\ -> \, Options sees \c
+            sb.append("\\\\").append(c);
+         }
+         else if(isSpecialMarker(c)) {
+            sb.append('\\').append(c);
+         }
+         else {
+            sb.append(c);
+         }
+      }
+
+      return sb.toString();
+   }
+
+   private static boolean isParenNested(String name) {
+      int depth = 0;
+
+      for(int i = 0; i < name.length(); i++) {
+         char c = name.charAt(i);
+
+         if(c == '(') {
+            depth++;
+         }
+         else if(c == ')' && --depth < 0) {
+            return false;
+         }
+      }
+
+      return depth == 0;
    }
 
    private static boolean isSpecialMarker(char c) {
