@@ -1803,6 +1803,21 @@ public class LayoutTool {
    }
 
    /**
+    * Escape the name in a rowValue["..."] read of a group condition. The condition goes through
+    * two unescapes before it runs: the single-quoted literal of the data['...'] reference, and
+    * NamedCellRange.encodeEscaped/decodeEscaped, which turns a backslash and the character after
+    * it into that character. Without the extra escapes a double quote in the name closes the
+    * string of the read, and the condition fails.
+    */
+   private static String escapeNameInCondition(String name) {
+      String str = Tool.escapeJavascript(name);
+      // NamedCellRange
+      str = str.replace("\\", "\\\\");
+      // the single-quoted literal
+      return str.replace("\\", "\\\\").replace("'", "\\'");
+   }
+
+   /**
     * Create a group expression to be used for condition in a qualifier, e.g.
     * toList(orderdate, "date=year")
     */
@@ -1814,7 +1829,7 @@ public class LayoutTool {
       TopNInfo topn = gfield.getTopN();
       // name used in expression (don't use name directly in case it's a
       // builtin name, e.g. Date)
-      String expname = "rowValue[\"" + Tool.escapeJavascript(name) + "\"]";
+      String expname = "rowValue[\"" + escapeNameInCondition(name) + "\"]";
       String opt = "";
       String gval = expname;
       boolean timeSeries = false;
