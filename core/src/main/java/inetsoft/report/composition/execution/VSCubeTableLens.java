@@ -192,6 +192,15 @@ public class VSCubeTableLens extends DefaultTableFilter
     * @return display value.
     */
    public static String getDisplayValue(String str) {
+      // MDX escapes a literal "]" inside a member name as "]]"; undo it (bug #82470)
+      if(str.contains("]]")) {
+         String last = getLastEscapedSegment(str);
+
+         if(last != null) {
+            return last;
+         }
+      }
+
       int idx0 = str.lastIndexOf(".[");
       int idx1 = str.lastIndexOf("]");
 
@@ -214,6 +223,68 @@ public class VSCubeTableLens extends DefaultTableFilter
       }
 
       return str;
+   }
+
+   /**
+    * Parse a unique name of the form <code>[a].[b]...[z]</code> where a literal
+    * "]" inside a segment is written "]]", and return the unescaped last segment.
+    * @return the last segment, or null if the string is not wholly of that form
+    * (callers then keep their legacy behavior).
+    */
+   static String getLastEscapedSegment(String str) {
+      int len = str.length();
+      int i = 0;
+      String last = null;
+
+      while(i < len) {
+         if(str.charAt(i) != '[') {
+            return null;
+         }
+
+         StringBuilder buf = new StringBuilder();
+         i++;
+         boolean closed = false;
+
+         while(i < len) {
+            char c = str.charAt(i);
+
+            if(c == ']') {
+               if(i + 1 < len && str.charAt(i + 1) == ']') {
+                  buf.append(']');
+                  i += 2;
+               }
+               else {
+                  i++;
+                  closed = true;
+                  break;
+               }
+            }
+            else {
+               buf.append(c);
+               i++;
+            }
+         }
+
+         if(!closed) {
+            return null;
+         }
+
+         last = buf.toString();
+
+         if(i < len) {
+            if(str.charAt(i) != '.') {
+               return null;
+            }
+
+            i++;
+
+            if(i >= len) {
+               return null;
+            }
+         }
+      }
+
+      return last;
    }
 
    /**
