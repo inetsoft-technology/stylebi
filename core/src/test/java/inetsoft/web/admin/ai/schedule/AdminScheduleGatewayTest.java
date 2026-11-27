@@ -1427,6 +1427,16 @@ class AdminScheduleGatewayTest {
    // stored password for, so it must not be stored as the password itself
    @Test
    void addScheduleTask_doesNotStorePlaceholderPassword() throws Exception {
+      // an ftp path is looked up in the server locations, none is configured here
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, withSettings().lenient()
+             .defaultAnswer(org.mockito.Answers.CALLS_REAL_METHODS)))
+      {
+         sutil.when(SUtil::getServerLocationsWithPasswords).thenReturn(List.of());
+         assertPlaceholderPasswordIsNotStored();
+      }
+   }
+
+   private void assertPlaceholderPasswordIsNotStored() throws Exception {
       ViewsheetAction.SaveToServerFilePath filePath =
          new ViewsheetAction.SaveToServerFilePath(ViewsheetAction.Format.PDF, "ftp://host/dir");
       filePath.setUsername("ftpuser");
@@ -1951,5 +1961,543 @@ class AdminScheduleGatewayTest {
 
       task.setTimeZone(null);
       assertNull(gateway.getScheduleTaskTimeZone(task.getTaskId(), user));
+   }
+
+   // -------------------------------------------------------------------------
+   // email zip password (Bug #82325, G1)
+   // -------------------------------------------------------------------------
+
+   private static final String ZIP_PW = "PW-PLACEHOLDER-ZIP-1";
+   private static final String ZIP_PW_2 = "PW-PLACEHOLDER-ZIP-2";
+
+   private static EmailZipPasswordSpec zipSpec(int index, String password, Boolean useCredential,
+                                               String secretId)
+   {
+      EmailZipPasswordSpec spec = new EmailZipPasswordSpec();
+      spec.setActionIndex(index);
+      spec.setPassword(password);
+      spec.setUseCredential(useCredential);
+      spec.setSecretId(secretId);
+      return spec;
+   }
+
+   /** The XML trip asks the password encryption whether secrets are kept local. */
+   private static MockedStatic<inetsoft.util.PasswordEncryption> localEncryption() {
+      MockedStatic<inetsoft.util.PasswordEncryption> statics =
+         mockStatic(inetsoft.util.PasswordEncryption.class, withSettings().lenient());
+      statics.when(inetsoft.util.PasswordEncryption::isEncryptForceLocal).thenReturn(false);
+      statics.when(inetsoft.util.PasswordEncryption::isFipsCompliant).thenReturn(false);
+      return statics;
+   }
+
+   private static ViewsheetAction zipped(String... emails) {
+      ViewsheetAction action = sheetAction(emails);
+      action.setEmailZip(true);
+      return action;
+   }
+
+   /** Creates a task through the gateway with the zip entries and returns what it saved. */
+   private inetsoft.sree.schedule.ScheduleTask createWithZip(List<ScheduleAction> actions,
+                                                             List<EmailZipPasswordSpec> specs)
+      throws Exception
+   {
+      ScheduleTaskMetaData meta = new ScheduleTaskMetaData("zipped", callerOwner.convertToKey());
+      // a task without a condition is ignored when it is read back from XML
+      TimeCondition time = new TimeCondition();
+      time.setType(TimeCondition.Type.EVERY_DAY);
+      time.setHour(4);
+      time.setMinute(0);
+      time.setSecond(0);
+      time.setInterval(1);
+      gateway.addScheduleTask(meta, true, false, -1, -1, null, null, null,
+                              List.of(time), actions, null, "http://host:8080/sree/",
+                              null, null, specs, user);
+      org.mockito.ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> captor =
+         org.mockito.ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+      verify(scheduleManager).setScheduleTask(eq(meta.getTaskId()), captor.capture(), eq(user));
+      return captor.getValue();
+   }
+
+   private static inetsoft.sree.schedule.ViewsheetAction vsOf(
+      inetsoft.sree.schedule.ScheduleTask task, int index)
+   {
+      return (inetsoft.sree.schedule.ViewsheetAction) task.getAction(index);
+   }
+
+   private inetsoft.sree.schedule.ScheduleTask updateWithZip(
+      inetsoft.sree.schedule.ScheduleTask stored, List<ScheduleAction> actions,
+      EmailZipPasswordSpec... specs)
+      throws Exception
+   {
+      ScheduleTaskPatch patch = new ScheduleTaskPatch();
+      patch.setActions(actions);
+      patch.setEmailZipPasswords(specs.length == 0 ? null : List.of(specs));
+      return gateway.buildUpdatedTask(stored.getTaskId(), patch, null, user);
+   }
+
+   @Test
+   void addScheduleTask_storesTheEmailZipPasswordAndItSurvivesTheXmlRoundTrip() throws Exception {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<inetsoft.util.PasswordEncryption> encryption = localEncryption())
+      {
+         inetsoft.sree.schedule.ScheduleTask saved = createWithZip(
+            List.of(zipped("a@x.com")), List.of(zipSpec(0, ZIP_PW, null, null)));
+
+         assertTrue(vsOf(saved, 0).isCompressFile());
+         assertEquals(ZIP_PW, vsOf(saved, 0).getPassword());
+         assertFalse(vsOf(saved, 0).isUseCredential());
+         inetsoft.sree.schedule.ViewsheetAction reread =
+            vsOf(ScheduleChangesetApplyService.deepCopy(saved), 0);
+         assertEquals(ZIP_PW, reread.getPassword());
+         // the plan/preview projection only says a password is set
+         String projection = ScheduleXmlProjection.project(saved);
+         assertFalse(projection.contains(ZIP_PW), projection);
+      }
+   }
+
+   @Test
+   void addScheduleTask_storesTheEmailZipSecretIdInCredentialMode() throws Exception {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<inetsoft.util.PasswordEncryption> encryption = localEncryption())
+      {
+         inetsoft.sree.schedule.ScheduleTask saved = createWithZip(
+            List.of(zipped("a@x.com")), List.of(zipSpec(0, null, true, "secret-1")));
+
+         assertTrue(vsOf(saved, 0).isUseCredential());
+         assertEquals("secret-1", vsOf(saved, 0).getSecretId());
+         assertNull(vsOf(saved, 0).getPassword());
+         inetsoft.sree.schedule.ViewsheetAction reread =
+            vsOf(ScheduleChangesetApplyService.deepCopy(saved), 0);
+         assertTrue(reread.isUseCredential());
+         assertEquals("secret-1", reread.getSecretId());
+      }
+   }
+
+   // C2: without entries a create stores no zip password, as before
+   @Test
+   void addScheduleTask_withoutZipEntriesStoresNoZipPassword() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask none = createWithZip(List.of(zipped("a@x.com")), null);
+
+      assertTrue(vsOf(none, 0).isCompressFile());
+      assertNull(vsOf(none, 0).getPassword());
+      assertNull(vsOf(none, 0).getSecretId());
+      assertFalse(vsOf(none, 0).isUseCredential());
+   }
+
+   @Test
+   void addScheduleTask_aClearOrKeepEntryOnACreateStoresNoPassword() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask saved = createWithZip(
+         List.of(zipped("a@x.com"), zipped("b@x.com")),
+         List.of(zipSpec(0, "", null, null), zipSpec(1, Util.PLACEHOLDER_PASSWORD, null, null)));
+
+      assertNull(vsOf(saved, 0).getPassword());
+      assertNull(vsOf(saved, 1).getPassword());
+      assertNull(vsOf(saved, 1).getSecretId());
+   }
+
+   @Test
+   void addScheduleTask_appliesEachEntryToItsOwnActionIndex() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask saved = createWithZip(
+         List.of(sheetAction("a@x.com"), zipped("b@x.com")),
+         List.of(zipSpec(1, ZIP_PW, null, null)));
+
+      assertNull(vsOf(saved, 0).getPassword());
+      assertEquals(ZIP_PW, vsOf(saved, 1).getPassword());
+   }
+
+   @Test
+   void addScheduleTask_refusesAnEntryThatNamesNoViewsheetActionAndNeverEchoesThePassword()
+      throws Exception
+   {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         createWithZip(List.of(zipped("a@x.com")), List.of(zipSpec(4, ZIP_PW, null, null))));
+
+      assertTrue(ex.getMessage().contains("actionIndex 4"), ex.getMessage());
+      assertFalse(ex.getMessage().contains(ZIP_PW));
+      verify(scheduleManager, never()).setScheduleTask(anyString(), any(), any());
+   }
+
+   @Test
+   void checkAddScheduleTaskSavable_buildsTheCandidateWithTheZipPassword() throws Exception {
+      ScheduleTaskMetaData meta = new ScheduleTaskMetaData("zipped", callerOwner.convertToKey());
+      org.mockito.ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> captor =
+         org.mockito.ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+
+      gateway.checkAddScheduleTaskSavable(meta, true, false, -1, -1, null, null, null,
+         Collections.emptyList(), List.of(zipped("a@x.com")), null,
+         List.of(zipSpec(0, ZIP_PW, null, null)), user);
+
+      verify(scheduleManager).checkScheduleTaskSave(anyString(), captor.capture(), eq(user));
+      assertEquals(ZIP_PW, vsOf(captor.getValue(), 0).getPassword());
+      verify(scheduleManager, never()).setScheduleTask(anyString(), any(), any());
+   }
+
+   @Test
+   void buildUpdatedTask_setsANewEmailZipPasswordOverTheStoredOne() throws Exception {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackZippedTask(true);
+
+         inetsoft.sree.schedule.ScheduleTask candidate = updateWithZip(
+            stored, List.of(zipped("b@x.com")), zipSpec(0, ZIP_PW_2, null, null));
+
+         assertEquals(ZIP_PW_2, vsOf(candidate, 0).getPassword());
+         assertFalse(vsOf(candidate, 0).isUseCredential());
+         assertNull(vsOf(candidate, 0).getSecretId());
+         // the stored task is never touched
+         assertEquals("zip-secret", vsOf(stored, 0).getPassword());
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_switchesTheStoredPasswordToASecretId() throws Exception {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackZippedTask(false);
+
+         inetsoft.sree.schedule.ScheduleTask candidate = updateWithZip(
+            stored, List.of(zipped("b@x.com")), zipSpec(0, null, true, "secret-9"));
+
+         assertTrue(vsOf(candidate, 0).isUseCredential());
+         assertEquals("secret-9", vsOf(candidate, 0).getSecretId());
+         assertNull(vsOf(candidate, 0).getPassword());
+      }
+   }
+
+   private void assertABlankEntryClears(boolean storedAsCredential) throws Exception {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackZippedTask(storedAsCredential);
+
+         inetsoft.sree.schedule.ScheduleTask candidate = updateWithZip(
+            stored, List.of(zipped("b@x.com")), zipSpec(0, "", null, null));
+
+         assertTrue(vsOf(candidate, 0).isCompressFile(), "the zip itself stays on");
+         assertNull(vsOf(candidate, 0).getPassword());
+         assertNull(vsOf(candidate, 0).getSecretId());
+         assertFalse(vsOf(candidate, 0).isUseCredential());
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_aBlankEntryClearsTheStoredPassword() throws Exception {
+      assertABlankEntryClears(false);
+   }
+
+   @Test
+   void buildUpdatedTask_aBlankEntryClearsTheStoredSecretId() throws Exception {
+      assertABlankEntryClears(true);
+   }
+
+   @Test
+   void buildUpdatedTask_theMaskedPlaceholderEntryKeepsTheStoredPasswordAndSecret()
+      throws Exception
+   {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackZippedTask(false);
+
+         inetsoft.sree.schedule.ScheduleTask candidate = updateWithZip(
+            stored, List.of(zipped("b@x.com")),
+            zipSpec(0, Util.PLACEHOLDER_PASSWORD, null, null));
+
+         assertEquals("zip-secret", vsOf(candidate, 0).getPassword());
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_aKeepEntryForAnActionWithNoStoredCounterpartStoresNoPassword()
+      throws Exception
+   {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackZippedTask(false);
+
+         inetsoft.sree.schedule.ScheduleTask candidate = updateWithZip(
+            stored, List.of(zipped("a@x.com"), zipped("c@x.com")),
+            zipSpec(1, Util.PLACEHOLDER_PASSWORD, null, null));
+
+         // the stored action at index 1 has no password, whatever empty value it reads back as
+         assertTrue(inetsoft.util.Tool.isEmptyString(vsOf(candidate, 1).getPassword()));
+         assertTrue(inetsoft.util.Tool.isEmptyString(vsOf(candidate, 1).getSecretId()));
+      }
+   }
+
+   // A3 / C2: an update that does not mention the zip keeps the stored one, as #82340 did
+   @Test
+   void buildUpdatedTask_withoutZipEntriesStillKeepsTheStoredPassword() throws Exception {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackZippedTask(false);
+
+         assertEquals("zip-secret",
+            vsOf(updateWithZip(stored, List.of(zipped("b@x.com"))), 0).getPassword());
+         // an entry for another action leaves this one on the stored value
+         inetsoft.sree.schedule.ScheduleTask candidate = updateWithZip(
+            stored, List.of(zipped("b@x.com"), zipped("c@x.com")),
+            zipSpec(1, ZIP_PW_2, null, null));
+         assertEquals("zip-secret", vsOf(candidate, 0).getPassword());
+         assertEquals(ZIP_PW_2, vsOf(candidate, 1).getPassword());
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_refusesAnEntryThatNamesNoViewsheetAction() throws Exception {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller())
+      {
+         inetsoft.sree.schedule.ScheduleTask stored = readBackZippedTask(false);
+         ScheduleTaskPatch patch = new ScheduleTaskPatch();
+         patch.setActions(List.of(new IndividualAssetBackupAction()));
+         patch.setEmailZipPasswords(List.of(zipSpec(0, ZIP_PW, null, null)));
+
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> gateway.buildUpdatedTask(stored.getTaskId(), patch, null, user));
+
+         assertTrue(ex.getMessage().contains("actionIndex 0"), ex.getMessage());
+         assertFalse(ex.getMessage().contains(ZIP_PW));
+      }
+   }
+
+   @Test
+   void getScheduleTaskEmailZipPasswords_reportsPresenceNeverTheValue() throws Exception {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub()) {
+         ViewsheetAction plain = sheetAction("a@x.com");
+         ViewsheetAction withPassword = zipped("b@x.com");
+         ViewsheetAction withSecret = zipped("c@x.com");
+         ViewsheetAction noPassword = zipped("d@x.com");
+         inetsoft.sree.schedule.ScheduleTask task = createWithZip(
+            List.of(plain, withPassword, withSecret, noPassword),
+            List.of(zipSpec(1, ZIP_PW, null, null), zipSpec(2, null, true, "secret-1")));
+         when(repository.getScheduleTask(task.getTaskId())).thenReturn(task);
+         when(repository.checkPermission(user, ResourceType.SCHEDULE_TASK, task.getTaskId(),
+                                         ResourceAction.READ)).thenReturn(true);
+
+         List<EmailZipPasswordView> views =
+            gateway.getScheduleTaskEmailZipPasswords(task.getTaskId(), user);
+
+         assertEquals(List.of(new EmailZipPasswordView(1, true, false, null),
+                              new EmailZipPasswordView(2, false, true, "secret-1")), views);
+         assertFalse(views.toString().contains(ZIP_PW));
+      }
+   }
+
+   @Test
+   void getScheduleTaskEmailZipPasswords_requiresReadPermissionAndIsEmptyWithoutAny()
+      throws Exception
+   {
+      inetsoft.sree.schedule.ScheduleTask task = taskAt("t", "A/B");
+      when(repository.getScheduleTask(task.getTaskId())).thenReturn(task);
+
+      assertThrows(UnauthorizedAccessException.class,
+                   () -> gateway.getScheduleTaskEmailZipPasswords(task.getTaskId(), user));
+
+      when(repository.checkPermission(user, ResourceType.SCHEDULE_TASK, task.getTaskId(),
+                                      ResourceAction.READ)).thenReturn(true);
+      assertTrue(gateway.getScheduleTaskEmailZipPasswords(task.getTaskId(), user).isEmpty());
+   }
+
+   // -------------------------------------------------------------------------
+   // a save-to-disk placeholder password resolved against the server locations (Bug #82325, G2)
+   // -------------------------------------------------------------------------
+
+   private static final String LOC_PW = "PW-PLACEHOLDER-FTP-LOC";
+
+   private static ViewsheetAction saveTo(String path, String username, String password) {
+      ViewsheetAction.SaveToServerFilePath filePath =
+         new ViewsheetAction.SaveToServerFilePath(ViewsheetAction.Format.PDF, path);
+      filePath.setUsername(username);
+      filePath.setPassword(password);
+      ViewsheetAction action = sheetAction();
+      action.setSaveToServerFilePaths(List.of(filePath));
+      return action;
+   }
+
+   private static MockedStatic<SUtil> serverLocations(String locationPath, String username,
+                                                       String password)
+   {
+      MockedStatic<SUtil> sutil = mockStatic(SUtil.class, withSettings().lenient()
+         .defaultAnswer(org.mockito.Answers.CALLS_REAL_METHODS));
+      sutil.when(SUtil::getServerLocationsWithPasswords).thenReturn(List.of(
+         inetsoft.web.admin.schedule.model.ServerLocation.builder()
+            .path(locationPath).label("Finance share")
+            .pathInfoModel(inetsoft.web.admin.schedule.model.ServerPathInfoModel.builder()
+               .path(locationPath).username(username).password(password).ftp(true).build())
+            .build()));
+      return sutil;
+   }
+
+   private inetsoft.sree.schedule.ServerPathInfo pdfPath(inetsoft.sree.schedule.ScheduleTask task) {
+      return vsOf(task, 0).getFilePathInfo(ViewsheetAction.Format.PDF.getTypeValue());
+   }
+
+   @Test
+   void addScheduleTask_aPlaceholderPasswordInsideAServerLocationTakesTheLocationPassword()
+      throws Exception
+   {
+      try(MockedStatic<SUtil> sutil = serverLocations("ftp://host/reports", "ftpuser", LOC_PW)) {
+         ScheduleTaskMetaData meta = new ScheduleTaskMetaData("loc", callerOwner.convertToKey());
+         gateway.addScheduleTask(meta, true, false, -1, -1, null, null, null,
+            Collections.emptyList(),
+            List.of(saveTo("ftp://host/reports/daily", "ftpuser", Util.PLACEHOLDER_PASSWORD)),
+            null, "", user);
+         org.mockito.ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> captor =
+            org.mockito.ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+         verify(scheduleManager).setScheduleTask(anyString(), captor.capture(), eq(user));
+
+         assertEquals(LOC_PW, pdfPath(captor.getValue()).getPassword());
+         assertEquals("ftpuser", pdfPath(captor.getValue()).getUsername());
+      }
+   }
+
+   // C2: outside every location the placeholder is still dropped, never stored as a password
+   @Test
+   void addScheduleTask_aPlaceholderPasswordOutsideEveryServerLocationIsStillDropped()
+      throws Exception
+   {
+      try(MockedStatic<SUtil> sutil = serverLocations("ftp://host/reports", "ftpuser", LOC_PW)) {
+         for(String path : new String[]{"ftp://host/other/daily", "ftp://elsewhere/reports/x"}) {
+            reset(scheduleManager);
+            ScheduleTaskMetaData meta = new ScheduleTaskMetaData("loc", callerOwner.convertToKey());
+            gateway.addScheduleTask(meta, true, false, -1, -1, null, null, null,
+               Collections.emptyList(),
+               List.of(saveTo(path, "ftpuser", Util.PLACEHOLDER_PASSWORD)), null, "", user);
+            org.mockito.ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> captor =
+               org.mockito.ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+            verify(scheduleManager).setScheduleTask(anyString(), captor.capture(), eq(user));
+
+            assertNull(pdfPath(captor.getValue()).getPassword(), path);
+         }
+      }
+   }
+
+   @Test
+   void addScheduleTask_aPlaceholderForAnotherUserOfTheLocationServerIsDropped() throws Exception {
+      try(MockedStatic<SUtil> sutil = serverLocations("ftp://host/reports", "ftpuser", LOC_PW)) {
+         ScheduleTaskMetaData meta = new ScheduleTaskMetaData("loc", callerOwner.convertToKey());
+         gateway.addScheduleTask(meta, true, false, -1, -1, null, null, null,
+            Collections.emptyList(),
+            List.of(saveTo("ftp://host/reports/daily", "someoneelse", Util.PLACEHOLDER_PASSWORD)),
+            null, "", user);
+         org.mockito.ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> captor =
+            org.mockito.ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+         verify(scheduleManager).setScheduleTask(anyString(), captor.capture(), eq(user));
+
+         assertNull(pdfPath(captor.getValue()).getPassword());
+      }
+   }
+
+   // a typed password is never replaced by the location's
+   @Test
+   void addScheduleTask_aTypedPasswordInsideAServerLocationIsKept() throws Exception {
+      try(MockedStatic<SUtil> sutil = serverLocations("ftp://host/reports", "ftpuser", LOC_PW)) {
+         ScheduleTaskMetaData meta = new ScheduleTaskMetaData("loc", callerOwner.convertToKey());
+         gateway.addScheduleTask(meta, true, false, -1, -1, null, null, null,
+            Collections.emptyList(),
+            List.of(saveTo("ftp://host/reports/daily", "ftpuser", "PW-PLACEHOLDER-FTP-1")),
+            null, "", user);
+         org.mockito.ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> captor =
+            org.mockito.ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+         verify(scheduleManager).setScheduleTask(anyString(), captor.capture(), eq(user));
+
+         assertEquals("PW-PLACEHOLDER-FTP-1", pdfPath(captor.getValue()).getPassword());
+      }
+   }
+
+   private inetsoft.sree.schedule.ScheduleTask readBackSaveToTask(String path, String password)
+      throws Exception
+   {
+      return readBackTaskWith(List.of(saveTo(path, "ftpuser", password)));
+   }
+
+   @Test
+   void buildUpdatedTask_aPlaceholderMovedIntoAServerLocationTakesTheLocationPassword()
+      throws Exception
+   {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller();
+          MockedStatic<SUtil> sutil = serverLocations("ftp://host/reports", "ftpuser", LOC_PW))
+      {
+         inetsoft.sree.schedule.ScheduleTask stored =
+            readBackSaveToTask("ftp://host/old", "PW-PLACEHOLDER-FTP-OLD");
+
+         inetsoft.sree.schedule.ScheduleTask candidate = updateWithZip(
+            stored, List.of(saveTo("ftp://host/reports/new", "ftpuser", Util.PLACEHOLDER_PASSWORD)));
+
+         assertEquals(LOC_PW, pdfPath(candidate).getPassword());
+      }
+   }
+
+   // C2: the same-path rule keeps working when no location is involved
+   @Test
+   void buildUpdatedTask_aPlaceholderForTheSamePathKeepsTheStoredPassword() throws Exception {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller();
+          MockedStatic<SUtil> sutil = serverLocations("ftp://host/reports", "ftpuser", LOC_PW))
+      {
+         inetsoft.sree.schedule.ScheduleTask stored =
+            readBackSaveToTask("ftp://host/old", "PW-PLACEHOLDER-FTP-OLD");
+
+         inetsoft.sree.schedule.ScheduleTask candidate = updateWithZip(
+            stored, List.of(saveTo("ftp://host/old", "ftpuser", Util.PLACEHOLDER_PASSWORD)));
+
+         assertEquals("PW-PLACEHOLDER-FTP-OLD", pdfPath(candidate).getPassword());
+      }
+   }
+
+   // the portal order: the location's password wins over the stored one for the same path
+   @Test
+   void buildUpdatedTask_theLocationPasswordWinsOverTheStoredOneForAPathInsideTheLocation()
+      throws Exception
+   {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller();
+          MockedStatic<SUtil> sutil = serverLocations("ftp://host/reports", "ftpuser", LOC_PW))
+      {
+         inetsoft.sree.schedule.ScheduleTask stored =
+            readBackSaveToTask("ftp://host/reports/daily", "PW-PLACEHOLDER-FTP-OLD");
+
+         inetsoft.sree.schedule.ScheduleTask candidate = updateWithZip(
+            stored,
+            List.of(saveTo("ftp://host/reports/daily", "ftpuser", Util.PLACEHOLDER_PASSWORD)));
+
+         assertEquals(LOC_PW, pdfPath(candidate).getPassword());
+      }
+   }
+
+   @Test
+   void buildUpdatedTask_aPlaceholderOutsideEveryLocationWithNoStoredPathIsDropped()
+      throws Exception
+   {
+      try(MockedStatic<inetsoft.util.Tool> toolStatics = toolStub();
+          MockedStatic<OrganizationManager> ignored = siteAdminCaller();
+          MockedStatic<SUtil> sutil = serverLocations("ftp://host/reports", "ftpuser", LOC_PW))
+      {
+         inetsoft.sree.schedule.ScheduleTask stored =
+            readBackSaveToTask("ftp://host/old", "PW-PLACEHOLDER-FTP-OLD");
+
+         inetsoft.sree.schedule.ScheduleTask candidate = updateWithZip(
+            stored, List.of(saveTo("ftp://host/elsewhere", "ftpuser", Util.PLACEHOLDER_PASSWORD)));
+
+         assertNull(pdfPath(candidate).getPassword());
+      }
+   }
+
+   @Test
+   void addScheduleTask_refusesAnEntryWithoutAnActionIndex() throws Exception {
+      EmailZipPasswordSpec entry = zipSpec(0, ZIP_PW, null, null);
+      entry.setActionIndex(null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         createWithZip(List.of(zipped("a@x.com")), List.of(entry)));
+
+      assertTrue(ex.getMessage().contains("actionIndex is required"), ex.getMessage());
+      assertFalse(ex.getMessage().contains(ZIP_PW));
    }
 }

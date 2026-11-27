@@ -46,6 +46,14 @@ public class ScheduleTaskView {
    public ScheduleTaskView(String taskId, String path, String timeZone, ScheduleTask task,
                            List<Object> conditions, List<Object> actions)
    {
+      this(taskId, path, timeZone, task, conditions, actions, null);
+   }
+
+   public ScheduleTaskView(String taskId, String path, String timeZone, ScheduleTask task,
+                           List<Object> conditions, List<Object> actions,
+                           List<EmailZipPasswordView> emailZipPasswords)
+   {
+      this.emailZipPasswords = emailZipPasswords == null ? List.of() : emailZipPasswords;
       this.timeZone = timeZone;
       this.taskId = taskId;
       this.path = path;
@@ -83,6 +91,15 @@ public class ScheduleTaskView {
       return actions;
    }
 
+   /**
+    * Which viewsheet actions have an email zip password or secret id stored. The password value
+    * is never part of the read. Not on the public {@link ScheduleTask} DTO.
+    */
+   public List<EmailZipPasswordView> getEmailZipPasswords() {
+      return emailZipPasswords;
+   }
+
+   private final List<EmailZipPasswordView> emailZipPasswords;
    private final String taskId;
    private final String path;
    private final String timeZone;

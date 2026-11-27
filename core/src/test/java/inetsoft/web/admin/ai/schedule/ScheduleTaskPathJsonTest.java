@@ -95,4 +95,47 @@ class ScheduleTaskPathJsonTest {
 
       assertFalse(json.get("tasks").get(0).has("timeZone"));
    }
+
+   // Bug #82325: the zip password state is on the view, as presence only
+   @Test
+   void taskViewSerializesEmailZipPasswordsWithoutAnyPasswordKey() throws Exception {
+      ScheduleTaskView view = new ScheduleTaskView("id", "/", null, new ScheduleTask(),
+         Collections.emptyList(), Collections.emptyList(),
+         java.util.List.of(new EmailZipPasswordView(0, true, false, null),
+                           new EmailZipPasswordView(2, false, true, "secret-1")));
+
+      String text = mapper.writeValueAsString(view);
+      JsonNode json = mapper.readTree(text);
+
+      JsonNode first = json.get("emailZipPasswords").get(0);
+      assertEquals(0, first.get("actionIndex").asInt());
+      assertTrue(first.get("passwordSet").asBoolean());
+      assertFalse(first.get("useCredential").asBoolean());
+      JsonNode second = json.get("emailZipPasswords").get(1);
+      assertEquals("secret-1", second.get("secretId").asText());
+      assertTrue(second.get("useCredential").asBoolean());
+      assertFalse(text.toLowerCase().contains("\"password\""), text);
+   }
+
+   @Test
+   void taskViewWithoutZipPasswordsSerializesAnEmptyList() throws Exception {
+      ScheduleTaskView view = new ScheduleTaskView("id", "/", new ScheduleTask(),
+                                                   Collections.emptyList(),
+                                                   Collections.emptyList());
+
+      assertEquals(0, mapper.readTree(mapper.writeValueAsString(view))
+                      .get("emailZipPasswords").size());
+   }
+
+   @Test
+   void zipPasswordSpecDeserializesFromTheWireAndNeverReprintsTheValue() throws Exception {
+      String wire = "{\"actionIndex\":1,\"password\":\"PW-PLACEHOLDER-ZIP-1\"," +
+         "\"useCredential\":false,\"secretId\":null,\"unknown\":1}";
+
+      EmailZipPasswordSpec spec = mapper.readValue(wire, EmailZipPasswordSpec.class);
+
+      assertEquals(Integer.valueOf(1), spec.getActionIndex());
+      assertEquals("PW-PLACEHOLDER-ZIP-1", spec.getPassword());
+      assertFalse(spec.toString().contains("PW-PLACEHOLDER-ZIP-1"));
+   }
 }
