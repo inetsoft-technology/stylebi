@@ -5776,7 +5776,9 @@ public final class VSUtil {
       boolean needed = false;
 
       for(Assembly assembly : vs.getAssemblies(true, false)) {
-         if(assembly instanceof TabVSAssembly tab && ((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).hasBottomTabsOverride()) {
+         if(assembly instanceof TabVSAssembly tab &&
+            ((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).hasBottomTabsOverride())
+         {
             needed = true;
             break;
          }
@@ -5787,6 +5789,12 @@ public final class VSUtil {
       }
 
       Viewsheet copy = vs.clone();
+
+      // Viewsheet.clone() returns null on failure, never fail the save for it
+      if(copy == null) {
+         return vs;
+      }
+
       clearRuntimeBottomTabs(copy);
       return copy;
    }

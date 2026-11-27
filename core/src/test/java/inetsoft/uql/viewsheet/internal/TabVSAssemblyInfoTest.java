@@ -551,7 +551,8 @@ class TabVSAssemblyInfoTest {
 
    @Test
    void setBottomTabsValueWithSameValueKeepsRuntimeValue() {
-      // documents why clearBottomTabsRuntimeValue is needed
+      // guards the reason clearBottomTabsRuntimeValue exists: re-setting the same design
+      // value does not drop the runtime value
       TabVSAssemblyInfo info = new TabVSAssemblyInfo();
       info.setBottomTabsValue(false);
       info.setBottomTabs(true);
