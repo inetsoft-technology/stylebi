@@ -26,6 +26,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.viewsheet.command.MessageCommand;
@@ -206,8 +207,10 @@ public class TouchAssetService {
 
          try {
 //            XTableStorageService.setEnabled(false);
+            // don't persist the runtime bottomTabs value of tabs, Bug #82256
             byte[] data = AbstractIndexedStorage.encodeXMLSerializable(
-               value, entry.toIdentifier());
+               value instanceof Viewsheet vs ? VSUtil.forDesignPersist(vs) : value,
+               entry.toIdentifier());
 
             if(data == null) {
                return;

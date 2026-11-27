@@ -519,4 +519,45 @@ class TabVSAssemblyInfoTest {
       when(child.getPixelSize()).thenReturn(size);
       return child;
    }
+
+   @Test
+   void clearBottomTabsRuntimeValueDropsScriptValue() {
+      TabVSAssemblyInfo info = new TabVSAssemblyInfo();
+      info.setBottomTabsValue(false);
+      info.setBottomTabs(true);
+      info.markPositionNeedsSync();
+      assertTrue(info.isBottomTabs());
+      assertTrue(info.hasBottomTabsOverride());
+
+      info.clearBottomTabsRuntimeValue();
+
+      assertFalse(info.isBottomTabs());
+      assertFalse(info.isPositionNeedsSync());
+      assertFalse(info.hasBottomTabsOverride());
+   }
+
+   @Test
+   void clearBottomTabsRuntimeValueKeepsDesignValue() {
+      TabVSAssemblyInfo info = new TabVSAssemblyInfo();
+      info.setBottomTabsValue(true);
+      info.setBottomTabs(false);
+      assertTrue(info.hasBottomTabsOverride());
+
+      info.clearBottomTabsRuntimeValue();
+
+      assertTrue(info.isBottomTabs());
+      assertTrue(info.getBottomTabsValue());
+   }
+
+   @Test
+   void setBottomTabsValueWithSameValueKeepsRuntimeValue() {
+      // documents why clearBottomTabsRuntimeValue is needed
+      TabVSAssemblyInfo info = new TabVSAssemblyInfo();
+      info.setBottomTabsValue(false);
+      info.setBottomTabs(true);
+
+      info.setBottomTabsValue(info.getBottomTabsValue());
+
+      assertTrue(info.isBottomTabs());
+   }
 }

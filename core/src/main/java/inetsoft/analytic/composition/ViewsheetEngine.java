@@ -84,6 +84,10 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
          if(sheet instanceof VSSnapshot snapshot) {
             sheet = snapshot.createViewsheet(engine, user);
          }
+         else if(sheet instanceof Viewsheet loaded) {
+            // heal assets saved with a stale runtime bottomTabs value, Bug #82256
+            VSUtil.clearRuntimeBottomTabs(loaded);
+         }
 
          Viewsheet viewsheet = (Viewsheet) sheet;
          // clear layout position and size of the viewsheet when open it.
