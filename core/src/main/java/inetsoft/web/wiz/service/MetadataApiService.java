@@ -1261,9 +1261,9 @@ public class MetadataApiService {
          parsed.removeAllJoins();
          boolean[] degraded = { false };
          XSelection selection = parsed.getSelection();
-         walkSqlCondition(effectiveSqlRoot(parsed.getWhere()), null, "pre", 0, selection,
+         walkSqlCondition(effectiveSqlRoot(parsed.getWhere()), null, null, "pre", 0, selection,
                           degraded, found);
-         walkSqlCondition(effectiveSqlRoot(parsed.getHaving()), null, "post", 0, selection,
+         walkSqlCondition(effectiveSqlRoot(parsed.getHaving()), null, null, "post", 0, selection,
                           degraded, found);
          out.addAll(found);
          return degraded[0] ? "partial" : "full";
@@ -1279,9 +1279,12 @@ public class MetadataApiService {
     *                 leaf order (null for the first element of the phase). The first leaf of a
     *                 nested group carries the junction joining the group to its predecessor;
     *                 later leaves carry the group's own relation.
+    * @param junctionLevel the depth of the set {@code junction} belongs to (null with no junction).
+    *                 A set walked at {@code depth} gives its own relation that depth, so the first
+    *                 leaf of a nested group keeps the outer set's depth.
     */
-   private static void walkSqlCondition(XFilterNode node, String junction, String phase,
-                                        int depth, XSelection selection,
+   private static void walkSqlCondition(XFilterNode node, String junction, Integer junctionLevel,
+                                        String phase, int depth, XSelection selection,
                                         boolean[] degraded,
                                         List<WorksheetStructure.ConditionLeaf> out)
    {
@@ -1296,7 +1299,7 @@ public class MetadataApiService {
          // a NOT group is not flattened (no De Morgan); neither is a set that is neither AND
          // nor OR (e.g. a truth test)
          if(set.isIsNot() || (!and && !XSet.OR.equalsIgnoreCase(relation))) {
-            addSqlLeaf(textOnlySqlLeaf(node, phase), junction, depth, out);
+            addSqlLeaf(textOnlySqlLeaf(node, phase), junction, junctionLevel, depth, out);
             degraded[0] = true;
             return;
          }
@@ -1305,7 +1308,8 @@ public class MetadataApiService {
          List<XFilterNode> children = effectiveSqlChildren(set);
 
          for(int i = 0; i < children.size(); i++) {
-            walkSqlCondition(children.get(i), i == 0 ? junction : own, phase, depth + 1,
+            walkSqlCondition(children.get(i), i == 0 ? junction : own,
+                             i == 0 ? junctionLevel : Integer.valueOf(depth), phase, depth + 1,
                              selection, degraded, out);
          }
 
@@ -1318,7 +1322,7 @@ public class MetadataApiService {
          degraded[0] = true;
       }
 
-      addSqlLeaf(leaf, junction, depth, out);
+      addSqlLeaf(leaf, junction, junctionLevel, depth, out);
    }
 
    /**
@@ -1375,10 +1379,11 @@ public class MetadataApiService {
    }
 
    private static void addSqlLeaf(WorksheetStructure.ConditionLeaf leaf, String junction,
-                                  int depth,
+                                  Integer junctionLevel, int depth,
                                   List<WorksheetStructure.ConditionLeaf> out)
    {
       leaf.setJunction(junction);
+      leaf.setJunctionLevel(junction == null ? null : junctionLevel);
 
       // the WHERE/HAVING root set is depth 1; anything deeper sits in a nested group
       if(depth > 1) {
@@ -1682,6 +1687,9 @@ public class MetadataApiService {
          // the first leaf in a phase has none.
          if(i > 0 && list.isJunctionOperator(i - 1)) {
             leaf.setJunction(list.getJunction(i - 1) == JunctionOperator.OR ? "OR" : "AND");
+            // the junction's own level decides precedence, not the items' levels
+            // (ConditionListHandler splits on the junctions of the current level)
+            leaf.setJunctionLevel(list.getJunctionOperator(i - 1).getLevel());
          }
 
          if(xCondition instanceof Condition condition) {

@@ -130,6 +130,12 @@ public class WorksheetStructure {
       public String getText() { return text; } public void setText(String v) { this.text = v; }
       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
       public Boolean getGrouped() { return grouped; } public void setGrouped(Boolean v) { this.grouped = v; }
+      // the level of the junction PRECEDING this leaf (null for the first leaf of a phase): StyleBI
+      // splits a condition list on the OR junctions of a level, then its AND junctions, and parses a
+      // run of deeper junctions as one group (ConditionListHandler)
+      private Integer junctionLevel;
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public Integer getJunctionLevel() { return junctionLevel; } public void setJunctionLevel(Integer v) { this.junctionLevel = v; }
    }
 
    public static class AggregateSummary {
