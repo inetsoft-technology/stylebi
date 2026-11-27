@@ -202,6 +202,11 @@ final class AssemblyStateReader {
    /**
     * One condition leaf as a clause string, in the field order of the highlight read's clauses:
     * junction, negation, field, operator (inclusive bound folded in), values.
+    *
+    * <p>Clauses are flattened (display only): the leaf's junction level is not rendered, so a
+    * nested group such as {@code (a AND b) OR c} reads as {@code a}, {@code AND b}, {@code OR c}.
+    * Rebuilding the parentheses would need the precedence of the whole list, not one leaf, and the
+    * highlight clauses feed no data logic, only a description of the highlight.
     */
    static String formatClause(WorksheetStructure.ConditionLeaf leaf) {
       StringBuilder out = new StringBuilder();

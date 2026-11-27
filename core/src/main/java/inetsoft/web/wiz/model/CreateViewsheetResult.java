@@ -378,7 +378,9 @@ public class CreateViewsheetResult {
 
    /**
     * One highlight: {@code target} is the field or cell column it is keyed to (null for a chart-level
-    * or output group), {@code clauses} its conditions in reading order.
+    * or output group), {@code clauses} its conditions in reading order. The clauses are flattened
+    * for display: nesting (junction levels) is not rendered, so they describe the highlight rather
+    * than restate its exact grouping.
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record AssemblyHighlight(String name, String target, List<String> clauses) {
