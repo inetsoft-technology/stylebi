@@ -41,6 +41,7 @@ import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.PrintLayoutResolver;
 import inetsoft.util.*;
 import inetsoft.util.graphics.SVGSupport;
+import inetsoft.util.script.ScriptException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -228,6 +229,12 @@ public class PDFVSExporter extends AbstractVSExporter {
       catch(Exception ex) {
          // fail on a table that failed to load, as the canvas path does (#78518)
          TableLoadException.rethrow(ex);
+
+         // say so on the document, as for a failed component script (#82120)
+         if(ex instanceof ScriptException) {
+            layoutBox.skipExportDynamicValueError(viewsheet.getName(), (ScriptException) ex);
+         }
+
          LOG.error("Failed to execute dynamic values", ex);
       }
 

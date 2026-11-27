@@ -178,6 +178,10 @@ public abstract class AbstractVSExporter implements VSExporter {
          throws Exception
    {
       Assembly[] assemblies = vsheet.getAssemblies(false);
+      // a failing dynamic value must not skip the dynamic values of the assemblies after it. In
+      // an export scope the failure is recorded for the warning text; outside one it is
+      // rethrown after the loop, as before. (#82120)
+      ScriptException failure = null;
 
       for(int i = 0; box != null && i < assemblies.length; i++) {
          VSAssembly assembly = (VSAssembly) assemblies[i];
@@ -197,13 +201,28 @@ public abstract class AbstractVSExporter implements VSExporter {
             }
          }
 
-         if(assembly instanceof Viewsheet) {
-            executeViewDynamicValues((Viewsheet) assembly,
-                                     box.getSandbox(assembly.getName()));
+         try {
+            if(assembly instanceof Viewsheet) {
+               executeViewDynamicValues((Viewsheet) assembly,
+                                        box.getSandbox(assembly.getName()));
+            }
+            else {
+               box.executeViewDynamicValues(assembly.getName(), assembly);
+            }
          }
-         else {
-            box.executeViewDynamicValues(assembly.getName(), assembly);
+         catch(ScriptException ex) {
+            // a stop and a failed table load still fail the export
+            TableLoadException.rethrow(ex);
+            ScriptTimeoutGuard.rethrowStop(ex);
+
+            if(!box.skipExportDynamicValueError(assembly.getName(), ex) && failure == null) {
+               failure = ex;
+            }
          }
+      }
+
+      if(failure != null) {
+         throw failure;
       }
    }
 
@@ -1471,6 +1490,8 @@ public abstract class AbstractVSExporter implements VSExporter {
             // fail, e.g. a scheduled run, has no value: exporting past it would leave the
             // property unset, e.g. a blank text (#78518)
             TableLoadException.rethrow(scriptException);
+            // say so on the document, as for a failed component script (#82120)
+            box.skipExportDynamicValueError(viewsheet.getName(), scriptException);
             LOG.warn("Failed to execute dynamic values: {}", scriptException.getMessage());
          }
          catch(Exception ex) {

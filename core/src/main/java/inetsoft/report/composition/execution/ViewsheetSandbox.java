@@ -2708,6 +2708,23 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @return true if the failure was skipped, false if the caller must rethrow it.
     */
    private boolean skipExportScriptError(VSAssembly assembly, ScriptException ex) {
+      return skipExportScriptError(assembly.getAbsoluteName(), ex);
+   }
+
+   /**
+    * Skip the failure of a dynamic property expression ("=expression") of an assembly if this
+    * thread is exporting, and record it like a failed component script so the exporter says so
+    * on the document. The viewer's refresh leaves such a property unset and goes on, and so
+    * does the export. A stop and a failed table load are never skipped. (#82120)
+    *
+    * @param assemblyName the name of the assembly whose property failed.
+    * @return true if the failure was skipped, false if the caller must handle it.
+    */
+   public boolean skipExportDynamicValueError(String assemblyName, ScriptException ex) {
+      return skipExportScriptError(assemblyName, ex);
+   }
+
+   private boolean skipExportScriptError(String assemblyName, ScriptException ex) {
       if(exportScriptSkipDepth.get() <= 0) {
          return false;
       }
@@ -2721,7 +2738,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
       LOG.warn("Skipped the failing script of \"{}\" in the export of \"{}\": {}",
-               assembly.getAbsoluteName(), getSheetName(), cause.getMessage());
+               assemblyName, getSheetName(), cause.getMessage());
       LOG.debug("Script failure skipped in export", ex);
       return true;
    }
