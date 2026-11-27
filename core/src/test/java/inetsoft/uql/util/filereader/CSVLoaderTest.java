@@ -114,6 +114,103 @@ public class CSVLoaderTest {
    }
 
    /**
+    * Bug #82506: a value that can't be converted to the detected type appearing only after
+    * the scanned rows was silently replaced by null. Scanning every row detects the mixed
+    * column so it is loaded as a string and the values are kept.
+    */
+   @Test
+   public void notApplicableAfterTypeRowsScannedWithFullDetection() throws Exception {
+      DateParseInfo info = new DateParseInfo();
+      List<String> types = new ArrayList<>();
+      XSwappableTable table = readIdValue(60000, 50001, Integer.MAX_VALUE, 0, types, info);
+
+      Assertions.assertEquals(XSchema.STRING, types.get(1));
+      Assertions.assertTrue(info.getProspectTypeMap().containsKey(1));
+      Assertions.assertEquals("N/A", table.getObject(50001, 1));
+      Assertions.assertEquals("N/A", table.getObject(60000, 1));
+      Assertions.assertEquals("5", table.getObject(5, 1));
+   }
+
+   /**
+    * Control: the change within the scanned rows behaves the same with full detection.
+    */
+   @Test
+   public void notApplicableWithinTypeRows() throws Exception {
+      DateParseInfo info = new DateParseInfo();
+      List<String> types = new ArrayList<>();
+      XSwappableTable table = readIdValue(60000, 49000, 50000, 0, types, info);
+
+      Assertions.assertEquals(XSchema.STRING, types.get(1));
+      Assertions.assertTrue(info.getProspectTypeMap().containsKey(1));
+      Assertions.assertEquals("N/A", table.getObject(49000, 1));
+      Assertions.assertEquals("N/A", table.getObject(60000, 1));
+   }
+
+   /**
+    * The row limit case keeps scanning max(rowLimit, 50000) rows; rows past the row limit
+    * aren't loaded so nothing is lost.
+    */
+   @Test
+   public void rowLimitBehaviorUnchanged() throws Exception {
+      DateParseInfo info = new DateParseInfo();
+      List<String> types = new ArrayList<>();
+      XSwappableTable table = readIdValue(60000, 55000, 50000, 10000, types, info);
+
+      Assertions.assertNotEquals(XSchema.STRING, types.get(1));
+      Assertions.assertTrue(info.getProspectTypeMap().isEmpty());
+      Assertions.assertEquals(10001, table.getRowCount());
+   }
+
+   /**
+    * Without full detection the old window is still observable (documents the old behavior
+    * for callers that pass a typeRows cap).
+    */
+   @Test
+   public void cappedDetectionStillNullsLateValues() throws Exception {
+      DateParseInfo info = new DateParseInfo();
+      List<String> types = new ArrayList<>();
+      XSwappableTable table = readIdValue(60000, 50001, 50000, 0, types, info);
+
+      Assertions.assertNotEquals(XSchema.STRING, types.get(1));
+      Assertions.assertNull(table.getObject(50001, 1));
+   }
+
+   /**
+    * Continue-as-string flow: the column the preview reported is loaded as string.
+    */
+   @Test
+   public void ignoreTypeColumnsLoadsAsString() throws Exception {
+      DateParseInfo info = new DateParseInfo();
+      info.setIgnoreTypeColumns(new ArrayList<>(List.of(1)));
+      List<String> types = new ArrayList<>();
+      XSwappableTable table = readIdValue(60000, 50001, Integer.MAX_VALUE, 0, types, info);
+
+      Assertions.assertEquals(XSchema.STRING, types.get(1));
+      Assertions.assertEquals("N/A", table.getObject(50001, 1));
+   }
+
+   /**
+    * Two column file id,v with numeric v, except "N/A" from data row naRow on.
+    */
+   private XSwappableTable readIdValue(int rows, int naRow, int typeRows, int rowLimit,
+                                       List<String> types, DateParseInfo info)
+      throws Exception
+   {
+      StringBuilder content = new StringBuilder("id,v\n");
+
+      for(int i = 1; i <= rows; i++) {
+         content.append(i).append(',').append(i >= naRow ? "N/A" : String.valueOf(i))
+            .append('\n');
+      }
+
+      File file = Files.write(tempDir.resolve("idv" + naRow + "_" + typeRows + ".csv"),
+                              content.toString().getBytes(StandardCharsets.UTF_8)).toFile();
+
+      return CSVLoader.readCSV(file, "UTF-8", true, ",", true, false, new HashMap<>(), types,
+                               true, null, typeRows, rowLimit, -1, info);
+   }
+
+   /**
     * Read a single column csv file, the returned table has the header in row 0.
     */
    private XSwappableTable readColumn(String header, String[] values, List<String> types)
