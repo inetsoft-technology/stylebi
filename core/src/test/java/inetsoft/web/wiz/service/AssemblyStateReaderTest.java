@@ -36,6 +36,7 @@ import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.CandleVSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
@@ -185,6 +186,38 @@ class AssemblyStateReaderTest {
       assertEquals("loss", highlights.get(0).name());
       assertEquals(label.getFullName(), highlights.get(0).target());
       assertEquals(List.of("Profit LESS_THAN 0"), highlights.get(0).clauses());
+   }
+
+   @Test
+   void candleChartHighlightsIncludeTheHighAndCloseFields() {
+      Viewsheet vs = AssemblyStateFixtures.viewsheet(AssemblyStateFixtures.worksheetEntry());
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "candle1");
+      CandleVSChartInfo info = new CandleVSChartInfo();
+      VSChartAggregateRef high = new VSChartAggregateRef();
+      high.setColumnValue("High");
+      high.setFormulaValue("Max");
+      high.setHighlightGroup(AssemblyStateFixtures.group(
+         "peak", AssemblyStateFixtures.condition("High", XCondition.GREATER_THAN, 90)));
+      VSChartAggregateRef close = new VSChartAggregateRef();
+      close.setColumnValue("Close");
+      close.setFormulaValue("Sum");
+      close.setTextHighlightGroup(AssemblyStateFixtures.group(
+         "drop", AssemblyStateFixtures.condition("Close", XCondition.LESS_THAN, 10)));
+      info.setHighField(high);
+      info.setCloseField(close);
+      chart.setVSChartInfo(info);
+
+      Map<String, CreateViewsheetResult.AssemblyHighlight> byName = new HashMap<>();
+
+      for(CreateViewsheetResult.AssemblyHighlight highlight : AssemblyStateReader.readHighlights(chart)) {
+         byName.put(highlight.name(), highlight);
+      }
+
+      assertEquals(2, byName.size());
+      assertEquals(high.getFullName(), byName.get("peak").target());
+      assertEquals(List.of("High GREATER_THAN 90"), byName.get("peak").clauses());
+      assertEquals(close.getFullName(), byName.get("drop").target());
+      assertEquals(List.of("Close LESS_THAN 10"), byName.get("drop").clauses());
    }
 
    @Test

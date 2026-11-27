@@ -33,6 +33,7 @@ import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.AestheticRef;
+import inetsoft.uql.viewsheet.graph.CandleChartInfo;
 import inetsoft.uql.viewsheet.graph.ChartBindable;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.HighlightRef;
@@ -109,7 +110,8 @@ final class AssemblyStateReader {
    /**
     * Every highlight the assembly holds. A chart: its chart-level group, then the group and text
     * group of every design binding ref and of the text aesthetic ref (the chart's own, plus each
-    * binding ref's own text field on a multi-style chart), keyed by the ref's full name.
+    * binding ref's own text field on a multi-style chart), keyed by the ref's full name; a
+    * candle/stock chart's high/low/open/close fields count as binding refs here.
     * A table or crosstab: every cell path of its highlight attribute, keyed by the path's last
     * segment ("row" for a row path). An output: its one group. A group reached twice (the same
     * group object) is listed once; distinct groups are always listed, even under the same name.
@@ -124,7 +126,19 @@ final class AssemblyStateReader {
 
          if(chartInfo != null) {
             addGroup(out, seen, chartInfo.getHighlightGroup(), null);
-            ChartRef[] refs = chartInfo.getBindingRefs(false);
+            List<ChartRef> refs = new ArrayList<>(List.of(chartInfo.getBindingRefs(false)));
+
+            // Candle/stock high/low/open/close fields are not binding refs but carry their own
+            // highlight groups (as AssemblyHighlightService.textFields enumerates them).
+            if(chartInfo instanceof CandleChartInfo candle) {
+               for(ChartRef ref : new ChartRef[] { candle.getHighField(), candle.getLowField(),
+                                                   candle.getOpenField(), candle.getCloseField() })
+               {
+                  if(ref != null) {
+                     refs.add(ref);
+                  }
+               }
+            }
 
             for(ChartRef ref : refs) {
                addRef(out, seen, ref);
@@ -133,7 +147,7 @@ final class AssemblyStateReader {
             addText(out, seen, chartInfo.getTextField());
 
             // Multi-style charts (and gantt, which is always multi-aesthetic) keep a text field,
-            // with its own text highlight group, on each binding ref.
+            // with its own text highlight group, on each binding ref and candle/stock field.
             if(chartInfo.isMultiAesthetic()) {
                for(ChartRef ref : refs) {
                   if(ref instanceof ChartBindable bindable) {
