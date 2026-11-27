@@ -712,7 +712,8 @@ public class ImportCSVDialogService {
 
       try {
          int rowCount = 0;
-         final int typeRows = rowLimit == 0 ? 50000 : Math.max(rowLimit, 50000);
+         final int typeRows = getCSVTypeRows(rowLimit);
+         final int excelTypeRows = rowLimit == 0 ? 50000 : Math.max(rowLimit, 50000);
          rowLimit = rowLimit == 0 ? (firstRow ? 101 : 100) : rowLimit;
          DateParseInfo parseInfo = new DateParseInfo();
          int maxCellSize = Util.getOrganizationMaxCellSize();
@@ -763,7 +764,7 @@ public class ImportCSVDialogService {
                excelReader = ExcelFileSupport.getInstance().createXLSXReader();
             }
 
-            XTypeNode meta = excelReader.importHeader(ins, csvInfo.getEncode(), toutput, typeRows,
+            XTypeNode meta = excelReader.importHeader(ins, csvInfo.getEncode(), toutput, excelTypeRows,
                                                       colLimit, parseInfo);
             boolean mixedTypeColumns = excelReader.isMixedTypeColumns();
             result.put("textExceedLimit", excelReader.isTextExceedLimit());
@@ -982,6 +983,18 @@ public class ImportCSVDialogService {
 
    private boolean isEmptyRow(Object[] rdata) {
       return rdata == null || Arrays.stream(rdata).allMatch(Objects::isNull);
+   }
+
+   /**
+    * Gets the number of rows scanned to detect the column types of a delimited file. Without
+    * a row limit every row is loaded, so every row must be scanned; otherwise a value that
+    * can't be converted to the detected type (e.g. N/A in a numeric column) after the scanned
+    * rows is silently replaced by null. The preview and the import must use the same rule.
+    *
+    * @param rowLimit the maximum number of rows to load, or <= 0 for no limit.
+    */
+   static int getCSVTypeRows(int rowLimit) {
+      return rowLimit <= 0 ? Integer.MAX_VALUE : Math.max(rowLimit, 50000);
    }
 
    /**
