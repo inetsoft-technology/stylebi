@@ -81,6 +81,23 @@ public class WizScheduleController {
       return service.update(name, request, principal, linkUri);
    }
 
+   /** What the matching create would store; refuses what it would refuse, stores nothing. */
+   @PostMapping(value = "/tasks/validate", produces = MediaType.APPLICATION_JSON_VALUE)
+   public TaskView validateCreate(@RequestBody TaskRequest request, Principal principal,
+                                  @LinkUri String linkUri) throws Exception
+   {
+      return service.validateCreate(request, principal, linkUri);
+   }
+
+   /** What the matching update would store; refuses what it would refuse, stores nothing. */
+   @PutMapping(value = "/tasks/{name}/validate", produces = MediaType.APPLICATION_JSON_VALUE)
+   public TaskView validateUpdate(@PathVariable("name") String name,
+                                  @RequestBody TaskRequest request, Principal principal,
+                                  @LinkUri String linkUri) throws Exception
+   {
+      return service.validateUpdate(name, request, principal, linkUri);
+   }
+
    @DeleteMapping(value = "/tasks/{name}", produces = MediaType.APPLICATION_JSON_VALUE)
    public Map<String, Object> delete(@PathVariable("name") String name, Principal principal)
       throws Exception

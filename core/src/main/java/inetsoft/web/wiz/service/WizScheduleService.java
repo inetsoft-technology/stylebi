@@ -168,6 +168,26 @@ public class WizScheduleService {
 
    /** Creates a task for the caller; an existing task is never overwritten. */
    public TaskView create(TaskRequest request, Principal user, String linkUri) throws Exception {
+      Prepared prepared = prepareCreate(request, user, linkUri);
+      scheduleManager.setScheduleTask(prepared.task().getTaskId(), prepared.task(), null, user);
+      return toView(prepared.task(), prepared.action());
+   }
+
+   /**
+    * What {@link #create} would store, refusing what it would refuse; nothing is stored, so a
+    * caller can show the user the resolved task before asking for the go-ahead.
+    */
+   public TaskView validateCreate(TaskRequest request, Principal user, String linkUri)
+      throws Exception
+   {
+      Prepared prepared = prepareCreate(request, user, linkUri);
+      return toView(prepared.task(), prepared.action());
+   }
+
+   /** Every check of {@link #create} and the task it would store, up to the store itself. */
+   private Prepared prepareCreate(TaskRequest request, Principal user, String linkUri)
+      throws Exception
+   {
       if(request == null) {
          throw new IllegalArgumentException("The request body is required.");
       }
@@ -195,8 +215,7 @@ public class WizScheduleService {
       fillAction(action, entry, request, caller, user, true);
       task.addAction(action, linkUri);
       sanitize(task, new ScheduleTask(), null, user);
-      scheduleManager.setScheduleTask(task.getTaskId(), task, null, user);
-      return toView(task, action);
+      return new Prepared(task, action, null);
    }
 
    /**
@@ -208,6 +227,29 @@ public class WizScheduleService {
     * email action changes when any of its fields is.
     */
    public TaskView update(String name, TaskRequest request, Principal user, String linkUri)
+      throws Exception
+   {
+      Prepared prepared = prepareUpdate(name, request, user, linkUri);
+      scheduleManager.setScheduleTask(prepared.task().getTaskId(), prepared.task(),
+                                      prepared.folder(), user);
+      return toView(prepared.task(), prepared.action());
+   }
+
+   /**
+    * What {@link #update} would store, refusing what it would refuse; nothing is stored and the
+    * stored task is only read.
+    */
+   public TaskView validateUpdate(String name, TaskRequest request, Principal user,
+                                  String linkUri)
+      throws Exception
+   {
+      Prepared prepared = prepareUpdate(name, request, user, linkUri);
+      return toView(prepared.task(), prepared.action());
+   }
+
+   /** Every check of {@link #update} and the task it would store, up to the store itself. */
+   private Prepared prepareUpdate(String name, TaskRequest request, Principal user,
+                                  String linkUri)
       throws Exception
    {
       if(request == null) {
@@ -264,8 +306,7 @@ public class WizScheduleService {
 
       candidate.addAction(action, linkUri);
       sanitize(candidate, stored, storedAction, user);
-      scheduleManager.setScheduleTask(candidate.getTaskId(), candidate, folderOf(stored), user);
-      return toView(candidate, action);
+      return new Prepared(candidate, action, folderOf(stored));
    }
 
    /** Deletes one of the caller's own tasks. */
@@ -955,6 +996,10 @@ public class WizScheduleService {
       }
 
       return list;
+   }
+
+   /** A task checked and ready to store, with the folder it is stored in (null: the default). */
+   private record Prepared(ScheduleTask task, ViewsheetAction action, AssetEntry folder) {
    }
 
    public record FormatOptions(List<String> formats, String defaultFormat) {

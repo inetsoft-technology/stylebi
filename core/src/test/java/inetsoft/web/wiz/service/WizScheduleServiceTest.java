@@ -732,6 +732,117 @@ class WizScheduleServiceTest {
       return task;
    }
 
+   @Test
+   void aValidateCreateReturnsTheResolvedTaskAndStoresNothing() throws Exception {
+      Fixture f = new Fixture(BOB);
+
+      TaskView view = f.service.validateCreate(daily("Weekly sales"), f.wiz, "http://h/sree/");
+
+      assertEquals("Weekly sales", view.name());
+      assertEquals("Sales/Overview", view.path());
+      assertEquals("Excel", view.format());
+      verify(f.manager, never()).setScheduleTask(anyString(), any(), any(AssetEntry.class), any());
+   }
+
+   @Test
+   void aValidateCreateRefusesWhatCreateRefusesWithTheSameMessage() throws Exception {
+      Fixture f = new Fixture(BOB);
+      TaskRequest[] bad = {
+         scheduled("t", "monthly", "08:30", null, 32, null, null, null),
+         scheduled("t", "monthly", "08:30", null, 0, null, null, null),
+         scheduled("t", "once", null, "next tuesday", null, null, null, null),
+         scheduled("t", "daily", "08:30", null, null, null, "Mars/Olympus", null),
+         scheduled("t", "daily", "08:30", null, null, 0, null, null),
+         scheduled("t", "daily", "08:30", null, null, -3, null, null),
+         scheduled("t", "daily", "08:30", null, null, null, null, List.of("Nope")),
+         scheduled("a/b", "daily", "08:30", null, null, null, null, null) };
+
+      for(TaskRequest request : bad) {
+         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            () -> f.service.create(request, f.wiz, "u/"));
+         IllegalArgumentException validated = assertThrows(IllegalArgumentException.class,
+            () -> f.service.validateCreate(request, f.wiz, "u/"));
+         assertEquals(refused.getMessage(), validated.getMessage());
+      }
+
+      verify(f.manager, never()).setScheduleTask(anyString(), any(), any(AssetEntry.class), any());
+   }
+
+   @Test
+   void aValidateCreateRefusesAnExistingNameAndAnUnreadableDashboard() throws Exception {
+      Fixture f = new Fixture(BOB);
+      f.store(task("t", BOB));
+
+      IllegalArgumentException exists = assertThrows(IllegalArgumentException.class,
+         () -> f.service.validateCreate(daily("t"), f.wiz, "u/"));
+      assertTrue(exists.getMessage().contains("already exists"));
+
+      when(f.assets.containsEntry(any(AssetEntry.class))).thenReturn(false);
+      IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+         () -> f.service.create(daily("other"), f.wiz, "u/"));
+      IllegalArgumentException validated = assertThrows(IllegalArgumentException.class,
+         () -> f.service.validateCreate(daily("other"), f.wiz, "u/"));
+      assertEquals(refused.getMessage(), validated.getMessage());
+   }
+
+   @Test
+   void aValidateUpdateReturnsTheResolvedChangeAndStoresNothing() throws Exception {
+      Fixture f = new Fixture(BOB);
+      f.store(task("mine", BOB));
+
+      TaskRequest change = new TaskRequest(null, null, null, "d", false, null, null, null, null,
+                                           null, null, null, null, null, null, null, "new subject",
+                                           null, "pdf", null);
+      TaskView view = f.service.validateUpdate("mine", change, f.wiz, "u/");
+
+      assertFalse(view.enabled());
+      assertEquals("PDF", view.format());
+      assertEquals("new subject", view.subject());
+      verify(f.manager, never()).setScheduleTask(anyString(), any(), any(AssetEntry.class), any());
+   }
+
+   @Test
+   void aValidateUpdateRefusesWhatUpdateRefusesWithTheSameMessage() throws Exception {
+      Fixture f = new Fixture(BOB);
+      f.store(task("mine", BOB));
+      TaskRequest[] bad = {
+         scheduled(null, "monthly", "08:30", null, 32, null, null, null),
+         scheduled(null, "once", null, "next tuesday", null, null, null, null),
+         scheduled(null, "daily", "08:30", null, null, null, "Mars/Olympus", null),
+         scheduled(null, "daily", "08:30", null, null, 0, null, null),
+         scheduled(null, "daily", "08:30", null, null, null, null, List.of("Nope")) };
+
+      for(TaskRequest request : bad) {
+         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            () -> f.service.update("mine", request, f.wiz, "u/"));
+         IllegalArgumentException validated = assertThrows(IllegalArgumentException.class,
+            () -> f.service.validateUpdate("mine", request, f.wiz, "u/"));
+         assertEquals(refused.getMessage(), validated.getMessage());
+      }
+
+      when(f.assets.containsEntry(any(AssetEntry.class))).thenReturn(false);
+      TaskRequest elsewhere = new TaskRequest(null, "No/Such Dashboard", null, null, null, null,
+                                              null, null, null, null, null, null, null, null, null,
+                                              null, null, null, null, null);
+      IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+         () -> f.service.update("mine", elsewhere, f.wiz, "u/"));
+      IllegalArgumentException validated = assertThrows(IllegalArgumentException.class,
+         () -> f.service.validateUpdate("mine", elsewhere, f.wiz, "u/"));
+      assertEquals(refused.getMessage(), validated.getMessage());
+      assertTrue(validated.getMessage().contains("No/Such Dashboard"), validated.getMessage());
+      verify(f.manager, never()).setScheduleTask(anyString(), any(), any(AssetEntry.class), any());
+   }
+
+   private static TaskRequest scheduled(String name, String frequency, String time, String runAt,
+                                        Integer dayOfMonth, Integer interval, String zone,
+                                        List<String> bookmarks)
+   {
+      return new TaskRequest(name, name == null ? null : "Sales/Overview", null, null, null,
+                             frequency, time, runAt, null, dayOfMonth, interval, null, zone,
+                             name == null ? null : List.of("a@x.com"), null, null, null, null,
+                             null, bookmarks);
+   }
+
    private static final class Fixture {
       final SecurityEngine engine = mock(SecurityEngine.class);
       final AssetRepository assets = mock(AssetRepository.class);
