@@ -59,9 +59,10 @@ class ComposerPresenterControllerHintTest {
          else if(cls.endsWith(".BooleanPresenter")) {
             assertEquals(PresenterValueHint.NUMBERS_AND_BOOLEANS, leaf.tooltip(), cls);
          }
-         else if(cls.endsWith(".ImagePresenter") || cls.endsWith(".HTMLPresenter") ||
-                 cls.endsWith(".ButtonPresenter"))
-         {
+         else if(cls.endsWith(".ImagePresenter")) {
+            assertEquals(PresenterValueHint.IMAGE_URL, leaf.tooltip(), cls);
+         }
+         else if(cls.endsWith(".HTMLPresenter") || cls.endsWith(".ButtonPresenter")) {
             assertNull(leaf.tooltip(), cls);
          }
       }
