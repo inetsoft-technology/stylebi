@@ -111,6 +111,13 @@ public class ViewsheetChangeRequest {
    public String getDescription() { return description; }
    public void setDescription(String v) { this.description = v; }
 
+   /** {@code unitType: "viewsheet"|"worksheet", verb: "delete"} only (bug #82461): {@code true}
+    * moves the sheet to the Recycle Bin the way Enterprise Manager does (recoverable with the
+    * recycle bin area's restore) instead of permanently deleting it. Absent or {@code false} is a
+    * permanent delete, unchanged. Not supported for folders, and not used by any other verb. */
+   public Boolean getToRecycleBin() { return toRecycleBin; }
+   public void setToRecycleBin(Boolean v) { this.toRecycleBin = v; }
+
    private String unitType;
    private String verb;
    private String assetId;
@@ -124,4 +131,6 @@ public class ViewsheetChangeRequest {
    private String oldPath;
    private String alias;
    private String description;
+   // appended last on purpose (bug #82461): new request fields never go mid-list
+   private Boolean toRecycleBin;
 }

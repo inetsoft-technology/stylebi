@@ -30,6 +30,9 @@ import org.w3c.dom.Element;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 
 public class MVWorksheetStorage implements AutoCloseable {
    public MVWorksheetStorage(BlobStorageManager blobStorageManager) {
@@ -83,6 +86,25 @@ public class MVWorksheetStorage implements AutoCloseable {
 
    public void removeWorksheet(String path, String orgID) throws IOException {
       getStorage(orgID).delete(path);
+   }
+
+   /**
+    * Lists the worksheet files of the specified organization with their last modified time.
+    */
+   public Map<String, Instant> listWorksheets(String orgID) throws IOException {
+      BlobStorage<Metadata> storage = getStorage(orgID);
+      Map<String, Instant> result = new HashMap<>();
+
+      for(String path : storage.paths().filter(p -> p.endsWith(".ws")).toList()) {
+         try {
+            result.put(path, storage.getLastModified(path));
+         }
+         catch(FileNotFoundException ignore) {
+            // removed concurrently
+         }
+      }
+
+      return result;
    }
 
    @PreDestroy

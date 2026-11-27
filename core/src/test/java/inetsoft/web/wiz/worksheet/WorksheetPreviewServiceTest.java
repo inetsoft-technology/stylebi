@@ -1030,6 +1030,33 @@ class WorksheetPreviewServiceTest {
    }
 
    @Test
+   void cancelledBaseWithLoadExceptionReportsCauseNotCancelled() throws Exception {
+      Exception failure = new java.sql.SQLException("Scalar subquery is only allowed to return a single row");
+      TableLens base = new inetsoft.report.lens.xnode.XNodeTableLens() {
+         @Override
+         public boolean isCancelled() {
+            return true;
+         }
+
+         @Override
+         public Exception getLoadException() {
+            return new RuntimeException("wrapped", failure);
+         }
+      };
+      TableLens outer = new HealthyOuterFilter(base);
+      RuntimeWorksheet rws = rwsFor(outer);
+      service.setTimeoutMillis(0);
+
+      PairingException e = assertThrows(PairingException.class,
+                                        () -> service.preview(rws, "T", 0, 10));
+
+      assertTrue(e.getMessage().startsWith("Failed to execute worksheet query for 'T': "),
+                 e.getMessage());
+      assertTrue(e.getMessage().contains("Scalar subquery is only allowed"), e.getMessage());
+      assertFalse(e.getMessage().contains("cancelled"), e.getMessage());
+   }
+
+   @Test
    void watchdogCoversSlowLensBuild() throws Exception {
       BlockingLens lens = new BlockingLens(false);
       Worksheet ws = mock(Worksheet.class);

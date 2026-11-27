@@ -138,6 +138,24 @@ class WizXmlaControllerTest {
    }
 
    @Test
+   void refreshCubes_passesAnEndpointErrorReasonThrough() throws Exception {
+      Fixture f = new Fixture();
+      f.allowAll();
+      f.stored("olap/sales", f.xmla("secret"));
+      when(f.service.refreshStoredCubes("olap/sales")).thenReturn(
+         XmlaDatasourceService.CubeRefreshResult.failed(
+            XmlaDatasourceService.CubeRefreshResult.ENDPOINT_ERROR,
+            "http://olap.example/xmla", "HTTP 500 Internal Server Error"));
+
+      WizXmlaRefreshResult result = f.controller.refreshCubes(
+         new WizMetadataRefreshRequest("olap/sales"), f.principal);
+
+      assertFalse(result.ok());
+      assertEquals("ENDPOINT_ERROR", result.reason());
+      assertEquals("HTTP 500 Internal Server Error", result.message());
+   }
+
+   @Test
    void refreshCubes_namesTheEndpointWhenTheConnectionFails() throws Exception {
       Fixture f = new Fixture();
       f.allowAll();

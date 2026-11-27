@@ -226,7 +226,7 @@ class XmlaDatasourceServiceRefreshCubesTest {
    @Test
    void namesTheEndpointWhenTheConnectionFails() throws Exception {
       Fixture f = new Fixture();
-      f.failure = new RuntimeException("Connection refused");
+      f.failure = new java.net.ConnectException("Connection refused");
 
       CubeRefreshResult result = f.service.refreshStoredCubes("olap/sales");
 
@@ -238,10 +238,37 @@ class XmlaDatasourceServiceRefreshCubesTest {
    }
 
    @Test
+   void anHttpErrorAnswerIsAnEndpointErrorNotAConnectionFailure() throws Exception {
+      Fixture f = new Fixture();
+      f.failure = new XMLAHandler.EndpointErrorException("HTTP 500 Internal Server Error");
+
+      CubeRefreshResult result = f.service.refreshStoredCubes("olap/sales");
+
+      assertFalse(result.ok());
+      assertEquals(CubeRefreshResult.ENDPOINT_ERROR, result.status());
+      assertEquals("http://olap.example/xmla", result.url());
+      assertEquals("HTTP 500 Internal Server Error", result.message());
+      verify(f.repository, never()).updateDomain(any(XDomain.class), anyBoolean());
+   }
+
+   @Test
+   void anUnknownHostOrAnUnclassifiedFailureStaysAConnectionFailure() throws Exception {
+      Fixture f = new Fixture();
+      f.failure = new java.net.UnknownHostException("olap.example");
+      assertEquals(CubeRefreshResult.CONNECTION_FAILED,
+                   f.service.refreshStoredCubes("olap/sales").status());
+
+      f = new Fixture();
+      f.failure = new IllegalStateException("boom");
+      assertEquals(CubeRefreshResult.CONNECTION_FAILED,
+                   f.service.refreshStoredCubes("olap/sales").status());
+   }
+
+   @Test
    void urlCredentialsAreMaskedInTheResultUrlAndMessage() throws Exception {
       Fixture f = new Fixture();
       f.source.setURL("http://analyst:S3cret@olap.example/xmla");
-      f.failure = new RuntimeException("Unable to reach http://analyst:S3cret@olap.example/xmla");
+      f.failure = new java.net.ConnectException("Unable to reach http://analyst:S3cret@olap.example/xmla");
 
       CubeRefreshResult result = f.service.refreshStoredCubes("olap/sales");
 
