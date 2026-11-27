@@ -18,6 +18,8 @@
 
 package inetsoft.web.wiz.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.RuntimeViewsheet;
@@ -168,16 +170,45 @@ class WizVsServiceFillAssemblyStateTest {
    }
 
    @Test
-   void aReaderFailureLeavesTheStateNullWithoutThrowing() throws Exception {
+   void aReaderFailureLeavesTheStateNullAndMarksItUnavailableWithoutThrowing() {
       ChartVSAssembly chart = AssemblyStateFixtures.chart(vs, "chart1");
-      when(dateComparisonService.read(rvs, "chart1", null)).thenThrow(new IllegalStateException("reader failed"));
+      RuntimeViewsheet failing = mock(RuntimeViewsheet.class);
+      when(failing.getViewsheet()).thenThrow(new IllegalStateException("reader failed"));
       CreateViewsheetResult result = new CreateViewsheetResult();
       result.setAssemblyName("chart1");
 
-      assertDoesNotThrow(() -> service.fillAssemblyState(rvs, chart, null, result));
+      assertDoesNotThrow(() -> service.fillAssemblyState(failing, chart, null, result));
 
       assertNull(result.getAssemblyState());
+      assertEquals(Boolean.TRUE, result.getAssemblyStateUnavailable());
       assertEquals("chart1", result.getAssemblyName());
+   }
+
+   @Test
+   void aFailedFillSerializesOnlyTheUnavailableFlag() {
+      RuntimeViewsheet failing = mock(RuntimeViewsheet.class);
+      when(failing.getViewsheet()).thenThrow(new IllegalStateException("reader failed"));
+      CreateViewsheetResult result = new CreateViewsheetResult();
+
+      service.fillAssemblyState(failing, AssemblyStateFixtures.chart(vs, "chart1"), null, result);
+
+      JsonNode json =
+         new ObjectMapper().valueToTree(result);
+      assertFalse(json.has("assemblyState"));
+      assertTrue(json.get("assemblyStateUnavailable").asBoolean());
+   }
+
+   @Test
+   void aSuccessfulFillClearsAnEarlierUnavailableFlag() {
+      CreateViewsheetResult result = new CreateViewsheetResult();
+      result.setAssemblyStateUnavailable(Boolean.TRUE);
+
+      service.fillAssemblyState(rvs, AssemblyStateFixtures.chart(vs, "chart1"), null, result);
+
+      assertNotNull(result.getAssemblyState());
+      assertNull(result.getAssemblyStateUnavailable());
+      assertFalse(new ObjectMapper().valueToTree(result)
+                     .has("assemblyStateUnavailable"));
    }
 
    @Test
@@ -212,6 +243,7 @@ class WizVsServiceFillAssemblyStateTest {
       assertDoesNotThrow(() -> service.fillAssemblyState("gone", "chart1", (Principal) null, result));
 
       assertNull(result.getAssemblyState());
+      assertEquals(Boolean.TRUE, result.getAssemblyStateUnavailable());
    }
 
    @Test

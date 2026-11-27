@@ -3685,8 +3685,9 @@ public class WizVsService {
     *
     * <p>Called after the endpoint's LAST change and outside {@link #executeAndExtract}, which also
     * serves filter controls and validation whose results are discarded. Best-effort: any failure
-    * leaves the field null and is logged at debug; it never fails or rolls back a mutation that
-    * already succeeded.
+    * leaves the field null, sets {@code assemblyStateUnavailable} to TRUE (so the caller can tell a
+    * failed read from an endpoint that never fills the state) and is logged at debug; it never fails
+    * or rolls back a mutation that already succeeded. A read that completes clears that flag.
     */
    public void fillAssemblyState(RuntimeViewsheet rvs, VSAssembly assembly, Principal user,
                                  CreateViewsheetResult result)
@@ -3697,9 +3698,11 @@ public class WizVsService {
 
       try {
          result.setAssemblyState(buildAssemblyState(rvs, assembly, user));
+         result.setAssemblyStateUnavailable(null);
       }
       catch(Exception e) {
          result.setAssemblyState(null);
+         result.setAssemblyStateUnavailable(Boolean.TRUE);
          LOG.debug("Could not read the assembly state of {}",
                    assembly == null ? null : assembly.getName(), e);
       }
@@ -3725,6 +3728,7 @@ public class WizVsService {
       }
       catch(Exception e) {
          result.setAssemblyState(null);
+         result.setAssemblyStateUnavailable(Boolean.TRUE);
          LOG.debug("Could not read the assembly state of {} in {}", assemblyName, runtimeId, e);
       }
    }

@@ -34,10 +34,22 @@ class CreateViewsheetResultAssemblyStateTest {
    private final ObjectMapper mapper = new ObjectMapper();
 
    @Test
-   void assemblyStateIsAbsentWhenItWasNotBuilt() {
+   void neitherAssemblyStateKeyIsPresentWhenTheEndpointNeverFilledIt() {
       JsonNode json = mapper.valueToTree(new CreateViewsheetResult());
 
       assertFalse(json.has("assemblyState"));
+      assertFalse(json.has("assemblyStateUnavailable"));
+   }
+
+   @Test
+   void aFailedFillSerializesTheUnavailableFlagWithoutAnAssemblyState() {
+      CreateViewsheetResult result = new CreateViewsheetResult();
+      result.setAssemblyStateUnavailable(Boolean.TRUE);
+
+      JsonNode json = mapper.valueToTree(result);
+
+      assertFalse(json.has("assemblyState"));
+      assertTrue(json.get("assemblyStateUnavailable").asBoolean());
    }
 
    @Test

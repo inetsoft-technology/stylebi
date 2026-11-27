@@ -188,6 +188,14 @@ public class CreateViewsheetResult {
       this.assemblyState = assemblyState;
    }
 
+   public Boolean getAssemblyStateUnavailable() {
+      return assemblyStateUnavailable;
+   }
+
+   public void setAssemblyStateUnavailable(Boolean assemblyStateUnavailable) {
+      this.assemblyStateUnavailable = assemblyStateUnavailable;
+   }
+
    private List<String> headers;
    private List<Map<String, Object>> rows;
    private FlatBinding binding;
@@ -222,6 +230,13 @@ public class CreateViewsheetResult {
     * built; see {@code WizVsService#fillAssemblyState}.
     */
    private AssemblyState assemblyState;
+   /**
+    * TRUE only when this endpoint tried to fill {@code assemblyState} and the read failed, so
+    * {@code assemblyState} is absent because it is unknown, not because the endpoint never fills it.
+    * Absent otherwise (including on a successful fill). The wiz side treats TRUE as "assemblyState is
+    * null for this response" and drops its previous state instead of keeping a stale one.
+    */
+   private Boolean assemblyStateUnavailable;
 
    // -------------------------------------------------------------------------
    // Nested model
