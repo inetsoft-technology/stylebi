@@ -105,8 +105,11 @@ public class NamedCellRange extends CellRange {
                throw new Exception("Group value missing from range: " + this.range);
             }
 
-            String group = decodeEscaped(arr[i].substring(0, idx).trim());
-            group = Tool.replaceAll(group, LayoutTool.SCRIPT_ESCAPED_COLON, ":");
+            // convert the colon marker before the escapes are decoded, so that an escaped ^_^
+            // (a real ^_^ in the column name) is not taken for the marker
+            String group = Tool.replaceAll(arr[i].substring(0, idx).trim(),
+                                           LayoutTool.SCRIPT_ESCAPED_COLON, ":");
+            group = decodeEscaped(group);
             String value = decodeEscaped(arr[i].substring(idx + 1).trim());
             groupspecs.put(group, new GroupSpec(value));
          }
@@ -411,8 +414,8 @@ public class NamedCellRange extends CellRange {
 
       Vector cells = new Vector();
       Map<String, GroupSpec> specs = getRuntimeGroups();
-      RangeSelector selector = CrosstabGroupSelector.getSelector(
-              Tool.replaceAll(colexpr, LayoutTool.SCRIPT_ESCAPED_COLON, ":"), table, specs);
+      // the colon marker was converted in the constructor, before the escapes were decoded
+      RangeSelector selector = CrosstabGroupSelector.getSelector(colexpr, table, specs);
       CrosstabRangeProcessor proc = new CrosstabRangeProcessor(table, FormulaContext.getScope());
       proc.setProcessCalc(processCalc);
       proc.selectCells(cells, selector, condition, position);

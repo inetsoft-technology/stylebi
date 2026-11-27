@@ -33,6 +33,7 @@ import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
@@ -983,6 +984,49 @@ class CalcTableVSAQueryPathAgreementTest {
       TableCellBinding g = group("When");
       g.getOrderInfo(true).setInterval(interval, level);
       return g;
+   }
+
+   // #82472: a column name holding a character that NamedCellRange or JavaScript reads must give the
+   // same cells as a plain name, on the quick path and on the script path.
+   static Stream<Arguments> specialNames() {
+      String bs = "\\";
+      return Stream.of(
+         Arguments.of("a@b", "Total"), Arguments.of("who?", "Total"), Arguments.of("a;b", "Total"),
+         Arguments.of("x=y;z", "Total"), Arguments.of("back" + bs + "slash", "Total"),
+         Arguments.of("end" + bs, "Total"), Arguments.of("a^_^b", "Total"),
+         Arguments.of("Region", "v a@b"), Arguments.of("Region", "v" + bs + "w"),
+         Arguments.of("Region", "v^_^w"), Arguments.of("a,b", "Total"),
+         Arguments.of("O'Brien", "Total"), Arguments.of("Region", "v a;b"),
+         Arguments.of("Region", "Total"));
+   }
+
+   @ParameterizedTest(name = "group={0} measure={1}")
+   @MethodSource("specialNames")
+   void specialColumnNamesGiveTheSameCellsOnBothPaths(String group, String measure)
+      throws Exception
+   {
+      Object[][] data = {
+         { group, "Qty", measure }, { "East", 1, 30.0 }, { "East", 1, 10.0 },
+         { "North", 1, 5.0 }, { "West", 1, 20.0 }, { "West", 1, 15.0 } };
+      Scenario sc = new Scenario("special " + group + " / " + measure, data, 3, false, l -> {
+         l.setCellBinding(1, 0, group(group));
+         l.setCellBinding(1, 1, summary(measure, "Sum"));
+         l.setCellBinding(1, 2, summary("Qty", "Sum"));
+      }).expect((rows, path) -> {
+         Map<String, List<Double>> m = new LinkedHashMap<>();
+
+         for(int i = 1; i < rows.size(); i++) {
+            List<Object> r = rows.get(i);
+            assertNotNull(r.get(1), path + " sum of " + measure + " for " + r.get(0));
+            m.put(String.valueOf(r.get(0)), List.of(((Number) r.get(1)).doubleValue(),
+                                                    ((Number) r.get(2)).doubleValue()));
+         }
+
+         assertEquals(Map.of("East", List.of(40.0, 2.0),
+                             "North", List.of(5.0, 1.0), "West", List.of(35.0, 2.0)),
+                      m, path);
+      });
+      quickPathAndScriptPathGiveTheSameCells(sc);
    }
 
    private static Object[][] sales(Object[]... rows) {

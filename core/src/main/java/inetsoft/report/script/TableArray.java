@@ -25,6 +25,7 @@ import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.lens.SubTableLens;
 import inetsoft.report.internal.Util;
 import inetsoft.report.script.formula.CellRange;
+import inetsoft.report.script.formula.NamedCellRange;
 import inetsoft.uql.XTable;
 import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.Tool;
@@ -123,7 +124,13 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
       // dimension names directly against the crosstab (see NamedCellRange), but only
       // for ids that actually name a row/col dimension -- a genuinely nonexistent
       // property should still report absent, not be over-claimed as present.
-      if(lens instanceof CrossFilter && isCrosstabDimension((CrossFilter) lens, id)) {
+      // the id is the text of a data['...'] literal, a backslash escapes the next char of a column
+      // name (written by LayoutTool, read by NamedCellRange)
+      String plain = NamedCellRange.decodeEscaped(NamedCellRange.encodeEscaped(id));
+
+      if(lens instanceof CrossFilter && (isCrosstabDimension((CrossFilter) lens, id) ||
+         isCrosstabDimension((CrossFilter) lens, plain)))
+      {
          return true;
       }
 
@@ -136,11 +143,13 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
       // GraalJS never calls getMember() at all -- the reference silently resolves to
       // undefined instead of dispatching to NamedCellRange/CrosstabGroupSelector, which
       // do know how to resolve it.
-      if(lens instanceof CalcFilter && ((CalcFilter) lens).getMeasureHeaders().contains(id)) {
+      if(lens instanceof CalcFilter && (((CalcFilter) lens).getMeasureHeaders().contains(id) ||
+         ((CalcFilter) lens).getMeasureHeaders().contains(plain)))
+      {
          return true;
       }
 
-      return Util.findColumn(lens, id) >= 0;
+      return Util.findColumn(lens, id) >= 0 || Util.findColumn(lens, plain) >= 0;
    }
 
    /**
