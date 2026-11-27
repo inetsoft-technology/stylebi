@@ -20,6 +20,8 @@ package inetsoft.web.admin.ai.viewsheet;
 import inetsoft.web.admin.sheet.Sheet;
 import inetsoft.web.admin.sheet.vs.ViewsheetService;
 import inetsoft.web.admin.sheet.ws.WorksheetService;
+import inetsoft.sree.RepositoryEntry;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
@@ -28,6 +30,8 @@ import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.RenameTransformObject;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
+import inetsoft.web.RecycleBin;
+import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.ai.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,8 +71,10 @@ public class ViewsheetChangesetApplyService {
                                          ViewsheetService viewsheetApiService,
                                          ViewsheetFolderService folderService,
                                          AdminBackupService backupService,
-                                         WorksheetService worksheetApiService)
+                                         WorksheetService worksheetApiService,
+                                         RecycleBin recycleBin)
    {
+      this.recycleBin = recycleBin;
       this.planService = planService;
       this.viewsheetApiService = viewsheetApiService;
       this.folderService = folderService;
@@ -121,8 +127,11 @@ public class ViewsheetChangesetApplyService {
             String unitType = ViewsheetChangePlanService.requireUnitType("change", c.getUnitType());
             boolean isDeletableUnit = ViewsheetChangeRequest.UNIT_VIEWSHEET.equals(unitType) ||
                ViewsheetChangeRequest.UNIT_WORKSHEET.equals(unitType);
-            return isDeletableUnit && ViewsheetChangeRequest.VERB_DELETE.equals(
-               ViewsheetChangePlanService.requireViewsheetVerb("change", c.getVerb()));
+            // Bug #82461: a delete that moves the sheet to the Recycle Bin is recoverable, so it
+            // is not an irreversible delete; a plan mixing it with a permanent delete still is.
+            return isDeletableUnit && !ViewsheetChangePlanService.isToRecycleBin(c) &&
+               ViewsheetChangeRequest.VERB_DELETE.equals(
+                  ViewsheetChangePlanService.requireViewsheetVerb("change", c.getVerb()));
          });
 
          // bug #76469: a folder delete of a NON-empty folder is exactly as irreversible as a
@@ -394,6 +403,15 @@ public class ViewsheetChangesetApplyService {
       AssetEntry[] dependencies = lookup.dependencies();
       ViewsheetChangePlanService.requireForceIfDependent(
          "apply." + assetId, ViewsheetChangeRequest.UNIT_VIEWSHEET, assetId, dependencies, force);
+      boolean recycle = ViewsheetChangePlanService.isToRecycleBin(original);
+
+      if(recycle) {
+         ViewsheetChangePlanService.requireRecyclable("apply." + assetId, entry);
+         applySheetRecycle(false, txId, task, key, assetId, current, entry, lookup, user,
+                           backupRef, reviewOutcome, results, undoable, mutationEntered);
+         return;
+      }
+
       String advisory = buildDeleteAdvisory(lookup, "viewsheet");
 
       String beforeProjection = ViewsheetProjection.projectViewsheet(current);
@@ -544,6 +562,15 @@ public class ViewsheetChangesetApplyService {
       AssetEntry[] dependencies = lookup.dependencies();
       ViewsheetChangePlanService.requireForceIfDependent(
          "apply." + assetId, ViewsheetChangeRequest.UNIT_WORKSHEET, assetId, dependencies, force);
+      boolean recycle = ViewsheetChangePlanService.isToRecycleBin(original);
+
+      if(recycle) {
+         ViewsheetChangePlanService.requireRecyclable("apply." + assetId, entry);
+         applySheetRecycle(true, txId, task, key, assetId, current, entry, lookup, user,
+                           backupRef, reviewOutcome, results, undoable, mutationEntered);
+         return;
+      }
+
       String advisory = buildDeleteAdvisory(lookup, "worksheet");
 
       String beforeProjection = ViewsheetProjection.projectWorksheet(current);
@@ -561,6 +588,226 @@ public class ViewsheetChangesetApplyService {
 
       // Delete has NO live inverse in this cut, same as viewsheet delete -- never added to
       // `undoable`.
+   }
+
+   // ---------------------------------------------------------------- sheet recycle (bug #82461)
+
+   /**
+    * Moves a viewsheet or worksheet to the Recycle Bin through the same {@link
+    * RecycleUtils#moveSheetToRecycleBin} call Enterprise Manager uses. {@code force} is always
+    * {@code true} here, like the permanent delete's {@code removeSheet(entry, user, true)}: the
+    * dependents gate is the plan layer's {@code requireForceIfDependent} (already re-run by the
+    * caller against live state), and letting the util re-run its own, differently-sourced
+    * dependency check after {@code mutationEntered} is set could turn a clean refusal into a
+    * rollback-failed.
+    */
+   private void applySheetRecycle(boolean worksheet, String txId, String task, String key,
+                                  String assetId, Sheet current, AssetEntry entry,
+                                  DependencyLookupResult lookup, Principal user, String backupRef,
+                                  String reviewOutcome, List<ViewsheetApplyOutcome> results,
+                                  List<Undo> undoable, AtomicBoolean mutationEntered)
+      throws Exception
+   {
+      String unitLabel = worksheet ? "worksheet" : "viewsheet";
+      String objectType =
+         worksheet ? ActionRecord.OBJECT_TYPE_WORKSHEET : ActionRecord.OBJECT_TYPE_DASHBOARD;
+      String advisory = buildRecycleAdvisory(lookup, unitLabel);
+      String beforeProjection = worksheet
+         ? ViewsheetProjection.projectWorksheet(current)
+         : ViewsheetProjection.projectViewsheet(current);
+      Set<String> binPathsBefore = recycleBinPaths();
+
+      // The product-level DELETE record ViewsheetService.deleteViewsheet writes for a permanent
+      // delete; the recycle util writes none. Best effort, like writeAudit.
+      ActionRecord record = newDeleteActionRecord(user, entry.getName(), objectType);
+
+      mutationEntered.set(true);
+
+      try {
+         RecycleUtils.moveSheetToRecycleBin(entry, user, recycleBin, true);
+
+         if(record != null) {
+            record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
+         }
+      }
+      catch(Exception e) {
+         if(record != null) {
+            record.setActionError(
+               "Failed to move " + unitLabel + " to the recycle bin: " + assetId);
+         }
+
+         throw e;
+      }
+      finally {
+         auditAction(record, user);
+      }
+
+      Sheet after = worksheet
+         ? planService.findWorksheetById(user, assetId)
+         : planService.findViewsheetById(user, assetId);
+      RecycleBin.Entry binEntry = findNewBinEntry(binPathsBefore, entry);
+      String status;
+      String error = null;
+      String afterValue = null;
+
+      if(after != null) {
+         status = AdminChangeRecord.STATUS_FAILED;
+         error = unitLabel + " still present at its original path after the move to the Recycle Bin";
+      }
+      else if(binEntry == null) {
+         // The sheet left its original path (RecycleUtils skips the bin record when the sheet is
+         // not stored, bug #78230, and RecycleBin.addEntry swallows a storage failure), so it is
+         // NOT listed by list_recycle_bin_entries and apply_recycle_bin_changes cannot restore it.
+         // State changed and cannot be undone here: thrown, so apply reports rollback-failed
+         // (units still changed) instead of a clean rolled-back.
+         writeAudit(txId, task, key, objectType, AdminChangeRecord.RISK_HIGH,
+                   AdminChangeRecord.ACTION_APPLY, beforeProjection, null,
+                   AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+         throw new IllegalStateException(unitLabel + " was moved out of its original location " +
+            "but is not registered in the Recycle Bin (list_recycle_bin_entries will not show " +
+            "it and apply_recycle_bin_changes cannot restore it); check the server log and the " +
+            "repository's \"Recycle Bin\" folder manually");
+      }
+      else {
+         status = AdminChangeRecord.STATUS_VERIFIED;
+         afterValue = "(moved to the Recycle Bin as \"" + binEntry.getPath() + "\"; restore with " +
+            "apply_recycle_bin_changes)";
+      }
+
+      results.add(new ViewsheetApplyOutcome(key, beforeProjection, afterValue, status, error,
+                                            advisory));
+      writeAudit(txId, task, key, objectType, AdminChangeRecord.RISK_HIGH,
+                AdminChangeRecord.ACTION_APPLY, beforeProjection, afterValue, status, backupRef,
+                reviewOutcome, user);
+
+      if(AdminChangeRecord.STATUS_VERIFIED.equals(status)) {
+         // Not an exact inverse (a shared MV is not rebuilt), but a real one: a later failing
+         // entry in the same plan restores the sheet instead of leaving it recycled.
+         undoable.add(Undo.sheetRecycle(key, assetId, binEntry.getPath(), worksheet));
+      }
+   }
+
+   private static ActionRecord newDeleteActionRecord(Principal user, String objectName,
+                                                     String objectType)
+   {
+      try {
+         return new ActionRecord(SUtil.getUserName(user), ActionRecord.ACTION_NAME_DELETE,
+            objectName, objectType, new Timestamp(System.currentTimeMillis()),
+            ActionRecord.ACTION_STATUS_FAILURE, "");
+      }
+      catch(Exception e) {
+         LOG.error("Failed to build the product audit record for recycling {}", objectName, e);
+         return null;
+      }
+   }
+
+   private static void auditAction(ActionRecord record, Principal user) {
+      if(record == null) {
+         return;
+      }
+
+      try {
+         Audit.getInstance().auditAction(record, user);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to write the product audit record {}", record.getObjectName(), e);
+      }
+   }
+
+   private Set<String> recycleBinPaths() {
+      Set<String> paths = new HashSet<>();
+      Collection<RecycleBin.Entry> entries = recycleBin.getEntries();
+
+      if(entries != null) {
+         for(RecycleBin.Entry e : entries) {
+            paths.add(e.getPath());
+         }
+      }
+
+      return paths;
+   }
+
+   /** The newest bin entry that was not there before the move and records this sheet as its
+    * original path, scope, owner and type; null when none appeared. */
+   private RecycleBin.Entry findNewBinEntry(Set<String> pathsBefore, AssetEntry entry) {
+      Collection<RecycleBin.Entry> entries = recycleBin.getEntries();
+      int type = entry.isViewsheet() ? RepositoryEntry.VIEWSHEET : RepositoryEntry.WORKSHEET;
+      RecycleBin.Entry newest = null;
+
+      if(entries == null) {
+         return null;
+      }
+
+      for(RecycleBin.Entry e : entries) {
+         if(pathsBefore.contains(e.getPath()) || e.getType() != type ||
+            e.getOriginalScope() != entry.getScope() ||
+            !Objects.equals(e.getOriginalPath(), entry.getPath()) ||
+            !Objects.equals(e.getOriginalUser(), entry.getUser()))
+         {
+            continue;
+         }
+
+         if(newest == null || newest.getTimestamp() == null ||
+            e.getTimestamp() != null && e.getTimestamp().after(newest.getTimestamp()))
+         {
+            newest = e;
+         }
+      }
+
+      return newest;
+   }
+
+   private static String buildRecycleAdvisory(DependencyLookupResult lookup, String unitLabel) {
+      if(lookup.lookupFailed()) {
+         return "moved to the Recycle Bin with force: true, but the dependency check failed -- " +
+            "unable to confirm whether other assets still reference this " + unitLabel +
+            "; check server logs and verify manually";
+      }
+
+      AssetEntry[] dependencies = lookup.dependencies();
+      return dependencies.length == 0 ? null :
+         "moved to the Recycle Bin with force: true despite " + dependencies.length +
+         " dependent asset(s) still referencing this " + unitLabel + " (their references now " +
+         "point at the recycled copy until it is restored): " +
+         ViewsheetProjection.projectDependencies(dependencies);
+   }
+
+   private void rollbackSheetRecycle(Undo undo, String txId, String task, String backupRef,
+                                     String reviewOutcome, Principal user,
+                                     List<RollbackFailure> failures)
+      throws Exception
+   {
+      String objectType = undo.worksheet
+         ? ActionRecord.OBJECT_TYPE_WORKSHEET : ActionRecord.OBJECT_TYPE_DASHBOARD;
+      RecycleBin.Entry binEntry = recycleBin.getEntry(undo.binPath);
+
+      if(binEntry == null) {
+         writeAudit(txId, task, undo.key, objectType, AdminChangeRecord.RISK_HIGH,
+                   AdminChangeRecord.ACTION_ROLLBACK, null, null, AdminChangeRecord.STATUS_FAILED,
+                   backupRef, reviewOutcome, user);
+         failures.add(new RollbackFailure(undo.key,
+            "rollback of the recycle could not find the Recycle Bin entry \"" + undo.binPath +
+            "\"; restore it manually"));
+         return;
+      }
+
+      RecycleUtils.restoreSheet(binEntry, false, user, recycleBin);
+      // The sheet back at its original path is the signal. restoreSheet returns without moving
+      // anything when the original path is taken, and a lingering bin entry alone proves nothing
+      // either way, so it is not the verification.
+      Sheet reread = undo.worksheet
+         ? planService.findWorksheetById(user, undo.currentAssetId)
+         : planService.findViewsheetById(user, undo.currentAssetId);
+      boolean verified = reread != null;
+      writeAudit(txId, task, undo.key, objectType, AdminChangeRecord.RISK_HIGH,
+                AdminChangeRecord.ACTION_ROLLBACK, null, null,
+                verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED,
+                backupRef, reviewOutcome, user);
+
+      if(!verified) {
+         failures.add(new RollbackFailure(undo.key,
+            "rollback of the recycle did not restore the sheet to its original path"));
+      }
    }
 
    /**
@@ -1155,6 +1402,16 @@ public class ViewsheetChangesetApplyService {
          return u;
       }
 
+      /** Bug #82461: a recycle delete is compensable -- rollback restores the sheet from the
+       * Recycle Bin entry at {@code binPath} back to {@code assetId}'s path. */
+      static Undo sheetRecycle(String key, String assetId, String binPath, boolean worksheet) {
+         Undo u = new Undo(key, Kind.SHEET_RECYCLE);
+         u.currentAssetId = assetId;
+         u.binPath = binPath;
+         u.worksheet = worksheet;
+         return u;
+      }
+
       static Undo folderCreate(String key, String fullPath, IdentityID owner) {
          Undo u = new Undo(key, Kind.FOLDER_CREATE);
          u.fullPath = fullPath;
@@ -1247,6 +1504,9 @@ public class ViewsheetChangesetApplyService {
          case WORKSHEET_UPDATE:
             svc.rollbackWorksheetUpdate(this, txId, task, backupRef, reviewOutcome, user, failures);
             break;
+         case SHEET_RECYCLE:
+            svc.rollbackSheetRecycle(this, txId, task, backupRef, reviewOutcome, user, failures);
+            break;
          case FOLDER_CREATE:
             svc.rollbackFolderCreate(this, txId, task, backupRef, reviewOutcome, user, failures);
             break;
@@ -1264,12 +1524,14 @@ public class ViewsheetChangesetApplyService {
 
       enum Kind {
          VIEWSHEET_RENAME, VIEWSHEET_UPDATE, WORKSHEET_RENAME, WORKSHEET_UPDATE, FOLDER_CREATE,
-         FOLDER_DELETE, FOLDER_RENAME, FOLDER_UPDATE
+         FOLDER_DELETE, FOLDER_RENAME, FOLDER_UPDATE, SHEET_RECYCLE
       }
 
       final String key;
       final Kind kind;
       String currentAssetId;
+      String binPath;
+      boolean worksheet;
       String beforePath;
       boolean beforeGlobal;
       IdentityID beforeOwner;
@@ -1289,4 +1551,5 @@ public class ViewsheetChangesetApplyService {
    private final ViewsheetFolderService folderService;
    private final AdminBackupService backupService;
    private final WorksheetService worksheetApiService;
+   private final RecycleBin recycleBin;
 }
