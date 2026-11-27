@@ -78,6 +78,21 @@ class WizShareControllerTest {
    }
 
    @Test
+   void shareEmailRefusesARecipientThatIsNotAnAddress() throws Exception {
+      ShareController shareController = mock(ShareController.class);
+      ShareMessageRequest request = new ShareMessageRequest();
+      request.setLink("/sree/viewer/view/global/x");
+      request.setMessage("hi");
+      request.setRecipients(List.of("admin"));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> new WizShareController(shareController).shareEmail(request, mock(Principal.class)));
+
+      assertTrue(e.getMessage().contains("'recipients'"), e.getMessage());
+      verify(shareController, never()).sendEmailMessage(any(), any());
+   }
+
+   @Test
    void shareSlackBuildsShareMessageAndDelegates() throws Exception {
       ShareController shareController = mock(ShareController.class);
       Principal principal = mock(Principal.class);

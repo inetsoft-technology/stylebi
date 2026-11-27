@@ -229,7 +229,7 @@ public class WizDashboardDeliveryService {
          builder.recipients(requireList(request.recipients(), "recipients"))
             .ccs(request.ccs())
             .bccs(request.bccs());
-         shareController.sendEmailMessage(builder.build(), real);
+         WizShareEmailSender.send(shareController, builder.build(), real);
       }
       else if(TARGET_SLACK.equals(target)) {
          shareController.sendSlackMessage(builder.build(), real);
