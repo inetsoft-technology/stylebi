@@ -988,25 +988,6 @@ public class PPTVSExporter extends AbstractVSExporter {
    }
 
    /**
-    * @param chartAsm the chart assembly.
-    * @param vgraph the chart's vgraph.
-    *
-    * @return the chart image.
-    */
-   private BufferedImage getChartImage(ChartVSAssembly chartAsm, VGraph vgraph) {
-      final int scale = 2;
-      final Dimension size = chartAsm.getPixelSize();
-      final BufferedImage img = new BufferedImage(size.width * scale,
-         size.height * scale, BufferedImage.TYPE_4BYTE_ABGR);
-      final Graphics2D g2 = ((Graphics2D) img.getGraphics());
-
-      writeChart(g2, chartAsm, vgraph, scale);
-      g2.dispose();
-
-      return img;
-   }
-
-   /**
     * Write the slice chart.
     * @param originalAsm the original chart vs assembly.
     * @param asm the slice chart vs assembly.

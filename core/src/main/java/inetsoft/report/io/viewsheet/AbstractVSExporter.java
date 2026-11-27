@@ -2495,6 +2495,53 @@ public abstract class AbstractVSExporter implements VSExporter {
    protected abstract void writeChart(ChartVSAssembly chartAsm, VGraph vgraph,
                                       DataSet data, boolean imgOnly);
 
+   /**
+    * Draw a chart as one image, at twice its size where the image stays within
+    * {@link #MAX_CHART_IMAGE_PIXELS}.
+    * @param chartAsm the chart assembly.
+    * @param vgraph the chart's vgraph.
+    * @return the chart image.
+    */
+   protected BufferedImage getChartImage(ChartVSAssembly chartAsm, VGraph vgraph) {
+      final Dimension size = chartAsm.getPixelSize();
+      final double scale = getChartImageScale(size, 2);
+      final BufferedImage img = new BufferedImage((int) (size.width * scale),
+         (int) (size.height * scale), BufferedImage.TYPE_4BYTE_ABGR);
+      final Graphics2D g2 = ((Graphics2D) img.getGraphics());
+
+      writeChart(g2, chartAsm, vgraph, scale);
+      g2.dispose();
+
+      return img;
+   }
+
+   /**
+    * Get the scale to draw a chart image at. A chart expanded to show all its content
+    * (up to 10000 pixels on each side) is drawn as one image when the export is not sliced,
+    * for example in a match layout Excel export, and the image and its PNG encoding need about
+    * 12 bytes per pixel at the same time. The scale is reduced so the image has no more than
+    * {@link #MAX_CHART_IMAGE_PIXELS} pixels; an export of a 1445 x 10000 chart at twice its
+    * size needed about 750 MB of heap (Bug #81607).
+    * @param size the chart size in pixels.
+    * @param scale the preferred scale.
+    * @return the preferred scale, or a smaller one for a large chart.
+    */
+   public static double getChartImageScale(Dimension size, double scale) {
+      double pixels = (double) size.width * size.height;
+
+      if(pixels <= 0 || pixels * scale * scale <= MAX_CHART_IMAGE_PIXELS) {
+         return scale;
+      }
+
+      return Math.sqrt(MAX_CHART_IMAGE_PIXELS / pixels);
+   }
+
+   /**
+    * The maximum number of pixels of a chart image drawn by {@link #getChartImage}, about
+    * 192 MB of heap while it is encoded.
+    */
+   public static final double MAX_CHART_IMAGE_PIXELS = 4000d * 4000d;
+
    protected void writeChart(Graphics2D g2, ChartVSAssembly chartAsm, VGraph vgraph, double scale) {
       final VSChart chart = new VSChart(viewsheet);
       final ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chartAsm.getVSAssemblyInfo();
