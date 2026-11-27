@@ -289,6 +289,17 @@ class WizDashboardDeliveryServiceTest {
    }
 
    @Test
+   void shareToABareNameIsRefusedNamingRecipientsBeforeSending() throws Exception {
+      Fixture f = new Fixture(true);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> f.service.share(share("email", "hi", List.of("admin")), f.wiz, "u/"));
+
+      assertTrue(e.getMessage().contains("'recipients'"), e.getMessage());
+      verify(f.shares, never()).sendEmailMessage(any(), any());
+   }
+
+   @Test
    void shareOptionsReportTheEnabledServerTargetsAndTheLink() throws Exception {
       Fixture f = new Fixture(true);
       when(f.shares.getConfig(any(), any())).thenReturn(ShareConfig.builder()
