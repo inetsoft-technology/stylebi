@@ -950,6 +950,79 @@ public class LayoutTool {
       return holder.row + "X" + holder.col;
    }
 
+   private static <T> T[] concat(T[] first, T[] second) {
+      if(second.length == 0) {
+         return first;
+      }
+
+      T[] result = java.util.Arrays.copyOf(first, first.length + second.length);
+      System.arraycopy(second, 0, result, first.length, second.length);
+      return result;
+   }
+
+   /**
+    * Find the Top N (no Others) group of the layout that a summary cell must be restricted by
+    * although the cell does not carry it in its own group list (Bug #82408). A crosstab
+    * only totals the groups that are shown after a Top N without Others, so the script
+    * path has to do the same for a grand total, and for a total across a Top N group of the
+    * other axis (e.g. a row total with a Top N column group).
+    *
+    * <p>Only the outermost group of an axis is taken, and only when the cell has no group on
+    * that axis: a cell that carries the outer group is restricted by it already, and a Top N
+    * on an inner group never restricted the totals of the outer groups. When the layout has
+    * several independent chains on the axis (several top level groups) nothing is added: the
+    * quick path does not run those layouts as one crosstab, so there is no common meaning of
+    * "the shown groups" for the cell, and the result stays as before.
+    *
+    * @param rowGroups the number of row groups the cell carries.
+    * @param colGroups the number of column groups the cell carries.
+    */
+   private static void findChainTopN(TableLayout layout, Map<String, CellHolder> n2c,
+                                     int rowGroups, int colGroups, FormulaTable table,
+                                     List<CalcGroup> groups, List<String> names)
+   {
+      for(int axis = 0; axis < 2; axis++) {
+         boolean row = axis == 0;
+
+         if((row ? rowGroups : colGroups) > 0) {
+            continue;
+         }
+
+         int expansion = row ? TableCellBinding.EXPAND_V : TableCellBinding.EXPAND_H;
+         TableCellBinding root = null;
+         int roots = 0;
+
+         for(CellHolder holder : n2c.values()) {
+            TableCellBinding gcell = holder.cell;
+
+            if(gcell == null || gcell.isEmpty() || gcell.getType() != CellBinding.BIND_COLUMN ||
+               gcell.getBType() != TableCellBinding.GROUP || gcell.getExpansion() != expansion)
+            {
+               continue;
+            }
+
+            String parent = row ? gcell.getRowGroup() : gcell.getColGroup();
+
+            if(parent == null || parent.isEmpty() || n2c.get(parent) == null) {
+               root = gcell;
+               roots++;
+            }
+         }
+
+         if(roots != 1) {
+            continue;
+         }
+
+         TopNInfo topn = root.getTopN(false);
+         String name = layout.getRuntimeCellName(root);
+
+         if(topn != null && !topn.isBlank() && !topn.isOthers() && name != null) {
+            groups.add(createGroupField(root, table));
+            names.add(name);
+         }
+      }
+   }
+
    /**
     * Create aggregate expression for calc.
     */
@@ -959,6 +1032,26 @@ public class LayoutTool {
                                             String var, int position,
                                             TableCellBinding cell)
    {
+      return createAggExpression(gfields, cellnames, level, afield, var, position, cell,
+                                 new CalcGroup[0], new String[0]);
+   }
+
+   /**
+    * Create aggregate expression for calc.
+    *
+    * @param extraTopN the Top N (no Others) groups of the cell's expansion chain that the cell
+    *                  itself does not carry (e.g. a grand total). They restrict the rows of the
+    *                  aggregate, and of the denominator of a percentage, to the groups that
+    *                  are shown, like the totals of a crosstab do (Bug #82408).
+    * @param extraTopNNames the runtime cell names of {@code extraTopN}.
+    */
+   private static String createAggExpression(CalcGroup[] gfields,
+                                             String[] cellnames,
+                                             int level, CalcAggregate afield,
+                                             String var, int position,
+                                             TableCellBinding cell,
+                                             CalcGroup[] extraTopN, String[] extraTopNNames)
+   {
       level = Math.min(level, gfields.length);
       String expression = cell.getExpression();
 
@@ -966,7 +1059,9 @@ public class LayoutTool {
          FormulaStorage fstore = parseFormula(afield);
          String exp = fstore.formula + "(" + var + "[\'" +
             escapeColNameInLiteral(BindingTool.getFieldName(afield));
-         String cond = createGroupCond(gfields, cellnames, 0, level, true);
+         String cond = createGroupCond(gfields, cellnames, 0, level,
+                                       concat(gfields, extraTopN),
+                                       concat(cellnames, extraTopNNames), true);
 
          exp += cond;
          exp += "\']";
@@ -990,7 +1085,7 @@ public class LayoutTool {
 
          if(fstore.percent > 0) {
             String percent = createPercentageExpression(gfields, cellnames,
-               level, afield, var, position, cell, fstore);
+               level, afield, var, position, cell, fstore, extraTopN, extraTopNNames);
 
             if(percent != null) {
                exp += "/" + percent;
@@ -1021,7 +1116,8 @@ public class LayoutTool {
          TableCellBinding ncell = (TableCellBinding) cell.clone();
          CalcAggregate nafield = afield;
          buildAggFormula(value, ncell, nafield);
-         String exp = createAggExpression(gfields, cellnames, level, nafield, var, position, ncell);
+         String exp = createAggExpression(gfields, cellnames, level, nafield, var, position, ncell,
+                                          extraTopN, extraTopNNames);
          key = replaceSymbol(value);
          expression = expression.replace(key, exp.matches(hasArithmetic) ? "(" + exp + ")" : exp);
       }
@@ -1122,7 +1218,9 @@ public class LayoutTool {
                                                     CalcAggregate afield,
                                                     String var, int position,
                                                     TableCellBinding cell,
-                                                    FormulaStorage fstore)
+                                                    FormulaStorage fstore,
+                                                    CalcGroup[] extraTopN,
+                                                    String[] extraTopNNames)
    {
       // fix bug1283224779814, do not apply percent of group on total value
       if(((fstore.percent == StyleConstants.PERCENTAGE_OF_ROW_GROUP ||
@@ -1139,18 +1237,24 @@ public class LayoutTool {
 
          if(fstore.percent == StyleConstants.PERCENTAGE_OF_GROUP) {
             end = level - 1;
-            cond = createGroupCond(gfields, cellnames, start, end, true);
+            cond = createGroupCond(gfields, cellnames, start, end,
+                                   concat(gfields, extraTopN),
+                                   concat(cellnames, extraTopNNames), true);
             aname += cond;
          }
          else if(fstore.percent == StyleConstants.PERCENTAGE_OF_ROW_GROUP) {
             end = level - 1;
-            cond = createGroupCond(gfields, cellnames, start, end, true);
+            cond = createGroupCond(gfields, cellnames, start, end,
+                                   concat(gfields, extraTopN),
+                                   concat(cellnames, extraTopNNames), true);
             aname += cond;
          }
          else if(fstore.percent == StyleConstants.PERCENTAGE_OF_ROW_GRANDTOTAL)
          {
             end = position;
-            cond = createGroupCond(gfields, cellnames, start, end, true);
+            cond = createGroupCond(gfields, cellnames, start, end,
+                                   concat(gfields, extraTopN),
+                                   concat(cellnames, extraTopNNames), true);
             aname += cond;
          }
          else if(fstore.percent == StyleConstants.PERCENTAGE_OF_COL_GROUP) {
@@ -1181,18 +1285,24 @@ public class LayoutTool {
             }
 
             end = level;
-            cond = createGroupCond(gfields, cellnames, start, end, true);
+            cond = createGroupCond(gfields, cellnames, start, end,
+                                   concat(gfields, extraTopN),
+                                   concat(cellnames, extraTopNNames), true);
             aname += cond;
          }
          else if(fstore.percent == StyleConstants.PERCENTAGE_OF_COL_GRANDTOTAL) {
             start = position;
             end = level;
-            cond = createGroupCond(gfields, cellnames, start, end, true);
+            cond = createGroupCond(gfields, cellnames, start, end,
+                                   concat(gfields, extraTopN),
+                                   concat(cellnames, extraTopNNames), true);
             aname += cond;
          }
          else {
             // necessary for adding inGroups for topn
-            cond = createGroupCond(gfields, cellnames, start, end, true);
+            cond = createGroupCond(gfields, cellnames, start, end,
+                                   concat(gfields, extraTopN),
+                                   concat(cellnames, extraTopNNames), true);
             aname += cond;
          }
 
@@ -2356,6 +2466,7 @@ public class LayoutTool {
       List<Point> locs = new ArrayList<>();
       Set<String> processed = new HashSet<>();
       buildGroupList(layout, cell.getRowGroup(), holders, n2c, c2p, locs, processed, true, table);
+      int rowGroupCount = holders.size();
 
       if(cell.getBType() == TableCellBinding.SUMMARY) {
          position = holders.size();
@@ -2364,6 +2475,7 @@ public class LayoutTool {
       processed = new HashSet<>();
       buildGroupList(layout, cell.getColGroup(), holders, n2c, c2p, locs, processed, false, table);
       position = holders.size() - position;
+      int colGroupCount = holders.size() - rowGroupCount;
       List<TableCellBinding> list = new ArrayList<>();
 
       for(CellHolder holder : holders) {
@@ -2424,7 +2536,12 @@ public class LayoutTool {
       }
       else {
          CalcAggregate agg = createAggregateField(cell, table);
-         exp = createAggExpression(groups, gnames, groups.length, agg, var, position, cell);
+         List<CalcGroup> topnGroups = new ArrayList<>();
+         List<String> topnNames = new ArrayList<>();
+         findChainTopN(layout, n2c, rowGroupCount, colGroupCount, table, topnGroups, topnNames);
+         exp = createAggExpression(groups, gnames, groups.length, agg, var, position, cell,
+                                   topnGroups.toArray(new CalcGroup[0]),
+                                   topnNames.toArray(new String[0]));
       }
 
       return exp;

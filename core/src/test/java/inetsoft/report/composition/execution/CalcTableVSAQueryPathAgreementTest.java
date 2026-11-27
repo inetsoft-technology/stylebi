@@ -160,6 +160,30 @@ class CalcTableVSAQueryPathAgreementTest {
       assertEquals(2.0, ((Number) sums.get("")).doubleValue(), "empty group, script path");
    }
 
+   /**
+    * Bug #82408: the denominator of a percentage of the grand total covers the same shown groups
+    * as the numerator, so the percentage of the grand total on the grand total cell stays 100%.
+    */
+   @Test
+   void percentOfGrandTotalOnTheGrandTotalCellStaysAHundredPercentWithATopN() throws Exception {
+      for(String formula : new String[] { "Sum<2>", "Sum<16>", "Sum<32>" }) {
+         Scenario sc = new Scenario("percent " + formula, sales(
+            row("A", 1, 100.0), row("B", 1, 90.0), row("C", 1, 80.0), row("D", 1, 70.0),
+            row("E", 1, 60.0), row("A", 1, 1.0)), 3, false, l -> {
+            TableCellBinding g = group("Region");
+            g.setTopN(topN(2, false));
+            l.setCellBinding(1, 0, g);
+            l.setCellBinding(1, 1, summary("Total", "Sum"));
+            TableCellBinding all = summary("Total", formula);
+            all.setRowGroup(null);
+            l.setCellBinding(1, 2, all);
+         });
+         List<List<Object>> script = run(sc, true);
+         assertEquals(1.0, ((Number) script.get(1).get(2)).doubleValue(), 1e-9,
+                      formula + ": " + script);
+      }
+   }
+
    // ---- Bug #82482: the script path read the rows of a group by walking the interval between
    // its first and its last row, which is the whole table when the rows of the groups are
    // interleaved. The same rows in another order must give the same cells.
@@ -1433,11 +1457,11 @@ class CalcTableVSAQueryPathAgreementTest {
             TableCellBinding all = summary("Total", "Sum");
             all.setRowGroup(null);
             l.setCellBinding(1, 2, all);
-         }).knownDifference("Bug #82408 [Dev feedback needed]: with a Top N and no Others the " +
-                            "grand total is 191 (the shown groups) on the quick path and 401 " +
-                            "(all data) on the script path",
-                            "[1,2] quick=191.0:Double script=401.0:Double",
-                            "[2,2] quick=191.0:Double script=401.0:Double"),
+         }).expect((rows, path) -> {
+            // Bug #82408: the grand total covers the shown groups (A 101 + B 90), not all data
+            assertEquals(191.0, ((Number) rows.get(1).get(2)).doubleValue(), path + ": " + rows);
+            assertEquals(191.0, ((Number) rows.get(2).get(2)).doubleValue(), path + ": " + rows);
+         }),
          new Scenario("GT3 grand total of the table, top 2 with Others", sales(
             row("A", 1, 100.0), row("B", 1, 90.0), row("C", 1, 80.0), row("D", 1, 70.0),
             row("E", 1, 60.0), row("A", 1, 1.0)), 3, false, l -> {
@@ -1451,6 +1475,116 @@ class CalcTableVSAQueryPathAgreementTest {
          }).knownDifference("the script path labels it \"Others \" with a trailing space, " +
                             "on purpose; the grand total is 401 on both paths",
                             "[3,0] quick=Others:String script=Others :String"),
+         // Bug #82408: a total that lacks the Top N group of its chain covers the shown groups
+         new Scenario("GT4 grand total of five aggregates, top 2 without Others", sales(
+            row("A", 1, 100.0), row("B", 2, 90.0), row("C", 3, 80.0), row("D", 4, 70.0),
+            row("E", 5, 60.0), row("A", 1, 1.0)), 11, false, l -> {
+            TableCellBinding g = group("Region");
+            g.setTopN(topN(2, false));
+            l.setCellBinding(1, 0, g);
+            String[] formulas = { "Sum", "Count", "Median", "Average", "DistinctCount" };
+
+            for(int i = 0; i < formulas.length; i++) {
+               l.setCellBinding(1, 1 + i, summary(i == 1 ? "Qty" : "Total", formulas[i]));
+               TableCellBinding all = summary(i == 1 ? "Qty" : "Total", formulas[i]);
+               all.setRowGroup(null);
+               l.setCellBinding(1, 6 + i, all);
+            }
+         }).expect((rows, path) -> {
+            // the shown groups are A (two rows) and B: Sum 191, Count 3, Median 90, Average
+            // 63.67, DistinctCount 3
+            List<Object> r = rows.get(1);
+            assertEquals(191.0, ((Number) r.get(6)).doubleValue(), path + ": " + rows);
+            assertEquals(3, ((Number) r.get(7)).intValue(), path + ": " + rows);
+            assertEquals(90.0, ((Number) r.get(8)).doubleValue(), path + ": " + rows);
+            assertEquals(191.0 / 3, ((Number) r.get(9)).doubleValue(), 1e-9, path + ": " + rows);
+            assertEquals(3, ((Number) r.get(10)).intValue(), path + ": " + rows);
+         }),
+         new Scenario("GT5 nested, outer top 2 without Others, grand total and outer total",
+                      nestedTypes(), topData, 4, false, l -> {
+            TableCellBinding outer = group("Region");
+            outer.setTopN(topN(2, false));
+            l.setCellBinding(1, 0, outer);
+            TableCellBinding inner = TableCellBinding.getGroupBinding("Cat");
+            inner.setCellName("g2");
+            inner.setRowGroup(GROUP_CELL);
+            l.setCellBinding(1, 1, inner);
+            l.setCellBinding(1, 2, summary("Total", "Sum"));
+            TableCellBinding all = summary("Total", "Sum");
+            all.setRowGroup(null);
+            l.setCellBinding(1, 3, all);
+         }).expect((rows, path) -> {
+            // A 150 + B 130 shown, C, D and E are not
+            assertEquals(280.0, ((Number) rows.get(1).get(3)).doubleValue(), path + ": " + rows);
+            assertEquals(150.0, ((Number) rows.get(1).get(2)).doubleValue(), path + ": " + rows);
+         }),
+         new Scenario("GT6 row total of a table with a top 2 column group without Others",
+                      nestedTypes(), topData, 4, false, l -> {
+            l.setCellBinding(1, 0, group("Region"));
+            TableCellBinding cat = TableCellBinding.getGroupBinding("Cat");
+            cat.setCellName("g2");
+            cat.setExpansion(TableCellBinding.EXPAND_H);
+            cat.setTopN(topN(2, false));
+            l.setCellBinding(0, 1, cat);
+            TableCellBinding cell = summary("Total", "Sum");
+            cell.setColGroup("g2");
+            l.setCellBinding(1, 1, cell);
+            // the row total: the row group only, no column group
+            l.setCellBinding(1, 2, summary("Total", "Sum"));
+            // the grand total: no group at all
+            TableCellBinding all = summary("Total", "Sum");
+            all.setRowGroup(null);
+            l.setCellBinding(1, 3, all);
+         }),
+         new Scenario("GT7 two independent chains, the totals keep covering all data",
+                      nestedTypes(), topData, 5, false, l -> {
+            TableCellBinding g = group("Region");
+            g.setTopN(topN(2, false));
+            l.setCellBinding(1, 0, g);
+            l.setCellBinding(1, 1, summary("Total", "Sum"));
+            TableCellBinding other = TableCellBinding.getGroupBinding("Cat");
+            other.setCellName("g2");
+            other.setTopN(topN(2, false));
+            l.setCellBinding(1, 2, other);
+            TableCellBinding s = summary("Total", "Sum");
+            s.setRowGroup("g2");
+            l.setCellBinding(1, 3, s);
+            TableCellBinding all = summary("Total", "Sum");
+            all.setRowGroup(null);
+            l.setCellBinding(1, 4, all);
+         }).fallsBack().expect((rows, path) -> {
+            // not a crosstab: unchanged, the grand total is the whole table
+            assertEquals(420.0, ((Number) rows.get(1).get(4)).doubleValue(), path + ": " + rows);
+         }),
+         new Scenario("GT8 nested, inner top 2 without Others, grand total and outer total",
+                      nestedTypes(), topData, 4, false, l -> {
+            l.setCellBinding(1, 0, group("Region"));
+            TableCellBinding inner = TableCellBinding.getGroupBinding("Cat");
+            inner.setCellName("g2");
+            inner.setRowGroup(GROUP_CELL);
+            inner.setTopN(topN(2, false));
+            l.setCellBinding(1, 1, inner);
+            l.setCellBinding(1, 2, summary("Total", "Sum"));
+            TableCellBinding all = summary("Total", "Sum");
+            all.setRowGroup(null);
+            l.setCellBinding(1, 3, all);
+         }),
+         new Scenario("GT9 nested, outer top 2 with Others, grand total and outer total",
+                      nestedTypes(), topData, 4, false, l -> {
+            TableCellBinding outer = group("Region");
+            outer.setTopN(topN(2, true));
+            l.setCellBinding(1, 0, outer);
+            TableCellBinding inner = TableCellBinding.getGroupBinding("Cat");
+            inner.setCellName("g2");
+            inner.setRowGroup(GROUP_CELL);
+            l.setCellBinding(1, 1, inner);
+            l.setCellBinding(1, 2, summary("Total", "Sum"));
+            TableCellBinding all = summary("Total", "Sum");
+            all.setRowGroup(null);
+            l.setCellBinding(1, 3, all);
+         }).fallsBack().expect((rows, path) -> {
+            assertEquals(420.0, ((Number) rows.get(1).get(3)).doubleValue(), path + ": " + rows);
+         }),
          new Scenario("CC1 Concat with null values and an empty group, group and grand total",
                       nestedTypes(), nested(nrow("East", "a", 1, 1.0), nrow("East", null, 2, 2.0),
                                             nrow("East", "a", 3, 3.0), nrow("North", "c", 4, 4.0),
