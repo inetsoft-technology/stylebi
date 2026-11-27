@@ -255,6 +255,22 @@ public class CalcTableVSAssemblyInfo extends TableDataVSAssemblyInfo {
       this.sortOthersLast.setDValue(sortOthersLast + "");
    }
 
+   /**
+    * Get the maximum number of rows of the output table. Unlike the table
+    * assembly, this is the stored value (the global row limit is not folded in)
+    * and 0 means no per-assembly limit.
+    */
+   public int getMaxRows() {
+      return maxrow;
+   }
+
+   /**
+    * Set the maximum number of rows of the output table, 0 for no limit.
+    */
+   public void setMaxRows(int maxrow) {
+      this.maxrow = maxrow;
+   }
+
    @Override
    protected void writeAttributes(PrintWriter writer) {
       super.writeAttributes(writer);
@@ -266,6 +282,10 @@ public class CalcTableVSAssemblyInfo extends TableDataVSAssemblyInfo {
       writer.print(" colCount=\"" + ncol + "\"");
       writer.print(" fillWithZero=\"" + getFillBlankWithZeroValue() + "\"");
       writer.print(" sortOthersLast=\"" + getSortOthersLastValue() + "\"");
+
+      if(maxrow > 0) {
+         writer.print(" maxRow=\"" + maxrow + "\"");
+      }
    }
 
    @Override
@@ -291,6 +311,10 @@ public class CalcTableVSAssemblyInfo extends TableDataVSAssemblyInfo {
 
       if((str = Tool.getAttribute(elem, "colCount")) != null) {
          ncol = Integer.parseInt(str);
+      }
+
+      if((str = Tool.getAttribute(elem, "maxRow")) != null) {
+         maxrow = Integer.parseInt(str);
       }
 
       if((str = Tool.getAttribute(elem, "fillWithZero")) != null) {
@@ -395,6 +419,11 @@ public class CalcTableVSAssemblyInfo extends TableDataVSAssemblyInfo {
             hcol = info0.hcol;
             trow = info0.trow;
             tcol = info0.tcol;
+            hint |= VSAssembly.INPUT_DATA_CHANGED;
+         }
+
+         if(maxrow != info0.maxrow) {
+            maxrow = info0.maxrow;
             hint |= VSAssembly.INPUT_DATA_CHANGED;
          }
 
@@ -506,6 +535,7 @@ public class CalcTableVSAssemblyInfo extends TableDataVSAssemblyInfo {
    private int hrow = 1, hcol;
    private int trow, tcol;
    private int ncol = 0;
+   private int maxrow = 0; // max rows of the output, 0 for unlimited
    private DynamicValue2 fillWithZeroValue;
    private DynamicValue2 sortOthersLast;
 }

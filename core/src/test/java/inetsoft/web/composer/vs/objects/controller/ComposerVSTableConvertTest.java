@@ -35,6 +35,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.CrosstabTree;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.util.ThreadContext;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.service.VSBindingService;
@@ -233,6 +234,31 @@ class ComposerVSTableConvertTest {
       assertDoesNotThrow(() -> box().cancel());
       assertDoesNotThrow(
          () -> box().processChange(CROSSTAB, 0xFFFF, new ChangedAssemblyList()));
+   }
+
+   // Bug #82418: Max Rows of a table must survive the conversion and clip the freehand output
+   @Test
+   void convertedFreehandTableCarriesTheMaxRowsOfTheTable() throws Exception {
+      Viewsheet vs = box().getViewsheet();
+      TableVSAssemblyInfo tinfo = (TableVSAssemblyInfo) vs.getAssembly(TABLE).getInfo();
+      tinfo.setMaxRows(5);
+      convert(TABLE);
+
+      CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) vs.getAssembly(TABLE).getInfo();
+      assertEquals(5, info.getMaxRows());
+      TableLens lens = (TableLens) box().getData(TABLE);
+      lens.moreRows(Integer.MAX_VALUE);
+      assertEquals(5, lens.getRowCount() - lens.getHeaderRowCount());
+   }
+
+   @Test
+   void convertedFreehandTableKeepsDefaultMaxRowsForCrosstabSource() throws Exception {
+      Viewsheet vs = box().getViewsheet();
+      crosstab(vs, new String[] { "type" }, new String[0], "wind", "Sum");
+
+      convert(CROSSTAB);
+
+      assertEquals(0, ((CalcTableVSAssemblyInfo) vs.getAssembly(CROSSTAB).getInfo()).getMaxRows());
    }
 
    private ViewsheetSandbox box() {

@@ -622,6 +622,13 @@ public class TableVSAssemblyInfo extends TableDataVSAssemblyInfo {
    }
 
    /**
+    * Get the stored maximum rows, without folding in the global row limit.
+    */
+   public int getRawMaxRows() {
+      return maxrow;
+   }
+
+   /**
     * Set the maximum rows.
     */
    public void setMaxRows(int row) {
