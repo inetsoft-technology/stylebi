@@ -404,11 +404,6 @@ public class FormulaFunctions {
    }
 
    /**
-    * Create a comparator for sorting on a column.
-    * @param gmap a map from value to group name (named groups). It should
-    * be applied to calculate the aggregate value
-    */
-   /**
     * Characters of a column name that LayoutTool escapes with a backslash in the field, sorton
     * and sorton2 options, because the option parser would take them as syntax.
     */
@@ -471,6 +466,11 @@ public class FormulaFunctions {
       return -1;
    }
 
+   /**
+    * Create a comparator for sorting on a column.
+    * @param gmap a map from value to group name (named groups). It should
+    * be applied to calculate the aggregate value
+    */
    private static Comparator createSortOn(XTable tbl, String sorton,
                                           String group, Options opt,
                                           Map gmap, boolean hasNamedGroup)

@@ -886,10 +886,6 @@ class CalcTableVSAQueryPathAgreementTest {
                        "Year(Date)");
    }
 
-   static Stream<String> columnNamesWithoutDoubleQuote() {
-      return columnNames().filter(n -> n.indexOf('"') < 0);
-   }
-
    private static Object[][] rankedData(String name) {
       return new Object[][] {
          { "g " + name, "v " + name, "w " + name },
@@ -936,10 +932,8 @@ class CalcTableVSAQueryPathAgreementTest {
       assertBothPaths(sc, List.of("East=40.0", "West=35.0"));
    }
 
-   // not for a double quote: the condition of the Others row reads the name through
-   // rowValue["..."], which is Bug #82488 (the group condition), not the option string of this bug
    @ParameterizedTest(name = "{0}")
-   @MethodSource("columnNamesWithoutDoubleQuote")
+   @MethodSource("columnNames")
    void topNWithOthersOfAColumnWithSpecialCharactersAgreesOnBothPaths(String name)
       throws Exception
    {
