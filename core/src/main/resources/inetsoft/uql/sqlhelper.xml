@@ -130,6 +130,20 @@
    <!--unsupported type="informix" op="condition_subquery"/-->
    <unsupported type="sybase" op="condition_subquery"/>
 
+   <!--comparison (<, <=, >, >=) with a subquery uses 'op any (select ...)'. The support of ANY
+       was inferred from the database documentation and was not run against every database,
+       a database listed here evaluates the condition in memory-->
+   <unsupported type="clickhouse" op="condition_subquery_any"/>
+   <unsupported type="google bigquery" op="condition_subquery_any"/>
+   <unsupported type="hadoop hive" op="condition_subquery_any"/>
+   <unsupported type="impala" op="condition_subquery_any"/>
+   <unsupported type="databricks" op="condition_subquery_any"/>
+   <unsupported type="dremio" op="condition_subquery_any"/>
+   <unsupported type="denodo" op="condition_subquery_any"/>
+   <unsupported type="exasol" op="condition_subquery_any"/>
+   <unsupported type="luciddb" op="condition_subquery_any"/>
+   <unsupported type="mongo" op="condition_subquery_any"/>
+
    <!--subquery in from clause-->
    <unsupported type="informix" op="from_subquery"/>
    <!--unsupported type="sybase" op="from_subquery"/-->

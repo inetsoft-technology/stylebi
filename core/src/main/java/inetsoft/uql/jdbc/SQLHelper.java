@@ -87,6 +87,10 @@ public class SQLHelper implements KeywordProvider {
     */
    public static final String CONDITION_SUBQUERY = "condition_subquery";
    /**
+    * Quantified comparison (op ANY) of a condition with a subquery.
+    */
+   public static final String CONDITION_SUBQUERY_ANY = "condition_subquery_any";
+   /**
     * From subquery.
     */
    public static final String FROM_SUBQUERY = "from_subquery";

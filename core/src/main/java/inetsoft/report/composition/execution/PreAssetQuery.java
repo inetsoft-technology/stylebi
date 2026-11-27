@@ -543,7 +543,23 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          return false;
       }
 
+      if(isQuantifiedSubQueryCondition(cond) &&
+         !helper.supportsOperation(SQLHelper.CONDITION_SUBQUERY_ANY))
+      {
+         return false;
+      }
+
       return true;
+   }
+
+   /**
+    * Check if the condition compares with a sub query using '<' or '>', which is pushed down
+    * as a quantified comparison (op ANY).
+    */
+   private static boolean isQuantifiedSubQueryCondition(AssetCondition cond) {
+      int op = cond.getOperation();
+      return cond.getSubQueryValue() != null &&
+         (op == XCondition.LESS_THAN || op == XCondition.GREATER_THAN);
    }
 
    private boolean isConditionMergeable(ConditionList conds) {
@@ -3325,6 +3341,12 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          if(!helper.supportsOperation(SQLHelper.CONDITION_SUBQUERY)) {
             return false;
          }
+
+         if(isQuantifiedSubQueryCondition(cond) &&
+            !helper.supportsOperation(SQLHelper.CONDITION_SUBQUERY_ANY))
+         {
+            return false;
+         }
       }
 
       return true;
@@ -4726,13 +4748,14 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             XFilterNode condnode;
             String op;
 
-            // operators '=', '>=', '<=', '>', '<' and one of suppport sub query
+            // operators '=', '>=', '<=', '>', '<' and one of suppport sub query; the
+            // comparisons use ANY semantics, same as Condition.evaluate (bug #82411)
             switch(cond.getOperation()) {
             case XCondition.LESS_THAN:
-               op = cond.isEqual() ? "<=" : "<";
+               op = cond.isEqual() ? "<= any" : "< any";
                break;
             case XCondition.GREATER_THAN:
-               op = cond.isEqual() ? ">=" : ">";
+               op = cond.isEqual() ? ">= any" : "> any";
                break;
             case XCondition.ONE_OF:
             case XCondition.CONTAINS:

@@ -652,17 +652,28 @@ public class Condition extends AbstractCondition {
             return false;
          }
 
-         if(values.size() > 0) {
-            Object obj = values.get(0);
-            obj = normalizeValue(obj, value);
+         // any value of the sub query satisfies the comparison (sql 'op any (...)').
+         // no match with a null value is unknown, which is not negated, in sync with sql
+         boolean sawNull = false;
 
-            // in sync with sql
+         for(Object val : values) {
+            Object obj = normalizeValue(val, value);
+
             if(obj == null) {
-               return false;
+               sawNull = true;
+               continue;
             }
 
             int r = comp.compare(value, obj);
-            result = isEqual() ? (r <= 0) : (r < 0);
+
+            if(isEqual() ? (r <= 0) : (r < 0)) {
+               result = true;
+               break;
+            }
+         }
+
+         if(!result && sawNull) {
+            return false;
          }
       }
       else if(op == GREATER_THAN) {
@@ -671,17 +682,28 @@ public class Condition extends AbstractCondition {
             return false;
          }
 
-         if(values.size() > 0) {
-            Object obj = values.get(0);
-            obj = normalizeValue(obj, value);
+         // any value of the sub query satisfies the comparison (sql 'op any (...)').
+         // no match with a null value is unknown, which is not negated, in sync with sql
+         boolean sawNull = false;
 
-            // in sync with sql
+         for(Object val : values) {
+            Object obj = normalizeValue(val, value);
+
             if(obj == null) {
-               return false;
+               sawNull = true;
+               continue;
             }
 
             int r = comp.compare(value, obj);
-            result = isEqual() ? (r >= 0) : (r > 0);
+
+            if(isEqual() ? (r >= 0) : (r > 0)) {
+               result = true;
+               break;
+            }
+         }
+
+         if(!result && sawNull) {
+            return false;
          }
       }
       else if(op == EQUAL_TO) {
