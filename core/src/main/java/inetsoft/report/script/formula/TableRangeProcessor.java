@@ -111,6 +111,46 @@ public class TableRangeProcessor extends RangeProcessor {
    }
 
    /**
+    * Select cells from an explicit list of rows (see CachedRowSelector.getGroupRows()). The
+    * rows are visited in the given (ascending) order and the selector and condition are
+    * applied to each, exactly as for the range walk over the same rows.
+    * @param rows the rows to visit, ascending.
+    * @param startRow rows before this row are skipped.
+    */
+   public void selectCells(Collection cells, String colexpr, boolean expression,
+                           int[] rows, int startRow, RangeSelector selector, String cond,
+                           boolean location)
+   {
+      if(JavaScriptEngine.errorsExceeded(colexpr)) {
+         return;
+      }
+
+      int col = 0;
+
+      if(!expression) {
+         col = Util.findColumn(table, colexpr);
+
+         if(col < 0) {
+            if(colexpr.equals("*")) {
+               col = 0;
+            }
+            else {
+               if(JavaScriptEngine.getExecScriptable() != null) {
+                  JavaScriptEngine.incrementError(colexpr);
+               }
+
+               LOG.debug("Column not found in table: {}", colexpr);
+               return;
+            }
+         }
+      }
+
+      CellIterator iter = new RowIterator(table, expression ? colexpr : null, col, rows, startRow);
+
+      select0(cells, iter, selector, cond, location, 1);
+   }
+
+   /**
     * Select cells base on selector and condition.
     */
    private void select0(Collection cells, CellIterator iter,

@@ -114,7 +114,7 @@ class CachedRowSelector extends AbstractGroupRowSelector {
       }
 
       Tuple tuple = new Tuple(tupleValues.toArray());
-      currGroup = (RangeBitSet) groupmap.get(tuple);
+      currGroup = groupmap.get(tuple);
    }
 
    private Object getData(Object value, int gcolumn) {
@@ -135,7 +135,7 @@ class CachedRowSelector extends AbstractGroupRowSelector {
     */
    public int getStartRow() {
       if(currGroup != null && !missingCol) {
-         return currGroup.getStart();
+         return currGroup.rows[0];
       }
 
       return 0;
@@ -146,10 +146,29 @@ class CachedRowSelector extends AbstractGroupRowSelector {
     */
    public int getEndRow() {
       if(currGroup != null && !missingCol) {
-         return currGroup.getEnd();
+         return currGroup.rows[currGroup.rows.length - 1];
       }
 
       return 0;
+   }
+
+   /**
+    * Get the rows of the current group, in ascending order. The array is the exact row set
+    * of the group, so a caller can visit the group's rows without walking the interval
+    * between the first and the last of them (which is the whole table when the rows of the
+    * groups are interleaved, Bug #82482). It is immutable once built, so it can be used
+    * after {@link #prepare(Map)} without further synchronization as long as the caller
+    * holds the selector (before {@link #endProcess()}).
+    *
+    * @return the rows, or null if there is no current group or the group column is missing;
+    * the caller then uses the {@link #match(XTable, int, int)} protocol over a range.
+    */
+   public int[] getGroupRows() {
+      if(currGroup != null && !missingCol) {
+         return currGroup.rows;
+      }
+
+      return null;
    }
 
    /**
@@ -162,7 +181,7 @@ class CachedRowSelector extends AbstractGroupRowSelector {
       }
 
       if(currGroup != null) {
-         if(currGroup.get(row)) {
+         if(currGroup.contains(row)) {
             return RangeProcessor.YES;
          }
          else {
@@ -193,7 +212,7 @@ class CachedRowSelector extends AbstractGroupRowSelector {
    }
 
    /**
-    * Create a mapping from group values to rows (BitSet).
+    * Create a mapping from group values to rows.
     */
    private void createMap(XTable table) {
       groupmap.clear();
@@ -202,63 +221,60 @@ class CachedRowSelector extends AbstractGroupRowSelector {
          return;
       }
 
+      Map<Tuple, RowList> lists = new Object2ObjectOpenHashMap<>();
+
       for(int r = table.getHeaderRowCount(); table.moreRows(r); r++) {
          Tuple tuple = createTuple(table, r);
-         BitSet rows = groupmap.get(tuple);
+         RowList rows = lists.get(tuple);
 
          if(rows == null) {
-            rows = new RangeBitSet(r);
-            groupmap.put(tuple, rows);
+            rows = new RowList();
+            lists.put(tuple, rows);
          }
 
-         rows.set(r);
+         rows.add(r);
+      }
+
+      // keep only the trimmed row arrays, not the growable lists
+      for(Map.Entry<Tuple, RowList> e : lists.entrySet()) {
+         groupmap.put(e.getKey(), new GroupRows(e.getValue().toArray()));
       }
    }
 
-   private static class RangeBitSet extends BitSet {
-      /**
-       * @param baseIdx the smallest row that may be set.
-       */
-      public RangeBitSet(int baseIdx) {
-         this.baseIdx = baseIdx;
-         start = baseIdx;
-         end = baseIdx;
-      }
-
-      @Override
-      public void set(int idx) {
-         if(idx < start) {
-            start = idx;
+   /**
+    * Growable list of ascending row indexes.
+    */
+   private static final class RowList {
+      void add(int row) {
+         if(size == rows.length) {
+            rows = Arrays.copyOf(rows, size * 2);
          }
 
-         if(idx > end) {
-            end = idx;
-         }
-
-         super.set(idx - baseIdx);
+         rows[size++] = row;
       }
 
-      @Override
-      public boolean get(int idx) {
-         if(idx < start || idx > end) {
-            return false;
-         }
-
-         return super.get(idx - baseIdx);
+      int[] toArray() {
+         return Arrays.copyOf(rows, size);
       }
 
-      public int getStart() {
-         return start;
+      private int[] rows = new int[4];
+      private int size;
+   }
+
+   /**
+    * The exact rows (ascending) of one group.
+    */
+   private static final class GroupRows {
+      GroupRows(int[] rows) {
+         this.rows = rows;
       }
 
-      public int getEnd() {
-         return end;
+      boolean contains(int row) {
+         return row >= rows[0] && row <= rows[rows.length - 1] &&
+            Arrays.binarySearch(rows, row) >= 0;
       }
 
-      // idx range
-      private int start;
-      private int end;
-      private int baseIdx; // all set() must be >= baseIdx
+      private final int[] rows; // never empty, ascending
    }
 
    private static final class CachedRowSelectorRef {
@@ -282,8 +298,8 @@ class CachedRowSelector extends AbstractGroupRowSelector {
 
    private XTable table;
    private Map groupspecs;
-   private RangeBitSet currGroup; // current group rows
-   private Map<Tuple, BitSet> groupmap = new Object2ObjectOpenHashMap<>(); // Vector values -> BitSet
+   private GroupRows currGroup; // current group rows
+   private Map<Tuple, GroupRows> groupmap = new Object2ObjectOpenHashMap<>(); // Vector values -> rows
    private ReentrantLock procLock = new ReentrantLock();
    // HashMap with custom SelectorKey ([XTable, Set]) -> CachedRowSelectorRef
    private static final DataCache<SelectorKey, CachedRowSelectorRef> selectorCache =

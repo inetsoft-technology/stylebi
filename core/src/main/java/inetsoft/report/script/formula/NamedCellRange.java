@@ -513,6 +513,7 @@ public class NamedCellRange extends CellRange {
          CachedRowSelector selector = null;
          int startrow = table.getHeaderRowCount();
          int endrow = Integer.MAX_VALUE;
+         int[] grows = null;
 
          try {
             if(groupspecs.size() > 0) {
@@ -521,15 +522,27 @@ public class NamedCellRange extends CellRange {
                // optimization
                selector = CachedRowSelector.getSelector(table, specs);
                selector.prepare(specs);
-               startrow = Math.max(startrow, selector.getStartRow());
-               endrow = Math.min(endrow, selector.getEndRow() + 1);
+               // visit the rows of the group, not the interval between its first and last
+               // row, which is the whole table if the group's rows are interleaved (#82482)
+               grows = selector.getGroupRows();
+
+               if(grows == null) {
+                  startrow = Math.max(startrow, selector.getStartRow());
+                  endrow = Math.min(endrow, selector.getEndRow() + 1);
+               }
             }
 
             TableRangeProcessor proc = new TableRangeProcessor(
                table, FormulaContext.getScope());
 
-            proc.selectCells(cells, colexpr, expression, startrow, endrow, 1,
-                             selector, condition, position);
+            if(grows != null) {
+               proc.selectCells(cells, colexpr, expression, grows, startrow, selector,
+                                condition, position);
+            }
+            else {
+               proc.selectCells(cells, colexpr, expression, startrow, endrow, 1,
+                                selector, condition, position);
+            }
          }
          finally {
             if(selector != null) {

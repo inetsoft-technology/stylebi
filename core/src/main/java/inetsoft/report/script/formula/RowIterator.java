@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.util.Arrays;
 
 /**
  * Iterator through a range of rows.
@@ -69,8 +70,26 @@ class RowIterator extends CellIterator {
       }
    }
      
+   /**
+    * Create an iterator for a column over an explicit list of rows (direction is forward).
+    * @param rows the rows to visit, ascending.
+    * @param startRow rows before this row are skipped.
+    */
+   public RowIterator(XTable table, String expr, int col, int[] rows, int startRow) {
+      this(table, col, startRow, Integer.MAX_VALUE, 1);
+      this.expr = expr;
+      this.rows = rows;
+      int pos = Arrays.binarySearch(rows, startRow);
+      this.idx = (pos < 0 ? -pos - 1 : pos) - 1;
+   }
+
    @Override
    public boolean hasNext() {
+      if(rows != null) {
+         // stop at the first listed row beyond the table, same as the range walk
+         return idx + 1 < rows.length && moreRows(table, rows[idx + 1]);
+      }
+
       int nrow = row + direction;
       
       return direction > 0 && nrow < endRow && moreRows(table, nrow) ||
@@ -96,6 +115,11 @@ class RowIterator extends CellIterator {
 
    @Override
    public Point next() {
+      if(rows != null) {
+         row = rows[++idx];
+         return new Point(col, row);
+      }
+
       row += direction;
       return new Point(col, row);
    }
@@ -144,6 +168,8 @@ class RowIterator extends CellIterator {
    private int row, col;
    private String expr;
    private int rowcnt = 0;
+   private int[] rows; // explicit rows to visit, or null to walk the range
+   private int idx; // index in rows of the current row
 
    private static final Logger LOG =
       LoggerFactory.getLogger(RowIterator.class);
