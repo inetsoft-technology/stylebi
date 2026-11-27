@@ -1634,6 +1634,91 @@ public class MetadataApiService {
       return name;
    }
 
+   /** The aggregate functions a free-SQL select item is read as (turn-provenance spec 3.7). */
+   private static final Map<String, AggregateFormula> SQL_AGGREGATE_FUNCTIONS = Map.of(
+      "SUM", AggregateFormula.SUM,
+      "AVG", AggregateFormula.AVG,
+      "COUNT", AggregateFormula.COUNT_ALL,
+      "MIN", AggregateFormula.MIN,
+      "MAX", AggregateFormula.MAX);
+
+   private static final java.util.regex.Pattern SQL_AGGREGATE_TOKEN =
+      java.util.regex.Pattern.compile("(?i)\\b(SUM|AVG|COUNT|MIN|MAX)\\s*\\(");
+
+   /** One select item read as a single aggregate call: {@code formula} over {@code field}. */
+   record SqlAggregateCall(String formula, String field) {
+   }
+
+   /**
+    * Reads a select item as {@code FN(...)} with FN one of SUM / AVG / COUNT / MIN / MAX, only when
+    * the paren matching the one after FN is the item's last character (balanced parens, string
+    * literals skipped). {@code COUNT(DISTINCT x)} is a distinct count of {@code x}; any other inner
+    * text, e.g. a CASE expression, is the field. Text only, no AST.
+    */
+   static SqlAggregateCall sqlAggregateCall(String text) {
+      String item = collapseSqlText(text);
+      int open = item.indexOf('(');
+
+      if(open <= 0 || !item.endsWith(")")) {
+         return null;
+      }
+
+      AggregateFormula formula =
+         SQL_AGGREGATE_FUNCTIONS.get(item.substring(0, open).trim().toUpperCase(Locale.ROOT));
+
+      if(formula == null || matchingSqlParen(item, open) != item.length() - 1) {
+         return null;
+      }
+
+      String inner = item.substring(open + 1, item.length() - 1).trim();
+
+      if(formula == AggregateFormula.COUNT_ALL && inner.regionMatches(true, 0, "distinct ", 0, 9)) {
+         return new SqlAggregateCall(AggregateFormula.COUNT_DISTINCT.getName(), inner.substring(9).trim());
+      }
+
+      return new SqlAggregateCall(formula.getName(), inner);
+   }
+
+   /** Whether the text contains an aggregate function call anywhere. */
+   static boolean containsSqlAggregate(String text) {
+      return text != null && SQL_AGGREGATE_TOKEN.matcher(text).find();
+   }
+
+   /** The index of the paren closing the one at {@code open}, or -1; string literals are skipped. */
+   static int matchingSqlParen(String text, int open) {
+      int depth = 0;
+      boolean literal = false;
+
+      for(int i = open; i < text.length(); i++) {
+         char c = text.charAt(i);
+
+         if(literal) {
+            if(c == '\'') {
+               if(i + 1 < text.length() && text.charAt(i + 1) == '\'') {
+                  i++;
+               }
+               else {
+                  literal = false;
+               }
+            }
+
+            continue;
+         }
+
+         if(c == '\'') {
+            literal = true;
+         }
+         else if(c == '(') {
+            depth++;
+         }
+         else if(c == ')' && --depth == 0) {
+            return i;
+         }
+      }
+
+      return -1;
+   }
+
    /**
     * Walks one {@link ConditionListWrapper}'s alternating ConditionItem/JunctionOperator list.
     * Non-{@link Condition} {@link XCondition} implementations (e.g. correlated/asset conditions)
