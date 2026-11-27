@@ -80,4 +80,27 @@ public class JsonPagedPageNumberIteratorStrategyTest {
 
         assertEquals(2, count);
     }
+
+    @Test
+    public void emptyFirstPageEndsTheReadAndRecordsTheCompletedRun() throws Exception {
+        final RestJsonQuery query = new RestJsonQuery();
+        final RestJsonDataSource datasource = new RestJsonDataSource();
+        datasource.setURL("http://host");
+        query.setDataSource(datasource);
+        final PaginationSpec spec = query.getPaginationSpec();
+        spec.setType(PaginationType.PAGE);
+        spec.setPageNumberParamToWrite(new PaginationParameter("pageNumber", PaginationParamType.QUERY));
+        spec.setZeroBasedPageIndex(false);
+        spec.setRecordCountPath("results");
+
+        final TestHttpHandler httpHandler = new TestHttpHandler(List.of(
+           new RequestResponse(RestRequest.builder().query(query)
+              .queryParameters(Collections.singletonMap("pageNumber", "1"))
+              .build(), new TestHttpResponse("{}"))));
+        final JsonPagedPageNumberIteratorStrategy strategy = new JsonPagedPageNumberIteratorStrategy(
+           query, new JsonTransformer(), httpHandler, new RestErrorHandler());
+
+        assertFalse(strategy.hasNext());
+        assertTrue(query.isRunCompleted());
+    }
 }

@@ -104,6 +104,14 @@ public abstract class HttpRestDataIteratorStrategy<Q extends AbstractRestQuery, 
             query, () -> executeRequest(request)));
       }
 
+      if(response.getHandledResult() != null) {
+         // A response was received and parsed. A paging strategy may still end the iteration on
+         // an empty page before the runner sees a page, and the runner cannot tell that from a
+         // failure, so record the completed run here (see TabularQuery.isRunCompleted); an empty
+         // first page then reads as "matched no rows" rather than "check the credentials".
+         query.setRunCompleted(true);
+      }
+
       return response;
    }
 

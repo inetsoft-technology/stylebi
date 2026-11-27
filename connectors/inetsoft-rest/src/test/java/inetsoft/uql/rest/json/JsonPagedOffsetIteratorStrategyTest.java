@@ -18,6 +18,8 @@
 package inetsoft.uql.rest.json;
 
 import inetsoft.test.*;
+import inetsoft.uql.rest.HttpResponse;
+import inetsoft.uql.rest.IHttpHandler;
 import inetsoft.uql.rest.RestErrorHandler;
 import inetsoft.uql.rest.RestRequest;
 import inetsoft.uql.rest.pagination.PaginationParamType;
@@ -30,10 +32,14 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.IOException;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, CredentialTestConfig.class }, initializers = ConfigurationContextInitializer.class)
@@ -119,6 +125,38 @@ public class JsonPagedOffsetIteratorStrategyTest {
            page(query, 3, "{}")));
 
         assertEquals(1, read(query, httpHandler));
+    }
+
+    @Test
+    public void emptyFirstPageEndsTheReadAndRecordsTheCompletedRun() throws Exception {
+        final RestJsonQuery query = offsetQuery(false);
+        final TestHttpHandler httpHandler = new TestHttpHandler(List.of(
+           page(query, 1, "{}")));
+        final JsonPagedOffsetIteratorStrategy strategy = new JsonPagedOffsetIteratorStrategy(
+           query, new JsonTransformer(), httpHandler, new RestErrorHandler());
+
+        assertFalse(strategy.hasNext());
+        assertTrue(query.isRunCompleted());
+    }
+
+    @Test
+    public void failedRequestDoesNotRecordTheCompletedRun() throws Exception {
+        final RestJsonQuery query = offsetQuery(false);
+        final IHttpHandler failing = new IHttpHandler() {
+            @Override
+            public HttpResponse executeRequest(RestRequest request) throws IOException {
+                throw new IOException("boom");
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+        final JsonPagedOffsetIteratorStrategy strategy = new JsonPagedOffsetIteratorStrategy(
+           query, new JsonTransformer(), failing, new RestErrorHandler());
+
+        assertThrows(IOException.class, strategy::hasNext);
+        assertFalse(query.isRunCompleted());
     }
 
     private static RestJsonQuery offsetQuery(boolean stopOnShortPage) {
