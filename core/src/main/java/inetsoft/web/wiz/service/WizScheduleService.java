@@ -587,8 +587,8 @@ public class WizScheduleService {
          given.add("interval");
       }
 
-      // false is what "not weekday only" already is on every kind of schedule
-      if(Boolean.TRUE.equals(request.weekdayOnly())) {
+      // false is a value too: it turns weekday-only off on a daily schedule
+      if(request.weekdayOnly() != null) {
          given.add("weekdayOnly");
       }
 
@@ -630,7 +630,11 @@ public class WizScheduleService {
     */
    private static void requireApplicable(TaskRequest request, String frequency, String task) {
       for(String field : givenFields(request)) {
-         if(!applies(field, frequency)) {
+         // false is what "not weekday only" already is on every other kind of schedule
+         boolean tolerated = "weekdayOnly".equals(field) &&
+            Boolean.FALSE.equals(request.weekdayOnly());
+
+         if(!tolerated && !applies(field, frequency)) {
             throw new IllegalArgumentException(
                "'" + field + "' does not apply to " + (task == null ? "a " + frequency +
                   " schedule" : "the " + frequency + " schedule of \"" + task + "\"") +

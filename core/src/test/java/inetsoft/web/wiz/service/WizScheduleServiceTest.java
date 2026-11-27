@@ -500,6 +500,27 @@ class WizScheduleServiceTest {
    }
 
    @Test
+   void aLoneWeekdayOnlyFalseTurnsWeekdayOnlyOffAndIsToleratedElsewhere() throws Exception {
+      TimeCondition stored = TimeCondition.at(8, 30, 0);
+      stored.setInterval(2);
+      stored.setWeekdayOnly(true);
+
+      TimeCondition off = updateSchedule(stored, lone(null, null, null, null, null, false, null));
+      assertEquals(TimeCondition.EVERY_DAY, off.getType());
+      assertFalse(off.isWeekdayOnly());
+      assertEquals(2, off.getInterval());
+      assertEquals(8, off.getHour());
+
+      TimeCondition weekly = TimeCondition.atDaysOfWeek(new int[] { 2, 6 }, 9, 15, 0);
+      weekly.setInterval(2);
+      TimeCondition kept = updateSchedule(weekly, lone(null, null, null, null, null, false, null));
+      assertEquals(TimeCondition.EVERY_WEEK, kept.getType());
+      assertArrayEquals(new int[] { 2, 6 }, kept.getDaysOfWeek());
+      assertEquals(2, kept.getInterval());
+      assertEquals(9, kept.getHour());
+   }
+
+   @Test
    void aLoneRunAtMovesAOnceScheduleInItsOwnZone() throws Exception {
       TimeCondition stored = TimeCondition.at(Date.from(Instant.parse("2031-01-01T08:30:00Z")));
       stored.setTimeZone(TimeZone.getTimeZone("UTC"));
