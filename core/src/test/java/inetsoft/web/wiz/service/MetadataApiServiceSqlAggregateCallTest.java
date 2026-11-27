@@ -100,6 +100,15 @@ class MetadataApiServiceSqlAggregateCallTest {
    }
 
    @Test
+   void aggregateTokensInsideQuotesAreNotDetected() {
+      assertFalse(MetadataApiService.containsSqlAggregate("'SUM(x)' AS label"));
+      assertFalse(MetadataApiService.containsSqlAggregate("\"COUNT(id)\""));
+      assertFalse(MetadataApiService.containsSqlAggregate("`max(a)`"));
+      assertFalse(MetadataApiService.containsSqlAggregate("'it''s SUM(x)'"));
+      assertTrue(MetadataApiService.containsSqlAggregate("'label: ' || SUM(x)"));
+   }
+
+   @Test
    void matchingParenHonorsNestingAndLiterals() {
       String text = "SUM(f(a, ')') + g(b))";
       assertEquals(text.length() - 1, MetadataApiService.matchingSqlParen(text, 3));

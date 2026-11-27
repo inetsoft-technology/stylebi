@@ -2036,9 +2036,12 @@ public class MetadataApiService {
       return new SqlAggregateCall(formula.getName(), inner);
    }
 
-   /** Whether the text contains an aggregate function call anywhere. */
+   /**
+    * Whether the text contains an aggregate function call anywhere outside string literals and
+    * quoted identifiers, so {@code 'SUM(x)' AS label} is not an aggregate expression.
+    */
    static boolean containsSqlAggregate(String text) {
-      return text != null && SQL_AGGREGATE_TOKEN.matcher(text).find();
+      return text != null && SQL_AGGREGATE_TOKEN.matcher(unquotedSqlText(text)).find();
    }
 
    /** The index of the paren closing the one at {@code open}, or -1; quoted literals and identifiers are skipped. */
