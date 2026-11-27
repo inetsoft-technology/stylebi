@@ -199,9 +199,12 @@ public class WizScheduleService {
    }
 
    /**
-    * Changes one of the caller's own tasks. Only the fields the request carries change; the
-    * schedule changes when {@code frequency} is given, the email action when any of its fields
-    * is.
+    * Changes one of the caller's own tasks. Only the fields the request carries change. The
+    * schedule changes when {@code frequency} is given (it then replaces the whole time
+    * condition), or when only some of its fields are given ({@code time}, {@code runAt},
+    * {@code weekdays}, {@code dayOfMonth}, {@code interval}, {@code weekdayOnly},
+    * {@code timeZone}): those fields change in the stored schedule and the others stay. The
+    * email action changes when any of its fields is.
     */
    public TaskView update(String name, TaskRequest request, Principal user, String linkUri)
       throws Exception
@@ -235,12 +238,21 @@ public class WizScheduleService {
          candidate.setEnabled(request.enabled());
       }
 
+      ScheduleCondition rebuilt = null;
+
       if(request.frequency() != null && !request.frequency().isBlank()) {
+         rebuilt = buildCondition(request);
+      }
+      else if(hasScheduleField(request)) {
+         rebuilt = buildCondition(withStoredSchedule(name, stored, request));
+      }
+
+      if(rebuilt != null) {
          for(int i = candidate.getConditionCount() - 1; i >= 0; i--) {
             candidate.removeCondition(i);
          }
 
-         candidate.addCondition(buildCondition(request));
+         candidate.addCondition(rebuilt);
       }
 
       fillAction(action, entry, request, caller, user, false);
@@ -546,11 +558,195 @@ public class WizScheduleService {
       return String.join(", ", labels);
    }
 
+   /** Whether the request carries any field that belongs to the time condition. */
+   private static boolean hasScheduleField(TaskRequest request) {
+      return !givenFields(request).isEmpty();
+   }
+
+   /** The schedule fields the request carries, in the order the tool documents them. */
+   private static List<String> givenFields(TaskRequest request) {
+      List<String> given = new ArrayList<>();
+
+      if(request.time() != null && !request.time().isBlank()) {
+         given.add("time");
+      }
+
+      if(request.runAt() != null && !request.runAt().isBlank()) {
+         given.add("runAt");
+      }
+
+      if(request.weekdays() != null && !request.weekdays().isEmpty()) {
+         given.add("weekdays");
+      }
+
+      if(request.dayOfMonth() != null) {
+         given.add("dayOfMonth");
+      }
+
+      if(request.interval() != null) {
+         given.add("interval");
+      }
+
+      // false is what "not weekday only" already is on every kind of schedule
+      if(Boolean.TRUE.equals(request.weekdayOnly())) {
+         given.add("weekdayOnly");
+      }
+
+      if(request.timeZone() != null && !request.timeZone().isBlank()) {
+         given.add("timeZone");
+      }
+
+      return given;
+   }
+
+   /** The kinds of schedule each field belongs to. */
+   private static String appliesTo(String field) {
+      return switch(field) {
+      case "time" -> "daily, weekly or monthly";
+      case "runAt" -> "once";
+      case "weekdays" -> "weekly";
+      case "dayOfMonth" -> "monthly";
+      case "interval" -> "daily or weekly";
+      case "weekdayOnly" -> "daily";
+      default -> "every";
+      };
+   }
+
+   private static boolean applies(String field, String frequency) {
+      return switch(field) {
+      case "time" -> !"once".equals(frequency);
+      case "runAt" -> "once".equals(frequency);
+      case "weekdays" -> "weekly".equals(frequency);
+      case "dayOfMonth" -> "monthly".equals(frequency);
+      case "interval" -> "daily".equals(frequency) || "weekly".equals(frequency);
+      case "weekdayOnly" -> "daily".equals(frequency);
+      default -> true;
+      };
+   }
+
+   /**
+    * Refuses a schedule field that the kind of schedule it is applied to does not use, instead
+    * of dropping it and answering as if it had taken effect.
+    */
+   private static void requireApplicable(TaskRequest request, String frequency, String task) {
+      for(String field : givenFields(request)) {
+         if(!applies(field, frequency)) {
+            throw new IllegalArgumentException(
+               "'" + field + "' does not apply to " + (task == null ? "a " + frequency +
+                  " schedule" : "the " + frequency + " schedule of \"" + task + "\"") +
+               "; it applies to a " + appliesTo(field) + " one. To change the kind of " +
+               "schedule, send 'frequency' together with the fields of the new kind.");
+         }
+      }
+   }
+
+   /**
+    * Completes a request that carries schedule fields but no {@code frequency}: the stored
+    * condition supplies its frequency and every schedule field the request leaves out, so that
+    * only the given fields change. When only {@code timeZone} is given a once schedule keeps its
+    * wall-clock time (the run moves to that time in the new zone), as a {@code runAt} is read
+    * in the given zone.
+    */
+   private static TaskRequest withStoredSchedule(String name, ScheduleTask stored,
+                                                 TaskRequest request)
+   {
+      if(stored.getConditionCount() != 1 ||
+         !(stored.getCondition(0) instanceof TimeCondition current) ||
+         !supported(current))
+      {
+         throw new IllegalArgumentException(
+            "The schedule of \"" + name + "\" (" + (stored.getConditionCount() == 1 ?
+               describe(stored.getCondition(0)) : stored.getConditionCount() + " conditions") +
+            ") cannot be changed field by field here; send 'frequency' with the fields of a " +
+            "daily, weekly, monthly or once schedule to replace it, or change it in the " +
+            "Schedule tab.");
+      }
+
+      String frequency = frequencyOf(current.getType());
+      requireApplicable(request, frequency, name);
+      String zone = request.timeZone() != null && !request.timeZone().isBlank() ?
+         request.timeZone() : current.getTimeZone().getID();
+      String time = request.time();
+      String runAt = request.runAt();
+
+      if("once".equals(frequency)) {
+         if(runAt == null || runAt.isBlank()) {
+            Date date = current.getDate();
+
+            runAt = date == null ? null : LocalDateTime.ofInstant(
+               date.toInstant(), current.getTimeZone().toZoneId()).toString();
+         }
+      }
+      else if(time == null || time.isBlank()) {
+         time = String.format("%02d:%02d", current.getHour(), current.getMinute());
+      }
+
+      List<Integer> weekdays = request.weekdays();
+
+      if("weekly".equals(frequency) && (weekdays == null || weekdays.isEmpty()) &&
+         current.getDaysOfWeek() != null)
+      {
+         weekdays = java.util.Arrays.stream(current.getDaysOfWeek()).boxed().toList();
+      }
+
+      Integer dayOfMonth = request.dayOfMonth();
+
+      if("monthly".equals(frequency) && dayOfMonth == null) {
+         dayOfMonth = current.getDayOfMonth();
+      }
+
+      Integer interval = request.interval();
+
+      // a task made elsewhere may not store an interval (-1), which means every time
+      if(interval == null && ("daily".equals(frequency) || "weekly".equals(frequency)) &&
+         current.getInterval() > 0)
+      {
+         interval = current.getInterval();
+      }
+
+      Boolean weekdayOnly = request.weekdayOnly();
+
+      if(weekdayOnly == null && "daily".equals(frequency)) {
+         weekdayOnly = current.isWeekdayOnly();
+      }
+
+      return new TaskRequest(request.name(), request.path(), request.scope(),
+                             request.description(), request.enabled(), frequency, time, runAt,
+                             weekdays, dayOfMonth, interval, weekdayOnly, zone, request.to(),
+                             request.cc(), request.bcc(), request.subject(), request.message(),
+                             request.format(), request.bookmarks());
+   }
+
+   /**
+    * The conditions this tool builds, the only ones it can change field by field. An "nth weekday
+    * of the month" condition shares the monthly type, so it is told apart by its week.
+    */
+   private static boolean supported(TimeCondition condition) {
+      return switch(condition.getType()) {
+      case TimeCondition.AT, TimeCondition.EVERY_DAY, TimeCondition.EVERY_WEEK -> true;
+      case TimeCondition.EVERY_MONTH -> condition.getWeekOfMonth() <= 0;
+      default -> false;
+      };
+   }
+
+   private static String frequencyOf(int type) {
+      return switch(type) {
+      case TimeCondition.AT -> "once";
+      case TimeCondition.EVERY_DAY -> "daily";
+      case TimeCondition.EVERY_WEEK -> "weekly";
+      default -> "monthly";
+      };
+   }
+
    /** Builds the one time condition of a request. */
    static ScheduleCondition buildCondition(TaskRequest request) {
       String frequency = request.frequency() == null ? "" :
          request.frequency().trim().toLowerCase(Locale.ROOT);
       TimeCondition condition;
+
+      if(List.of("once", "daily", "weekly", "monthly").contains(frequency)) {
+         requireApplicable(request, frequency, null);
+      }
 
       switch(frequency) {
       case "once" -> {
