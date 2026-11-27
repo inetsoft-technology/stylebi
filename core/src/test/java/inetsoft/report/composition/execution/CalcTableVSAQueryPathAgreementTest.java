@@ -254,6 +254,36 @@ class CalcTableVSAQueryPathAgreementTest {
       assertTrue(ms[0] < ms[1] * 3 + 500, "mixed " + ms[0] + " ms vs sorted " + ms[1] + " ms");
    }
 
+   /**
+    * A column name with a double quote, grouped with Top 2 and Others: each row is the sum of its
+    * own group on both paths (East 40, West 35, Others 5), not the total of the table.
+    */
+   @Test
+   void topNWithOthersOnAColumnNameWithADoubleQuoteSumsEachGroup() throws Exception {
+      String g = "g Say \"hi\"";
+      String v = "v Say \"hi\"";
+      Object[][] data = {
+         { g, v }, { "East", 10.0 }, { "West", 20.0 }, { "East", 30.0 }, { "North", 5.0 },
+         { "West", 15.0 }
+      };
+      Scenario sc = new Scenario("double quote name, top 2 with Others",
+                                 new String[] { XSchema.STRING, XSchema.DOUBLE }, data, 2, false,
+                                 l -> {
+         TableCellBinding grp = group(g);
+         grp.setTopN(topN(2, true));
+         l.setCellBinding(1, 0, grp);
+         l.setCellBinding(1, 1, summary(v, "Sum"));
+      });
+
+      for(boolean script : new boolean[] { false, true }) {
+         // the script path labels the rest "Others " with a trailing space, on purpose
+         Map<String, Double> groups = new LinkedHashMap<>();
+         groups(run(sc, script)).forEach((k, d) -> groups.put(k.trim(), d));
+         assertEquals(Map.of("East", 40.0, "West", 35.0, "Others", 5.0), groups,
+                      "script=" + script);
+      }
+   }
+
    // ---- date interval > 1: always the script path, so no second path to compare with.
    // The expected buckets are hand computed from CalcDateTime.date: a year goes to
    // floor(year / n) * n, a month to floor(month / n) * n inside its year (the same rule as
