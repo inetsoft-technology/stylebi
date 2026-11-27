@@ -1425,6 +1425,7 @@ public class FormulaFunctions {
       RangeSelector selector1 = null, selector2 = null;
       int startrow = table.getHeaderRowCount();
       int endrow = Integer.MAX_VALUE;
+      int[] grows = null;
 
       if(table instanceof GroupedTable) {
          selector1 = new DetailRowSelector(false, -1);
@@ -1439,8 +1440,14 @@ public class FormulaFunctions {
                CachedRowSelector cached = CachedRowSelector.getSelector(table, groups);
                cached.prepare(groups);
                selector2 = cached;
-               startrow = ((CachedRowSelector) selector2).getStartRow();
-               endrow = ((CachedRowSelector) selector2).getEndRow() + 1;
+               // visit the rows of the group, not the interval between its first and last
+               // row, which is the whole table if the group's rows are interleaved (#82482)
+               grows = cached.getGroupRows();
+
+               if(grows == null) {
+                  startrow = cached.getStartRow();
+                  endrow = cached.getEndRow() + 1;
+               }
             }
          }
 
@@ -1454,8 +1461,14 @@ public class FormulaFunctions {
             selector = new CompositeRangeSelector(selector1, selector2);
          }
 
-         proc.selectCells(locs, expr, range.isExpression(), startrow, endrow, 1,
-                          selector, range.getCondition(), true);
+         if(grows != null) {
+            proc.selectCells(locs, expr, range.isExpression(), grows, startrow, selector,
+                             range.getCondition(), true);
+         }
+         else {
+            proc.selectCells(locs, expr, range.isExpression(), startrow, endrow, 1,
+                             selector, range.getCondition(), true);
+         }
       }
       finally {
          if(selector2 instanceof CachedRowSelector) {

@@ -157,6 +157,103 @@ class CalcTableVSAQueryPathAgreementTest {
       assertEquals(2.0, ((Number) sums.get("")).doubleValue(), "empty group, script path");
    }
 
+   // ---- Bug #82482: the script path read the rows of a group by walking the interval between
+   // its first and its last row, which is the whole table when the rows of the groups are
+   // interleaved. The same rows in another order must give the same cells.
+
+   /**
+    * Region group, a nested Cat group, the Sum of Total per (Region, Cat) and per Region. The
+    * rows are the same for any order; the totals are whole numbers so a sum does not depend
+    * on the order of the additions.
+    */
+   private static Scenario interleaveScenario(String name, int rows, int groups, boolean mixed) {
+      Object[][] data = new Object[rows + 1][];
+      data[0] = new Object[] { "Region", "Cat", "Qty", "Total" };
+
+      for(int i = 0; i < rows; i++) {
+         int g = mixed ? i % groups : (int) ((long) i * groups / rows);
+         data[i + 1] = nrow("R" + g, "C" + (i % 7), 1, (double) (i % 13));
+      }
+
+      return new Scenario(name, nestedTypes(), data, 4, false, l -> {
+         l.setCellBinding(1, 0, group("Region"));
+         TableCellBinding inner = TableCellBinding.getGroupBinding("Cat");
+         inner.setCellName("g2");
+         inner.setRowGroup(GROUP_CELL);
+         l.setCellBinding(1, 1, inner);
+         TableCellBinding s = summary("Total", "Sum");
+         s.setRowGroup("g2");
+         l.setCellBinding(1, 2, s);
+         l.setCellBinding(1, 3, summary("Total", "Sum"));
+      });
+   }
+
+   @Test
+   void interleavedGroupRowsGiveTheSameCellsAsSortedGroupRows() throws Exception {
+      // the rows differ between the orders (the totals are assigned by index), so each order
+      // is checked against the sums of its own rows
+      for(boolean mixed : new boolean[] { false, true }) {
+         Scenario sc = interleaveScenario(mixed ? "mixed" : "sorted", 700, 20, mixed);
+         assertGroupSums(sc, run(sc, true));
+         tearDown();
+      }
+   }
+
+   private static void assertGroupSums(Scenario sc, List<List<Object>> result) {
+      Map<String, Double> byRegion = new TreeMap<>();
+      Set<String> pairs = new TreeSet<>();
+
+      for(int i = 1; i < sc.data.length; i++) {
+         byRegion.merge((String) sc.data[i][0], (Double) sc.data[i][3], Double::sum);
+         pairs.add(sc.data[i][0] + "|" + sc.data[i][1]);
+      }
+
+      assertEquals(pairs.size() + 1, result.size(), sc.name + ": a row per (Region, Cat)");
+
+      Set<String> seen = new TreeSet<>();
+      String region = null;
+      double inner = 0;
+
+      for(int i = 1; i < result.size(); i++) {
+         List<Object> r = result.get(i);
+
+         if(r.get(0) != null && !"".equals(r.get(0))) {
+            region = (String) r.get(0);
+         }
+
+         assertNotNull(region, sc.name + ": row " + i);
+         seen.add(region);
+         assertEquals(byRegion.get(region), ((Number) r.get(3)).doubleValue(), 0.0,
+                      sc.name + ": outer sum of " + region + " in row " + i);
+         inner += ((Number) r.get(2)).doubleValue();
+      }
+
+      assertEquals(byRegion.keySet(), seen, sc.name);
+      assertEquals(byRegion.values().stream().mapToDouble(Double::doubleValue).sum(), inner, 0.0,
+                   sc.name + ": the inner sums add up to the table total");
+   }
+
+   /**
+    * Timing probe for Bug #82482, not a test: 100,000 rows in 4,000 interleaved groups used to
+    * take about 16 times as long as the same rows sorted. Run it by hand.
+    */
+   @Disabled("timing probe, run by hand")
+   @Test
+   void interleavedGroupRowsAreNotMuchSlowerThanSortedGroupRows() throws Exception {
+      long[] ms = new long[2];
+
+      for(int i = 0; i < 2; i++) {
+         boolean mixed = i == 0;
+         long t0 = System.nanoTime();
+         run(interleaveScenario(mixed ? "mixed" : "sorted", 100_000, 4_000, mixed), true);
+         ms[i] = (System.nanoTime() - t0) / 1_000_000;
+         tearDown();
+      }
+
+      System.out.println("mixed " + ms[0] + " ms, sorted " + ms[1] + " ms");
+      assertTrue(ms[0] < ms[1] * 3 + 500, "mixed " + ms[0] + " ms vs sorted " + ms[1] + " ms");
+   }
+
    // ---- date interval > 1: always the script path, so no second path to compare with.
    // The expected buckets are hand computed from CalcDateTime.date: a year goes to
    // floor(year / n) * n, a month to floor(month / n) * n inside its year (the same rule as
