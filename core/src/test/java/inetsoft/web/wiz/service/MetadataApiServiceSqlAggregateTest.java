@@ -337,6 +337,18 @@ class MetadataApiServiceSqlAggregateTest {
    }
 
    @Test
+   void aQualifiedGroupByDoesNotMatchTheSameNameUnderAnotherQualifier() {
+      // a.region is not projected (only b.region is), so the grouping column is unmatched
+      var r = run("SELECT b.region, SUM(a.sales) AS total FROM T a, U b WHERE a.id = b.id " +
+                  "GROUP BY a.region", "REGION", "TOTAL");
+
+      assertEquals("partial", r.sqlAggregateCoverage());
+      assertEquals(1, groupFields(r.sqlAggregate()).size());
+      assertTrue("a.region".equalsIgnoreCase(groupFields(r.sqlAggregate()).get(0)),
+                 groupFields(r.sqlAggregate()).toString());
+   }
+
+   @Test
    void anOutOfRangeOrdinalIsLabelledAndPartial() {
       var r = run("SELECT a.region, SUM(a.sales) AS total FROM T a GROUP BY 5", "REGION", "TOTAL");
 

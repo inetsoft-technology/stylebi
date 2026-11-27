@@ -1452,19 +1452,23 @@ public class MetadataApiService {
          }
       }
 
-      // last: a plain column named without (or with another) qualifier, e.g. GROUP BY region for
-      // a.region; only when exactly one plain select item has that unqualified name
+      // last: a plain column compared by unqualified name, e.g. GROUP BY region for a.region. Only
+      // when the GROUP BY text is itself unqualified or carries the item's own qualifier (so
+      // GROUP BY a.region never matches b.region), and exactly one plain select item matches
       if(groupText.contains("(")) {
          return -1;
       }
 
       String bare = unqualifiedSqlName(groupText);
+      String qualifier = sqlQualifier(groupText);
       int found = -1;
 
       for(int i = 0; i < count; i++) {
          String text = collapseSqlText(selection.getColumn(i));
 
-         if(!text.contains("(") && unqualifiedSqlName(text).equalsIgnoreCase(bare)) {
+         if(!text.contains("(") && unqualifiedSqlName(text).equalsIgnoreCase(bare) &&
+            (qualifier.isEmpty() || qualifier.equalsIgnoreCase(sqlQualifier(text))))
+         {
             if(found >= 0) {
                return -1;
             }
@@ -1474,6 +1478,16 @@ public class MetadataApiService {
       }
 
       return found;
+   }
+
+   /**
+    * The qualifier of a column reference (the text before its last dot, quotes removed, as
+    * unqualifiedSqlName splits it), or "" when it has none.
+    */
+   static String sqlQualifier(String text) {
+      String name = text == null ? "" : text.trim();
+      int dot = name.lastIndexOf('.');
+      return dot < 0 ? "" : unqualifiedSqlName(name.substring(0, dot));
    }
 
    /**
