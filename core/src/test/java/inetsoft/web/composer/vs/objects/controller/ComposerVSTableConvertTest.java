@@ -261,6 +261,244 @@ class ComposerVSTableConvertTest {
       assertEquals(0, ((CalcTableVSAssemblyInfo) vs.getAssembly(CROSSTAB).getInfo()).getMaxRows());
    }
 
+   // ---- Top N / Others / sort by value / variables on the dimensions: the freehand table has the
+   // data of the crosstab it came from (Bug #81258 and the convert probe T4 of #81234; the real
+   // asset CroTable8 of the datatest storage gives other groups after the conversion, none of
+   // these combinations reproduces it on the Hurricane table, see #82463).
+   // The data cells are compared as the converter's own tests do; a group cell that is empty in
+   // the freehand table where the crosstab merges it with the cell above or to the left is not
+   // a difference.
+
+   @Test
+   void topNWithOthersOnRowsAndColumnsKeepsTheDataOfTwoAggregatesWithAPercent() throws Exception {
+      VSAggregateRef sum = aggregate("wind", "Sum", null, "0");
+      VSAggregateRef avgPercent = aggregate("wind", "Average", null, "2");
+
+      for(boolean totals : new boolean[] { true, false }) {
+         assertConvertKeepsTheData("rows and column top N + Others, totals " + totals,
+            new DataRef[] { ranked("year", 2, "Sum(wind)", true, 0, null),
+                            ranked("name", 2, "Sum(wind)", true, 0, null) },
+            new DataRef[] { ranked("type", 1, "Sum(wind)", true, 0, null) }, totals,
+            sum, avgPercent);
+      }
+   }
+
+   @Test
+   void topNRankedByAnAggregateThatIsNotTheFirstOneKeepsTheData() throws Exception {
+      VSAggregateRef sum = aggregate("wind", "Sum", null, "0");
+      VSAggregateRef avg = aggregate("wind", "Average", null, "0");
+
+      assertConvertKeepsTheData("ranked by Average(wind), the second aggregate",
+         new DataRef[] { ranked("year", 2, "Average(wind)", true, 0, null),
+                         ranked("name", 2, "Sum(wind)", true, 0, null) },
+         new DataRef[0], true, sum, avg);
+      assertConvertKeepsTheData("inner dimension ranked by Average(wind)",
+         new DataRef[] { ranked("year", 2, "Sum(wind)", true, 0, null),
+                         ranked("name", 2, "Average(wind)", true, 0, null) },
+         new DataRef[0], true, sum, avg);
+   }
+
+   // order=18 in the datatest asset is SORT_VALUE_DESC: sorted by the value of another aggregate
+   @Test
+   void sortByValueTogetherWithTopNByAnotherAggregateKeepsTheOrderAndTheGroups() throws Exception {
+      VSAggregateRef sum = aggregate("wind", "Sum", null, "0");
+      VSAggregateRef avg = aggregate("wind", "Average", null, "0");
+      int asc = inetsoft.uql.XConstants.SORT_VALUE_ASC;
+      int desc = inetsoft.uql.XConstants.SORT_VALUE_DESC;
+      int[][] orders = { { asc, asc }, { asc, desc }, { desc, desc } };
+      String[] sortBys = { "Average(wind)", "Sum(wind)" };
+
+      for(int[] order : orders) {
+         for(String sortBy : sortBys) {
+            for(boolean others : new boolean[] { true, false }) {
+               assertConvertKeepsTheData("order " + order[0] + "/" + order[1] + " by " + sortBy +
+                                         ", others " + others,
+                  new DataRef[] { ranked("year", 2, "Sum(wind)", others, order[0], sortBy),
+                                  ranked("name", 2, "Sum(wind)", others, order[1], sortBy) },
+                  new DataRef[0], true, sum, avg);
+            }
+         }
+      }
+   }
+
+   // the datatest asset names the column dimension with a RadioButton variable ($(RadioButton3))
+   @Test
+   void columnDimensionBoundToARadioButtonKeepsTopNWithOthers() throws Exception {
+      VSAggregateRef sum = aggregate("wind", "Sum", null, "0");
+
+      for(String selected : new String[] { "type", "year" }) {
+         for(boolean others : new boolean[] { true, false }) {
+            Viewsheet vs = box().getViewsheet();
+            RadioButtonVSAssembly radio = new RadioButtonVSAssembly(vs, "RadioButton1");
+            ListData data = new ListData();
+            data.setValues(new Object[] { "type", "year" });
+            data.setLabels(new String[] { "type", "year" });
+            radio.setListData(data);
+            radio.setSourceType(ListInputVSAssembly.EMBEDDED_SOURCE);
+            radio.setSelectedObject(selected);
+            vs.addAssembly(radio);
+            box().processChange("RadioButton1",
+                                VSAssembly.INPUT_DATA_CHANGED | VSAssembly.OUTPUT_DATA_CHANGED,
+                                new ChangedAssemblyList());
+            VSDimensionRef col = ranked("type", 1, "Sum(wind)", others, 0, null);
+            col.setGroupColumnValue("$(RadioButton1)");
+
+            try {
+               assertConvertKeepsTheData("column dimension of RadioButton1 = " + selected +
+                                         ", others " + others,
+                  new DataRef[] { ranked("name", 2, "Sum(wind)", true, 0, null) },
+                  new DataRef[] { col }, true, sum);
+            }
+            finally {
+               vs.removeAssembly("RadioButton1");
+            }
+         }
+      }
+   }
+
+   // First(a, b) is the ranking aggregate and the displayed aggregate of the datatest asset
+   @Test
+   void topNRankedByATwoColumnAggregateKeepsTheData() throws Exception {
+      VSAggregateRef first = aggregate("wind", "First", "day", "0");
+      VSAggregateRef avgPercent = aggregate("wind", "Average", null, "2");
+
+      for(String rank : new String[] { "First(wind, day)", "Average(wind)" }) {
+         assertConvertKeepsTheData("ranked by " + rank,
+            new DataRef[] { ranked("year", 2, rank, true, 0, null),
+                            ranked("name", 2, rank, true, 0, null) },
+            new DataRef[] { ranked("type", 1, rank, true, 0, null) }, true, first, avgPercent);
+      }
+   }
+
+   // many groups share the ranking value (Min(wind) is 30 or 35 for most storms)
+   @Test
+   void topNOverTiedRankingValuesKeepsTheGroups() throws Exception {
+      VSAggregateRef sum = aggregate("wind", "Sum", null, "0");
+      VSAggregateRef min = aggregate("wind", "Min", null, "0");
+
+      assertConvertKeepsTheData("year, name by Min(wind) with ties",
+         new DataRef[] { ranked("year", 2, "Min(wind)", true, 0, null),
+                         ranked("name", 3, "Min(wind)", true, 0, null) },
+         new DataRef[0], true, sum, min);
+      assertConvertKeepsTheData("type by Min(wind) with ties",
+         new DataRef[] { ranked("type", 2, "Min(wind)", true, 0, null) },
+         new DataRef[0], true, sum, min);
+   }
+
+   private void assertConvertKeepsTheData(String config, DataRef[] rows, DataRef[] cols,
+                                          boolean totals, VSAggregateRef... aggregates)
+      throws Exception
+   {
+      Viewsheet vs = box().getViewsheet();
+
+      if(vs.getAssembly(CROSSTAB) != null) {
+         vs.removeAssembly(CROSSTAB);
+      }
+
+      SourceInfo source =
+         (SourceInfo) ((TableVSAssembly) vs.getAssembly(TABLE)).getSourceInfo().clone();
+      CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, CROSSTAB);
+      crosstab.setSourceInfo(source);
+      VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
+      cinfo.setDesignRowHeaders(rows);
+      cinfo.setDesignColHeaders(cols);
+      cinfo.setDesignAggregates(aggregates);
+      cinfo.setRowTotalVisibleValue(Boolean.toString(totals));
+      cinfo.setColTotalVisibleValue(Boolean.toString(totals));
+      vs.addAssembly(crosstab);
+
+      String before = cells(box().getData(CROSSTAB));
+      assertTrue(before.split("\n").length > 2, config + ": the crosstab has no data\n" + before);
+      convert(CROSSTAB);
+      assertInstanceOf(CalcTableVSAssembly.class, vs.getAssembly(CROSSTAB), config);
+      String after = cells(box().getData(CROSSTAB));
+      assertTrue(sameModuloSpans(before, after),
+                 config + "\n-- crosstab\n" + before + "-- freehand table\n" + after);
+   }
+
+   /** A dimension with Top N (and Others) by an aggregate, optionally sorted by another value. */
+   private static VSDimensionRef ranked(String column, int n, String rankingColumn,
+                                        boolean others, int order, String sortBy)
+   {
+      VSDimensionRef dim = (VSDimensionRef) dimensions(new String[] { column })[0];
+      dim.setRankingOptionValue(XCondition.TOP_N + "");
+      dim.setRankingNValue(n + "");
+      dim.setRankingColValue(rankingColumn);
+
+      if(others) {
+         dim.setGroupOthersValue("true");
+      }
+
+      if(order != 0) {
+         dim.setOrder(order);
+         dim.setSortByColValue(sortBy);
+      }
+
+      return dim;
+   }
+
+   private static VSAggregateRef aggregate(String column, String formula, String second,
+                                           String percentage)
+   {
+      VSAggregateRef agg = new VSAggregateRef();
+      agg.setColumnValue(column);
+      agg.setFormulaValue(formula);
+
+      if(second != null) {
+         agg.setSecondaryColumnValue(second);
+      }
+
+      agg.setPercentageOptionValue(percentage);
+      return agg;
+   }
+
+   /**
+    * The cells are equal as text or as numbers; a freehand cell that is empty where the crosstab
+    * repeats the cell above or to the left (a merged span) is not a difference.
+    */
+   private static boolean sameModuloSpans(String before, String after) {
+      String[] a = before.split("\n");
+      String[] b = after.split("\n");
+
+      if(a.length != b.length) {
+         return false;
+      }
+
+      for(int i = 0; i < a.length; i++) {
+         String[] x = a[i].split("\\|", -1);
+         String[] y = b[i].split("\\|", -1);
+
+         if(x.length != y.length) {
+            return false;
+         }
+
+         String[] prev = i > 0 ? a[i - 1].split("\\|", -1) : null;
+
+         for(int j = 0; j < x.length; j++) {
+            if(x[j].equals(y[j])) {
+               continue;
+            }
+
+            try {
+               if(Double.parseDouble(x[j]) == Double.parseDouble(y[j])) {
+                  continue;
+               }
+            }
+            catch(NumberFormatException ignore) {
+            }
+
+            boolean span = y[j].equals("null") && !x[j].equals("null") &&
+               ((j > 0 && x[j - 1].equals(x[j])) || (prev != null && prev[j].equals(x[j])));
+
+            if(!span) {
+               return false;
+            }
+         }
+      }
+
+      return true;
+   }
+
    private ViewsheetSandbox box() {
       return vsResource.getRuntimeViewsheet().getViewsheetSandbox().orElseThrow();
    }
