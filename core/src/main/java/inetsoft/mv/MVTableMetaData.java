@@ -210,6 +210,22 @@ public final class MVTableMetaData extends TableMetaData {
 
          otable.setRuntimeMV(ormv);
          table = TableMetaDataTransformer.createMirror(otable);
+
+         // the association mv can't be applied to the table (e.g. a column was removed from
+         // the table after the mv was created), use the full mv instead (82492)
+         if(table == null) {
+            otable.setRuntimeMV(ormv0);
+            // have the association mv recreated, as getColumnTable does for a missing column
+            if(meta_rmv.getEntry() != null) {
+               meta_rmv.getEntry().setProperty("mv_column_missing", "true");
+            }
+
+            revertToFullMV();
+            // recurse once with no association mv: the else branch builds the table on the
+            // full mv, and revertToFullMV has cleared meta_rmv so later calls don't retry it
+            return createTempTable(vname, name, null);
+         }
+
          table.setRuntimeMV(meta_rmv);
          table.setProperty("force.transform", "true");
          table = MVTransformer.transform(user, table);
@@ -462,7 +478,7 @@ public final class MVTableMetaData extends TableMetaData {
       throws Exception
    {
       TableAssembly table = createTempTable(vname, createUniqueName("MVASS"), meta_rmv);
-      ConditionList conds = getConditionList(selections, refs, table);
+      ConditionList conds;
       SelectionSet aset = new SelectionSet(); // associated values
       Formula mformula = getAggregateFormula(measure);
       final Map<SelectionSet.Tuple, Formula> formulaMap = measureAggregation.getFormulas();
@@ -477,6 +493,9 @@ public final class MVTableMetaData extends TableMetaData {
                throw new ColumnNotFoundException();
             }
 
+            // throws ColumnNotFoundException if a selection column is not in the
+            // association mv (82492)
+            conds = getConditionList(selections, refs, table);
             maggr = transform(table, refs, measure, conds);
          }
          catch(ColumnNotFoundException ex) {
@@ -608,6 +627,14 @@ public final class MVTableMetaData extends TableMetaData {
                continue;
             }
 
+            ColumnRef[] levelRefs = findSelectionColumns(refNames, cols);
+
+            // a level the table doesn't have, ignore the tree selection as
+            // RealtimeTableMetaData does (82492)
+            if(levelRefs == null) {
+               continue;
+            }
+
             List<String> parentSelections = new ArrayList<>();
 
             // find all parent selections first and sort them by length in descending order
@@ -651,9 +678,8 @@ public final class MVTableMetaData extends TableMetaData {
 
                   // build the condition list
                   for(int i = 0; i < refValues.length; i++) {
-                     ColumnRef ref = findColumn(refNames[i], cols);
                      refConds.add(VSUtil.createConditionList(
-                        ref, Collections.singletonList(refValues[i])));
+                        levelRefs[i], Collections.singletonList(refValues[i])));
                   }
 
                   treeConds.add(VSUtil.mergeConditionList(refConds, JunctionOperator.AND));
@@ -711,12 +737,82 @@ public final class MVTableMetaData extends TableMetaData {
       // build conditions
       for(String col : valuemap.keySet()) {
          List<Object> values = (List<Object>) valuemap.get(col);
-         ColumnRef ref = findColumn(col, cols);
+         ColumnRef[] refs2 = findSelectionColumns(new String[] { col }, cols);
+
+         // a selection on a column the table doesn't have (e.g. removed from the worksheet
+         // after the value was selected) is ignored, as RealtimeTableMetaData does (82492)
+         if(refs2 == null) {
+            continue;
+         }
+
+         ColumnRef ref = refs2[0];
          ConditionList colcond = VSUtil.createConditionList(ref, values);
          conds.add(colcond);
       }
 
       return VSUtil.mergeConditionList(conds, JunctionOperator.AND);
+   }
+
+   /**
+    * Find the columns of a selection key in the columns of the table the conditions are built
+    * for (the association mv or the full mv table). A key is a column name or the
+    * entity.attribute name of a ref bound with its entity set (see findColumn).
+    * @param names the column names of the key, one per tree level.
+    * @param cols the columns of the table the conditions are built for.
+    * @return the columns, or null if a column is not in the full selection table either (see
+    * isTableColumn), so the selection is ignored, as RealtimeTableMetaData does (82492).
+    * @throws ColumnNotFoundException if a column is in the full selection table but not in
+    * {@code cols} (e.g. a stale association mv), so the caller can try the full mv.
+    */
+   private ColumnRef[] findSelectionColumns(String[] names, ColumnSelection cols) {
+      ColumnRef[] refs = new ColumnRef[names.length];
+      boolean missing = false;
+
+      for(int i = 0; i < names.length; i++) {
+         refs[i] = findColumn(names[i], cols);
+
+         if(refs[i] == null) {
+            if(isTableColumn(names[i])) {
+               throw new ColumnNotFoundException("Selection column not in mv table: " + names[i]);
+            }
+
+            LOG.debug("Selection column not found in table {}, ignored: {}", oname, names[i]);
+            missing = true;
+         }
+      }
+
+      return missing ? null : refs;
+   }
+
+   /**
+    * Check if a column is a column of the full selection table (with the calc fields of the
+    * viewsheet), the table that RealtimeTableMetaData finds the selection columns in.
+    */
+   private boolean isTableColumn(String name) {
+      Viewsheet vs = box.getViewsheet();
+
+      if(vs != null && vs.getCalcField(oname, name) != null) {
+         return true;
+      }
+
+      // the S_ table (without creating its V_ mirror as getVSTableAssembly would)
+      String sname = VSAssembly.SELECTION + oname;
+      Assembly assembly = ws == null ? null : ws.getAssembly(Assembly.TABLE_VS + sname);
+
+      if(assembly == null && ws != null) {
+         assembly = ws.getAssembly(sname);
+      }
+
+      TableAssembly table = assembly instanceof TableAssembly ? (TableAssembly) assembly : null;
+
+      // can't tell, don't ignore the selection
+      if(table == null) {
+         return true;
+      }
+
+      ColumnSelection sel = (ColumnSelection) table.getColumnSelection(false).clone();
+      VSUtil.appendCalcFields(sel, oname, vs);
+      return findColumn(name, sel) != null;
    }
 
    /**
