@@ -965,7 +965,7 @@ public class LayoutTool {
       if(expression == null) {
          FormulaStorage fstore = parseFormula(afield);
          String exp = fstore.formula + "(" + var + "[\'" +
-            escapeColName(BindingTool.getFieldName(afield));
+            escapeColNameInLiteral(BindingTool.getFieldName(afield));
          String cond = createGroupCond(gfields, cellnames, 0, level, true);
 
          exp += cond;
@@ -1575,7 +1575,8 @@ public class LayoutTool {
       if(info == null) {
          // construct data
          var = var == null ? getExpressionVar(cell, source) : var;
-         String data = var + "[\'" + (!sortByVal ? name : "*");
+         String data = var + "[\'" + (!sortByVal ? escapeColNameInLiteral(
+            BindingTool.getPureField(fields[idx]).getName()) : "*");
 
          if(idx > 0) {
             data += createGroupCond(fields, cellnames, 0, idx, false);
@@ -1610,7 +1611,7 @@ public class LayoutTool {
                }
             }
 
-            String data = var + "[\'" + (!sortByVal ? name : "*");
+            String data = var + "[\'" + (!sortByVal ? escapeColNameInLiteral(name) : "*");
 
             if(idx > 0) {
                data += createGroupCond(fields, cellnames, 0, idx, false);
@@ -1748,7 +1749,7 @@ public class LayoutTool {
          expQualifier = "=";
       }
       else {
-         gval = escapeColName(name);
+         gval = escapeColNameInLiteral(name);
       }
 
       cname = Tool.escapeJavascript(cname);
@@ -1803,6 +1804,21 @@ public class LayoutTool {
    }
 
    /**
+    * Escape the name in a rowValue["..."] read of a group condition. The condition goes through
+    * two unescapes before it runs: the single-quoted literal of the data['...'] reference, and
+    * NamedCellRange.encodeEscaped/decodeEscaped, which turns a backslash and the character after
+    * it into that character. Without the extra escapes a double quote in the name closes the
+    * string of the read, and the condition fails.
+    */
+   private static String escapeNameInCondition(String name) {
+      String str = Tool.escapeJavascript(name);
+      // NamedCellRange
+      str = str.replace("\\", "\\\\");
+      // the single-quoted literal
+      return str.replace("\\", "\\\\").replace("'", "\\'");
+   }
+
+   /**
     * Create a group expression to be used for condition in a qualifier, e.g.
     * toList(orderdate, "date=year")
     */
@@ -1814,7 +1830,7 @@ public class LayoutTool {
       TopNInfo topn = gfield.getTopN();
       // name used in expression (don't use name directly in case it's a
       // builtin name, e.g. Date)
-      String expname = "rowValue[\"" + Tool.escapeJavascript(name) + "\"]";
+      String expname = "rowValue[\"" + escapeNameInCondition(name) + "\"]";
       String opt = "";
       String gval = expname;
       boolean timeSeries = false;
@@ -2024,14 +2040,10 @@ public class LayoutTool {
                spec += ",";
             }
 
-            String value = quoteValue(values.get(i));
-            value = Tool.replaceAll(value,":", LayoutTool.SCRIPT_ESCAPED_COLON);
-            spec += value;
+            spec += quoteValue(values.get(i));
          }
 
-         String groupStr = Tool.escapeJavascript(group);
-         groupStr = Tool.replaceAll(groupStr,":", LayoutTool.SCRIPT_ESCAPED_COLON);
-         spec += "],\"" + Tool.escapeJavascript(groupStr) + "\"";
+         spec += "]," + encodeString(group);
       }
 
       return "[" + spec + "]";
@@ -2096,7 +2108,40 @@ public class LayoutTool {
          return Tool.escapeJavascript(val + "");
       }
 
-      return '"' + Tool.escapeJavascript(val + "") + '"';
+      return encodeString(val + "");
+   }
+
+   /**
+    * Convert a string to a script expression that is safe in every escape context of a named
+    * group spec (the group cell script, the data['..'] key, NamedCellRange and the evaluated
+    * script). A string of plain characters stays a quoted literal; any other string is written
+    * as String.fromCharCode(..), which holds no quote, backslash, ':', ';', '?', '@' or newline.
+    */
+   private static String encodeString(String str) {
+      boolean safe = true;
+
+      for(int i = 0; i < str.length(); i++) {
+         char c = str.charAt(i);
+
+         if(!(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' ||
+            c == ' ' || c == '_' || c == '.' || c == '-'))
+         {
+            safe = false;
+            break;
+         }
+      }
+
+      if(safe) {
+         return '"' + str + '"';
+      }
+
+      StringBuilder buf = new StringBuilder("String.fromCharCode(");
+
+      for(int i = 0; i < str.length(); i++) {
+         buf.append(i > 0 ? "," : "").append((int) str.charAt(i));
+      }
+
+      return buf.append(')').toString();
    }
 
    /**
@@ -2398,6 +2443,28 @@ public class LayoutTool {
       }).reduce("", (s1, s2) -> s1 + s2);
    }
 
+   /**
+    * Escape a column name that is written inside a JavaScript string literal of a data[] script.
+    * The literal is parsed twice: first by JavaScript, then by NamedCellRange. The name is escaped
+    * for NamedCellRange first (including the backslash and the ^ of the ^_^ colon marker), then
+    * for the JavaScript literal.
+    */
+   private static String escapeColNameInLiteral(String name) {
+      StringBuilder buf = new StringBuilder();
+
+      for(int i = 0; i < name.length(); i++) {
+         char c = name.charAt(i);
+
+         if(isSpecialMarker(c) || c == '\\' || c == '^') {
+            buf.append('\\');
+         }
+
+         buf.append(c);
+      }
+
+      return Tool.escapeJavascript(buf.toString());
+   }
+
    private static boolean isSpecialMarker(char c) {
       switch(c) {
       case '?': case '@': case '{': case '}': case ',': case '=': case ';': case '&':
@@ -2459,7 +2526,8 @@ public class LayoutTool {
 
       CalcGroup group = groups.length > 0 ? groups[groups.length - 1] : null;
 
-      exp += var + "['" + escapeColName(isGroup ? getGroupColumnName(base, bind) : bind.getValue());
+      exp += var + "['" + escapeColNameInLiteral(
+         isGroup ? getGroupColumnName(base, bind) : bind.getValue());
 
       int len = isGroup ? list.size() - 1 : list.size();
 
@@ -2472,7 +2540,7 @@ public class LayoutTool {
             exp += ";";
          }
 
-         String value = escapeColName(getGroupColumnName(base, list.get(i)));
+         String value = escapeColNameInLiteral(getGroupColumnName(base, list.get(i)));
          value = Tool.replaceAll(value, ":", LayoutTool.SCRIPT_ESCAPED_COLON);
          exp += value + ":$" + escapeColName(Tool.escapeJavascript(gnames[i]));
       }
@@ -2765,7 +2833,7 @@ public class LayoutTool {
                                                DataRef field, String var)
    {
       String name = BindingTool.getFieldName(field);
-      String exp = var + "[\'" + escapeColName(name);
+      String exp = var + "[\'" + escapeColNameInLiteral(name);
       exp += createGroupCond(fields, cellnames, 0, fields.length, false);
       exp += "\']";
       return exp;
@@ -3600,6 +3668,8 @@ public class LayoutTool {
       boolean encoded = value != null && value.indexOf('\\') >= 0;
 
       if(encoded) {
+         // the literal is double escaped, undo the JavaScript layer (two backslashes -> one)
+         value = value.replace("\\\\", "\\");
          value = NamedCellRange.encodeEscaped(value);
       }
 

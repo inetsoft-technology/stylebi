@@ -2028,6 +2028,14 @@ public abstract class VSAQuery {
             if(second != null && Tool.equals(second.getAttribute(), name)) {
                return true;
             }
+
+            // the aggregate of the temporary crosstab holds its second column by the value
+            // only, the column itself is not set there (bug #82231)
+            String secondValue = ((VSAggregateRef) ref).getSecondaryColumnValue();
+
+            if(Tool.equals(secondValue, name)) {
+               return true;
+            }
          }
       }
 

@@ -1598,26 +1598,39 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       }
 
       ViewsheetScope scope = box.getScope();
+      // a failing component script is skipped as in the manual export (#8467, #81796), and the
+      // export itself re-runs the script and puts the warning on the document. The skip is not
+      // that export's mark: forget it unless one was already set. A stop still fails the task.
+      boolean marked = box.getExportSkippedScript() != null;
 
-      for(Assembly assembly : assemblies) {
-         scope.getVSAScriptable(assembly.getName());
+      try(ViewsheetSandbox.ExportScriptSkip skip = ViewsheetSandbox.skipScriptErrorsForExport()) {
+         for(Assembly assembly : assemblies) {
+            scope.getVSAScriptable(assembly.getName());
 
-         if(assembly.getInfo() instanceof VSAssemblyInfo vinfo) {
-            String script = vinfo.getScript();
+            if(assembly instanceof VSAssembly vsAssembly &&
+               assembly.getInfo() instanceof VSAssemblyInfo vinfo)
+            {
+               String script = vinfo.getScript();
 
-            if(vinfo.isScriptEnabled() && script != null && !script.isEmpty()) {
-               // fix bug1293441936687, make sure the egraph and dataset defined
-               // in script are executed when run task
-               if(assembly instanceof ChartVSAssembly) {
-                  box.getVGraphPair(assembly.getName());
-               }
+               if(vinfo.isScriptEnabled() && script != null && !script.isEmpty()) {
+                  // fix bug1293441936687, make sure the egraph and dataset defined
+                  // in script are executed when run task
+                  if(assembly instanceof ChartVSAssembly) {
+                     box.getVGraphPair(assembly.getName());
+                  }
 
-               scope.execute(script, assembly.getName());
+                  box.executeScript(vsAssembly);
 
-               if(!box.isScheduleAction()) {
-                  return true;
+                  if(!box.isScheduleAction()) {
+                     return true;
+                  }
                }
             }
+         }
+      }
+      finally {
+         if(!marked) {
+            box.clearExportSkippedScript();
          }
       }
 

@@ -159,6 +159,67 @@ class LayoutToolTest {
       assertEquals(null, LayoutTool.getFieldNameByScript(null));
    }
 
+   // #82472: a name inside a data['...'] literal is escaped for NamedCellRange, then for JavaScript.
+   @ParameterizedTest
+   @ValueSource(strings = { "plain", "a@b", "who?", "a;b", "x=y;z", "a,b", "O'Brien", "a^_^b",
+                            "back\\slash", "end\\", "a\\@b", "v a{b}&c", "say \"hi\"" })
+   void escapeColNameInLiteralSurvivesJavaScriptAndNamedCellRange(String name) throws Exception {
+      String literal = escapeColNameInLiteral(name);
+      // what the JavaScript engine makes of the literal is the text NamedCellRange parses
+      assertEquals(name, new NamedCellRange(evalLiteral(literal) + "@g:$g").getColumn());
+      assertEquals(name, LayoutTool.getFieldNameByScript("data['" + literal + "@g:$g']"));
+      assertEquals(name, LayoutTool.getFieldNameByScript("data['" + literal + "']"));
+   }
+
+   @Test
+   void escapeColNameInLiteralWritesTheTwoLayers() throws Exception {
+      assertEquals("a" + BS + BS + "@b", escapeColNameInLiteral("a@b"));
+      assertEquals("a" + BS + BS + BS + BS + "b", escapeColNameInLiteral("a" + BS + "b"));
+      assertEquals("a" + BS + BS + "^_" + BS + BS + "^b", escapeColNameInLiteral("a^_^b"));
+      assertEquals("O" + BS + "'Brien", escapeColNameInLiteral("O'Brien"));
+      assertEquals("plain name", escapeColNameInLiteral("plain name"));
+   }
+
+   // the text written before #82472 (one backslash before the specials) is still read back
+   @ParameterizedTest
+   @ValueSource(strings = { "a@b", "a,b", "a?b", "a;b", "O'Brien", "plain" })
+   void oldSingleBackslashFormatIsStillReadBack(String name) throws Exception {
+      String old = "data['" + escapeColName(name) + "@g:$g']";
+      assertEquals(name, LayoutTool.getFieldNameByScript(old));
+      assertEquals(name, getGroupName("toList(data['" + escapeColName(name) + "'],'sort=asc')",
+                                      "data"));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "plain", "a@b", "who?", "a;b", "x=y;z", "a,b", "O'Brien", "a^_^b",
+                            "back\\slash", "end\\" })
+   void getGroupNameReadsTheGroupFromTheScript(String name) throws Exception {
+      String script = "toList(data['" + escapeColNameInLiteral(name) + "'],'sort=asc')";
+      assertEquals(name, getGroupName(script, "data"));
+   }
+
+   /** The text a JavaScript string literal evaluates to: two backslashes to one, and a quote kept. */
+   private static String evalLiteral(String literal) {
+      StringBuilder buf = new StringBuilder();
+
+      for(int i = 0; i < literal.length(); i++) {
+         char c = literal.charAt(i);
+
+         if(c == BS_CHAR && i + 1 < literal.length() &&
+            (literal.charAt(i + 1) == BS_CHAR || literal.charAt(i + 1) == (char) 39 ||
+             literal.charAt(i + 1) == (char) 34))
+         {
+            c = literal.charAt(++i);
+         }
+
+         buf.append(c);
+      }
+
+      return buf.toString();
+   }
+
+   private static final char BS_CHAR = (char) 92;
+
    private static GroupRef group(String name) {
       ColumnRef col = new ColumnRef(new AttributeRef(name));
       col.setDataType(XSchema.STRING);
@@ -212,9 +273,11 @@ class LayoutToolTest {
    }
 
    @ParameterizedTest
-   @ValueSource(strings = { "a?b", "a@b", "a{b", "a}b", "a,b", "a=b", "a;b", "a&b", "a'b", "a:b" })
+   @ValueSource(strings = { "a?b", "a@b", "a{b", "a}b", "a,b", "a=b", "a;b", "a&b", "a'b", "a:b",
+                            "a^_^b", "a\\b", "end\\" })
    void createGroupCondQualifierParsesBackToTheGroupName(String name) throws Exception {
-      assertEquals(Set.of(name), groupKeys(groupCond(group(name), false)));
+      // the qualifier is the text inside a data['...'] literal: JavaScript reads it first
+      assertEquals(Set.of(name), groupKeys(evalLiteral(groupCond(group(name), false))));
    }
 
    // pinned current behavior: the sub-top-N expression lists the group by its row value
@@ -326,10 +389,44 @@ class LayoutToolTest {
       assertFalse(cond.contains("$g2[\"*\"]"), cond);
    }
 
+   @Test
+   void quoteValueKeepsPlainStringsAsLiteralsAndEncodesTheOthers() throws Exception {
+      // #82483: the member values and names of a named group spec are in several escape contexts
+      assertEquals("\"plain text-1.x_y\"", quoteValue("plain text-1.x_y"));
+      assertEquals("\"\"", quoteValue(""));
+      assertEquals("String.fromCharCode(97,39,98)", quoteValue("a'b"));
+      assertEquals("String.fromCharCode(97,58,98,59,63,10,92,34)", quoteValue("a:b;?\n\\\""));
+      assertEquals("String.fromCharCode(94,95,94)", quoteValue("^_^"));
+      assertEquals("String.fromCharCode(55357,56832)", quoteValue("😀"));
+      // other types keep their form
+      assertEquals("Number(5)", quoteValue(5));
+      assertEquals("Boolean(true)", quoteValue(true));
+      assertEquals("new Date(0)", quoteValue(new java.util.Date(0)));
+      assertEquals("String.fromCharCode(97,58),\"b\"", quoteValue(new String[] { "a:", "b" }));
+   }
+
+   private static String quoteValue(Object value) throws Exception {
+      Method method = LayoutTool.class.getDeclaredMethod("quoteValue", Object.class);
+      method.setAccessible(true);
+      return (String) method.invoke(null, value);
+   }
+
    private static String escapeColName(String name) throws Exception {
       Method method = LayoutTool.class.getDeclaredMethod("escapeColName", String.class);
       method.setAccessible(true);
       return (String) method.invoke(null, name);
+   }
+
+   private static String escapeColNameInLiteral(String name) throws Exception {
+      Method method = LayoutTool.class.getDeclaredMethod("escapeColNameInLiteral", String.class);
+      method.setAccessible(true);
+      return (String) method.invoke(null, name);
+   }
+
+   private static String getGroupName(String cname, String var) throws Exception {
+      Method method = LayoutTool.class.getDeclaredMethod("getGroupName", String.class, String.class);
+      method.setAccessible(true);
+      return (String) method.invoke(null, cname, var);
    }
 
    private static String getGroupColumnName(TableLens base, TableCellBinding cell) throws Exception {

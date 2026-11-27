@@ -47,6 +47,13 @@ public class WSMVAnalyzer implements MVAnalyzer {
    }
 
    public MVDef[] analyze() {
+      // analyze a copy, the crosstab handling below must not change the caller's worksheet
+      Worksheet ws = (Worksheet) this.ws.clone();
+
+      if(ws == null) {
+         throw new IllegalStateException("Failed to copy worksheet for MV analysis: " + wsId);
+      }
+
       WorksheetWrapper wsWrapper = new WorksheetWrapper(ws);
       List<MVDef> mvDefs = new ArrayList<>();
       String defaultCycle = MVManager.getManager().getDefaultCycle();
@@ -64,8 +71,18 @@ public class WSMVAnalyzer implements MVAnalyzer {
       }
 
       for(BoundTableAssembly table : boundTables) {
+         List<ColumnRef> origColumns = new ArrayList<>();
+
          // if the table is a crosstab then save the detail data instead
          if(table.isCrosstab()) {
+            ColumnSelection orig = table.getColumnSelection(true);
+
+            for(int i = 0; i < orig.getAttributeCount(); i++) {
+               if(orig.getAttribute(i) instanceof ColumnRef) {
+                  origColumns.add((ColumnRef) orig.getAttribute(i));
+               }
+            }
+
             table.setAggregateInfo(new AggregateInfo());
             table.setPreConditionList(new ConditionList());
             table.setPreRuntimeConditionList(new ConditionList());
@@ -79,6 +96,14 @@ public class WSMVAnalyzer implements MVAnalyzer {
          MVDef def = new MVDef(null, wsId, table.getName(), table.getName(),
                                null, wsWrapper, user, null, false, false, bypass,
                                null);
+
+         ColumnSelection reset = table.getColumnSelection(true);
+
+         for(ColumnRef ref : origColumns) {
+            if(reset.indexOfAttribute(ref) < 0) {
+               def.addRemovedColumn(ref);
+            }
+         }
 
          if(defaultCycle != null && !defaultCycle.equals("")) {
             def.setCycle(defaultCycle);

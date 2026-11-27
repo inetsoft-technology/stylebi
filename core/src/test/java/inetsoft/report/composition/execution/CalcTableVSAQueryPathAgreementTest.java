@@ -19,6 +19,7 @@ import inetsoft.report.*;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.internal.binding.OrderInfo;
+import inetsoft.report.internal.binding.SimpleNamedGroupInfo;
 import inetsoft.report.internal.binding.TopNInfo;
 import inetsoft.test.*;
 import inetsoft.uql.*;
@@ -34,6 +35,7 @@ import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
@@ -300,6 +302,36 @@ class CalcTableVSAQueryPathAgreementTest {
 
       System.out.println("mixed " + ms[0] + " ms, sorted " + ms[1] + " ms");
       assertTrue(ms[0] < ms[1] * 3 + 500, "mixed " + ms[0] + " ms vs sorted " + ms[1] + " ms");
+   }
+
+   /**
+    * A column name with a double quote, grouped with Top 2 and Others: each row is the sum of its
+    * own group on both paths (East 40, West 35, Others 5), not the total of the table.
+    */
+   @Test
+   void topNWithOthersOnAColumnNameWithADoubleQuoteSumsEachGroup() throws Exception {
+      String g = "g Say \"hi\"";
+      String v = "v Say \"hi\"";
+      Object[][] data = {
+         { g, v }, { "East", 10.0 }, { "West", 20.0 }, { "East", 30.0 }, { "North", 5.0 },
+         { "West", 15.0 }
+      };
+      Scenario sc = new Scenario("double quote name, top 2 with Others",
+                                 new String[] { XSchema.STRING, XSchema.DOUBLE }, data, 2, false,
+                                 l -> {
+         TableCellBinding grp = group(g);
+         grp.setTopN(topN(2, true));
+         l.setCellBinding(1, 0, grp);
+         l.setCellBinding(1, 1, summary(v, "Sum"));
+      });
+
+      for(boolean script : new boolean[] { false, true }) {
+         // the script path labels the rest "Others " with a trailing space, on purpose
+         Map<String, Double> groups = new LinkedHashMap<>();
+         groups(run(sc, script)).forEach((k, d) -> groups.put(k.trim(), d));
+         assertEquals(Map.of("East", 40.0, "West", 35.0, "Others", 5.0), groups,
+                      "script=" + script);
+      }
    }
 
    // ---- date interval > 1: always the script path, so no second path to compare with.
@@ -843,6 +875,81 @@ class CalcTableVSAQueryPathAgreementTest {
    }
 
    /** The messages of an exception and of all its causes. */
+   // Bug #82483: a named group whose name or member value holds a special character.
+
+   private static final String[] NAMED_GROUP_TEXTS = {
+      "plain", "O'Brien", "Say \"hi\"", "a,b", "a:b", "back\\slash", "a;b", "a?b",
+      "line1\nline2", "caf\u00e9 \u4e2d\u6587 \ud83d\ude00", "lit^_^eral", "a'b\"c\\d:e;f?g@h",
+      "x".repeat(300)
+   };
+
+   static Stream<String> namedGroupTexts() {
+      return Arrays.stream(NAMED_GROUP_TEXTS);
+   }
+
+   /** Region, Cat, Qty, Total: (sp, x, 1, 10), (sp, y, 2, 20), (West, x, 3, 5), (North, x, 4, 1). */
+   private static Scenario namedGroupScenario(String name, String sp, String column, String type,
+                                              String groupName, String... members)
+   {
+      Object[][] data = nested(nrow(sp, "x", 1, 10.0), nrow(sp, "y", 2, 20.0),
+                               nrow("West", "x", 3, 5.0), nrow("North", "x", 4, 1.0));
+      return new Scenario(name, nestedTypes(), data, 2, false, l -> {
+         TableCellBinding g = group(column);
+         SimpleNamedGroupInfo info = new SimpleNamedGroupInfo();
+         AttributeRef ref = new AttributeRef(null, column);
+         ref.setDataType(type);
+         info.setDataRef(ref);
+         info.setGroupValue(groupName, new ArrayList<>(Arrays.asList(members)));
+         g.getOrderInfo(true).setNamedGroupInfo(info);
+         g.getOrderInfo(true).setOthers(OrderInfo.GROUP_OTHERS);
+         l.setCellBinding(1, 0, g);
+         l.setCellBinding(1, 1, summary("Total", "Sum"));
+      });
+   }
+
+   /** The shown group names with the value of the summary next to them. */
+   private static Map<String, Object> namedGroupRows(List<List<Object>> rows) {
+      Map<String, Object> map = new LinkedHashMap<>();
+
+      for(int r = 1; r < rows.size(); r++) {
+         map.put(String.valueOf(rows.get(r).get(0)), rows.get(r).get(1));
+      }
+
+      return map;
+   }
+
+   private void assertNamedGroup(Scenario sc, String group, double groupTotal,
+                                 double othersTotal, String what) throws Exception
+   {
+      Map<String, Object> rows = namedGroupRows(run(sc, true));
+      assertEquals(new LinkedHashSet<>(Arrays.asList(group, "Others")), rows.keySet(),
+                   what + ", the shown names");
+      assertEquals(groupTotal, ((Number) rows.get(group)).doubleValue(), 0.0001, what + ", group");
+      assertEquals(othersTotal, ((Number) rows.get("Others")).doubleValue(), 0.0001,
+                   what + ", Others");
+   }
+
+   @ParameterizedTest(name = "member value {0}")
+   @MethodSource("namedGroupTexts")
+   void namedGroupMemberValueWithSpecialCharacters(String sp) throws Exception {
+      assertNamedGroup(namedGroupScenario("A", sp, "Region", XSchema.STRING, "G", sp),
+                       "G", 30.0, 6.0, "A");
+   }
+
+   @ParameterizedTest(name = "group name {0}")
+   @MethodSource("namedGroupTexts")
+   void namedGroupNameWithSpecialCharacters(String sp) throws Exception {
+      assertNamedGroup(namedGroupScenario("B", "sp", "Region", XSchema.STRING, sp, "West"),
+                       sp, 5.0, 31.0, "B");
+   }
+
+   @Test
+   void namedGroupWithNumberMembersIsUnchanged() throws Exception {
+      // Number members keep the Number(..) form
+      assertNamedGroup(namedGroupScenario("numbers", "sp", "Qty", XSchema.INTEGER, "low", "1", "2"),
+                       "low", 30.0, 6.0, "numbers");
+   }
+
    private static String causes(Throwable e) {
       StringBuilder buf = new StringBuilder();
 
@@ -1106,9 +1213,6 @@ class CalcTableVSAQueryPathAgreementTest {
          vs.addCalcField("D", detailCalc("CF_D", "field['When']", XSchema.DATE)));
    }
 
-   private static final String KNOWN_82231 =
-      "Bug #82231: the pruning of the temp crosstab removes the calc field of the second column";
-
    private static String[] timestampTypes() {
       return new String[] { XSchema.TIME_INSTANT, XSchema.DOUBLE };
    }
@@ -1128,6 +1232,49 @@ class CalcTableVSAQueryPathAgreementTest {
       TableCellBinding g = group("When");
       g.getOrderInfo(true).setInterval(interval, level);
       return g;
+   }
+
+   // #82472: a column name holding a character that NamedCellRange or JavaScript reads must give the
+   // same cells as a plain name, on the quick path and on the script path.
+   static Stream<Arguments> specialNames() {
+      String bs = "\\";
+      return Stream.of(
+         Arguments.of("a@b", "Total"), Arguments.of("who?", "Total"), Arguments.of("a;b", "Total"),
+         Arguments.of("x=y;z", "Total"), Arguments.of("back" + bs + "slash", "Total"),
+         Arguments.of("end" + bs, "Total"), Arguments.of("a^_^b", "Total"),
+         Arguments.of("Region", "v a@b"), Arguments.of("Region", "v" + bs + "w"),
+         Arguments.of("Region", "v^_^w"), Arguments.of("a,b", "Total"),
+         Arguments.of("O'Brien", "Total"), Arguments.of("Region", "v a;b"),
+         Arguments.of("Region", "Total"));
+   }
+
+   @ParameterizedTest(name = "group={0} measure={1}")
+   @MethodSource("specialNames")
+   void specialColumnNamesGiveTheSameCellsOnBothPaths(String group, String measure)
+      throws Exception
+   {
+      Object[][] data = {
+         { group, "Qty", measure }, { "East", 1, 30.0 }, { "East", 1, 10.0 },
+         { "North", 1, 5.0 }, { "West", 1, 20.0 }, { "West", 1, 15.0 } };
+      Scenario sc = new Scenario("special " + group + " / " + measure, data, 3, false, l -> {
+         l.setCellBinding(1, 0, group(group));
+         l.setCellBinding(1, 1, summary(measure, "Sum"));
+         l.setCellBinding(1, 2, summary("Qty", "Sum"));
+      }).expect((rows, path) -> {
+         Map<String, List<Double>> m = new LinkedHashMap<>();
+
+         for(int i = 1; i < rows.size(); i++) {
+            List<Object> r = rows.get(i);
+            assertNotNull(r.get(1), path + " sum of " + measure + " for " + r.get(0));
+            m.put(String.valueOf(r.get(0)), List.of(((Number) r.get(1)).doubleValue(),
+                                                    ((Number) r.get(2)).doubleValue()));
+         }
+
+         assertEquals(Map.of("East", List.of(40.0, 2.0),
+                             "North", List.of(5.0, 1.0), "West", List.of(35.0, 2.0)),
+                      m, path);
+      });
+      quickPathAndScriptPathGiveTheSameCells(sc);
    }
 
    private static Object[][] sales(Object[]... rows) {
@@ -1292,17 +1439,21 @@ class CalcTableVSAQueryPathAgreementTest {
          // detail calc fields as the group and the summary: the same cells as plain columns
          calcFieldScenario("CF1 group and summary are detail calc fields", "Sum"),
          // the second column of a two-column formula is a detail calc field no other cell uses
-         // (Bug #82231): the pruning of the temp crosstab removes it
+         // (Bug #82231): the temp crosstab must keep it
          calcFieldScenario("CF2 WeightedAverage, the weight is a calc field",
-                           "WeightedAverage(CF_Q)").knownQuickFailure(KNOWN_82231),
+                           "WeightedAverage(CF_Q)").expect((rows, path) -> {
+            Map<Object, Object> byRegion = new HashMap<>();
+            rows.stream().skip(1).forEach(r -> byRegion.put(r.get(0), r.get(1)));
+            assertEquals(25.0, ((Number) byRegion.get("East")).doubleValue(), 1e-9, path);
+            assertEquals(115.0 / 7, ((Number) byRegion.get("West")).doubleValue(), 1e-9, path);
+            assertEquals(5.0, ((Number) byRegion.get("North")).doubleValue(), 1e-9, path);
+         }),
          calcFieldScenario("CF3 Covariance, the second column is a calc field",
-                           "Covariance(CF_Q)").knownQuickFailure(KNOWN_82231),
+                           "Covariance(CF_Q)"),
          calcFieldScenario("CF4 Correlation, the second column is a calc field",
-                           "Correlation(CF_Q)").knownQuickFailure(KNOWN_82231),
-         calcFieldScenario("CF5 First, the second column is a calc field", "First(CF_Q)")
-            .knownQuickFailure(KNOWN_82231),
-         calcFieldScenario("CF6 Last, the second column is a calc field", "Last(CF_Q)")
-            .knownQuickFailure(KNOWN_82231),
+                           "Correlation(CF_Q)"),
+         calcFieldScenario("CF5 First, the second column is a calc field", "First(CF_Q)"),
+         calcFieldScenario("CF6 Last, the second column is a calc field", "Last(CF_Q)"),
          // a detail calc field that reads another detail calc field
          calcOfCalcScenario("CF7 calc field reads another calc field"),
          // a date calc field as the group, by year and by month

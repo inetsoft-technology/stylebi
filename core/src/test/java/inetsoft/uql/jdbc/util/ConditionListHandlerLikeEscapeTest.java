@@ -403,4 +403,103 @@ class ConditionListHandlerLikeEscapeTest {
       assertEquals(List.of("a?c"),
                    query(generate(derby(), "w", XCondition.STARTING_WITH, "a?c")));
    }
+
+   // ---- Bug #82271: a LIKE value with \ [ or the escape char is literal, as in memory --------
+
+   static Stream<Arguments> likeLiteralPatterns() {
+      return Stream.of("a\\b", "a\\_b", "a\\%", "a\\", "a!b", "a!_b", "a!%", "a!", "a[b]",
+                       "a[b%", "[a]b", "a[_]", "a_b", "a%b", "100%", "a\\b!", "O'Brien\\")
+         .map(Arguments::of);
+   }
+
+   @ParameterizedTest
+   @MethodSource("likeLiteralPatterns")
+   void likeRowsWithBackslashAndBracketMatchInMemory(String value) throws Exception {
+      List<String> db = query(generate(derby(), XCondition.LIKE, value));
+      List<String> mem = inMemory(XCondition.LIKE, value);
+      Collections.sort(db);
+      Collections.sort(mem);
+      assertEquals(mem, db, "value=" + value);
+   }
+
+   @Test
+   void likeBackslashIsLiteralAndWildcardsStayWildcards() throws Exception {
+      assertEquals(List.of("a\\b"), query(generate(derby(), XCondition.LIKE, "a\\b")));
+      List<String> rows = query(generate(derby(), XCondition.LIKE, "a\\_b"));
+      assertEquals(List.of("a\\_b"), rows);
+      assertTrue(generate(derby(), XCondition.LIKE, "a\\%").endsWith("LIKE 'a\\%' ESCAPE '!'"));
+   }
+
+   @Test
+   void likeWithoutSpecialCharactersGetsNoEscapeClause() throws Exception {
+      for(String value : new String[] { "a_b%", "a%b", "100%", "a.c", "a+c", "abc" }) {
+         String sql = generate(derby(), XCondition.LIKE, value);
+         assertFalse(sql.contains("ESCAPE"), sql);
+         assertTrue(sql.endsWith("LIKE '" + value + "'"), sql);
+      }
+   }
+
+   static Stream<Arguments> likeDialectText() {
+      String mysql = "com.mysql.cj.jdbc.Driver|jdbc:mysql://localhost/x|mysql";
+      String pg = "org.postgresql.Driver|jdbc:postgresql://localhost/x|postgresql";
+      String mssql = "com.microsoft.sqlserver.jdbc.SQLServerDriver|" +
+         "jdbc:sqlserver://localhost;databaseName=x|sql server";
+      String informix = "com.informix.jdbc.IfxDriver|jdbc:informix-sqli://localhost:1/x|informix";
+      String oracle = "oracle.jdbc.OracleDriver|jdbc:oracle:thin:@localhost:1521:x|oracle";
+      String hive = "org.apache.hive.jdbc.HiveDriver|jdbc:hive2://localhost/x|hive";
+      String ch = "com.clickhouse.jdbc.ClickHouseDriver|jdbc:clickhouse://localhost/x|clickhouse";
+      return Stream.of(
+         // backslash: ESCAPE makes it literal; MySQL's literal doubles it once more
+         Arguments.of(pg, "Green\\ Planet", "LIKE 'Green\\ Planet' ESCAPE '!'"),
+         Arguments.of(informix, "Green\\ Planet", "LIKE 'Green\\ Planet' ESCAPE '!'"),
+         Arguments.of(oracle, "Green\\ Planet", "LIKE 'Green\\ Planet' ESCAPE '!'"),
+         Arguments.of(mysql, "Green\\ Planet", "LIKE 'Green\\\\ Planet' ESCAPE '!'"),
+         // the escape character is doubled, wildcards stay
+         Arguments.of(pg, "a!b_%", "LIKE 'a!!b_%' ESCAPE '!'"),
+         Arguments.of(informix, "a!b", "LIKE 'a!!b' ESCAPE '!'"),
+         // [ is escaped on SQL Server only
+         Arguments.of(mssql, "Green [P]lanet", "LIKE 'Green ![P]lanet' ESCAPE '!'"),
+         Arguments.of(mssql, "[A-C]%", "LIKE '![A-C]%' ESCAPE '!'"),
+         Arguments.of(pg, "Green [P]lanet", "LIKE 'Green [P]lanet'"),
+         Arguments.of(mysql, "[A-C]%", "LIKE '[A-C]%'"),
+         Arguments.of(oracle, "[A-C]%", "LIKE '[A-C]%'"),
+         // ClickHouse: the backslash is doubled, no ESCAPE clause, wildcards stay; the
+         // literal doubles each backslash once more
+         Arguments.of(ch, "a\\b_", "LIKE 'a\\\\\\\\b_'"),
+         Arguments.of(ch, "a\\%", "LIKE 'a\\\\\\\\%'"),
+         Arguments.of(ch, "Green [P]lanet", "LIKE 'Green [P]lanet'"),
+         // a dialect without an escape character is unchanged
+         Arguments.of(hive, "a\\b", "LIKE 'a\\b'"));
+   }
+
+   @ParameterizedTest
+   @MethodSource("likeDialectText")
+   void likeDialectGeneratedText(String dialect, String value, String end) throws Exception {
+      String[] d = dialect.split("\\|");
+      String sql = generate(dataSource("like" + d[2], d[0], d[1], d[2]), XCondition.LIKE, value);
+      assertTrue(sql.endsWith(end), sql);
+      assertEquals(end.contains("ESCAPE"), sql.contains("ESCAPE"), sql);
+   }
+
+   @Test
+   void likePatternEscapeHelper() {
+      SQLHelper pg = SQLHelper.getSQLHelper("postgresql");
+      assertTrue(pg.isLikePatternEscapeNeeded("a\\b"));
+      assertTrue(pg.isLikePatternEscapeNeeded("a!b"));
+      assertFalse(pg.isLikePatternEscapeNeeded("a_b%[c]"));
+      assertEquals("a\\b!!_%[", pg.escapeLikePattern("a\\b!_%["));
+
+      SQLHelper mssql = SQLHelper.getSQLHelper("sql server");
+      assertTrue(mssql.isLikePatternEscapeNeeded("a[b"));
+      assertEquals("![a]!!_%", mssql.escapeLikePattern("[a]!_%"));
+
+      SQLHelper ch = SQLHelper.getSQLHelper("clickhouse");
+      assertTrue(ch.isLikePatternEscapeNeeded("a\\b"));
+      assertFalse(ch.isLikePatternEscapeNeeded("a!b[_%"));
+      assertEquals("a\\\\b_%", ch.escapeLikePattern("a\\b_%"));
+
+      SQLHelper none = new SQLHelper();
+      assertFalse(none.isLikePatternEscapeNeeded("a\\b"));
+      assertEquals("a\\b", none.escapeLikePattern("a\\b"));
+   }
 }
