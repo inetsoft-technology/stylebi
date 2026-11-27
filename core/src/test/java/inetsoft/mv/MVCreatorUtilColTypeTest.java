@@ -103,8 +103,11 @@ class MVCreatorUtilColTypeTest {
       assertEquals(Integer.class, aggregateColType(XSchema.DOUBLE, 1, 2, 3));
       assertEquals(Long.class, aggregateColType(XSchema.DOUBLE, 1L, 5000000000L));
       assertEquals(Double.class, aggregateColType(XSchema.DOUBLE, 1, 2.5, 3));
-      assertEquals(Double.class,
+      // a DECIMAL(n,0) is printed without a fraction by the live query (bug #82257)
+      assertEquals(Integer.class,
                    aggregateColType(XSchema.DOUBLE, new java.math.BigDecimal("12101")));
+      assertEquals(Double.class,
+                   aggregateColType(XSchema.DOUBLE, new java.math.BigDecimal("12101.00")));
    }
 
    /**

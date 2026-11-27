@@ -995,7 +995,7 @@ public final class MVBuilder {
 
       if(result == null) {
          result = MVCreatorUtil.getColType(table, column, index,
-            aggregated && MVCreatorUtil.isAggregateOutput(mvdef, column));
+            MVCreatorUtil.keepIntegralType(mvdef, column, aggregated));
          coltypes[index] = result;
       }
 
