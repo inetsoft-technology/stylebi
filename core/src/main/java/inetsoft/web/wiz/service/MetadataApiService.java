@@ -1344,9 +1344,7 @@ public class MetadataApiService {
 
          outputs.add(output);
 
-         if("*".equals(text) || text.endsWith(".*") ||
-            text.toLowerCase(Locale.ROOT).contains(" over ("))
-         {
+         if("*".equals(text) || text.endsWith(".*") || isSqlWindowItem(text)) {
             partial = true;
          }
 
@@ -1861,6 +1859,55 @@ public class MetadataApiService {
 
    private static final java.util.regex.Pattern SQL_AGGREGATE_TOKEN =
       java.util.regex.Pattern.compile("(?i)\\b(SUM|AVG|COUNT|MIN|MAX)\\s*\\(");
+
+   private static final java.util.regex.Pattern SQL_WINDOW_TOKEN =
+      java.util.regex.Pattern.compile("(?i)\\bover\\b\\s*(\\(|[a-z_])");
+
+   /**
+    * Whether a select item is a window function call: {@code OVER (...)}, {@code OVER(...)} or a
+    * named window {@code OVER w}, case-insensitive, outside string literals and quoted identifiers.
+    */
+   static boolean isSqlWindowItem(String text) {
+      return text != null && SQL_WINDOW_TOKEN.matcher(unquotedSqlText(text)).find();
+   }
+
+   /**
+    * The text with every quoted literal or identifier ('...', "...", `...`, doubled quotes
+    * included) replaced by spaces, so keyword matching never looks inside quotes.
+    */
+   static String unquotedSqlText(String text) {
+      StringBuilder out = new StringBuilder(text.length());
+      char quote = 0;
+
+      for(int i = 0; i < text.length(); i++) {
+         char c = text.charAt(i);
+
+         if(quote != 0) {
+            if(c == quote) {
+               if(i + 1 < text.length() && text.charAt(i + 1) == quote) {
+                  out.append(' ');
+                  i++;
+               }
+               else {
+                  quote = 0;
+               }
+            }
+
+            out.append(' ');
+            continue;
+         }
+
+         if(c == '\'' || c == '"' || c == '`') {
+            quote = c;
+            out.append(' ');
+         }
+         else {
+            out.append(c);
+         }
+      }
+
+      return out.toString();
+   }
 
    private static final java.util.regex.Pattern SQL_DISTINCT_PREFIX =
       java.util.regex.Pattern.compile("(?i)^distinct\\b");

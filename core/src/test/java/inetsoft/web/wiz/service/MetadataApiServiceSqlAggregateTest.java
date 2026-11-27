@@ -171,6 +171,36 @@ class MetadataApiServiceSqlAggregateTest {
    }
 
    @Test
+   void aWindowFunctionWithoutASpaceBeforeTheParenMakesCoveragePartial() {
+      var r = run("SELECT a.region, SUM(a.sales) OVER(PARTITION BY a.region) AS s FROM T a",
+                  "REGION", "S");
+
+      assertEquals("partial", r.sqlAggregateCoverage());
+   }
+
+   @Test
+   void aNamedWindowClauseIsUnavailableBecauseTheParserRejectsIt() {
+      // the StyleBI parser does not accept a WINDOW clause (parseSubquery returns null); the
+      // OVER w item itself is still recognized as a window function (see the detection test)
+      var r = run("SELECT a.region, SUM(a.sales) OVER w AS s FROM T a WINDOW w AS (PARTITION BY a.region)",
+                  "REGION", "S");
+
+      assertEquals("unavailable", r.sqlAggregateCoverage());
+      assertNull(r.sqlAggregate());
+   }
+
+   @Test
+   void windowDetectionIsCaseInsensitiveAndIgnoresQuotesAndLongerWords() {
+      assertTrue(MetadataApiService.isSqlWindowItem("SUM(x) over (PARTITION BY y)"));
+      assertTrue(MetadataApiService.isSqlWindowItem("SUM(x) OVER(PARTITION BY y)"));
+      assertTrue(MetadataApiService.isSqlWindowItem("SUM(x) Over w"));
+      assertFalse(MetadataApiService.isSqlWindowItem("SUM(a.overall)"));
+      assertFalse(MetadataApiService.isSqlWindowItem("MAX(CASE WHEN a.k = ' over (' THEN 1 END)"));
+      assertFalse(MetadataApiService.isSqlWindowItem("SUM(\"over (x\")"));
+      assertFalse(MetadataApiService.isSqlWindowItem("a.over_flag"));
+   }
+
+   @Test
    void aStarSelectionMakesCoveragePartial() {
       assertEquals("partial", run("SELECT * FROM T").sqlAggregateCoverage());
       assertEquals("partial", run("SELECT a.* FROM T a").sqlAggregateCoverage());
