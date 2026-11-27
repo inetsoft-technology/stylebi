@@ -3669,15 +3669,6 @@ public class WizVsService {
    }
 
    /**
-    * Builds a {@link CreateViewsheetResult.FlatBinding} from the assembly's current binding.
-    * Returns null for assembly types that carry no aggregate binding (e.g. Table, Image).
-    *
-    * <p>For charts, slot collection prefers RT refs, which are only populated after the
-    * viewsheet has executed (executeView). Callers using a cold RVS get design refs via
-    * fallback — accurate enough for the echo, but the slots are not RT-resolved. Call
-    * after execution when RT-accurate slots are required.
-    */
-   /**
     * Fills {@code result.assemblyState}: what the assembly itself holds after the endpoint's last
     * change — its source, its own pre-condition list (phase "chart", with junction levels), its date
     * comparison when one is in effect, every highlight, and a plain table's visible columns.
@@ -3761,6 +3752,15 @@ public class WizVsService {
       return read != null && Boolean.TRUE.equals(read.get("enabled")) ? read : null;
    }
 
+   /**
+    * Builds a {@link CreateViewsheetResult.FlatBinding} from the assembly's current binding.
+    * Returns null for assembly types that carry no aggregate binding (e.g. Table, Image).
+    *
+    * <p>For charts, slot collection prefers RT refs, which are only populated after the
+    * viewsheet has executed (executeView). Callers using a cold RVS get design refs via
+    * fallback — accurate enough for the echo, but the slots are not RT-resolved. Call
+    * after execution when RT-accurate slots are required.
+    */
    public CreateViewsheetResult.FlatBinding collectFlatBinding(VSAssembly assembly) {
       if(assembly instanceof ChartVSAssembly chart) {
          return collectChartFlatBinding(chart.getVSChartInfo());
