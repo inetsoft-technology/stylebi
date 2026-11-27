@@ -669,6 +669,42 @@ class ViewsheetFormatServiceReadTest {
          .getMessage().startsWith("get_format: level 5 is out of range"));
    }
 
+   /**
+    * Bug #82419: a data-label / text-field read says which keys the user stored, because its
+    * format carries the effective defaults of a label nobody formatted. An empty list means never
+    * formatted; no answer from the painter leaves the key out.
+    */
+   @Test
+   void chartTextReadSaysWhichKeysTheUserStored() throws Exception {
+      FormatPainterService painter = regionPainter();
+      when(painter.getChartRegionDefinedKeys("rt1", principal(), "Chart1",
+                                             ChartFormatConstants.PLOT_AREA, 0, "Sum(Total)",
+                                             true))
+         .thenReturn(new java.util.ArrayList<>(List.of("color")));
+      when(painter.getChartRegionDefinedKeys("rt1", principal(), "Chart1",
+                                             ChartFormatConstants.TEXT, 0, "Region", false))
+         .thenReturn(new java.util.ArrayList<>());
+      ViewsheetFormatService service = service(painter, chartRvs("Sum(Total)"));
+
+      assertEquals(List.of("color"),
+                   read(service, "Chart1", "plotLabel", null).get("definedKeys"));
+      assertEquals(List.of(), read(service, "Chart1", "text", "Region").get("definedKeys"));
+   }
+
+   @Test
+   void chartTextReadLeavesDefinedKeysOutWhenThePainterCannotSay() throws Exception {
+      FormatPainterService painter = regionPainter();
+      // a null answer, which an unstubbed mock would not give (it answers an empty list)
+      when(painter.getChartRegionDefinedKeys(anyString(), any(), anyString(), anyString(),
+                                             anyInt(), anyString(), anyBoolean()))
+         .thenReturn(null);
+      Map<String, Object> out = read(service(painter, chartRvs("Sum(Total)")), "Chart1",
+                                     "plotLabel", null);
+
+      assertFalse(out.containsKey("definedKeys"), out.toString());
+      assertTrue(out.containsKey("format"));
+   }
+
    @Test
    void levelIsRefusedOnATargetWithNoLevels() throws Exception {
       ViewsheetFormatService service = service(painterAnswering(paneModel()), gaugeRvs(titledInfo()));

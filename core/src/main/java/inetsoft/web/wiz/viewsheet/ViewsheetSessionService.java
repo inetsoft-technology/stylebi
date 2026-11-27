@@ -317,9 +317,13 @@ public class ViewsheetSessionService {
       // no step for the partial change. The partial edit is real, so it gets an undo step and the
       // browser is told about it.
       persistCalcFieldAggregates(rvs);
+      // inside a batch (see #batch) this write defers its checkpoint and broadcast to the end
+      MutationBatch batch = BATCH.get();
+      batch = batch != null && batch.runtimeId.equals(session.runtimeId()) ? batch : null;
       // what the paired viewer draws before the edit, so an assembly the edit shows again is
       // added to it instead of refreshed (the viewer ignores a refresh for an object it removed)
-      Set<String> drawnBefore = broadcast.drawnAssemblyNames(rvs);
+      Set<String> drawnBefore = batch != null && batch.drawnBefore != null ?
+         batch.drawnBefore : broadcast.drawnAssemblyNames(rvs);
 
       try {
          // the console scope also installs the ASSET_EXCEPTIONS list a failing assembly script is
@@ -364,7 +368,11 @@ public class ViewsheetSessionService {
       finally {
          Viewsheet vs = rvs.getViewsheet();
 
-         if(vs != null && !rolledBack) {
+         if(batch != null) {
+            // the batch adds the one checkpoint and does the one broadcast when it ends
+            batch.record(drawnBefore, producedCommands);
+         }
+         else if(vs != null && !rolledBack) {
             // also covers a binder this very mutation added, and puts it in the undo snapshot
             persistCalcFieldAggregates(rvs);
             rvs.addCheckpoint(vs.prepareCheckpoint());
@@ -383,16 +391,21 @@ public class ViewsheetSessionService {
          // 2026-08-17-write-coordination-design.md / -implementation.md.
          rvs.bumpWriteRevision();
 
-         producedCommands.addAll(
-            broadcast.broadcastVisibilityChanges(rvs, session.runtimeId(), agent, drawnBefore,
-                                                    producedCommands));
-         notDelivered = broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(),
-                                                   agent, producedCommands);
+         if(batch == null) {
+            producedCommands.addAll(
+               broadcast.broadcastVisibilityChanges(rvs, session.runtimeId(), agent, drawnBefore,
+                                                       producedCommands));
+            notDelivered = broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET,
+                                                      session.runtimeId(), agent,
+                                                      producedCommands);
+         }
       }
 
       // Reached only when the mutation did not throw: a failed edit (the finally block above
       // already refreshed the browser) must not move the user's tab (Bug #80379).
-      broadcast.focusSheet(rvs, session.runtimeId());
+      if(batch == null) {
+         broadcast.focusSheet(rvs, session.runtimeId());
+      }
 
       if(notDelivered != null) {
          // the dispatcher's list may be immutable
@@ -402,6 +415,113 @@ public class ViewsheetSessionService {
 
       return warnings;
    }
+
+   /**
+    * Runs {@code body}, which makes any number of {@link #mutate} calls for this session, as ONE
+    * undo step (Bug #82419: a Format Painter copy writes many parts, and the human's Ctrl+Z
+    * must revert the copy as a whole, the way one painter click does in the Composer).
+    *
+    * <p>Each inner mutate runs exactly as it does alone -- same capture, same warnings, same
+    * write-revision bump -- except that it neither adds a checkpoint nor broadcasts. When the body
+    * ends, normally or by exception, the batch adds one checkpoint and does one broadcast, but
+    * only if some inner mutate ran (a body that wrote nothing leaves no undo step). A mutate of
+    * another runtime, or one made on another thread, is not part of the batch.
+    *
+    * @return the body's value and the number of checkpoints added
+    */
+   public <T> BatchResult<T> batch(String sessionToken, Principal agent, BatchBody<T> body)
+      throws Exception
+   {
+      JoinSession session = requireSession(sessionToken, agent);
+      RuntimeViewsheet rvs = open(session, agent);
+
+      if(BATCH.get() != null) {
+         throw new IllegalStateException("A mutation batch cannot be nested.");
+      }
+
+      MutationBatch batch = new MutationBatch(session.runtimeId());
+      BATCH.set(batch);
+      boolean completed = false;
+      T value = null;
+
+      try {
+         value = body.run();
+         completed = true;
+      }
+      finally {
+         BATCH.remove();
+         commitBatch(batch, rvs, agent, completed);
+      }
+
+      return new BatchResult<>(value, batch.checkpoints, batch.notDelivered);
+   }
+
+   private void commitBatch(MutationBatch batch, RuntimeViewsheet rvs, Principal agent,
+                            boolean completed)
+   {
+      if(!batch.dirty) {
+         return;
+      }
+
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs != null) {
+         persistCalcFieldAggregates(rvs);
+         rvs.addCheckpoint(vs.prepareCheckpoint());
+         batch.checkpoints = 1;
+      }
+
+      batch.commands.addAll(
+         broadcast.broadcastVisibilityChanges(rvs, batch.runtimeId, agent, batch.drawnBefore,
+                                              batch.commands));
+      batch.notDelivered = broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, batch.runtimeId,
+                                                      agent, batch.commands);
+
+      if(completed) {
+         broadcast.focusSheet(rvs, batch.runtimeId);
+      }
+   }
+
+   /** The work {@link #batch} runs under one checkpoint. */
+   @FunctionalInterface
+   public interface BatchBody<T> {
+      T run() throws Exception;
+   }
+
+   /**
+    * @param value         what the body returned
+    * @param checkpoints   undo steps added: 1 when at least one write ran, else 0
+    * @param notDelivered  {@link SheetAgentBroadcastService#SESSION_GONE_NOTICE} when the paired
+    *                      browser was not refreshed, else null
+    */
+   public record BatchResult<T>(T value, int checkpoints, String notDelivered) {
+   }
+
+   /** The state of the batch open on this thread; see {@link #batch}. */
+   private static final class MutationBatch {
+      MutationBatch(String runtimeId) {
+         this.runtimeId = runtimeId;
+      }
+
+      void record(Set<String> drawn, List<CommandDispatcher.Command> produced) {
+         dirty = true;
+
+         if(drawnBefore == null) {
+            drawnBefore = drawn;
+         }
+
+         commands.addAll(produced);
+      }
+
+      final String runtimeId;
+      final List<CommandDispatcher.Command> commands = new ArrayList<>();
+      Set<String> drawnBefore;
+      boolean dirty;
+      int checkpoints;
+      String notDelivered;
+   }
+
+   private static final ThreadLocal<MutationBatch> BATCH = new ThreadLocal<>();
 
    /**
     * Keeps the aggregates an aggregate calc field reads alive after the assembly binding them
