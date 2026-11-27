@@ -21,6 +21,7 @@ import inetsoft.mv.MVDef.MVContainer;
 import inetsoft.mv.data.*;
 import inetsoft.mv.fs.BlockFile;
 import inetsoft.mv.fs.internal.CacheBlockFile;
+import inetsoft.report.filter.ConcatFormula;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
@@ -35,7 +36,6 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.math.BigDecimal;
 import java.util.*;
-import inetsoft.report.filter.ConcatFormula;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -73,17 +73,30 @@ class MVDetailIntegralMeasureTest {
       assertEquals("1.0,2.5", concat);
    }
 
+   /**
+    * BigDecimal data is not narrowed, its values are not bounded by the sampled rows (known
+    * limitation: Concat of DECIMAL(n,0) still shows "20.0" with an MV).
+    */
    @Test
-   void scaleZeroBigDecimalBecomesIntegral() throws Exception {
+   void bigDecimalStaysDouble() throws Exception {
       run(new BigDecimal("20"), new BigDecimal("9"));
-      assertEquals(Integer.class, type);
-      assertEquals("20,9", concat);
+      assertEquals(Double.class, type);
+      assertEquals("20.0,9.0", concat);
    }
 
+   /**
+    * Values after the sampled rows that do not fit the integral type of the sample are kept.
+    */
    @Test
-   void scaleTwoBigDecimalStaysNonIntegral() throws Exception {
-      run(new BigDecimal("20.00"), new BigDecimal("9.00"));
+   void largeAndFractionalValuesAfterSampleAreKept() throws Exception {
+      Object[] qtys = new Object[1300];
+      Arrays.fill(qtys, new BigDecimal("1"));
+      qtys[1200] = new BigDecimal("5000000000");
+      qtys[1201] = new BigDecimal("2.5");
+      run(qtys);
       assertEquals(Double.class, type);
+      assertTrue(concat.contains("5.0E9") || concat.contains("5000000000"), concat);
+      assertTrue(concat.contains("2.5"), concat);
    }
 
    @Test
