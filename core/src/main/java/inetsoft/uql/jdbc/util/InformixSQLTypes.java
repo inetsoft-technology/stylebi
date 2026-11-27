@@ -20,7 +20,8 @@ package inetsoft.uql.jdbc.util;
 import inetsoft.uql.table.XShortColumn;
 import inetsoft.uql.table.XTableColumnCreator;
 
-import java.sql.Types;
+import java.sql.*;
+import java.time.LocalTime;
 
 /**
  * SQLTypes specialization that handles Informix databases.
@@ -42,5 +43,44 @@ public final class InformixSQLTypes extends SQLTypes {
       }
 
       return super.getXTableColumnCreator(type, tname);
+   }
+
+   /**
+    * Get an object from a resultset. The Informix driver truncates the fraction of a
+    * DATETIME HOUR TO FRACTION column (reported as TIME) in getTime(), so it is read through
+    * getTimestamp() to keep the milliseconds.
+    */
+   @Override
+   public Object getObject(ResultSet result, int idx, int type) throws Exception {
+      if(type == Types.TIME) {
+         return toTime(result.getTimestamp(idx));
+      }
+
+      return super.getObject(result, idx, type);
+   }
+
+   /**
+    * Get an object from a CallableStatement. See {@link #getObject(ResultSet, int, int)}.
+    */
+   @Override
+   public Object getObject(CallableStatement cs, int idx, int type) throws Exception {
+      if(type == Types.TIME) {
+         return toTime(cs.getTimestamp(idx));
+      }
+
+      return super.getObject(cs, idx, type);
+   }
+
+   /**
+    * Convert the timestamp to a time on 1970-01-01 (the date part Informix returns for a
+    * time-only value is not meaningful) that keeps the milliseconds.
+    */
+   static Time toTime(Timestamp ts) {
+      if(ts == null) {
+         return null;
+      }
+
+      LocalTime lt = ts.toLocalDateTime().toLocalTime();
+      return new Time(Time.valueOf(lt.withNano(0)).getTime() + lt.getNano() / 1_000_000);
    }
 }

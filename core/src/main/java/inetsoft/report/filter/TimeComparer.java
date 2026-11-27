@@ -134,7 +134,11 @@ public class TimeComparer implements Comparer {
                   return -1;
                }
                else {
-                  return 0;
+                  // compare milliseconds too (Timestamp.getTime() includes its
+                  // fractional millis), so that = / one of behave like SQL
+                  int ms1 = (int) Math.floorMod(d1.getTime(), 1000L);
+                  int ms2 = (int) Math.floorMod(d2.getTime(), 1000L);
+                  return Integer.compare(ms1, ms2);
                }
             }
          }
