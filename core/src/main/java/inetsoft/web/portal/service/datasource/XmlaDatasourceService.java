@@ -426,8 +426,13 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       catch(Exception ex) {
          LOG.info("Failed to load the XMLA cube metadata of {}: {}", path, ex.getMessage());
 
+         // only an HTTP answer from the endpoint is an endpoint error; every other failure is
+         // reported as not reaching it
+         String reason = ex instanceof XMLAHandler.EndpointErrorException ?
+            CubeRefreshResult.ENDPOINT_ERROR : CubeRefreshResult.CONNECTION_FAILED;
+
          return CubeRefreshResult.failed(
-            CubeRefreshResult.CONNECTION_FAILED, url,
+            reason, url,
             ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage());
       }
 
@@ -678,6 +683,7 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
 
       public static final String OK = "OK";
       public static final String CONNECTION_FAILED = "CONNECTION_FAILED";
+      public static final String ENDPOINT_ERROR = "ENDPOINT_ERROR";
       public static final String NO_CUBES = "NO_CUBES";
       public static final String CATALOG_REQUIRED = "CATALOG_REQUIRED";
       public static final String PERSIST_FAILED = "PERSIST_FAILED";

@@ -840,9 +840,19 @@ public class XMLAHandler extends XHandler {
          }
       }
       else {
-         throw new RuntimeException(
+         throw new EndpointErrorException(
             Catalog.getCatalog().getString(
                "viewer.viewsheet.cube.actionErr", getErrorDetail(status, conn.getResponseMessage())));
+      }
+   }
+
+   /**
+    * Thrown when the XMLA endpoint was reached and answered with a non-OK HTTP status, as
+    * opposed to a failure to reach it at all.
+    */
+   public static final class EndpointErrorException extends RuntimeException {
+      public EndpointErrorException(String message) {
+         super(message);
       }
    }
 
