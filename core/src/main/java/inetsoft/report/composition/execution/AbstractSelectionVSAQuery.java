@@ -167,8 +167,9 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
    /**
     * Find the table column of a bound ref: by the viewsheet column name first, then by the
     * name and the caption of the bound attribute, as the time slider and calendar do.
+    * Also used by the mv TransformationDescriptor to skip a selection whose column is missing.
     */
-   private static ColumnRef findBoundColumn(ColumnSelection columns, ColumnRef ref) {
+   public static ColumnRef findBoundColumn(ColumnSelection columns, ColumnRef ref) {
       ColumnRef column = VSUtil.getVSColumnRef(ref);
       column = (ColumnRef) columns.getAttribute(column.getName());
       DataRef dref = ref.getDataRef();

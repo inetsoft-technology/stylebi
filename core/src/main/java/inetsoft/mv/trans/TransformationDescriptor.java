@@ -21,6 +21,7 @@ import inetsoft.mv.MVTool;
 import inetsoft.mv.RuntimeMV;
 import inetsoft.mv.data.XDimIndex;
 import inetsoft.report.composition.WorksheetWrapper;
+import inetsoft.report.composition.execution.AbstractSelectionVSAQuery;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -364,6 +365,17 @@ public final class TransformationDescriptor {
 
       for(final DataRef dataRef : refs) {
          DataRef baseref = basecols.getAttribute(dataRef.getName());
+
+         // a selection bound to a column the table doesn't have has no data (82321). don't
+         // register it, or the selections of the other assemblies on this table can't be
+         // moved up to the mv (SelectionUpTransformer moves all or none) and lose their
+         // association, and no association mv is created for the table (82492)
+         if(baseref == null && isMissingSelectionColumn(tname, basecols, dataRef)) {
+            LOG.debug("Selection column {} of {} is not in table {}, ignored",
+                      dataRef, vsobj.getAbsoluteName(), tname);
+            continue;
+         }
+
          List<DataRef> allused = new ArrayList<>();
          allused.add(dataRef);
 
@@ -396,6 +408,24 @@ public final class TransformationDescriptor {
             }
          }
       }
+   }
+
+   /**
+    * Check if a selection ref is bound to a column that the table doesn't have, looked up the
+    * way the selection query looks up its bound column (AbstractSelectionVSAQuery), so that the
+    * mv and the non-mv path agree on what is missing. A calc field of the viewsheet on the table
+    * is never missing: it is not a column of the worksheet table.
+    */
+   private boolean isMissingSelectionColumn(String tname, ColumnSelection basecols, DataRef ref) {
+      if(!(ref instanceof ColumnRef)) {
+         return false;
+      }
+
+      if(vs != null && vs.getCalcField(tname, ref.getName()) != null) {
+         return false;
+      }
+
+      return AbstractSelectionVSAQuery.findBoundColumn(basecols, (ColumnRef) ref) == null;
    }
 
    // if table contains expression column that are dynamic (e.g. dependent on parameter),

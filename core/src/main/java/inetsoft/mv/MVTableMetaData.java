@@ -210,6 +210,15 @@ public final class MVTableMetaData extends TableMetaData {
 
          otable.setRuntimeMV(ormv);
          table = TableMetaDataTransformer.createMirror(otable);
+
+         // the association mv can't be applied to the table (e.g. a column was removed from
+         // the table after the mv was created), use the full mv instead (82492)
+         if(table == null) {
+            otable.setRuntimeMV(ormv0);
+            revertToFullMV();
+            return createTempTable(vname, name, null);
+         }
+
          table.setRuntimeMV(meta_rmv);
          table.setProperty("force.transform", "true");
          table = MVTransformer.transform(user, table);
@@ -611,8 +620,20 @@ public final class MVTableMetaData extends TableMetaData {
                   // build the condition list
                   for(int i = 0; i < refValues.length; i++) {
                      ColumnRef ref = findColumn(refNames[i], cols);
+
+                     // a level the table doesn't have, ignore the path as
+                     // RealtimeTableMetaData does (82492)
+                     if(ref == null) {
+                        refConds = null;
+                        break;
+                     }
+
                      refConds.add(VSUtil.createConditionList(
                         ref, Collections.singletonList(refValues[i])));
+                  }
+
+                  if(refConds == null) {
+                     continue;
                   }
 
                   treeConds.add(VSUtil.mergeConditionList(refConds, JunctionOperator.AND));
@@ -671,6 +692,14 @@ public final class MVTableMetaData extends TableMetaData {
       for(String col : valuemap.keySet()) {
          List<Object> values = (List<Object>) valuemap.get(col);
          ColumnRef ref = findColumn(col, cols);
+
+         // a selection on a column the table doesn't have (e.g. removed from the worksheet
+         // after the value was selected) is ignored, as RealtimeTableMetaData does (82492)
+         if(ref == null) {
+            LOG.debug("Selection column not found in table, ignored: {}", col);
+            continue;
+         }
+
          ConditionList colcond = VSUtil.createConditionList(ref, values);
          conds.add(colcond);
       }
