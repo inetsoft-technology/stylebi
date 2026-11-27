@@ -633,8 +633,8 @@ public class ConcatenatedQuery extends AssetQuery {
             if(operation == TableAssemblyOperator.UNION) {
                sb.append(helper.getUnionQualifier(op.isDistinct()));
             }
-            else if(!op.isDistinct()) {
-               sb.append("ALL ");
+            else {
+               sb.append(helper.getIntersectExceptQualifier(op.isDistinct()));
             }
          }
 

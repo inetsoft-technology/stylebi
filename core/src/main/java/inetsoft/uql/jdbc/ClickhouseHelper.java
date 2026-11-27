@@ -149,4 +149,13 @@ public class ClickhouseHelper extends SQLHelper {
    public String getUnionQualifier(boolean distinct) {
       return distinct ? "DISTINCT " : "ALL ";
    }
+
+   /**
+    * ClickHouse INTERSECT/EXCEPT default to ALL semantics and keep duplicate rows, so the
+    * distinct form must be explicit (Bug #82469).
+    */
+   @Override
+   public String getIntersectExceptQualifier(boolean distinct) {
+      return distinct ? "DISTINCT " : "ALL ";
+   }
 }

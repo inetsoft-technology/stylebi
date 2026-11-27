@@ -49,4 +49,17 @@ class ClickhouseUnionQualifierTest {
       assertEquals("", helper.getUnionQualifier(true));
       assertEquals("ALL ", helper.getUnionQualifier(false));
    }
+
+   @Test
+   void clickhouseIntersectExceptIsExplicitlyDistinct() {
+      assertEquals("DISTINCT ", new ClickhouseHelper().getIntersectExceptQualifier(true));
+      assertEquals("ALL ", new ClickhouseHelper().getIntersectExceptQualifier(false));
+   }
+
+   @Test
+   void otherDialectsIntersectExceptUnchanged() {
+      SQLHelper helper = new OracleSQLHelper();
+      assertEquals("", helper.getIntersectExceptQualifier(true));
+      assertEquals("ALL ", helper.getIntersectExceptQualifier(false));
+   }
 }

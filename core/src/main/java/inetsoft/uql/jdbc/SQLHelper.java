@@ -1206,6 +1206,14 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Get the qualifier appended after an INTERSECT/EXCEPT/MINUS keyword when a worksheet
+    * intersect or minus is pushed down. Empty by default (the bare keyword is distinct).
+    */
+   public String getIntersectExceptQualifier(boolean distinct) {
+      return distinct ? "" : "ALL ";
+   }
+
+   /**
     * Find the index of the first FROM keyword that is not inside parentheses or quotes.
     */
    private static int findFromIndex(String sql) {
