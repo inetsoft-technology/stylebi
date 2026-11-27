@@ -2454,6 +2454,11 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
    }
 
+   private boolean isParentBeingRemoved(AssetEntry entry) {
+      Set<String> removing = foldersBeingRemoved.get();
+      return removing != null && removing.contains(entry.getParent().toIdentifier());
+   }
+
    private void removeFolder1(AssetEntry entry, IndexedStorage storage, boolean root)
       throws Exception
    {
@@ -2461,13 +2466,54 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          clearCache(entry);
          AssetFolder folder = getFolder(entry, storage);
          AssetEntry[] entries = folder.getEntries();
+         String identifier = entry.toIdentifier();
 
-         for(AssetEntry childEntry : entries) {
-            if(childEntry.isFolder()) {
-               removeFolder0(childEntry, storage, false);
+         // Bug #82457: this folder is removed below, so its children need not each rewrite it
+         // (that made clearing a large Recycle Bin quadratic). Write it once if a removal fails.
+         Set<String> removing = foldersBeingRemoved.get();
+         boolean ownsSet = removing == null;
+
+         if(ownsSet) {
+            removing = new HashSet<>();
+            foldersBeingRemoved.set(removing);
+         }
+
+         boolean added = removing.add(identifier);
+         int removed = 0;
+
+         try {
+            for(AssetEntry childEntry : entries) {
+               if(childEntry.isFolder()) {
+                  removeFolder0(childEntry, storage, false);
+               }
+               else {
+                  removeSheet0(childEntry, storage, true);
+               }
+
+               removed++;
             }
-            else {
-               removeSheet0(childEntry, storage, true);
+         }
+         catch(Throwable ex) {
+            for(int i = 0; i < removed; i++) {
+               folder.removeEntry(entries[i]);
+            }
+
+            try {
+               storage.putXMLSerializable(identifier, folder);
+            }
+            catch(Throwable ex2) {
+               ex.addSuppressed(ex2);
+            }
+
+            throw ex;
+         }
+         finally {
+            if(added) {
+               removing.remove(identifier);
+            }
+
+            if(ownsSet) {
+               foldersBeingRemoved.remove();
             }
          }
       }
@@ -2483,7 +2529,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
       }
 
-      if(!entry.isRoot()) {
+      if(!entry.isRoot() && !isParentBeingRemoved(entry)) {
          try {
             AssetEntry pentry = entry.getParent();
             AssetFolder pfolder = getParentFolder(entry, storage);
@@ -3766,7 +3812,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    {
       String identifier = entry.toIdentifier();
       AssetEntry pentry = entry.getParent();
-      AssetFolder pfolder = getParentFolder(entry, storage);
+      AssetFolder pfolder = isParentBeingRemoved(entry) ? null : getParentFolder(entry, storage);
       String pidentifier = pentry.toIdentifier();
 
       /* should allow folder to save in case things get out of sync
@@ -5494,6 +5540,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    // set while a storage refresh event is being fired, see refreshListener
    private final ThreadLocal<Boolean> storageRefreshing = new ThreadLocal<>();
    // Bug #80473: per-org bookmark path to owners index, live only during a folder delete
+   private final ThreadLocal<Set<String>> foldersBeingRemoved = new ThreadLocal<>();
    private final ThreadLocal<Map<String, Map<String, List<IdentityID>>>> bookmarkIndex =
       new ThreadLocal<>();
 
