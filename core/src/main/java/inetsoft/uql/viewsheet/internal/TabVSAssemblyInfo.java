@@ -798,6 +798,26 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
+    * Check whether a runtime (script or restored) value overrides the design value of
+    * bottomTabs.
+    */
+   public boolean hasBottomTabsOverride() {
+      return isBottomTabs() != getBottomTabsValue();
+   }
+
+   /**
+    * Drop the runtime bottomTabs value so the effective value is the design value again, and
+    * clear the pending-reposition flag since the pixel positions are laid out for the design
+    * value (Bug #82256). Note that {@code setBottomTabsValue(getBottomTabsValue())} does not
+    * do this, {@link DynamicValue#setDValue} keeps the rvalue when the design value is
+    * unchanged.
+    */
+   public void clearBottomTabsRuntimeValue() {
+      bottomTabs.setRValue(null);
+      positionNeedsSync = false;
+   }
+
+   /**
     * Mark that the bottomTabs rValue was changed without a matching reposition, so the next
     * runtime script run or open-time sweep settles it. Design-time scripts use {@link
     * #updateDesignPositionNeedsSync()}, which also clears a flag that is no longer owed.

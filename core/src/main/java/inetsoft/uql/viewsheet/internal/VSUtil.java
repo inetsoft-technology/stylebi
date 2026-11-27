@@ -5754,6 +5754,52 @@ public final class VSUtil {
    }
 
    /**
+    * Drop the runtime Tab.bottomTabs values in place, including the tabs of embedded
+    * viewsheets.
+    */
+   public static void clearRuntimeBottomTabs(Viewsheet vs) {
+      for(Assembly assembly : vs.getAssemblies(true, false)) {
+         if(assembly instanceof TabVSAssembly tab) {
+            ((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).clearBottomTabsRuntimeValue();
+         }
+      }
+   }
+
+   /**
+    * Get the viewsheet to serialize into a design asset or an auto-save file. A script set
+    * Tab.bottomTabs runtime value is written to the file by Tab state serialization, and would
+    * be restored as the design value on the next open (Bug #82256). Returns the argument itself
+    * when no tab carries such an override, otherwise a clone with the runtime values dropped,
+    * so the live design viewsheet is not modified.
+    */
+   public static Viewsheet forDesignPersist(Viewsheet vs) {
+      boolean needed = false;
+
+      for(Assembly assembly : vs.getAssemblies(true, false)) {
+         if(assembly instanceof TabVSAssembly tab &&
+            ((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).hasBottomTabsOverride())
+         {
+            needed = true;
+            break;
+         }
+      }
+
+      if(!needed) {
+         return vs;
+      }
+
+      Viewsheet copy = vs.clone();
+
+      // Viewsheet.clone() returns null on failure, never fail the save for it
+      if(copy == null) {
+         return vs;
+      }
+
+      clearRuntimeBottomTabs(copy);
+      return copy;
+   }
+
+   /**
     * Reset all runtime values in assemblies.
     */
    public static void resetRuntimeValues(Viewsheet vs, boolean actionVisible) {
