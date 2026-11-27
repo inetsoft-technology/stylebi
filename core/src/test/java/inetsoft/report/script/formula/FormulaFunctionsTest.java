@@ -552,6 +552,17 @@ public class FormulaFunctionsTest {
       assertArrayEquals(new Object[] { "a,b", "c" }, result);
    }
 
+   // Bug #82489: an escaped semicolon stays inside the manual value, a plain one separates
+   @Test
+   void testToListManualValueEscapedSemicolonStaysOneValue() {
+      Object[] data = { "x", "a;b", "c", "d:e" };
+      assertArrayEquals(new Object[] { "c", "a;b", "d:e" }, (Object[]) FormulaFunctions.toList(
+         data, "manualvalues=c;a^__^b;d^_^e,maxrows=3"));
+      // a value without the escape reads as before: two values
+      assertArrayEquals(new Object[] { "c", "x", "d:e" }, (Object[]) FormulaFunctions.toList(
+         data, "manualvalues=c;x;d^_^e,maxrows=3"));
+   }
+
    // a quote or parenthesis in a non free-text option still protects its commas
    @Test
    void testToListSortonParenthesisStillProtectsComma() {

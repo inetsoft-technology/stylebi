@@ -202,6 +202,53 @@ class CalcTableVSAQueryPathAgreementTest {
       }
    }
 
+   // ---- Bug #82489: a manual order value that contains a semicolon was split in two when the
+   // manual values option was read, so it matched no group and the group was sorted last.
+
+   /** The values of a manual order that were never a problem and the one that was: a ';'. */
+   private static String[] manualOrderValues() {
+      return new String[] { "a;b", ";", "a;", ";b", "a;;b", "a,b", "a:b", "a'b", "a\"b", "a\\b",
+                            "a(b", "a)b", "a[b", "a]b", "a=b", "a|b", "a%b", "plain" };
+   }
+
+   /**
+    * A group with a manual order North, value, West: every value keeps its place on both paths,
+    * and its own sum (North 5, value 40, West 35).
+    */
+   @Test
+   void manualOrderValueWithSpecialCharactersKeepsItsPlaceOnBothPaths() throws Exception {
+      List<String> wrong = new ArrayList<>();
+
+      for(String value : manualOrderValues()) {
+         Scenario sc = new Scenario("manual order " + value,
+                                    sales(row("North", 1, 5.0), row(value, 2, 40.0),
+                                          row("West", 3, 35.0)),
+                                    2, false, l -> {
+            TableCellBinding g = group("Region");
+            OrderInfo order = g.getOrderInfo(true);
+            order.setOrder(XConstants.SORT_SPECIFIC);
+            order.setManualOrder(new ArrayList<>(List.of("North", value, "West")));
+            l.setCellBinding(1, 0, g);
+            l.setCellBinding(1, 1, summary("Total", "Sum"));
+         });
+
+         for(boolean script : new boolean[] { false, true }) {
+            Map<String, Double> groups = groups(run(sc, script));
+            List<Object> shown = new ArrayList<>(groups.entrySet());
+
+            if(!List.of("North", value, "West").equals(new ArrayList<>(groups.keySet())) ||
+               !List.of(5.0, 40.0, 35.0).equals(new ArrayList<>(groups.values())))
+            {
+               wrong.add("value=" + value + " script=" + script + " got " + shown);
+            }
+
+            tearDown();
+         }
+      }
+
+      assertTrue(wrong.isEmpty(), "wrong order or sums:\n" + String.join("\n", wrong));
+   }
+
    private static void assertGroupSums(Scenario sc, List<List<Object>> result) {
       Map<String, Double> byRegion = new TreeMap<>();
       Set<String> pairs = new TreeSet<>();
