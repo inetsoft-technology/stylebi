@@ -185,6 +185,11 @@ public final class ChartBindingMutator {
             if(previous != null) {
                unconsumedDimensions.remove(previous);
                preserveDimensionState(previous, dimension, field);
+               // Bug #81636: the axis descriptor (rotation, alias, label side, line color,
+               // ticks, label format) lives on the design ref, not in this model, so a fresh ref
+               // renders with defaults. Point the model at the old ref (the Composer's own edit
+               // path) and pasteChartRef reuses it.
+               dimension.setOriginal(previous.getOriginal());
             }
             else if(field.timeSeries() == null) {
                levelChangeCandidates.put(i, dimension);
