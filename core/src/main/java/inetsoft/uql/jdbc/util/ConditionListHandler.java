@@ -421,7 +421,22 @@ public class ConditionListHandler {
          }
       }
 
-      switch(cond.getOperation()) {
+      int condOp = cond.getOperation();
+
+      // Bug #82491: a like, starting with or contains value that is not a number (e.g. 2%)
+      // matches no row of a numeric column (it was sent as LIKE '0'). Compare the column with
+      // itself, as for an inexact integer value below: "col <> col" matches no row, and its
+      // negation matches every non-null row, as in memory and in the mv.
+      if((condOp == XCondition.LIKE || condOp == XCondition.STARTING_WITH ||
+         condOp == XCondition.CONTAINS) && cond.getValueCount() > 0 &&
+         cond.isNonNumericPatternValue(values.get(0)))
+      {
+         condnode = new XBinaryCondition(field, field, "<>");
+         condnode.setIsNot(cond.isNegated());
+         return condnode;
+      }
+
+      switch(condOp) {
       case XCondition.ONE_OF:
          StringBuilder value = new StringBuilder();
          value.append('(');

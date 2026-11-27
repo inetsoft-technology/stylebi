@@ -54,7 +54,7 @@ class MeasureColumnLikeTest {
 
       assertEquals(List.of(0, 6), rows(col.getLikeOpRows("LIKE", bits(2), false), vals.length));
       assertEquals(List.of(7), rows(col.getLikeOpRows("LIKE", bits(-2), false), vals.length));
-      // a value with a wildcard is converted to 0 before it reaches the column
+      // LIKE 0 matches the 0 row (a value with a wildcard matches no row, SubMV, bug #82491)
       assertEquals(List.of(8), rows(col.getLikeOpRows("LIKE", bits(0), false), vals.length));
       // NOT LIKE: every non-null row except the matching ones
       assertEquals(List.of(1, 2, 3, 4, 7, 8, 9),
