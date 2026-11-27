@@ -428,6 +428,13 @@ public class RepletRegistryManager {
             }
 
             for(String org : orgDocMap.keySet()) {
+               // the legacy root file is never removed, so it is converted again on every
+               // start; an existing org file is newer than the root snapshot and must not
+               // be overwritten
+               if(dataSpace.exists(org, configRegistryPath)) {
+                  continue;
+               }
+
                Document orgDoc = orgDocMap.get(org);
                dataSpace.withOutputStream(org, configRegistryPath,
                                       out -> XMLTool.write(orgDoc, out));
