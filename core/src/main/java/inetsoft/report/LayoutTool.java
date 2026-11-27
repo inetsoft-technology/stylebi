@@ -965,7 +965,7 @@ public class LayoutTool {
       if(expression == null) {
          FormulaStorage fstore = parseFormula(afield);
          String exp = fstore.formula + "(" + var + "[\'" +
-            escapeColName(BindingTool.getFieldName(afield));
+            escapeColNameInLiteral(BindingTool.getFieldName(afield));
          String cond = createGroupCond(gfields, cellnames, 0, level, true);
 
          exp += cond;
@@ -1575,7 +1575,8 @@ public class LayoutTool {
       if(info == null) {
          // construct data
          var = var == null ? getExpressionVar(cell, source) : var;
-         String data = var + "[\'" + (!sortByVal ? name : "*");
+         String data = var + "[\'" + (!sortByVal ? escapeColNameInLiteral(
+            BindingTool.getPureField(fields[idx]).getName()) : "*");
 
          if(idx > 0) {
             data += createGroupCond(fields, cellnames, 0, idx, false);
@@ -1610,7 +1611,7 @@ public class LayoutTool {
                }
             }
 
-            String data = var + "[\'" + (!sortByVal ? name : "*");
+            String data = var + "[\'" + (!sortByVal ? escapeColNameInLiteral(name) : "*");
 
             if(idx > 0) {
                data += createGroupCond(fields, cellnames, 0, idx, false);
@@ -1748,7 +1749,7 @@ public class LayoutTool {
          expQualifier = "=";
       }
       else {
-         gval = escapeColName(name);
+         gval = escapeColNameInLiteral(name);
       }
 
       cname = Tool.escapeJavascript(cname);
@@ -2442,6 +2443,28 @@ public class LayoutTool {
       }).reduce("", (s1, s2) -> s1 + s2);
    }
 
+   /**
+    * Escape a column name that is written inside a JavaScript string literal of a data[] script.
+    * The literal is parsed twice: first by JavaScript, then by NamedCellRange. The name is escaped
+    * for NamedCellRange first (including the backslash and the ^ of the ^_^ colon marker), then
+    * for the JavaScript literal.
+    */
+   private static String escapeColNameInLiteral(String name) {
+      StringBuilder buf = new StringBuilder();
+
+      for(int i = 0; i < name.length(); i++) {
+         char c = name.charAt(i);
+
+         if(isSpecialMarker(c) || c == '\\' || c == '^') {
+            buf.append('\\');
+         }
+
+         buf.append(c);
+      }
+
+      return Tool.escapeJavascript(buf.toString());
+   }
+
    private static boolean isSpecialMarker(char c) {
       switch(c) {
       case '?': case '@': case '{': case '}': case ',': case '=': case ';': case '&':
@@ -2503,7 +2526,8 @@ public class LayoutTool {
 
       CalcGroup group = groups.length > 0 ? groups[groups.length - 1] : null;
 
-      exp += var + "['" + escapeColName(isGroup ? getGroupColumnName(base, bind) : bind.getValue());
+      exp += var + "['" + escapeColNameInLiteral(
+         isGroup ? getGroupColumnName(base, bind) : bind.getValue());
 
       int len = isGroup ? list.size() - 1 : list.size();
 
@@ -2516,7 +2540,7 @@ public class LayoutTool {
             exp += ";";
          }
 
-         String value = escapeColName(getGroupColumnName(base, list.get(i)));
+         String value = escapeColNameInLiteral(getGroupColumnName(base, list.get(i)));
          value = Tool.replaceAll(value, ":", LayoutTool.SCRIPT_ESCAPED_COLON);
          exp += value + ":$" + escapeColName(Tool.escapeJavascript(gnames[i]));
       }
@@ -2807,7 +2831,7 @@ public class LayoutTool {
                                                DataRef field, String var)
    {
       String name = BindingTool.getFieldName(field);
-      String exp = var + "[\'" + escapeColName(name);
+      String exp = var + "[\'" + escapeColNameInLiteral(name);
       exp += createGroupCond(fields, cellnames, 0, fields.length, false);
       exp += "\']";
       return exp;
@@ -3642,6 +3666,8 @@ public class LayoutTool {
       boolean encoded = value != null && value.indexOf('\\') >= 0;
 
       if(encoded) {
+         // the literal is double escaped, undo the JavaScript layer (two backslashes -> one)
+         value = value.replace("\\\\", "\\");
          value = NamedCellRange.encodeEscaped(value);
       }
 
