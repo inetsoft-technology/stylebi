@@ -142,7 +142,9 @@ public class ContentRepositoryTreeService {
    }
 
    List<ContentRepositoryTreeNode> getRootNodes(Principal principal, List<String> usersToLoad) throws Exception {
-      List<UserNodes> userNodes = createUserNodes(principal, usersToLoad);
+      // one storage scan per request, shared by every bin node builder below
+      Map<String, RecycleBin.Entry> binEntries = recycleBin.getEntryMap();
+      List<UserNodes> userNodes = createUserNodes(principal, usersToLoad, binEntries);
       RegistrySupplier registryFn = new RegistrySupplier(repletRegistryManager);
       Catalog catalog = Catalog.getCatalog();
       Principal contextPrincipal = ThreadContext.getContextPrincipal();
@@ -205,7 +207,7 @@ public class ContentRepositoryTreeService {
          CompletableFuture<List<ContentRepositoryTreeNode>> recycleNodesFuture =
             getNodesCompletableFuture(contextPrincipal, catalog.getString("Failed to get asset nodes"), () -> {
                try {
-                  return getRecycleNodes(userNodes, principal, registryFn);
+                  return getRecycleNodes(userNodes, principal, registryFn, binEntries);
                }
                catch(Exception e) {
                   throw new RuntimeException(e);
@@ -244,7 +246,9 @@ public class ContentRepositoryTreeService {
       return CompletableFuture.supplyAsync(() -> {
             Principal oprincipal = ThreadContext.getContextPrincipal();
 
-            try {
+            // the request thread's scope is thread-local and not thread-safe, so each loader
+            // task opens its own so per-row permission checks memoize the identity lookups
+            try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
                ThreadContext.setContextPrincipal(contextPrincipal);
 
                if(contextPrincipal instanceof SRPrincipal) {
@@ -293,11 +297,12 @@ public class ContentRepositoryTreeService {
          .collect(Collectors.toList());
    }
 
-   private List<UserNodes> createUserNodes(Principal principal, List<String> usersToLoad)
+   private List<UserNodes> createUserNodes(Principal principal, List<String> usersToLoad,
+                                           Map<String, RecycleBin.Entry> binEntries)
       throws Exception
    {
       List<UserNodes> list = new ArrayList<>();
-      Set<IdentityID> recycleBinUsers = recycleBin.getEntries().stream()
+      Set<IdentityID> recycleBinUsers = binEntries.values().stream()
          .map(RecycleBin.Entry::getOriginalUser)
          .filter(Objects::nonNull)
          .collect(Collectors.toSet());
@@ -317,11 +322,11 @@ public class ContentRepositoryTreeService {
          nodes.dashboards = getUserDashboardNode(user, loadUser ? registry : null, principal);
 
          if(recycleBinUsers.contains(user)) {
-            addRecycleFolders(user, recycleBin, nodes.recycled, registry, principal);
+            addRecycleFolders(user, binEntries, nodes.recycled, registry, principal);
             getRecycleNodeFromUserAssets(
-               user, nodes.recycled, principal, recycleBin, FOLDER, registry);
+               user, nodes.recycled, principal, binEntries, FOLDER, registry);
             getRecycleNodeFromUserAssets(
-               user, nodes.recycled, principal, recycleBin,
+               user, nodes.recycled, principal, binEntries,
                RepositoryEntry.WORKSHEET_FOLDER | RepositoryEntry.USER, registry);
          }
 
@@ -331,22 +336,22 @@ public class ContentRepositoryTreeService {
       return list;
    }
 
-   private void addRecycleFolders(IdentityID user, RecycleBin recycleBin,
+   private void addRecycleFolders(IdentityID user, Map<String, RecycleBin.Entry> binEntries,
                                   List<ContentRepositoryTreeNode> nodes, RepletRegistry registry,
                                   Principal principal) throws Exception
    {
       RepositoryEntry[] entries = registryManager.getRepositoryEntries(
          RecycleUtils.MY_REPORT_RECYCLE, 63, user, 1, registry, principal, false);
-      nodes.addAll(addRecycleEntries(entries, recycleBin));
+      nodes.addAll(addRecycleEntries(entries, binEntries));
    }
 
    private List<ContentRepositoryTreeNode> addRecycleEntries(RepositoryEntry[] entries,
-                                                             RecycleBin recycleBin)
+                                                             Map<String, RecycleBin.Entry> binEntries)
    {
       List<ContentRepositoryTreeNode> nodes = new ArrayList<>();
 
       for(RepositoryEntry entry : entries) {
-         RecycleBin.Entry binEntry = recycleBin.getEntry(entry.getPath());
+         RecycleBin.Entry binEntry = binEntries.get(entry.getPath());
 
          if(binEntry == null){
             continue;
@@ -367,7 +372,8 @@ public class ContentRepositoryTreeService {
 
    private List<ContentRepositoryTreeNode> getRecycleNodes(List<UserNodes> userNodes,
                                                            Principal principal,
-                                                           RegistrySupplier registryFn)
+                                                           RegistrySupplier registryFn,
+                                                           Map<String, RecycleBin.Entry> binEntries)
       throws Exception
    {
       // No path because this node is a placeholder who's visibility should be
@@ -387,7 +393,7 @@ public class ContentRepositoryTreeService {
             .label(Catalog.getCatalog().getString("Repository"))
             .path(RecycleUtils.RECYCLE_BIN_FOLDER)
             .type(RepositoryEntry.RECYCLEBIN_FOLDER)
-            .addAllChildren(addRecycleSheets(principal, recycleBin))
+            .addAllChildren(addRecycleSheets(principal, binEntries))
             .addAllChildren(userRecycled)
             .build();
 
@@ -569,7 +575,7 @@ public class ContentRepositoryTreeService {
    }
 
    private List<ContentRepositoryTreeNode> addRecycleSheets(Principal principal,
-                                                            RecycleBin recycleBin)
+                                                            Map<String, RecycleBin.Entry> binEntries)
       throws Exception
    {
       List<ContentRepositoryTreeNode> nodes = new ArrayList<>();
@@ -577,19 +583,20 @@ public class ContentRepositoryTreeService {
       AssetEntry.Selector vsSelector = new AssetEntry.Selector(AssetEntry.Type.VIEWSHEET_SNAPSHOT,
             AssetEntry.Type.REPOSITORY_FOLDER);
       AssetEntry.Type vsEntryType = AssetEntry.Type.REPOSITORY_FOLDER;
-      nodes.addAll(getRecycleNodeFromAssets(principal, recycleBin, vsSelector, vsEntryType));
+      nodes.addAll(getRecycleNodeFromAssets(principal, binEntries, vsSelector, vsEntryType));
 
       //get ws entries
       AssetEntry.Selector wsSelector = new AssetEntry.Selector(AssetEntry.Type.WORKSHEET,
             AssetEntry.Type.FOLDER);
       AssetEntry.Type wsEntryType = AssetEntry.Type.FOLDER;
-      nodes.addAll(getRecycleNodeFromAssets(principal, recycleBin, wsSelector, wsEntryType));
+      nodes.addAll(getRecycleNodeFromAssets(principal, binEntries, wsSelector, wsEntryType));
 
       return nodes;
    }
 
    private List<ContentRepositoryTreeNode> getRecycleNodeFromAssets(Principal principal,
-                                         RecycleBin recycleBin, AssetEntry.Selector selector,
+                                         Map<String, RecycleBin.Entry> binEntries,
+                                         AssetEntry.Selector selector,
                                          AssetEntry.Type entryType)
       throws Exception
    {
@@ -599,11 +606,13 @@ public class ContentRepositoryTreeService {
       if(assetRepository != null) {
          AssetEntry pentry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
                  entryType, RecycleUtils.getRecycleBinPath(null), null);
+         // the tree only needs the entries' paths, not the per-sheet properties getSheet() loads
+         pentry.setProperty("__oneoff__", "true");
          AssetEntry[] entries = assetRepository.getEntries(
             pentry, principal, ResourceAction.READ, selector);
 
          for(AssetEntry entry : entries) {
-            RecycleBin.Entry binEntry = recycleBin.getEntry(entry.getPath());
+            RecycleBin.Entry binEntry = binEntries.get(entry.getPath());
 
             if(binEntry == null) {
                continue;
@@ -624,7 +633,7 @@ public class ContentRepositoryTreeService {
    }
 
    private void getRecycleNodeFromUserAssets(IdentityID user, List<ContentRepositoryTreeNode> nodes,
-                                             Principal principal, RecycleBin recycleBin, int type,
+                                             Principal principal, Map<String, RecycleBin.Entry> binEntries, int type,
                                              RepletRegistry registry)
       throws Exception
    {
@@ -637,7 +646,7 @@ public class ContentRepositoryTreeService {
       for(RepositoryEntry entry : entries) {
          String path =
             entry.getPath().substring(entry.getPath().indexOf(RecycleUtils.RECYCLE_BIN_FOLDER));
-         RecycleBin.Entry binEntry = recycleBin.getEntry(path);
+         RecycleBin.Entry binEntry = binEntries.get(path);
 
          if(binEntry == null) {
             continue;
