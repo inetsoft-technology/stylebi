@@ -339,6 +339,17 @@ public class ConditionListHandler {
             return new XExpression("time(" + expressionValue + ")", XExpression.EXPRESSION);
          }
 
+         // the SQL Server driver sends a java.sql.Time parameter as a datetime (the default
+         // sendTimeAsDatetime=true), and SQL Server rejects 'time column = datetime' ("The data
+         // types time and datetime are incompatible"). Cast the parameter back to time. It is
+         // needed by every operator (=, in, between, <, >, ...), so it is not limited to
+         // forCondition, which is only set for '=' (bug #82475)
+         if(val instanceof Time && sql != null && sql.getDataSource() != null &&
+            sql.getDataSource().getDatabaseType() == JDBCDataSource.JDBC_SQLSERVER)
+         {
+            return new XExpression("CAST(" + expressionValue + " AS TIME)", XExpression.EXPRESSION);
+         }
+
          return new XExpression(expressionValue, XExpression.EXPRESSION);
       }
    }
