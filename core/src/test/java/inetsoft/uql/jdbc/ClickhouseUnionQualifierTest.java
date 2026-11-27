@@ -51,15 +51,22 @@ class ClickhouseUnionQualifierTest {
    }
 
    @Test
-   void clickhouseIntersectExceptIsExplicitlyDistinct() {
-      assertEquals("DISTINCT ", new ClickhouseHelper().getIntersectExceptQualifier(true));
-      assertEquals("ALL ", new ClickhouseHelper().getIntersectExceptQualifier(false));
+   void clickhouseDistinctIntersectIsWrapped() {
+      assertEquals("SELECT DISTINCT * FROM ((select a from t1) INTERSECT (select a from t2))",
+         new ClickhouseHelper().getDistinctSetOperation(
+            "(select a from t1) INTERSECT (select a from t2)"));
    }
 
    @Test
-   void otherDialectsIntersectExceptUnchanged() {
-      SQLHelper helper = new OracleSQLHelper();
-      assertEquals("", helper.getIntersectExceptQualifier(true));
-      assertEquals("ALL ", helper.getIntersectExceptQualifier(false));
+   void clickhouseDistinctMinusIsWrapped() {
+      assertEquals("SELECT DISTINCT * FROM ((select a from t1) EXCEPT (select a from t2))",
+         new ClickhouseHelper().getDistinctSetOperation(
+            "(select a from t1) EXCEPT (select a from t2)"));
+   }
+
+   @Test
+   void otherDialectsSetOperationUnchanged() {
+      String sql = "(select a from t1) INTERSECT (select a from t2)";
+      assertEquals(sql, new OracleSQLHelper().getDistinctSetOperation(sql));
    }
 }

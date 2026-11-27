@@ -633,8 +633,8 @@ public class ConcatenatedQuery extends AssetQuery {
             if(operation == TableAssemblyOperator.UNION) {
                sb.append(helper.getUnionQualifier(op.isDistinct()));
             }
-            else {
-               sb.append(helper.getIntersectExceptQualifier(op.isDistinct()));
+            else if(!op.isDistinct()) {
+               sb.append("ALL ");
             }
          }
 
@@ -652,6 +652,16 @@ public class ConcatenatedQuery extends AssetQuery {
 
          sb.append(sql.toString());
          sb.append(')');
+
+         if(i > 0) {
+            TableAssemblyOperator top = table.getOperator(tables[i - 1].getName(),
+                                                          tables[i].getName());
+            TableAssemblyOperator.Operator op = top.getOperator(0);
+
+            if(op.getOperation() != TableAssemblyOperator.UNION && op.isDistinct()) {
+               sb = new StringBuilder(helper.getDistinctSetOperation(sb.toString()));
+            }
+         }
       }
 
       UniformSQL ssql = new UniformSQL(sb.toString(), false);

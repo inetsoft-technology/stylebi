@@ -151,11 +151,12 @@ public class ClickhouseHelper extends SQLHelper {
    }
 
    /**
-    * ClickHouse INTERSECT/EXCEPT default to ALL semantics and keep duplicate rows, so the
-    * distinct form must be explicit (Bug #82469).
+    * ClickHouse INTERSECT/EXCEPT do not de-duplicate their left input and, before 23.3,
+    * accept no ALL/DISTINCT qualifier, so a distinct result is made explicit with an outer
+    * SELECT DISTINCT (Bug #82469).
     */
    @Override
-   public String getIntersectExceptQualifier(boolean distinct) {
-      return distinct ? "DISTINCT " : "ALL ";
+   public String getDistinctSetOperation(String setOperationSql) {
+      return "SELECT DISTINCT * FROM (" + setOperationSql + ")";
    }
 }

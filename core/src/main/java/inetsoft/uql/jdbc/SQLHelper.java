@@ -1206,11 +1206,11 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
-    * Get the qualifier appended after an INTERSECT/EXCEPT/MINUS keyword when a worksheet
-    * intersect or minus is pushed down. Empty by default (the bare keyword is distinct).
+    * Get the SQL for a distinct INTERSECT/EXCEPT/MINUS pushed down from a worksheet. The
+    * bare keyword is already distinct on most databases, so the SQL is returned unchanged.
     */
-   public String getIntersectExceptQualifier(boolean distinct) {
-      return distinct ? "" : "ALL ";
+   public String getDistinctSetOperation(String setOperationSql) {
+      return setOperationSql;
    }
 
    /**
