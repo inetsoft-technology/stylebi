@@ -652,28 +652,30 @@ public class Condition extends AbstractCondition {
             return false;
          }
 
-         // any value of the sub query satisfies the comparison (sql 'op any (...)').
-         // no match with a null value is unknown, which is not negated, in sync with sql
-         boolean sawNull = false;
+         if(isSubQueryComparison()) {
+            // any value of the sub query satisfies the comparison (sql 'op any (...)');
+            // null means unknown, which is not negated, in sync with sql
+            Boolean any = anyValueMatch(values, value, comp, true);
 
-         for(Object val : values) {
-            Object obj = normalizeValue(val, value);
-
-            if(obj == null) {
-               sawNull = true;
-               continue;
+            if(any == null) {
+               return false;
             }
 
-            int r = comp.compare(value, obj);
-
-            if(isEqual() ? (r <= 0) : (r < 0)) {
-               result = true;
-               break;
-            }
+            result = any;
          }
+         else {
+            if(values.size() > 0) {
+               Object obj = values.get(0);
+               obj = normalizeValue(obj, value);
 
-         if(!result && sawNull) {
-            return false;
+               // in sync with sql
+               if(obj == null) {
+                  return false;
+               }
+
+               int r = comp.compare(value, obj);
+               result = isEqual() ? (r <= 0) : (r < 0);
+            }
          }
       }
       else if(op == GREATER_THAN) {
@@ -682,28 +684,30 @@ public class Condition extends AbstractCondition {
             return false;
          }
 
-         // any value of the sub query satisfies the comparison (sql 'op any (...)').
-         // no match with a null value is unknown, which is not negated, in sync with sql
-         boolean sawNull = false;
+         if(isSubQueryComparison()) {
+            // any value of the sub query satisfies the comparison (sql 'op any (...)');
+            // null means unknown, which is not negated, in sync with sql
+            Boolean any = anyValueMatch(values, value, comp, false);
 
-         for(Object val : values) {
-            Object obj = normalizeValue(val, value);
-
-            if(obj == null) {
-               sawNull = true;
-               continue;
+            if(any == null) {
+               return false;
             }
 
-            int r = comp.compare(value, obj);
-
-            if(isEqual() ? (r >= 0) : (r > 0)) {
-               result = true;
-               break;
-            }
+            result = any;
          }
+         else {
+            if(values.size() > 0) {
+               Object obj = values.get(0);
+               obj = normalizeValue(obj, value);
 
-         if(!result && sawNull) {
-            return false;
+               // in sync with sql
+               if(obj == null) {
+                  return false;
+               }
+
+               int r = comp.compare(value, obj);
+               result = isEqual() ? (r >= 0) : (r > 0);
+            }
          }
       }
       else if(op == EQUAL_TO) {
@@ -1573,6 +1577,112 @@ public class Condition extends AbstractCondition {
    public boolean isOptimized() {
       return optimized;
    }
+
+   /**
+    * Check if the values are the values of a sub query, which a comparison matches as
+    * 'any' of them.
+    */
+   protected boolean isSubQueryComparison() {
+      return false;
+   }
+
+   /**
+    * Whether the values of the sub query are the same for every row, so that their extremes
+    * can be kept between the rows.
+    */
+   protected boolean isFixedSubQueryValues() {
+      return false;
+   }
+
+   private static final class AnyExtremes {
+      AnyExtremes(List<Object> source, Class<?> type) {
+         this.source = source;
+         this.type = type;
+      }
+
+      final List<Object> source;
+      final Class<?> type;
+      int count;
+      Object min;
+      Object max;
+      boolean sawNull;
+   }
+
+   private transient volatile AnyExtremes anyExtremes;
+
+   /**
+    * Compare with the values of a sub query as sql 'op any (values)'.
+    * @return true or false, or null (unknown) if no value matches and a value is null.
+    */
+   private Boolean anyValueMatch(List<Object> values, Object value, Comparer comp,
+                                 boolean less)
+   {
+      boolean equal = isEqual();
+
+      if(!isFixedSubQueryValues()) {
+         boolean sawNull = false;
+
+         for(Object val : values) {
+            Object obj = normalizeValue(val, value);
+
+            if(obj == null) {
+               sawNull = true;
+               continue;
+            }
+
+            int r = comp.compare(value, obj);
+
+            if(less ? (equal ? r <= 0 : r < 0) : (equal ? r >= 0 : r > 0)) {
+               return true;
+            }
+         }
+
+         return sawNull ? null : Boolean.FALSE;
+      }
+
+      // the values are the same for every row: keep the extremes, the row matches any value
+      // if it matches the max (less) or the min (greater)
+      AnyExtremes ext = anyExtremes;
+
+      if(ext == null || ext.source != values || ext.count != values.size() ||
+         ext.type != value.getClass())
+      {
+         ext = new AnyExtremes(values, value.getClass());
+         ext.count = values.size();
+
+         for(Object val : values) {
+            Object obj = normalizeValue(val, value);
+
+            if(obj == null) {
+               ext.sawNull = true;
+               continue;
+            }
+
+            if(ext.min == null || comp.compare(obj, ext.min) < 0) {
+               ext.min = obj;
+            }
+
+            if(ext.max == null || comp.compare(obj, ext.max) > 0) {
+               ext.max = obj;
+            }
+         }
+
+         anyExtremes = ext;
+      }
+
+      Object bound = less ? ext.max : ext.min;
+
+      if(bound != null) {
+         int r = comp.compare(value, bound);
+
+         if(less ? (equal ? r <= 0 : r < 0) : (equal ? r >= 0 : r > 0)) {
+            return true;
+         }
+      }
+
+      return ext.sawNull ? null : Boolean.FALSE;
+   }
+
 
    /**
     * Normalize a value.

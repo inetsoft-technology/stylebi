@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doReturn;
@@ -116,6 +117,56 @@ class SubQueryComparisonAnyTest {
       assertEquals(List.of(0.0), filter(LT, false, false, 0.05));
       assertEquals(List.of(0.07, 0.2), filter(LT, false, true, 0.05));
       assertEquals(List.of(0.07, 0.2), filter(GT, true, false, 0.07));
+   }
+
+   // the extremes kept between the rows follow the values of the sub query when they change
+   @Test
+   void extremesFollowTheSubQueryValues() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new EmbeddedTableAssembly(ws, "S1"));
+      SubQueryValue value = new SubQueryValue();
+      value.setQuery("S1");
+      value.setAttribute(new AttributeRef(null, "v"));
+      assertTrue(value.update(ws));
+      AssetCondition cond = new AssetCondition();
+      cond.setOperation(GT);
+      cond.setType(XSchema.DOUBLE);
+      cond.addValue(value);
+      TableLens main = new DefaultTableLens(new Object[][] { { "value" }, { 0.07 } });
+      cond.initMainTable(main);
+
+      cond.initSubTable(new DefaultTableLens(new Object[][] { { "v" }, { 0.5 }, { 0.1 } }));
+      assertFalse(cond.evaluate(0.07));
+      assertTrue(cond.evaluate(0.2));
+
+      // new values of the sub query (re-executed or new variables)
+      cond.reset();
+      cond.initSubTable(new DefaultTableLens(new Object[][] { { "v" }, { 0.5 }, { 0.01 } }));
+      assertTrue(cond.evaluate(0.07));
+      assertFalse(cond.evaluate(0.005));
+
+      cond.reset();
+      cond.initSubTable(new DefaultTableLens(new Object[][] { { "v" } }));
+      assertFalse(cond.evaluate(0.07));
+   }
+
+   @Test
+   void mixedTypesAndDatesKeepTheComparison() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new EmbeddedTableAssembly(ws, "S1"));
+      SubQueryValue value = new SubQueryValue();
+      value.setQuery("S1");
+      value.setAttribute(new AttributeRef(null, "v"));
+      assertTrue(value.update(ws));
+      AssetCondition cond = new AssetCondition();
+      cond.setOperation(LT);
+      cond.setType(XSchema.INTEGER);
+      cond.addValue(value);
+      cond.initMainTable(new DefaultTableLens(new Object[][] { { "value" }, { 1 } }));
+      cond.initSubTable(new DefaultTableLens(new Object[][] { { "v" }, { 3L }, { 9L } }));
+
+      assertTrue(cond.evaluate(8));
+      assertFalse(cond.evaluate(9));
    }
 
    // ---- helpers ----

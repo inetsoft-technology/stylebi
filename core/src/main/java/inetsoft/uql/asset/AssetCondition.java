@@ -492,6 +492,16 @@ public class AssetCondition extends Condition implements AssetObject {
       return sub == null ? null : sub.getMainAttribute();
    }
 
+   @Override
+   protected boolean isSubQueryComparison() {
+      return sub != null;
+   }
+
+   @Override
+   protected boolean isFixedSubQueryValues() {
+      return sub != null && !sub.isCorrelated();
+   }
+
    /**
     * Get the values of a row.
     * @return the values of the row.
