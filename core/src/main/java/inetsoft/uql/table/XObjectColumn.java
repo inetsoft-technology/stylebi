@@ -157,7 +157,12 @@ public final class XObjectColumn extends AbstractTableColumn {
 
             if(column != null) {
                for(int i = 0; i < pos; i++) {
-                  column.addObject(arr[i]);
+                  // the column may ask to be replaced, e.g. for a big decimal it can not hold
+                  XTableColumn replacement = column.addObject(arr[i]);
+
+                  if(replacement != null) {
+                     column = replacement;
+                  }
                }
 
                return column;

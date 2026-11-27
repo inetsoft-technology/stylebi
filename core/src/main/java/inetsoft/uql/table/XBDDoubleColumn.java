@@ -168,6 +168,12 @@ public final class XBDDoubleColumn extends AbstractTableColumn {
       else {
          BigDecimal bd = Tool.convertToBigDecimal(obj);
 
+         // an integral value above 2^53 that a double can not hold would be rounded, so
+         // neighbouring ids merge (bug #82378). keep such a column as exact BigDecimal objects.
+         if(!isDoubleExact(bd)) {
+            return toObjectColumn(bd);
+         }
+
          if(lflag) {
             lflag = bd.scale() == 0;
          }
@@ -176,6 +182,46 @@ public final class XBDDoubleColumn extends AbstractTableColumn {
       }
 
       return null;
+   }
+
+   /**
+    * Check if a value can be stored as a double without losing digits. Only an integral value
+    * above 2^53 is checked, other values keep the existing (possibly rounded) conversion.
+    */
+   private static boolean isDoubleExact(BigDecimal bd) {
+      // up to 15 integer digits are always below 2^53
+      if(bd.precision() - bd.scale() <= 15 || bd.stripTrailingZeros().scale() > 0) {
+         return true;
+      }
+
+      double d = toDouble(bd);
+      return !Double.isInfinite(d) && new BigDecimal(d).compareTo(bd) == 0;
+   }
+
+   /**
+    * Create an object column that holds the values added so far, as BigDecimal, plus the
+    * specified value.
+    */
+   private XTableColumn toObjectColumn(BigDecimal bd) {
+      XTableColumnCreator creator = XObjectColumn.getCreator();
+      // do not let the object column switch back to a double column on the first BigDecimal
+      creator.setDynamic(false);
+      XTableColumn column = creator.createColumn((char) Math.min(size, pos + 16), size);
+
+      for(int i = 0; i < pos; i++) {
+         if(isNull(i)) {
+            column.addObject(null);
+         }
+         else if(lflag) {
+            column.addObject(BigDecimal.valueOf(getLong(i)));
+         }
+         else {
+            column.addObject(BigDecimal.valueOf(getDouble(i)));
+         }
+      }
+
+      column.addObject(bd);
+      return column;
    }
 
    /**
