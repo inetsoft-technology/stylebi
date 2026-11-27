@@ -137,7 +137,8 @@ class ViewsheetIdentityRefsTest {
                                                    mock(AssetRepository.class),
                                                    mock(WorksheetService.class));
       applyService = new ViewsheetChangesetApplyService(planService, viewsheetApiService,
-         folderService, mock(AdminBackupService.class), mock(WorksheetService.class));
+         folderService, mock(AdminBackupService.class), mock(WorksheetService.class),
+         mock(inetsoft.web.RecycleBin.class));
       controller = new AdminViewsheetController(viewsheetApiService, folderService, planService,
                                                 applyService);
 

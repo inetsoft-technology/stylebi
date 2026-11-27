@@ -33,7 +33,9 @@ import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.web.RecycleBin;
 import inetsoft.web.RecycleUtils;
+import inetsoft.sree.RepositoryEntry;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -73,6 +75,7 @@ class ViewsheetChangesetApplyServiceTest {
    @Mock private AssetRepository assetRepository;
    @Mock private AdminBackupService backupService;
    @Mock private WorksheetService worksheetApiService;
+   @Mock private RecycleBin recycleBin;
    @Mock private Principal user;
    @Mock private OrganizationManager orgManager;
    private ViewsheetChangePlanService planService;
@@ -102,7 +105,8 @@ class ViewsheetChangesetApplyServiceTest {
       planService = new ViewsheetChangePlanService(
          viewsheetApiService, folderService, assetRepository, worksheetApiService);
       service = new ViewsheetChangesetApplyService(
-         planService, viewsheetApiService, folderService, backupService, worksheetApiService);
+         planService, viewsheetApiService, folderService, backupService, worksheetApiService,
+         recycleBin);
 
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
@@ -111,6 +115,7 @@ class ViewsheetChangesetApplyServiceTest {
       // Bug #82281: a viewsheet delete asks the server's scheduled-task guard (resolve and apply);
       // default is "no task uses it"
       recycleUtilsStatic = mockStatic(RecycleUtils.class, withSettings().lenient());
+      wireFakeRecycleBin();
 
       dependencyToolStatic = mockStatic(DependencyTool.class, withSettings().lenient());
       dependencyToolStatic.when(() -> DependencyTool.getDependencies(anyString()))
@@ -237,6 +242,67 @@ class ViewsheetChangesetApplyServiceTest {
          return new GetViewsheetFolderResult(
             found, path, ViewsheetFolderService.ownerKey(owner), null, null);
       });
+   }
+
+   /** Bug #82461: an in-memory Recycle Bin. A recycle removes the sheet from its store and (unless
+    * {@code registerBinEntries} is off) records a bin entry the way RecycleBin.addEntry would; a
+    * restore puts the sheet back. */
+   private final List<RecycleBin.Entry> binEntries = new ArrayList<>();
+   private final Map<String, Sheet> recycledSheets = new LinkedHashMap<>();
+   private boolean registerBinEntries = true;
+
+   private void wireFakeRecycleBin() {
+      binEntries.clear();
+      recycledSheets.clear();
+      registerBinEntries = true;
+      lenient().when(recycleBin.getEntries()).thenAnswer(inv -> new ArrayList<>(binEntries));
+      lenient().when(recycleBin.getEntry(anyString())).thenAnswer(inv ->
+         binEntries.stream().filter(e -> e.getPath().equals(inv.getArgument(0)))
+            .findFirst().orElse(null));
+
+      recycleUtilsStatic.when(() -> RecycleUtils.moveSheetToRecycleBin(
+         any(AssetEntry.class), any(), any(), anyBoolean())).thenAnswer(inv -> {
+            AssetEntry e = inv.getArgument(0);
+            String id = e.toIdentifier();
+            Sheet sheet = viewsheetStore.remove(id);
+
+            if(sheet == null) {
+               sheet = worksheetStore.remove(id);
+            }
+
+            if(sheet != null && registerBinEntries) {
+               RecycleBin.Entry entry = new RecycleBin.Entry();
+               entry.setPath("Recycle Bin/bin" + (binEntries.size() + 1));
+               entry.setOriginalPath(e.getPath());
+               entry.setName(e.getName());
+               entry.setType(e.isViewsheet() ? RepositoryEntry.VIEWSHEET : RepositoryEntry.WORKSHEET);
+               entry.setOriginalScope(e.getScope());
+               entry.setOriginalUser(e.getUser());
+               entry.setTimestamp(new java.util.Date());
+               binEntries.add(entry);
+               recycledSheets.put(entry.getPath(), sheet);
+            }
+
+            return null;
+         });
+
+      recycleUtilsStatic.when(() -> RecycleUtils.restoreSheet(
+         any(RecycleBin.Entry.class), anyBoolean(), any(), any())).thenAnswer(inv -> {
+            RecycleBin.Entry entry = inv.getArgument(0);
+            Sheet sheet = recycledSheets.remove(entry.getPath());
+            binEntries.remove(entry);
+
+            if(sheet != null) {
+               if(entry.getType() == RepositoryEntry.WORKSHEET) {
+                  worksheetStore.put(sheet.getAsset(), sheet);
+               }
+               else {
+                  viewsheetStore.put(sheet.getAsset(), sheet);
+               }
+            }
+
+            return null;
+         });
    }
 
    @AfterEach void tearDown() {
@@ -456,6 +522,230 @@ class ViewsheetChangesetApplyServiceTest {
       assertTrue(advisory.contains("dependency check failed"));
       assertFalse(advisory.contains("dependent asset(s)"),
          "must not claim a dependent count it never actually confirmed");
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #82461: toRecycleBin on a viewsheet/worksheet delete
+   // -------------------------------------------------------------------------
+
+   private static ViewsheetChangeRequest recycleViewsheetChange(String assetId) {
+      ViewsheetChangeRequest change = deleteViewsheetChange(assetId);
+      change.setToRecycleBin(true);
+      return change;
+   }
+
+   private ViewsheetChangeRequest recycleWorksheetChange(String assetId) {
+      ViewsheetChangeRequest change = new ViewsheetChangeRequest();
+      change.setUnitType(ViewsheetChangeRequest.UNIT_WORKSHEET);
+      change.setVerb(ViewsheetChangeRequest.VERB_DELETE);
+      change.setAssetId(assetId);
+      change.setToRecycleBin(true);
+      return change;
+   }
+
+   private String putWorksheet(String path) {
+      String assetId = worksheetAssetId(path);
+      worksheetStore.put(assetId, new Sheet(assetId, path, path, true, null, null));
+      return assetId;
+   }
+
+   @Test void recycleDeleteOfAViewsheetMovesItToTheBinAndNeverHardDeletes() throws Exception {
+      ViewsheetApplyRequest req = applyRequest("recycle", false, recycleViewsheetChange(VS_ASSET_ID));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status(),
+         String.valueOf(result.results()));
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, result.results().get(0).status());
+      assertFalse(viewsheetStore.containsKey(VS_ASSET_ID));
+      assertEquals(1, binEntries.size());
+      assertEquals("Examples/Census", binEntries.get(0).getOriginalPath());
+      assertEquals(RepositoryEntry.VIEWSHEET, binEntries.get(0).getType());
+      assertTrue(result.results().get(0).after().contains(binEntries.get(0).getPath()),
+         result.results().get(0).after());
+      // force is always true to the util: the plan layer owns the dependents gate
+      recycleUtilsStatic.verify(() -> RecycleUtils.moveSheetToRecycleBin(
+         argThat((AssetEntry e) -> e != null && VS_ASSET_ID.equals(e.toIdentifier())),
+         eq(user), eq(recycleBin), eq(true)));
+      verify(viewsheetApiService, never()).deleteViewsheet(anyString(), any());
+      verify(backupService).backup(anyString());
+   }
+
+   @Test void recycleDeleteOfAWorksheetMovesItToTheBinAndNeverHardDeletes() throws Exception {
+      String wsId = putWorksheet("Examples/Sales");
+
+      var result = service.apply(
+         applyRequest("recycle ws", false, recycleWorksheetChange(wsId)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertFalse(worksheetStore.containsKey(wsId));
+      assertEquals(1, binEntries.size());
+      assertEquals(RepositoryEntry.WORKSHEET, binEntries.get(0).getType());
+      assertEquals("Examples/Sales", binEntries.get(0).getOriginalPath());
+      verify(worksheetApiService, never()).deleteWorksheet(anyString(), any());
+   }
+
+   @Test void recycleOnlyPlanNeedsNoIrreversibleAckButStillNeedsAReviewOutcome() throws Exception {
+      ViewsheetApplyRequest noAck =
+         applyRequest("recycle", false, recycleViewsheetChange(VS_ASSET_ID));
+      noAck.setReviewOutcome("  ");
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.apply(noAck, user));
+
+      assertTrue(ex.getMessage().contains("reviewOutcome"), ex.getMessage());
+      assertTrue(viewsheetStore.containsKey(VS_ASSET_ID));
+   }
+
+   @Test void aPlanMixingARecycleAndAPermanentDeleteStillNeedsTheAck() throws Exception {
+      String wsId = putWorksheet("Examples/Sales");
+      ViewsheetChangeRequest hardWorksheetDelete = new ViewsheetChangeRequest();
+      hardWorksheetDelete.setUnitType(ViewsheetChangeRequest.UNIT_WORKSHEET);
+      hardWorksheetDelete.setVerb(ViewsheetChangeRequest.VERB_DELETE);
+      hardWorksheetDelete.setAssetId(wsId);
+      ViewsheetApplyRequest req =
+         applyRequest("mixed", false, recycleViewsheetChange(VS_ASSET_ID), hardWorksheetDelete);
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.apply(req, user));
+
+      assertTrue(ex.getMessage().contains("acknowledgeIrreversibleDelete"), ex.getMessage());
+      assertTrue(viewsheetStore.containsKey(VS_ASSET_ID), "nothing may have been applied");
+      assertTrue(worksheetStore.containsKey(wsId));
+   }
+
+   @Test void flippingToRecycleBinAfterPreviewIsAHashConflict() throws Exception {
+      ViewsheetApplyRequest req = applyRequest("recycle", false, deleteViewsheetChange(VS_ASSET_ID));
+      req.setChanges(List.of(recycleViewsheetChange(VS_ASSET_ID)));
+
+      assertThrows(AdminChangesetApplyService.PlanHashMismatchException.class,
+         () -> service.apply(req, user));
+      assertTrue(viewsheetStore.containsKey(VS_ASSET_ID));
+   }
+
+   /** The sheet left its original path but no bin entry exists (bug #78230 path, or addEntry
+    * swallowed a storage failure): it must be reported as state changed, not as a clean rollback,
+    * and must not promise a restore. */
+   @Test void recycleThatLeavesNoBinEntryIsReportedAsStateChanged() throws Exception {
+      registerBinEntries = false;
+
+      var result = service.apply(
+         applyRequest("recycle", false, recycleViewsheetChange(VS_ASSET_ID)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals(AdminChangeRecord.STATUS_FAILED, result.results().get(0).status());
+      String error = result.results().get(0).error();
+      assertTrue(error.contains("not registered in the Recycle Bin"), error);
+      assertTrue(error.contains("cannot restore it"), error);
+      assertFalse(viewsheetStore.containsKey(VS_ASSET_ID));
+   }
+
+   @Test void aLaterFailingEntryRestoresTheRecycledViewsheet() throws Exception {
+      // the folder create is a no-op, so its verification fails and the plan rolls back
+      lenient().doAnswer(inv -> null).when(viewsheetApiService)
+         .addFolder(any(), anyString(), any(), any(), any(), eq(user));
+      ViewsheetApplyRequest req = applyRequest("recycle then fail", false,
+         recycleViewsheetChange(VS_ASSET_ID), createFolderChange("Examples", "Nope", null));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertTrue(viewsheetStore.containsKey(VS_ASSET_ID), "the recycled sheet must be restored");
+      assertTrue(binEntries.isEmpty());
+      recycleUtilsStatic.verify(() -> RecycleUtils.restoreSheet(
+         any(RecycleBin.Entry.class), eq(false), eq(user), eq(recycleBin)));
+   }
+
+   @Test void aRecycleRollbackThatDoesNotRestoreTheSheetIsRollbackFailed() throws Exception {
+      lenient().doAnswer(inv -> null).when(viewsheetApiService)
+         .addFolder(any(), anyString(), any(), any(), any(), eq(user));
+      // restoreSheet returns without moving anything (the original path is taken)
+      recycleUtilsStatic.when(() -> RecycleUtils.restoreSheet(
+         any(RecycleBin.Entry.class), anyBoolean(), any(), any())).thenAnswer(inv -> null);
+      ViewsheetApplyRequest req = applyRequest("recycle then fail", false,
+         recycleViewsheetChange(VS_ASSET_ID), createFolderChange("Examples", "Nope", null));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals(1, result.rollbackFailures().stream()
+         .filter(f -> f.error().contains("did not restore the sheet")).count());
+   }
+
+   @Test void recycleOfADashboardAScheduledTaskStartedUsingAfterResolveIsRolledBackCleanly()
+      throws Exception
+   {
+      java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+      recycleUtilsStatic.when(() -> RecycleUtils.checkScheduledTasks(any(AssetEntry.class)))
+         .thenAnswer(inv -> {
+            if(calls.incrementAndGet() >= 2) {
+               throw new MessageException("used in the following scheduled task(s): [QA-V02-task]");
+            }
+
+            return null;
+         });
+      ViewsheetApplyRequest req = applyRequest("recycle", false, recycleViewsheetChange(VS_ASSET_ID));
+      calls.set(0);
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertTrue(binEntries.isEmpty());
+      assertTrue(viewsheetStore.containsKey(VS_ASSET_ID));
+   }
+
+   @Test void recycleWithForceAdvisesTheDependentsAreRepointed() throws Exception {
+      stubDependencyLookup(List.of(dependency("Examples/Census Query")));
+      ViewsheetChangeRequest change = recycleViewsheetChange(VS_ASSET_ID);
+      change.setForce(true);
+
+      var result = service.apply(applyRequest("force recycle", false, change), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      String advisory = result.results().get(0).advisory();
+      assertNotNull(advisory);
+      assertTrue(advisory.contains("Census Query"), advisory);
+      assertTrue(advisory.contains("Recycle Bin"), advisory);
+   }
+
+   @Test void recycleOfAUserScopeDashboardRecordsItsScopeAndOwner() throws Exception {
+      IdentityID owner = new IdentityID("alice", "host-org");
+      String userVsId = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                       "Mine/Board", owner, "host-org").toIdentifier();
+      viewsheetStore.put(userVsId, new Sheet(userVsId, "Mine/Board", "Mine/Board", false, owner, null));
+
+      var result = service.apply(
+         applyRequest("recycle", false, recycleViewsheetChange(userVsId)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals(AssetRepository.USER_SCOPE, binEntries.get(0).getOriginalScope());
+      assertEquals(owner, binEntries.get(0).getOriginalUser());
+      assertEquals("Mine/Board", binEntries.get(0).getOriginalPath());
+   }
+
+   @Test void recycleWritesTheProductDeleteAuditRecordAHardDeleteWould() throws Exception {
+      sutil.when(() -> SUtil.getUserName(any())).thenReturn("bob");
+      ViewsheetApplyRequest req = applyRequest("recycle", false, recycleViewsheetChange(VS_ASSET_ID));
+      Audit auditInstance = mock(Audit.class);
+      List<List<?>> ctorArgs = new ArrayList<>();
+
+      try(MockedStatic<Audit> audit = mockStatic(Audit.class);
+          var records = mockConstruction(inetsoft.util.audit.ActionRecord.class,
+                                         (mock, ctx) -> ctorArgs.add(ctx.arguments())))
+      {
+         audit.when(Audit::getInstance).thenReturn(auditInstance);
+         var result = service.apply(req, user);
+
+         assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+         assertEquals(1, records.constructed().size());
+         assertEquals(inetsoft.util.audit.ActionRecord.ACTION_NAME_DELETE,
+                      ctorArgs.get(0).get(1));
+         assertEquals(inetsoft.util.audit.ActionRecord.OBJECT_TYPE_DASHBOARD,
+                      ctorArgs.get(0).get(3));
+         var record = records.constructed().get(0);
+         verify(record).setActionStatus(inetsoft.util.audit.ActionRecord.ACTION_STATUS_SUCCESS);
+         verify(auditInstance).auditAction(record, user);
+      }
    }
 
    private void stubDependencyLookup(List<AssetEntry> dependencies) throws Exception {

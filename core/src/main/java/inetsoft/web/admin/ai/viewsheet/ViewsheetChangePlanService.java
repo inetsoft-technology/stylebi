@@ -225,6 +225,10 @@ public class ViewsheetChangePlanService {
 
       Sheet current = findViewsheetById(user, assetId);
 
+      if(!ViewsheetChangeRequest.VERB_DELETE.equals(verb)) {
+         requireUnused(label, "toRecycleBin", change.getToRecycleBin());
+      }
+
       if(ViewsheetChangeRequest.VERB_RENAME.equals(verb)) {
          return resolveViewsheetRename(label, key, assetId, current, change, user, seenKeys);
       }
@@ -452,6 +456,12 @@ public class ViewsheetChangePlanService {
 
       boolean force = Boolean.TRUE.equals(change.getForce());
       AssetEntry entry = AssetEntry.createAssetEntry(assetId);
+      boolean recycle = isToRecycleBin(change);
+
+      if(recycle) {
+         requireRecyclable(label, entry);
+      }
+
       // Bug #82281: the server's own delete refuses a dashboard a scheduled task uses, and
       // force cannot bypass it. Ask that question first (before the force gate, so the no-force
       // message never points at a flag that cannot help) and refuse at preview.
@@ -462,12 +472,16 @@ public class ViewsheetChangePlanService {
 
       String beforeProjection = ViewsheetProjection.projectViewsheet(current);
       auxProjections.put(key, ViewsheetProjection.projectDependencies(dependencies));
-      String description = dependencies.length == 0
+      String description = recycle
+         ? recycleDescription("viewsheet", current.getPath(), dependencies.length,
+                              auxProjections.get(key))
+         : dependencies.length == 0
          ? "delete viewsheet \"" + current.getPath() + "\""
          : "delete viewsheet \"" + current.getPath() + "\" (force: true, " + dependencies.length +
            " dependent asset(s): " +
            auxProjections.get(key) + ")";
-      return new PlanChange(key, entry.getOrgID(), beforeProjection, null,
+      return new PlanChange(key, entry.getOrgID(), beforeProjection,
+                            recycle ? RECYCLE_PROPOSED_VALUE : null,
                             AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true,
                             description);
    }
@@ -536,6 +550,10 @@ public class ViewsheetChangePlanService {
       }
 
       Sheet current = findWorksheetById(user, assetId);
+
+      if(!ViewsheetChangeRequest.VERB_DELETE.equals(verb)) {
+         requireUnused(label, "toRecycleBin", change.getToRecycleBin());
+      }
 
       if(ViewsheetChangeRequest.VERB_RENAME.equals(verb)) {
          return resolveWorksheetRename(label, key, assetId, current, change, user, seenKeys);
@@ -711,18 +729,28 @@ public class ViewsheetChangePlanService {
 
       boolean force = Boolean.TRUE.equals(change.getForce());
       AssetEntry entry = AssetEntry.createAssetEntry(assetId);
+      boolean recycle = isToRecycleBin(change);
+
+      if(recycle) {
+         requireRecyclable(label, entry);
+      }
+
       AssetEntry[] dependencies = findDependencies(entry, user);
       requireForceIfDependent(
          label, ViewsheetChangeRequest.UNIT_WORKSHEET, assetId, dependencies, force);
 
       String beforeProjection = ViewsheetProjection.projectWorksheet(current);
       auxProjections.put(key, ViewsheetProjection.projectDependencies(dependencies));
-      String description = dependencies.length == 0
+      String description = recycle
+         ? recycleDescription("worksheet", current.getPath(), dependencies.length,
+                              auxProjections.get(key))
+         : dependencies.length == 0
          ? "delete worksheet \"" + current.getPath() + "\""
          : "delete worksheet \"" + current.getPath() + "\" (force: true, " + dependencies.length +
            " dependent asset(s): " +
            auxProjections.get(key) + ")";
-      return new PlanChange(key, entry.getOrgID(), beforeProjection, null,
+      return new PlanChange(key, entry.getOrgID(), beforeProjection,
+                            recycle ? RECYCLE_PROPOSED_VALUE : null,
                             AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true,
                             description);
    }
@@ -807,6 +835,59 @@ public class ViewsheetChangePlanService {
       }
    }
 
+   /** Bug #82461: the {@code proposedValue} of a recycle delete. A permanent delete keeps {@code
+    * null}, so the plan hash separates the two and flipping {@code toRecycleBin} between preview
+    * and apply is a hash conflict. The plugin recognises the prefix "(moved to the Recycle Bin"
+    * to detect a server that ignores the field. */
+   static final String RECYCLE_PROPOSED_VALUE = "(moved to the Recycle Bin)";
+
+   static boolean isToRecycleBin(ViewsheetChangeRequest change) {
+      return Boolean.TRUE.equals(change.getToRecycleBin());
+   }
+
+   /** Bug #82461: refuses a recycle the server cannot do correctly, at preview and again at apply
+    * (before anything is moved). */
+   static void requireRecyclable(String label, AssetEntry entry) {
+      if(RecycleUtils.isInRecycleBin(entry.getPath())) {
+         throw new IllegalArgumentException(
+            label + ".toRecycleBin: this sheet is already in the Recycle Bin -- use " +
+            "apply_recycle_bin_changes (purge to remove it for good, restore to bring it back)");
+      }
+
+      if(entry.getType() == AssetEntry.Type.VIEWSHEET_SNAPSHOT) {
+         throw new IllegalArgumentException(
+            label + ".toRecycleBin: not supported for a viewsheet snapshot -- omit toRecycleBin " +
+            "for a permanent delete");
+      }
+
+      String currentOrg = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(entry.getOrgID() != null && currentOrg != null && !entry.getOrgID().equals(currentOrg)) {
+         throw new IllegalArgumentException(
+            label + ".toRecycleBin: recycling is only supported for a sheet of the current " +
+            "organization (this sheet belongs to \"" + entry.getOrgID() + "\", the current " +
+            "organization is \"" + currentOrg + "\") -- switch_organization first, or omit " +
+            "toRecycleBin for a permanent delete");
+      }
+   }
+
+   private static String recycleDescription(String unitLabel, String path, int dependents,
+                                            String dependentProjection)
+   {
+      String text = "move " + unitLabel + " \"" + path + "\" to the Recycle Bin (recoverable: " +
+         "list_recycle_bin_entries shows it and apply_recycle_bin_changes restores it; its " +
+         "bookmarks are kept and restored with it, a shared materialized view is removed and is " +
+         "not rebuilt on restore";
+
+      if(dependents > 0) {
+         text += "; force: true, " + dependents + " dependent asset(s): " + dependentProjection +
+            " -- their references are re-pointed at the recycled copy and re-pointed back on " +
+            "restore";
+      }
+
+      return text + ")";
+   }
+
    /** Package-visible for the same apply-time re-check reason as {@link #findDependencies}. */
    static void requireForceIfDependent(String label, String unitKind, String assetId,
                                        AssetEntry[] dependencies, boolean force)
@@ -828,6 +909,13 @@ public class ViewsheetChangePlanService {
       throws Exception
    {
       String verb = requireFolderVerb(label, change.getVerb());
+
+      if(change.getToRecycleBin() != null) {
+         throw new IllegalArgumentException(
+            label + ".toRecycleBin: not supported for unitType=\"folder\" -- a folder delete is " +
+            "permanent; toRecycleBin is supported only on a viewsheet or worksheet delete");
+      }
+
       IdentityID owner = resolveOwner(change.getOwner());
 
       if(ViewsheetChangeRequest.VERB_CREATE.equals(verb)) {

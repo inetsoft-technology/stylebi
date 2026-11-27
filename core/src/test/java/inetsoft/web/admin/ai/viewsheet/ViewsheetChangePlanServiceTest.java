@@ -28,6 +28,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.util.MessageException;
+import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.util.Tool;
 import inetsoft.web.RecycleUtils;
 import org.junit.jupiter.api.*;
@@ -449,6 +450,157 @@ class ViewsheetChangePlanServiceTest {
 
       recycleUtilsStatic.verify(() -> RecycleUtils.checkScheduledTasks(
          argThat((AssetEntry e) -> e != null && VS_ASSET_ID.equals(e.toIdentifier()))));
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #82461: toRecycleBin on a viewsheet/worksheet delete
+   // -------------------------------------------------------------------------
+
+   private static ViewsheetChangeRequest recycleDelete(String assetId, Boolean toRecycleBin) {
+      ViewsheetChangeRequest change = deleteViewsheetChange(assetId);
+      change.setToRecycleBin(toRecycleBin);
+      return change;
+   }
+
+   @Test void recycleDeleteProposesTheRecycleMarkerAndPermanentDeleteKeepsNull() throws Exception {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+
+      var hard = service.resolve(
+         request("task", List.of(recycleDelete(VS_ASSET_ID, null))), user);
+      var recycle = service.resolve(
+         request("task", List.of(recycleDelete(VS_ASSET_ID, true))), user);
+
+      assertNull(hard.changes().get(0).proposedValue());
+      assertEquals(ViewsheetChangePlanService.RECYCLE_PROPOSED_VALUE,
+                   recycle.changes().get(0).proposedValue());
+      assertTrue(recycle.changes().get(0).proposedValue().startsWith("(moved to the Recycle Bin"));
+      assertEquals(AdminChangeRecord.RISK_HIGH, recycle.changes().get(0).risk());
+      assertTrue(recycle.changes().get(0).description().contains("Recycle Bin"),
+         recycle.changes().get(0).description());
+      assertNotEquals(hard.planHash(), recycle.planHash(),
+         "flipping toRecycleBin between preview and apply must be a hash conflict");
+   }
+
+   @Test void toRecycleBinFalseOrAbsentHashesIdentically() throws Exception {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+
+      var absent = service.resolve(
+         request("task", List.of(recycleDelete(VS_ASSET_ID, null))), user);
+      var falsy = service.resolve(
+         request("task", List.of(recycleDelete(VS_ASSET_ID, false))), user);
+
+      assertEquals(absent.planHash(), falsy.planHash());
+      assertNull(falsy.changes().get(0).proposedValue());
+   }
+
+   @Test void recycleDeleteOfAWorksheetProposesTheRecycleMarker() throws Exception {
+      String wsId = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                   "Examples/Sales", null, "host-org").toIdentifier();
+      SheetList list = new SheetList();
+      list.getSheets().add(new Sheet(wsId, "Examples/Sales", "Examples/Sales", true, null, null));
+      lenient().when(worksheetApiService.getWorksheets(eq(user))).thenReturn(list);
+      ViewsheetChangeRequest change = new ViewsheetChangeRequest();
+      change.setUnitType(ViewsheetChangeRequest.UNIT_WORKSHEET);
+      change.setVerb(ViewsheetChangeRequest.VERB_DELETE);
+      change.setAssetId(wsId);
+      change.setToRecycleBin(true);
+
+      try(var sutil = mockStatic(inetsoft.sree.internal.SUtil.class, withSettings().lenient())) {
+         var plan = service.resolve(request("task", List.of(change)), user);
+
+         assertEquals(ViewsheetChangePlanService.RECYCLE_PROPOSED_VALUE,
+                      plan.changes().get(0).proposedValue());
+         assertTrue(plan.changes().get(0).description().contains("worksheet"));
+      }
+   }
+
+   @Test void toRecycleBinIsRefusedOnRenameUpdateAndFolderEntries() throws Exception {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+      ViewsheetChangeRequest rename = new ViewsheetChangeRequest();
+      rename.setUnitType(ViewsheetChangeRequest.UNIT_VIEWSHEET);
+      rename.setVerb(ViewsheetChangeRequest.VERB_RENAME);
+      rename.setAssetId(VS_ASSET_ID);
+      rename.setNewPath("Examples/Other");
+      rename.setGlobal(true);
+      rename.setToRecycleBin(true);
+      ViewsheetChangeRequest update = new ViewsheetChangeRequest();
+      update.setUnitType(ViewsheetChangeRequest.UNIT_VIEWSHEET);
+      update.setVerb(ViewsheetChangeRequest.VERB_UPDATE);
+      update.setAssetId(VS_ASSET_ID);
+      update.setAlias("A");
+      update.setToRecycleBin(true);
+      ViewsheetChangeRequest folder = new ViewsheetChangeRequest();
+      folder.setUnitType(ViewsheetChangeRequest.UNIT_FOLDER);
+      folder.setVerb(ViewsheetChangeRequest.VERB_DELETE);
+      folder.setPath("Examples/Old");
+      folder.setToRecycleBin(true);
+
+      for(ViewsheetChangeRequest c : List.of(rename, update)) {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("task", List.of(c)), user));
+         assertTrue(ex.getMessage().contains("toRecycleBin"), ex.getMessage());
+      }
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(folder)), user));
+      assertTrue(ex.getMessage().contains("changes[0].toRecycleBin") ||
+                 ex.getMessage().contains("toRecycleBin: not supported for unitType=\"folder\""),
+                 ex.getMessage());
+   }
+
+   @Test void recycleDeleteStillNeedsForceWhenTheSheetHasDependents() throws Exception {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+      var dep = dependency("Examples/Census Query");
+      dependencyToolStatic.when(() -> DependencyTool.getDependencies(anyString()))
+         .thenReturn(List.of(dep));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(
+            request("task", List.of(recycleDelete(VS_ASSET_ID, true))), user));
+      assertTrue(ex.getMessage().contains("force"), ex.getMessage());
+
+      ViewsheetChangeRequest forced = recycleDelete(VS_ASSET_ID, true);
+      forced.setForce(true);
+      var plan = service.resolve(request("task", List.of(forced)), user);
+      assertTrue(plan.changes().get(0).description().contains("Census Query"),
+         plan.changes().get(0).description());
+   }
+
+   @Test void recycleDeleteOfADashboardAScheduledTaskUsesIsRefused() throws Exception {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+      recycleUtilsStatic.when(() -> RecycleUtils.checkScheduledTasks(any(AssetEntry.class)))
+         .thenThrow(new MessageException("used in the following scheduled task(s): [QA-V02-task]"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(
+            request("task", List.of(recycleDelete(VS_ASSET_ID, true))), user));
+
+      assertTrue(ex.getMessage().contains("QA-V02-task"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("does not bypass"), ex.getMessage());
+   }
+
+   @Test void recycleDeleteOfASheetAlreadyInTheBinIsRefused() throws Exception {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+      recycleUtilsStatic.when(() -> RecycleUtils.isInRecycleBin(anyString())).thenReturn(true);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(
+            request("task", List.of(recycleDelete(VS_ASSET_ID, true))), user));
+
+      assertTrue(ex.getMessage().contains("already in the Recycle Bin"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("apply_recycle_bin_changes"), ex.getMessage());
+   }
+
+   @Test void recycleDeleteOfASheetOfAnotherOrganizationIsRefused() throws Exception {
+      String otherOrgId = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                         "Examples/Census", null, "other-org").toIdentifier();
+      stubViewsheetList(otherOrgId, "Examples/Census", true, null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(
+            request("task", List.of(recycleDelete(otherOrgId, true))), user));
+
+      assertTrue(ex.getMessage().contains("current organization"), ex.getMessage());
    }
 
    /** Bug #79895: the dependents refusal of a worksheet delete named the asset as a viewsheet. */
