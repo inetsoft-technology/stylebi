@@ -30,6 +30,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.BlobIndexedStorage;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.ThreadContext;
+import inetsoft.util.TransformListener;
 import inetsoft.util.XMLSerializable;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -168,6 +169,42 @@ class AbstractAssetEngineFolderRemoveTest {
       }
    }
 
+   /**
+    * The thread is in one org and the folder in another: a one-argument contains looks in the
+    * store of the thread, a remove in the one of the key. A child that failed before its blob was
+    * removed is still stored there and must stay listed.
+    */
+   @Test
+   void aChildOfAnotherOrgThatFailsBeforeItsBlobIsRemovedStaysListed() throws Exception {
+      String other = "org82457other";
+      AssetEntry folder = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                         AssetEntry.Type.REPOSITORY_FOLDER, prefix + "top", null,
+                                         other);
+      List<AssetEntry> sheets = new ArrayList<>();
+      AssetFolder listing = new AssetFolder();
+
+      for(int i = 0; i < 4; i++) {
+         AssetEntry sheet = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                           folder.getPath() + "/s" + i, null, other);
+         storage.putXMLSerializable(sheet.toIdentifier(), new Viewsheet());
+         sheets.add(sheet);
+         listing.addEntry(sheet);
+      }
+
+      storage.putXMLSerializable(folder.toIdentifier(), listing);
+      assertFalse(storage.contains(sheets.get(0).toIdentifier()), "stored in the thread org");
+      AssetEntry failing = sheets.get(2);
+      engine.failOn = failing.getPath();
+      storage.readByKeyOrg = true;
+
+      assertThrows(Exception.class, () -> engine.removeFolder0(folder, storage, true));
+
+      AssetFolder left = (AssetFolder) storage.getXMLSerializable(folder.toIdentifier(), null);
+      assertNotNull(left);
+      assertTrue(storage.contains(failing.toIdentifier(), other));
+      assertTrue(left.containsEntry(failing), "child with a live blob was dropped");
+   }
+
    private int writesWhileRemoving(String name, int count) throws Exception {
       AssetEntry folder = addFolder(null, name);
 
@@ -218,6 +255,18 @@ class AbstractAssetEngineFolderRemoveTest {
          super.putXMLSerializable(key, obj);
       }
 
+      @Override
+      public XMLSerializable getXMLSerializable(String key, TransformListener trans)
+         throws Exception
+      {
+         if(readByKeyOrg) {
+            return super.getXMLSerializable(key, trans, AssetEntry.createAssetEntry(key).getOrgID());
+         }
+
+         return super.getXMLSerializable(key, trans);
+      }
+
+      volatile boolean readByKeyOrg;
       final List<String> parentWrites = Collections.synchronizedList(new ArrayList<>());
    }
 

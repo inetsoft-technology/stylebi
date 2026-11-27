@@ -2502,7 +2502,8 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
             // a child that failed after its blob was removed must not stay listed
             if(removed < entries.length &&
-               !storage.contains(entries[removed].toIdentifier()))
+               !storage.contains(entries[removed].toIdentifier(),
+                                 entries[removed].getOrgID()))
             {
                folder.removeEntry(entries[removed]);
             }
