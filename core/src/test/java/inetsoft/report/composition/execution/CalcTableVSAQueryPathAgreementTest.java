@@ -1058,9 +1058,6 @@ class CalcTableVSAQueryPathAgreementTest {
          vs.addCalcField("D", detailCalc("CF_D", "field['When']", XSchema.DATE)));
    }
 
-   private static final String KNOWN_82231 =
-      "Bug #82231: the pruning of the temp crosstab removes the calc field of the second column";
-
    private static String[] timestampTypes() {
       return new String[] { XSchema.TIME_INSTANT, XSchema.DOUBLE };
    }
@@ -1244,17 +1241,21 @@ class CalcTableVSAQueryPathAgreementTest {
          // detail calc fields as the group and the summary: the same cells as plain columns
          calcFieldScenario("CF1 group and summary are detail calc fields", "Sum"),
          // the second column of a two-column formula is a detail calc field no other cell uses
-         // (Bug #82231): the pruning of the temp crosstab removes it
+         // (Bug #82231): the temp crosstab must keep it
          calcFieldScenario("CF2 WeightedAverage, the weight is a calc field",
-                           "WeightedAverage(CF_Q)").knownQuickFailure(KNOWN_82231),
+                           "WeightedAverage(CF_Q)").expect((rows, path) -> {
+            Map<Object, Object> byRegion = new HashMap<>();
+            rows.stream().skip(1).forEach(r -> byRegion.put(r.get(0), r.get(1)));
+            assertEquals(25.0, ((Number) byRegion.get("East")).doubleValue(), 1e-9, path);
+            assertEquals(115.0 / 7, ((Number) byRegion.get("West")).doubleValue(), 1e-9, path);
+            assertEquals(5.0, ((Number) byRegion.get("North")).doubleValue(), 1e-9, path);
+         }),
          calcFieldScenario("CF3 Covariance, the second column is a calc field",
-                           "Covariance(CF_Q)").knownQuickFailure(KNOWN_82231),
+                           "Covariance(CF_Q)"),
          calcFieldScenario("CF4 Correlation, the second column is a calc field",
-                           "Correlation(CF_Q)").knownQuickFailure(KNOWN_82231),
-         calcFieldScenario("CF5 First, the second column is a calc field", "First(CF_Q)")
-            .knownQuickFailure(KNOWN_82231),
-         calcFieldScenario("CF6 Last, the second column is a calc field", "Last(CF_Q)")
-            .knownQuickFailure(KNOWN_82231),
+                           "Correlation(CF_Q)"),
+         calcFieldScenario("CF5 First, the second column is a calc field", "First(CF_Q)"),
+         calcFieldScenario("CF6 Last, the second column is a calc field", "Last(CF_Q)"),
          // a detail calc field that reads another detail calc field
          calcOfCalcScenario("CF7 calc field reads another calc field"),
          // a date calc field as the group, by year and by month
