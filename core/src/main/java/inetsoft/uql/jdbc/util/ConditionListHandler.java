@@ -447,7 +447,7 @@ public class ConditionListHandler {
          break;
       case XCondition.STARTING_WITH:
          XExpression xexpression = getExpression(cond, cond.getValue(0), vars);
-         String startEscape = escapeLikeVariable(xexpression, vars);
+         String startEscape = escapeLikeVariable(xexpression, vars, false);
          String startStr = getStripQuotesString(sqlTypes, xexpression.getValue());
          condnode = new XBinaryCondition(
             field,
@@ -456,7 +456,7 @@ public class ConditionListHandler {
          break;
       case XCondition.CONTAINS:
          XExpression containsExpression = getExpression(cond, cond.getValue(0), vars);
-         String containsEscape = escapeLikeVariable(containsExpression, vars);
+         String containsEscape = escapeLikeVariable(containsExpression, vars, false);
          String containsStr = getStripQuotesString(sqlTypes, containsExpression.getValue());
          condnode = new XBinaryCondition(
             field,
@@ -466,11 +466,12 @@ public class ConditionListHandler {
          break;
       case XCondition.LIKE:
          XExpression likeExpression = getExpression(cond, cond.getValue(0), vars);
+         String likeEscape = escapeLikeVariable(likeExpression, vars, true);
          translateLikeWildcards(likeExpression, vars);
          String likeStr = getStripQuotesString(sqlTypes, likeExpression.getValue());
          condnode = new XBinaryCondition(
             field,
-            new XExpression("'" + likeStr + "'", XExpression.EXPRESSION),
+            new XExpression("'" + likeStr + "'" + likeEscape, XExpression.EXPRESSION),
             "LIKE");
          break;
       case XCondition.NULL:
@@ -553,8 +554,16 @@ public class ConditionListHandler {
     * Returns an empty string and leaves the value as is when the data source's dialect has
     * no LIKE escape character, or when the value is not a string variable (an inline
     * literal or a SQL expression), so the generated SQL is unchanged there.
+    * <p>
+    * A like condition value ({@code pattern} is true) keeps % and _ as wildcards and is
+    * escaped only where the in-memory LIKE would match literally what the database would
+    * not (the escape character, a backslash, [ on SQL Server, see
+    * {@link SQLHelper#isLikePatternEscapeNeeded(String)}); a value without such a character
+    * is left as is and gets no escape clause (Bug #82271).
     */
-   private String escapeLikeVariable(XExpression expression, VariableTable vars) {
+   private String escapeLikeVariable(XExpression expression, VariableTable vars,
+                                     boolean pattern)
+   {
       Object text = expression.getValue();
 
       if(sql == null || !(text instanceof String) ||
@@ -591,7 +600,17 @@ public class ConditionListHandler {
          return "";
       }
 
-      vars.put(name, helper.escapeLikeValue((String) value));
+      if(pattern) {
+         if(!helper.isLikePatternEscapeNeeded((String) value)) {
+            return "";
+         }
+
+         vars.put(name, helper.escapeLikePattern((String) value));
+      }
+      else {
+         vars.put(name, helper.escapeLikeValue((String) value));
+      }
+
       return helper.getLikeEscapeClause(esc);
    }
 
