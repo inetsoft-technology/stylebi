@@ -2150,15 +2150,91 @@ class ViewsheetEditServiceTest {
          .filter(n -> n.name().equals("A")).findFirst().orElseThrow().selectedPage());
    }
 
+   /** Bug #82401: a Selection Container may wrap a single filter; only none at all is refused. */
    @Test
-   void groupAsSelectionContainerRejectsFewerThanTwoAssemblies() {
+   void groupAsSelectionContainerRefusesNullOrEmptyAssemblies() {
       ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
+
+      for(List<String> names : Arrays.asList(null, List.<String>of())) {
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> service.apply("tok", principal(),
+               arrange("group_as_selection_container", names, null), ""));
+         assertTrue(thrown.getMessage().contains("at least one assembly name"),
+                    thrown.getMessage());
+      }
+   }
+
+   /** A repeated name would add the same child to the container twice. */
+   @Test
+   void groupAsSelectionContainerRefusesDuplicateNamesBeforeCreatingAnything() throws Exception {
+      GroupingService grouping = mock(GroupingService.class);
+      CoreLifecycleService coreLifecycleService = mock(CoreLifecycleService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ViewsheetEditService service = serviceWithRuntimeAndGrouping(
+         rvs, readerReturning(), grouping, coreLifecycleService);
 
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
          () -> service.apply("tok", principal(),
-            arrange("group_as_selection_container", List.of("A"), null), ""));
-      assertTrue(thrown.getMessage().contains("two"));
+            arrange("group_as_selection_container", List.of("A", "A"), null), ""));
+
+      assertTrue(thrown.getMessage().contains("distinct"), thrown.getMessage());
+      verifyNoInteractions(grouping, coreLifecycleService);
+   }
+
+   /** Bug #82401: one filter is enough; the container holds that child and is reflowed. */
+   @Test
+   void groupAsSelectionContainerAcceptsASingleFilter() throws Exception {
+      GroupingService grouping = mock(GroupingService.class);
+      CoreLifecycleService coreLifecycleService = mock(CoreLifecycleService.class);
+      VSAssembly a = mock(SelectionListVSAssembly.class);
+      CurrentSelectionVSAssembly container = mock(CurrentSelectionVSAssembly.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("A")).thenReturn(a);
+      when(vs.getPixelPositionInViewsheet(any())).thenAnswer(inv -> new Point(10, 20));
+      when(vs.getPixelSize(any())).thenAnswer(inv -> new Dimension(100, 100));
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("A", "SelectionList", 10, 20, 100, 100, 0, null, true));
+      ViewsheetEditService service = serviceWithRuntimeAndGrouping(rvs, reader, grouping,
+         coreLifecycleService);
+
+      try(MockedStatic<VSEventUtil> vsEventUtil = mockStatic(VSEventUtil.class)) {
+         vsEventUtil.when(() ->
+            VSEventUtil.createVSAssembly(rvs, AbstractSheet.CURRENTSELECTION_ASSET))
+            .thenReturn(container);
+
+         service.apply("tok", principal(),
+                       arrange("group_as_selection_container", List.of("A"), null), "");
+      }
+
+      verify(container).setPixelOffset(new Point(10, 20));
+      verify(container).setPixelSize(new Dimension(100, 100));
+      verify(coreLifecycleService).addDeleteVSObject(eq(rvs), eq(container), any());
+      verify(grouping).groupComponents(eq(rvs), eq(container), eq(a), eq(true), anyString(), any());
+      verify(container).layout();
+      verify(coreLifecycleService).refreshVSAssembly(eq(rvs), eq(container), any());
+      verifyNoMoreInteractions(grouping);
+   }
+
+   /** Bug #82401: add type 128 (CURRENTSELECTION_ASSET) reaches addNewObject, creating an empty container. */
+   @Test
+   void addSelectionContainerTypeDelegatesToAddNewObject() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetEditService service = serviceWith(objects);
+      EditRequest request = new EditRequest("add", null, 40, 60, null, null, null, null,
+                                            null, null, null, null,
+                                            AbstractSheet.CURRENTSELECTION_ASSET, null);
+
+      service.apply("tok", principal(), request, "");
+
+      ArgumentCaptor<AddNewVSObjectEvent> captor =
+         ArgumentCaptor.forClass(AddNewVSObjectEvent.class);
+      verify(objects).addNewObject(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                   anyString());
+      assertEquals(128, captor.getValue().getType());
    }
 
    /**
@@ -2229,6 +2305,7 @@ class ViewsheetEditServiceTest {
       verify(coreLifecycleService).addDeleteVSObject(eq(rvs), eq(container), any());
       verify(grouping).groupComponents(eq(rvs), eq(container), eq(a), eq(true), anyString(), any());
       verify(grouping).groupComponents(eq(rvs), eq(container), eq(b), eq(true), anyString(), any());
+      verify(container).layout();
       verifyNoMoreInteractions(grouping);
    }
 

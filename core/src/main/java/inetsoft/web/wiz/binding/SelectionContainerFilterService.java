@@ -431,8 +431,8 @@ public class SelectionContainerFilterService {
             (parent instanceof CurrentSelectionVSAssembly
                ? " -- it is a child of Selection Container '" + parent.getAbsoluteName() +
                   "', pass that name as 'assembly'"
-               : "") + ". edit(op:'add_filter_to_container') works on a container made by " +
-            "group_as_selection_container.");
+               : "") + ". edit(op:'add_filter_to_container') works on a Selection Container " +
+            "(edit op 'add' type 'SelectionContainer', or group_as_selection_container).");
       }
 
       VSAssembly parent = container.getContainer();
