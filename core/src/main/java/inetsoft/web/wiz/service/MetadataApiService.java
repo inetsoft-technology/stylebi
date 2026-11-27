@@ -1635,12 +1635,21 @@ public class MetadataApiService {
    }
 
    /** The aggregate functions a free-SQL select item is read as (turn-provenance spec 3.7). */
-   private static final Map<String, AggregateFormula> SQL_AGGREGATE_FUNCTIONS = Map.of(
-      "SUM", AggregateFormula.SUM,
-      "AVG", AggregateFormula.AVG,
-      "COUNT", AggregateFormula.COUNT_ALL,
-      "MIN", AggregateFormula.MIN,
-      "MAX", AggregateFormula.MAX);
+   private static final Set<String> SQL_AGGREGATE_FUNCTIONS = Set.of("SUM", "AVG", "COUNT", "MIN", "MAX");
+
+   /**
+    * Resolves AggregateFormula lazily: its class init needs the Spring context, so it must not run
+    * during MetadataApiService's own static init.
+    */
+   private static AggregateFormula sqlAggregateFormula(String function) {
+      switch(function) {
+      case "SUM": return AggregateFormula.SUM;
+      case "AVG": return AggregateFormula.AVG;
+      case "COUNT": return AggregateFormula.COUNT_ALL;
+      case "MIN": return AggregateFormula.MIN;
+      default: return AggregateFormula.MAX;
+      }
+   }
 
    private static final java.util.regex.Pattern SQL_AGGREGATE_TOKEN =
       java.util.regex.Pattern.compile("(?i)\\b(SUM|AVG|COUNT|MIN|MAX)\\s*\\(");
@@ -1666,12 +1675,15 @@ public class MetadataApiService {
          return null;
       }
 
-      AggregateFormula formula =
-         SQL_AGGREGATE_FUNCTIONS.get(item.substring(0, open).trim().toUpperCase(Locale.ROOT));
+      String function = item.substring(0, open).trim().toUpperCase(Locale.ROOT);
 
-      if(formula == null || matchingSqlParen(item, open) != item.length() - 1) {
+      if(!SQL_AGGREGATE_FUNCTIONS.contains(function) ||
+         matchingSqlParen(item, open) != item.length() - 1)
+      {
          return null;
       }
+
+      AggregateFormula formula = sqlAggregateFormula(function);
 
       String inner = item.substring(open + 1, item.length() - 1).trim();
 
