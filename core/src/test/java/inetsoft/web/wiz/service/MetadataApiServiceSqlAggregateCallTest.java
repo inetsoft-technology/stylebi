@@ -116,14 +116,26 @@ class MetadataApiServiceSqlAggregateCallTest {
    }
 
    @Test
-   void fixRound1Cases() {
+   void countDistinctWithParenthesizedArgumentUnwrapsTheField() {
       assertCall("COUNT(DISTINCT(x))", AggregateFormula.COUNT_DISTINCT, "x");
       assertCall("count(distinct (a.x))", AggregateFormula.COUNT_DISTINCT, "a.x");
+   }
+
+   @Test
+   void whitespaceBetweenFunctionAndParenIsAccepted() {
       assertCall("SUM (x)", AggregateFormula.SUM, "x");
+   }
+
+   @Test
+   void functionNamesThatOnlyContainAnAggregateNameAreNotAggregates() {
       assertNull(MetadataApiService.sqlAggregateCall("SUMMARY(x)"));
       assertNull(MetadataApiService.sqlAggregateCall("x_sum(a)"));
       assertFalse(MetadataApiService.containsSqlAggregate("SUMMARY(x)"));
       assertFalse(MetadataApiService.containsSqlAggregate("x_sum(a)"));
+   }
+
+   @Test
+   void parensInsideQuotedIdentifiersDoNotEndTheCall() {
       assertCall("SUM(\"a)b\")", AggregateFormula.SUM, "\"a)b\"");
       assertCall("MAX(`a)b`)", AggregateFormula.MAX, "`a)b`");
       assertCall("SUM(\"a\"\")b\")", AggregateFormula.SUM, "\"a\"\")b\"");
