@@ -108,6 +108,23 @@ class TransformationDescriptorMissingSelectionColumnTest {
    }
 
    @Test
+   void entityBoundSelectionIsStillRegistered() {
+      // a list bound with the entity set (a logical model attribute) is named
+      // entity.attribute, e.g. Customer.Region: it is found in the table, not skipped
+      ColumnRef entityRef = new ColumnRef(new AttributeRef("Customer", REGION));
+      entityRef.setDataType(XSchema.STRING);
+      ColumnRef entityMiss = new ColumnRef(new AttributeRef("Customer", "CUSTOMER_ID"));
+      entityMiss.setDataType(XSchema.STRING);
+      addList("L_entity", entityRef);
+      addList("L_entity_miss", entityMiss);
+      TransformationDescriptor desc =
+         new TransformationDescriptor(vs, TransformationDescriptor.RUN_MODE);
+
+      assertEquals(Set.of(entityRef.getName()), names(desc.getSelectionColumns(TABLE, false)));
+      assertEquals(Set.of(entityRef.getName()), names(desc.getAssociatedSelectionColumns(TABLE)));
+   }
+
+   @Test
    void calcFieldSelectionIsStillRegistered() {
       ExpressionRef exp = new ExpressionRef(null, "calc1");
       exp.setExpression("field['" + AMOUNT + "'] * 2");

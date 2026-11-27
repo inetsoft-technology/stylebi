@@ -42,6 +42,8 @@ import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.schema.XSchema;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -324,6 +326,113 @@ class PreAssetQueryConditionMergeableTest {
       SQLBoundTableAssembly sub = built.addTable("T2", "sybase", integer("k"), integer("v"));
 
       assertFalse(where(built, inSubQuery(built, sub)));
+   }
+
+   // ---- comparison with a sub query uses ANY (bug #82411) ----
+
+   private static ConditionItem subQueryCompare(MergeableFixture.Built built,
+                                                SQLBoundTableAssembly sub, int operation,
+                                                boolean equal, boolean negated)
+   {
+      SubQueryValue value = new SubQueryValue();
+      value.setQuery(sub.getName());
+      value.setAttribute(integer("k"));
+      assertTrue(value.update(built.ws));
+      AssetCondition condition = new AssetCondition(XSchema.INTEGER);
+      condition.setOperation(operation);
+      condition.setEqual(equal);
+      condition.setNegated(negated);
+      condition.addValue(value);
+      return new ConditionItem(integer("v"), condition, 0);
+   }
+
+   private static String pushedSql(String type, int operation, boolean equal, boolean negated)
+      throws Exception
+   {
+      MergeableFixture.Built built = MergeableFixture.simple(type);
+      SQLBoundTableAssembly sub = built.addTable("T2", type, integer("k"), integer("v"));
+      built.table.setPreConditionList(list(subQueryCompare(built, sub, operation, equal, negated)));
+      SQLBoundQuery query = merged(built.query());
+      assertEquals(0, query.preconds.getSize(), type + " " + operation);
+      query.getUniformSQL().clearSQLString();
+      String sql = query.getUniformSQL().getSQLString();
+      return sql.replaceAll("\\s+", " ").replace("( ", "(").toLowerCase();
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      "derby,    LESS_THAN,    false, false, < any",
+      "derby,    LESS_THAN,    true,  false, <= any",
+      "derby,    GREATER_THAN, false, false, > any",
+      "derby,    GREATER_THAN, true,  false, >= any",
+      "derby,    GREATER_THAN, false, true,  > any",
+      "derby,    LESS_THAN,    true,  true,  <= any",
+      "oracle,   GREATER_THAN, false, false, > any",
+      "oracle,   LESS_THAN,    true,  true,  <= any",
+      "postgresql, GREATER_THAN, true, true, >= any"
+   })
+   void comparisonWithSubQueryIsPushedDownAsAny(String type, String operation, boolean equal,
+                                                boolean negated, String expected)
+      throws Exception
+   {
+      int op = operation.equals("LESS_THAN") ? XCondition.LESS_THAN : XCondition.GREATER_THAN;
+      String sql = pushedSql(type, op, equal, negated);
+      assertTrue(sql.contains(expected + " (select"), sql);
+
+      if(negated) {
+         assertTrue(sql.contains("not "), sql);
+      }
+      else {
+         assertFalse(sql.contains("not "), sql);
+      }
+   }
+
+   @Test
+   void equalAndOneOfWithSubQueryKeepTheirOperators() throws Exception {
+      for(int op : new int[] { XCondition.EQUAL_TO, XCondition.ONE_OF }) {
+         String sql = pushedSql("derby", op, false, false);
+         assertFalse(sql.contains(" any"), sql);
+         assertTrue(op == XCondition.EQUAL_TO ? sql.contains("= (select") :
+                       sql.contains(" in (select"), sql);
+      }
+   }
+
+   private static SQLBoundQuery helperTypeQuery(MergeableFixture.Built built, String type)
+      throws Exception
+   {
+      return new SQLBoundQuery(AssetQuerySandbox.RUNTIME_MODE, new AssetQuerySandbox(built.ws),
+                               built.table, false, false)
+      {
+         @Override
+         protected SQLHelper getSQLHelper(UniformSQL sql) {
+            return new SQLHelper() {
+               @Override
+               public String getSQLHelperType() {
+                  return type;
+               }
+            };
+         }
+      };
+   }
+
+   @ParameterizedTest
+   @CsvSource({ "clickhouse", "google bigquery", "hadoop hive", "impala", "databricks",
+                "dremio", "denodo", "exasol", "luciddb", "mongo" })
+   void comparisonWithSubQueryIsKeptInMemoryWithoutAnySupport(String type) throws Exception {
+      MergeableFixture.Built built = MergeableFixture.simple("derby");
+      SQLBoundTableAssembly sub = built.addTable("T2", "derby", integer("k"), integer("v"));
+      built.table.setPreConditionList(list(
+         subQueryCompare(built, sub, XCondition.GREATER_THAN, false, false)));
+      assertFalse(helperTypeQuery(built, type).isPreConditionListMergeable(), type);
+      SQLBoundQuery query = merged(helperTypeQuery(built, type));
+      assertNull(query.getUniformSQL().getWhere(), type);
+      assertEquals(1, query.preconds.getSize(), type);
+
+      // a database that supports it, and "in", are not affected
+      assertTrue(helperTypeQuery(built, "postgresql").isPreConditionListMergeable());
+      built.table.setPreConditionList(list(
+         subQueryCompare(built, sub, XCondition.ONE_OF, false, false)));
+      assertTrue(helperTypeQuery(built, "clickhouse").isPreConditionListMergeable());
    }
 
    // ---- the conditions on the result of a group by (having) ----

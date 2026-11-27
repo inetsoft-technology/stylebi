@@ -3228,7 +3228,9 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                DependencyHandler.getInstance().updateSheetDependencies(sheet, osheet, entry);
             }
 
-            storage.putXMLSerializable(identifier, sheet);
+            // don't persist the runtime bottomTabs value of tabs, Bug #82256
+            storage.putXMLSerializable(
+               identifier, sheet instanceof Viewsheet vs ? VSUtil.forDesignPersist(vs) : sheet);
             EmbeddedDataCacheHandler.clearWSCache(identifier);
 
             // @by jasonshobe, add the entry to the parent after saving the

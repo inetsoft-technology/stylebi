@@ -65,6 +65,7 @@ class SQLHelperOperationSupportTest {
                       Set.of("access", "derby", "informix", "mysql", "sybase"));
       UNSUPPORTED.put(SQLHelper.AGGREGATE_ORDERBY, Set.of("informix"));
       UNSUPPORTED.put(SQLHelper.CONDITION_SUBQUERY, Set.of("sybase"));
+      UNSUPPORTED.put(SQLHelper.CONDITION_SUBQUERY_ANY, Set.of("clickhouse"));
       UNSUPPORTED.put(SQLHelper.FROM_SUBQUERY, Set.of("informix"));
       UNSUPPORTED.put(SQLHelper.FULL_OUTERJOIN, Set.of("access", "mysql", "derby", "sybase", "h2"));
       UNSUPPORTED.put(SQLHelper.HIDDEN_ORDERBY, Set.of("informix"));

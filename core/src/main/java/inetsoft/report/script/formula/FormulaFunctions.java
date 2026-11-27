@@ -1176,11 +1176,15 @@ public class FormulaFunctions {
          return null;
       }
 
-      value = Tool.replaceAll(value, LayoutTool.SCRIPT_ESCAPED_COLON, ":");
       value = Tool.decodeNL(value);
 
+      // split on the separators first; a ';' that belongs to a value is escaped (see
+      // LayoutTool.getManualValuesString) and is put back after the split, undoing the
+      // escapes in the reverse of the order they were written
       return Arrays.asList(value.split(";"))
          .stream()
+         .map(v -> Tool.replaceAll(v, LayoutTool.SCRIPT_ESCAPED_SEMICOLON, ";"))
+         .map(v -> Tool.replaceAll(v, LayoutTool.SCRIPT_ESCAPED_COLON, ":"))
          .map(v -> Tool.FAKE_NULL.equals(v) ? null : v)
          .collect(Collectors.toList());
    }

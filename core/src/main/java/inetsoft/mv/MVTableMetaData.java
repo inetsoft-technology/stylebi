@@ -132,7 +132,7 @@ public final class MVTableMetaData extends TableMetaData {
             boolean found = false;
 
             for(MVColumn mvcol: mvcols) {
-               if(mvcol.getName().equals(col)) {
+               if(mvcol.getName().equals(col) || isEntityName(col, mvcol.getName())) {
                   found = true;
                   break;
                }
@@ -221,6 +221,8 @@ public final class MVTableMetaData extends TableMetaData {
             }
 
             revertToFullMV();
+            // recurse once with no association mv: the else branch builds the table on the
+            // full mv, and revertToFullMV has cleared meta_rmv so later calls don't retry it
             return createTempTable(vname, name, null);
          }
 
@@ -404,7 +406,48 @@ public final class MVTableMetaData extends TableMetaData {
          }
       }
 
-      return ref2;
+      return ref2 != null ? ref2 : findEntityColumn(cname, name, cols);
+   }
+
+   /**
+    * Find the column of a name in the entity.attribute form, the name of a ref bound with
+    * its entity set (e.g. Customer.Customer:STATE for a logical model attribute), which is
+    * not a column name of the table (82493). A column whose entity is the name's entity is
+    * preferred. Returns null if no column or more than one column matches.
+    */
+   private static ColumnRef findEntityColumn(Object cname, String name, ColumnSelection cols) {
+      String entity = cname instanceof DataRef ? ((DataRef) cname).getEntity() : null;
+      ColumnRef found = null;
+      int count = 0;
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         ColumnRef ref = (ColumnRef) cols.getAttribute(i);
+         String alias = ref.getAlias();
+         String colName = alias == null || alias.isEmpty() ? ref.getAttribute() : alias;
+
+         if(!isEntityName(name, colName)) {
+            continue;
+         }
+
+         String prefix = name.substring(0, name.length() - colName.length() - 1);
+
+         if(prefix.equals(ref.getEntity()) || entity != null && entity.equals(ref.getEntity())) {
+            return ref;
+         }
+
+         found = ref;
+         count++;
+      }
+
+      return count == 1 ? found : null;
+   }
+
+   /**
+    * Check if a name is the entity.attribute form of a column name.
+    */
+   private static boolean isEntityName(String name, String colName) {
+      return colName != null && !colName.isEmpty() && name.length() > colName.length() + 1 &&
+         name.endsWith("." + colName);
    }
 
    /**
@@ -711,11 +754,15 @@ public final class MVTableMetaData extends TableMetaData {
    }
 
    /**
-    * Find the columns of a selection in the (association or full mv) table.
-    * @return the columns, or null if a column is not in the table at all, so the selection
-    * is ignored, as RealtimeTableMetaData does (82492).
-    * @throws ColumnNotFoundException if a column is in the table but not in this table
-    * (e.g. a stale association mv), so the caller can try the full mv.
+    * Find the columns of a selection key in the columns of the table the conditions are built
+    * for (the association mv or the full mv table). A key is a column name or the
+    * entity.attribute name of a ref bound with its entity set (see findColumn).
+    * @param names the column names of the key, one per tree level.
+    * @param cols the columns of the table the conditions are built for.
+    * @return the columns, or null if a column is not in the full selection table either (see
+    * isTableColumn), so the selection is ignored, as RealtimeTableMetaData does (82492).
+    * @throws ColumnNotFoundException if a column is in the full selection table but not in
+    * {@code cols} (e.g. a stale association mv), so the caller can try the full mv.
     */
    private ColumnRef[] findSelectionColumns(String[] names, ColumnSelection cols) {
       ColumnRef[] refs = new ColumnRef[names.length];

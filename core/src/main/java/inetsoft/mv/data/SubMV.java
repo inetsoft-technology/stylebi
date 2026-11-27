@@ -454,6 +454,18 @@ public class SubMV implements Cloneable {
 
          // Pass the IncludeNullCompare flag down to the XDimIndex
          rtdims[idx].setIncludeNullCompare(getIncludeNullCompare());
+
+         // Bug #82491: a like, starting with or contains value that is not a number (e.g. 2%)
+         // matches no row of a numeric column, as the "col <> col" of the sql query. Its
+         // negation matches the non-null rows. The value can't be parsed as a number below.
+         if(isNonNumericPatternValue(op, val, rtdims[idx])) {
+            BitSet rows = cond.isIsNot() ? rtdims[idx].getRows(
+               "null", getCondValue(null, rtdims[idx], cnull), true, cnull) : new BitSet();
+
+            // as for a comparison, the incremental delete also removes the null rows
+            return delete ? addDeleteNullRows(rtdims[idx], rows, cnull) : rows;
+         }
+
          long key = getCondValue(val, rtdims[idx], cnull);
          BitSet rows = rtdims[idx].getRows(op, key, cond.isIsNot(), cnull);
 
@@ -503,6 +515,27 @@ public class SubMV implements Cloneable {
 
       // BitSet.or returns a new set, the (possibly cached) index sets are not modified
       return nulls == null ? rows : rows == null ? nulls : rows.or(nulls);
+   }
+
+   /**
+    * Check if the value of a like, starts with or contains condition on a numeric column is
+    * not a number. The dictionary (MV.fixFilter) has already turned these conditions on a
+    * string column into 'in', so the ones left here are on a numeric (measure) column.
+    */
+   private static boolean isNonNumericPatternValue(String op, Object val, XDimIndex dim) {
+      if(!("LIKE".equals(op) || "STARTSWITH".equals(op) || "CONTAINS".equals(op)) ||
+         !(dim instanceof MVMeasureColumn) || !(val instanceof String))
+      {
+         return false;
+      }
+
+      try {
+         Double.parseDouble((String) val);
+         return false;
+      }
+      catch(NumberFormatException ex) {
+         return true;
+      }
    }
 
    /**

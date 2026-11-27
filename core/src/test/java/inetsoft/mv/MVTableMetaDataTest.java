@@ -98,6 +98,9 @@ class MVTableMetaDataTest {
       if(sandbox != null) {
          sandbox.dispose();
       }
+
+      // the manager is a shared mock: drop the association MV a test gave it
+      reset(MVManager.getManager());
    }
 
    // the column table has the distinct values of the column, and the type of the column is
@@ -175,6 +178,17 @@ class MVTableMetaDataTest {
       assertEquals(Set.of("Chair", "Desk"), singles(values));
    }
 
+   // a list bound with the entity set (a logical model attribute, AttributeRef("E", "Region"))
+   // is keyed by its name "E.Region", which is no column name of the table: the key still
+   // resolves to the Region column and narrows the other list (Bug #82493)
+   @Test
+   void entitySetListKeyNarrowsTheOtherList() throws Exception {
+      SelectionSet values = metaData().getAssociatedValues(
+         "List2", Map.of("E.Region", List.of("East")), erefs("Product"), null, aggregation());
+
+      assertEquals(Set.of("Chair", "Desk"), singles(values));
+   }
+
    // Bug #82492: a tree with a level the table doesn't have is ignored as a whole, as
    // RealtimeTableMetaData does, including a fully selected parent (no level-2 value)
    @Test
@@ -214,13 +228,154 @@ class MVTableMetaDataTest {
       assertTrue(text.contains("Region") && !text.contains("CUSTOMER_ID"), text);
    }
 
+   // the path key of a tree bound with the entity set resolves each level (Bug #82493)
+   @Test
+   void entitySetTreePathKeyNarrowsTheOtherList() throws Exception {
+      String key = SelectionVSAssembly.SELECTION_PATH + "E.Region^/^E.Product";
+      SelectionSet values = metaData().getAssociatedValues(
+         "List3", Map.of(key, List.of("East/CHILD_SELECTION_EXISTS", "East/Chair")),
+         erefs("Amount"), null, aggregation());
+
+      assertEquals(Set.of(10.0), singles(values));
+   }
+
+   // the values of a list bound with the entity set come from the MV (Bug #82493)
+   @Test
+   void entitySetColumnTableHasTheDistinctValues() throws Exception {
+      XTable table = metaData().getColumnTable("List2", new String[] { "E.Product" });
+
+      assertNotNull(table);
+      assertEquals(Set.of("Chair", "Desk", "Desk/Pro", "Lamp"), new HashSet<>(column(table, 0)));
+   }
+
+   // a measure of a list bound with the entity set is aggregated per associated value
+   @Test
+   void entitySetMeasureIsAggregatedPerAssociatedValue() throws Exception {
+      SelectionMeasureAggregation aggregation = aggregation();
+      SelectionSet values = metaData().getAssociatedValues(
+         "List1", Map.of("E.Product", List.of("Desk")), erefs("Region"), "Sum(E.Amount)",
+         aggregation);
+
+      assertEquals(Set.of("East", "North"), singles(values));
+      assertEquals(20.0, sum(aggregation, "East"));
+      assertEquals(4.0, sum(aggregation, "North"));
+   }
+
+   // with an association MV, a column of the list that the association MV has is not reported
+   // missing when the list is bound with the entity set. A missing column marks the MV for a
+   // rebuild (mv_column_missing) and leaves the association MV (Bug #82493)
+   @Test
+   void entitySetColumnIsFoundInTheAssociationMV() throws Exception {
+      AssetEntry entry = associationMV("Region", "Product");
+
+      metaData().getColumnTable("List2", new String[] { "E.Product" });
+
+      assertNull(entry.getProperty("mv_column_missing"));
+   }
+
+   // a column the association MV doesn't have is still reported missing
+   @Test
+   void columnMissingFromTheAssociationMVIsReported() throws Exception {
+      AssetEntry entry = associationMV("Region", "Product");
+
+      metaData().getColumnTable("List2", new String[] { "Amount" });
+
+      assertEquals("true", entry.getProperty("mv_column_missing"));
+   }
+
+   // a key that is the exact name of a column with a dot in it is that column, not the column
+   // named after the dot
+   @Test
+   void exactColumnNameWinsOverTheEntityForm() throws Exception {
+      Object[][] data = {
+         { "Region", "Sub.Region", "Amount" },
+         { "X", "East", 1 },
+         { "East", "X", 2 },
+         { "West", "X", 3 },
+      };
+      SelectionSet values = metaData(data).getAssociatedValues(
+         "List1", Map.of("Sub.Region", List.of("X")), refs("Amount"), null, aggregation());
+
+      assertEquals(Set.of(2.0, 3.0), singles(values));
+   }
+
+   // Bug #82492 with Bug #82493: an entity.attribute key resolves to its column and is applied,
+   // and only the key whose column the table doesn't have is ignored
+   @Test
+   void entitySetKeyOnAColumnMissingFromTheTableIsIgnored() throws Exception {
+      SelectionSet values = metaData().getAssociatedValues(
+         "List2", Map.of("E.Region", List.of("East"), "E.CUSTOMER_ID", List.of("1")),
+         erefs("Product"), null, aggregation());
+
+      assertEquals(Set.of("Chair", "Desk"), singles(values));
+   }
+
+   // Bug #82492 with Bug #82493: a tree bound with the entity set with a level the table
+   // doesn't have is ignored as a whole
+   @Test
+   void entitySetTreeWithALevelMissingFromTheTableIsIgnored() throws Exception {
+      String key = SelectionVSAssembly.SELECTION_PATH + "E.Region^/^E.CUSTOMER_ID";
+      SelectionSet values = metaData().getAssociatedValues(
+         "List3", Map.of(key, List.of("West")), erefs("Product"), null, aggregation());
+
+      assertEquals(Set.of("Chair", "Desk", "Lamp", "Desk/Pro"), singles(values));
+   }
+
+   // Bug #82492 with Bug #82493: an entity.attribute key whose column is in the selection table
+   // but not in the table the conditions are built for (a stale association MV) is not ignored
+   @Test
+   void entitySetKeyMissingOnlyFromTheMVTableIsNotIgnored() throws Exception {
+      MVTableMetaData meta = metaData();
+      Worksheet ws = sandbox.getWorksheet();
+      TableAssembly mirror = (TableAssembly) ((TableAssembly) ws.getAssembly(
+         Assembly.SELECTION + "T")).copyAssembly("ASSOCIATION_MIRROR");
+      ColumnSelection columns = (ColumnSelection) mirror.getColumnSelection().clone();
+      columns.removeAttribute(columns.getAttribute("Product"));
+      mirror.setColumnSelection(columns);
+      Method method = MVTableMetaData.class.getDeclaredMethod(
+         "getConditionList", Map.class, DataRef[].class, TableAssembly.class);
+      method.setAccessible(true);
+
+      InvocationTargetException ex = assertThrows(InvocationTargetException.class, () ->
+         method.invoke(meta, Map.of("E.Product", List.of("Chair")), erefs("Region"), mirror));
+      assertInstanceOf(ColumnNotFoundException.class, ex.getCause());
+
+      Object conds = method.invoke(meta, Map.of("E.Region", List.of("East")), erefs("Product"),
+                                   mirror);
+      assertTrue(String.valueOf(conds).contains("Region"), String.valueOf(conds));
+   }
+
    // ---------------------------------------------------------------- fixture
 
+   // the association MV of the selection table T has the given columns
+   private static AssetEntry associationMV(String... columns) {
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                        "MVTableMetaDataTest", null);
+      RuntimeMV rmv = new RuntimeMV(entry, null, null, "T", "ASSOCIATION_T", false, 0L, null);
+      MVDef def = mock(MVDef.class);
+      List<MVColumn> mvcols = new ArrayList<>();
+
+      for(String col : columns) {
+         mvcols.add(new MVColumn(new ColumnRef(new AttributeRef(null, col)), true));
+      }
+
+      when(def.getColumns()).thenReturn(mvcols);
+      MVManager mgr = MVManager.getManager();
+      when(mgr.findRuntimeMV(any(), any(), any(), any(), any(), any(), anyBoolean()))
+         .thenReturn(rmv);
+      when(mgr.get("ASSOCIATION_T")).thenReturn(def);
+      return entry;
+   }
+
    private MVTableMetaData metaData() throws Exception {
+      return metaData(DATA);
+   }
+
+   private MVTableMetaData metaData(Object[][] data) throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, Assembly.SELECTION + "T");
       table.setEmbeddedData(new XEmbeddedTable(
-         new String[] { XSchema.STRING, XSchema.STRING, XSchema.INTEGER }, DATA));
+         new String[] { XSchema.STRING, XSchema.STRING, XSchema.INTEGER }, data));
       ws.addAssembly(table);
 
       // the data keys are content based: without this a run could read another's rows
@@ -246,6 +401,13 @@ class MVTableMetaDataTest {
    // the columns of the selection lists, as the lists give them
    private static DataRef[] refs(String... names) {
       return Arrays.stream(names).map(n -> new ColumnRef(new AttributeRef(null, n)))
+         .toArray(DataRef[]::new);
+   }
+
+   // the columns of lists bound with the entity set, as a logical model binding gives them:
+   // AttributeRef("E", "Region") is named "E.Region"
+   private static DataRef[] erefs(String... names) {
+      return Arrays.stream(names).map(n -> new ColumnRef(new AttributeRef("E", n)))
          .toArray(DataRef[]::new);
    }
 
