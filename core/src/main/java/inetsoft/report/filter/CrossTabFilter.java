@@ -4199,6 +4199,7 @@ public class CrossTabFilter extends AbstractTableLens
 
             if(formula != null) {
                formula.reset();
+               List<Integer> ks = new ArrayList<>();
 
                for(Tuple rowTuple : rv) {
                   PairN cellPair = new PairN(rowTuple, colTuple, j);
@@ -4210,10 +4211,12 @@ public class CrossTabFilter extends AbstractTableLens
 
                   for(int k : list) {
                      if(!isDcHiddenTuplePair(ndrTuple, colTuple) || !isDcExtendDataRow(table, k)) {
-                        addValue(formula, table, k, dcol[j]);
+                        ks.add(k);
                      }
                   }
                }
+
+               addValues(formula, ks, j);
             }
          }
       }
@@ -4232,6 +4235,7 @@ public class CrossTabFilter extends AbstractTableLens
 
             if(formula != null) {
                formula.reset();
+               List<Integer> ks = new ArrayList<>();
 
                for(Tuple colTuple : cv) {
                   PairN cellPair = new PairN(rowTuple, colTuple, j);
@@ -4243,10 +4247,12 @@ public class CrossTabFilter extends AbstractTableLens
 
                   for(int k : list) {
                      if(!isDcHiddenTuplePair(rowTuple, ndcTuple) || !isDcExtendDataRow(table, k)) {
-                        addValue(formula, table, k, dcol[j]);
+                        ks.add(k);
                      }
                   }
                }
+
+               addValues(formula, ks, j);
             }
          }
       }
@@ -4276,6 +4282,7 @@ public class CrossTabFilter extends AbstractTableLens
             }
 
             Objects.requireNonNull(tformula).reset();
+            List<Integer> ks = new ArrayList<>();
 
             for(Tuple ctuple : cv) {
                for(Tuple rtuple : rv) {
@@ -4290,12 +4297,29 @@ public class CrossTabFilter extends AbstractTableLens
 
                   for(int k : list) {
                      if(!isDcHiddenTuplePair(ndrTuple, ndcTuple) || !isDcExtendDataRow(table, k)) {
-                        addValue(tformula, table, k, dcol[j]);
+                        ks.add(k);
                      }
                   }
                }
             }
+
+            addValues(tformula, ks, j);
          }
+      }
+   }
+
+   /**
+    * Add the values of the rows to a formula. The rows of a total are collected tuple by tuple;
+    * a concat is order sensitive, so its rows are added in the row order of the table, as the
+    * detail rows of a total without a Top N are (Bug #82460).
+    */
+   private void addValues(Formula formula, List<Integer> rows, int j) {
+      if(formula instanceof ConcatFormula) {
+         Collections.sort(rows);
+      }
+
+      for(int k : rows) {
+         addValue(formula, table, k, dcol[j]);
       }
    }
 
@@ -4534,13 +4558,15 @@ public class CrossTabFilter extends AbstractTableLens
          LOG.warn("Failed to reset merged grand total formula", e);
       }
 
-      for(PairN cellPair : list) {
-         int[] rows = getRowNumbers(cellPair);
+      List<Integer> allRows = new ArrayList<>();
 
-         for(int row : rows) {
-            addValue(formula, table, row, dcol[k]);
+      for(PairN cellPair : list) {
+         for(int row : getRowNumbers(cellPair)) {
+            allRows.add(row);
          }
       }
+
+      addValues(formula, allRows, k);
 
       return formula;
    }

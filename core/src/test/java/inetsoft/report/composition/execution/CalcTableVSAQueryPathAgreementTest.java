@@ -123,7 +123,7 @@ class CalcTableVSAQueryPathAgreementTest {
          sc.expect.accept(script, "script path");
       }
 
-      List<String> diffs = diff(quick, script, sc.cols);
+      List<String> diffs = diff(quick, script, sc.cols, sc.nullIsEmpty);
 
       if(sc.knownDifference != null) {
          // pinned as the current behavior: this turns red when the difference is gone
@@ -709,7 +709,7 @@ class CalcTableVSAQueryPathAgreementTest {
    }
 
    private static List<String> diff(List<List<Object>> quick, List<List<Object>> script,
-                                    int cols)
+                                    int cols, boolean nullIsEmpty)
    {
       List<String> diffs = new ArrayList<>();
 
@@ -721,6 +721,10 @@ class CalcTableVSAQueryPathAgreementTest {
          for(int c = 0; c < cols; c++) {
             Object a = quick.get(r).get(c);
             Object b = script.get(r).get(c);
+
+            if(nullIsEmpty && (a == null || "".equals(a)) && (b == null || "".equals(b))) {
+               continue;
+            }
 
             if(!same(a, b)) {
                diffs.add("[" + r + "," + c + "] quick=" + show(a) + " script=" + show(b));
@@ -1001,6 +1005,15 @@ class CalcTableVSAQueryPathAgreementTest {
       Object[][] special = sales(row(null, 1, 1.0), row("", 2, 2.0), row("a,b", 3, 4.0),
                                  row("say \"hi\"", 4, 8.0), row("O'Brien", 5, 16.0),
                                  row("x]y", 6, 32.0), row("(p", 7, 64.0), row("a,b", 8, 128.0));
+      // a group of Region with its Concat of Cat and the Concat of the whole table
+      Consumer<TableLayout> concatLayout = l -> {
+         l.setCellBinding(1, 0, group("Region"));
+         l.setCellBinding(1, 1, summary("Cat", "Concat"));
+         TableCellBinding all = summary("Cat", "Concat");
+         all.setRowGroup(null);
+         l.setCellBinding(1, 2, all);
+      };
+
       Object[][] ranked = sales(row("A", 1, 100.0), row("B", 1, 90.0), row("C", 1, 80.0),
                                 row("D", 1, 70.0), row("E", 1, 60.0), row("A", 1, 1.0));
 
@@ -1189,6 +1202,41 @@ class CalcTableVSAQueryPathAgreementTest {
          }).knownDifference("the script path labels it \"Others \" with a trailing space, " +
                             "on purpose; the grand total is 401 on both paths",
                             "[3,0] quick=Others:String script=Others :String"),
+         new Scenario("CC1 Concat with null values and an empty group, group and grand total",
+                      nestedTypes(), nested(nrow("East", "a", 1, 1.0), nrow("East", null, 2, 2.0),
+                                            nrow("East", "a", 3, 3.0), nrow("North", "c", 4, 4.0),
+                                            nrow("West", null, 5, 5.0),
+                                            nrow("West", null, 6, 6.0)),
+                      3, false, concatLayout).nullIsEmpty().expect((rows, path) -> {
+            // Bug #82460: no stray comma in the grand total
+            assertEquals("a,a,c", rows.get(rows.size() - 1).get(2), path + ": " + rows);
+            assertEquals("a,a", rows.get(1).get(1), path + ": " + rows);
+         }),
+         new Scenario("CC2 Concat grand total is in row order, not in group order",
+                      nestedTypes(), nested(nrow("East", "10", 1, 1.0), nrow("West", "20", 2, 2.0),
+                                            nrow("East", "30", 3, 3.0), nrow("North", "5", 4, 4.0),
+                                            nrow("West", "15", 5, 5.0),
+                                            nrow("East", "20", 6, 6.0)),
+                      3, false, concatLayout).expect((rows, path) -> {
+            assertEquals("10,20,30,5,15,20", rows.get(rows.size() - 1).get(2),
+                         path + ": " + rows);
+            assertEquals("10,30,20", rows.get(1).get(1), path + ": " + rows);
+         }),
+         new Scenario("CC3 Concat with top 2 and Others", nestedTypes(),
+                      nested(nrow("A", "x", 1, 100.0), nrow("B", "y", 1, 90.0),
+                             nrow("C", null, 1, 80.0), nrow("D", null, 1, 70.0),
+                             nrow("E", "z", 1, 60.0)),
+                      3, false, l -> {
+            TableCellBinding g = group("Region");
+            g.setTopN(topN(2, true));
+            l.setCellBinding(1, 0, g);
+            l.setCellBinding(1, 1, summary("Cat", "Concat"));
+            TableCellBinding all = summary("Cat", "Concat");
+            all.setRowGroup(null);
+            l.setCellBinding(1, 2, all);
+         }).nullIsEmpty().knownDifference("the script path labels it \"Others \" with a " +
+                            "trailing space, on purpose; Others is z on both paths",
+                            "[3,0] quick=Others:String script=Others :String"),
          new Scenario("P2a nested groups, summary of the inner group", nestedTypes(), nestedData,
                       3, false, l -> {
             l.setCellBinding(1, 0, group("Region"));
@@ -1320,6 +1368,15 @@ class CalcTableVSAQueryPathAgreementTest {
          return this;
       }
 
+      /**
+       * An empty group is null on the script path and "" on the quick path (an empty Concat is
+       * "" in the crosstab); both show blank, so the comparison treats them as equal.
+       */
+      Scenario nullIsEmpty() {
+         this.nullIsEmpty = true;
+         return this;
+      }
+
       /** The layout is not run as temp crosstabs, so both runs use the script path. */
       Scenario fallsBack() {
          this.fallsBack = true;
@@ -1338,6 +1395,7 @@ class CalcTableVSAQueryPathAgreementTest {
 
       final String name;
       boolean fallsBack;
+      boolean nullIsEmpty;
       String knownDifference;
       List<String> knownDiffs;
       String knownQuickFailure;
