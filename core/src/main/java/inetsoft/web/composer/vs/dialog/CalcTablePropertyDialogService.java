@@ -116,7 +116,8 @@ public class CalcTablePropertyDialogService {
       VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel =
          VSAssemblyScriptPaneModel.builder();
 
-      tableViewGeneralPaneModel.setShowMaxRows(false);
+      tableViewGeneralPaneModel.setShowMaxRows(true);
+      tableViewGeneralPaneModel.setMaxRows(calcTableAssemblyInfo.getMaxRows());
 
       titlePropPaneModel.setVisible(calcTableAssemblyInfo.getTitleVisibleValue());
       titlePropPaneModel.setTitle(calcTableAssemblyInfo.getTitleValue());
@@ -369,6 +370,7 @@ public class CalcTablePropertyDialogService {
       calcTableAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
 
       calcTableAssemblyInfo.setTableStyleValue(tableStylePaneModel.getTableStyle());
+      calcTableAssemblyInfo.setMaxRows(tableViewGeneralPaneModel.getMaxRows());
 
       dialogService.setAssemblySize(calcTableAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(calcTableAssemblyInfo, sizePositionPaneModel);

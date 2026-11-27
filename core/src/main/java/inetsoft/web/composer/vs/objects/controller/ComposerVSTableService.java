@@ -542,6 +542,12 @@ public class ComposerVSTableService {
       ((CalcTableVSAssembly) freehandAssembly).setTableLayout(nlayout);
       hint |= freehandInfo.copyInfo(info, false);
 
+      // max rows is not shared by the base class, carry the stored value (not
+      // the global-limit-folded one) from a table; a crosstab has no max rows
+      if(info instanceof TableVSAssemblyInfo) {
+         freehandInfo.setMaxRows(((TableVSAssemblyInfo) info).getRawMaxRows());
+      }
+
       // useless for calc, because calc lens is not a filter
       // based on the base script table
       freehandInfo.setHighlightAttr(new TableHighlightAttr());

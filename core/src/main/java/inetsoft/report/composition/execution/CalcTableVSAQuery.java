@@ -346,8 +346,13 @@ public class CalcTableVSAQuery extends DataVSAQuery {
                          (rlensJoined != null ? rlensJoined.getRowCount() : 0) +
                          " x " + (rlensJoined != null ? rlensJoined.getColCount() : 0));
 
-            TableLens returnLens = maxRow > 0
-               ? new MaxRowsTableLens2(rlensJoined, maxRow) : rlensJoined;
+            // the per-assembly limit (0 for none) is combined with the global limit,
+            // the smaller positive one wins. MaxRowsTableLens excludes header rows.
+            int assemblyMax = info.getMaxRows();
+            int limit = assemblyMax > 0
+               ? (maxRow > 0 ? Math.min(maxRow, assemblyMax) : assemblyMax) : maxRow;
+            TableLens returnLens = limit > 0
+               ? new MaxRowsTableLens2(rlensJoined, limit) : rlensJoined;
             final long endTime = System.nanoTime();
             final long elapasedTime = (endTime - startTime) / 1000000L;
             LOG.debug("getTableLens() elapsed:" + elapasedTime + "ms.");
