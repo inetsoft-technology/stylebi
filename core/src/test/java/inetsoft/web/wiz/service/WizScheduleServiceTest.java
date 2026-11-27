@@ -288,6 +288,8 @@ class WizScheduleServiceTest {
          "monthly", "06:15", null, 15, null, null));
       assertEquals(TimeCondition.EVERY_MONTH, c.getType());
       assertEquals(15, c.getDayOfMonth());
+      // Bug #82496, a monthly task with no months selected is never scheduled
+      assertArrayEquals(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 }, c.getMonthsOfYear());
 
       assertEquals(-1, ((TimeCondition) WizScheduleService.buildCondition(request(
          "monthly", "06:15", null, -1, null, null))).getDayOfMonth());
