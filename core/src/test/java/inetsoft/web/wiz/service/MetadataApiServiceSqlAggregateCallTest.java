@@ -105,4 +105,18 @@ class MetadataApiServiceSqlAggregateCallTest {
       assertEquals(text.length() - 1, MetadataApiService.matchingSqlParen(text, 3));
       assertEquals(-1, MetadataApiService.matchingSqlParen("SUM(a", 3));
    }
+
+   @Test
+   void fixRound1Cases() {
+      assertCall("COUNT(DISTINCT(x))", AggregateFormula.COUNT_DISTINCT, "x");
+      assertCall("count(distinct (a.x))", AggregateFormula.COUNT_DISTINCT, "a.x");
+      assertCall("SUM (x)", AggregateFormula.SUM, "x");
+      assertNull(MetadataApiService.sqlAggregateCall("SUMMARY(x)"));
+      assertNull(MetadataApiService.sqlAggregateCall("x_sum(a)"));
+      assertFalse(MetadataApiService.containsSqlAggregate("SUMMARY(x)"));
+      assertFalse(MetadataApiService.containsSqlAggregate("x_sum(a)"));
+      assertCall("SUM(\"a)b\")", AggregateFormula.SUM, "\"a)b\"");
+      assertCall("MAX(`a)b`)", AggregateFormula.MAX, "`a)b`");
+      assertCall("SUM(\"a\"\")b\")", AggregateFormula.SUM, "\"a\"\")b\"");
+   }
 }

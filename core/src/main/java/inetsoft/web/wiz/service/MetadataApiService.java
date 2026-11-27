@@ -1645,6 +1645,9 @@ public class MetadataApiService {
    private static final java.util.regex.Pattern SQL_AGGREGATE_TOKEN =
       java.util.regex.Pattern.compile("(?i)\\b(SUM|AVG|COUNT|MIN|MAX)\\s*\\(");
 
+   private static final java.util.regex.Pattern SQL_DISTINCT_PREFIX =
+      java.util.regex.Pattern.compile("(?i)^distinct\\b");
+
    /** One select item read as a single aggregate call: {@code formula} over {@code field}. */
    record SqlAggregateCall(String formula, String field) {
    }
@@ -1672,8 +1675,16 @@ public class MetadataApiService {
 
       String inner = item.substring(open + 1, item.length() - 1).trim();
 
-      if(formula == AggregateFormula.COUNT_ALL && inner.regionMatches(true, 0, "distinct ", 0, 9)) {
-         return new SqlAggregateCall(AggregateFormula.COUNT_DISTINCT.getName(), inner.substring(9).trim());
+      Matcher distinct = SQL_DISTINCT_PREFIX.matcher(inner);
+
+      if(formula == AggregateFormula.COUNT_ALL && distinct.find()) {
+         String field = inner.substring(distinct.end()).trim();
+
+         if(field.startsWith("(") && matchingSqlParen(field, 0) == field.length() - 1) {
+            field = field.substring(1, field.length() - 1).trim();
+         }
+
+         return new SqlAggregateCall(AggregateFormula.COUNT_DISTINCT.getName(), field);
       }
 
       return new SqlAggregateCall(formula.getName(), inner);
@@ -1684,29 +1695,29 @@ public class MetadataApiService {
       return text != null && SQL_AGGREGATE_TOKEN.matcher(text).find();
    }
 
-   /** The index of the paren closing the one at {@code open}, or -1; string literals are skipped. */
+   /** The index of the paren closing the one at {@code open}, or -1; quoted literals and identifiers are skipped. */
    static int matchingSqlParen(String text, int open) {
       int depth = 0;
-      boolean literal = false;
+      char quote = 0;
 
       for(int i = open; i < text.length(); i++) {
          char c = text.charAt(i);
 
-         if(literal) {
-            if(c == '\'') {
-               if(i + 1 < text.length() && text.charAt(i + 1) == '\'') {
+         if(quote != 0) {
+            if(c == quote) {
+               if(i + 1 < text.length() && text.charAt(i + 1) == quote) {
                   i++;
                }
                else {
-                  literal = false;
+                  quote = 0;
                }
             }
 
             continue;
          }
 
-         if(c == '\'') {
-            literal = true;
+         if(c == '\'' || c == '"' || c == '`') {
+            quote = c;
          }
          else if(c == '(') {
             depth++;
