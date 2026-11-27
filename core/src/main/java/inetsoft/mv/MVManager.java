@@ -1261,6 +1261,20 @@ public final class MVManager implements MessageListener {
       return stream.toArray(MVDef[]::new);
    }
 
+   /**
+    * Gets the names of the registered MVs of an organization without parsing the definitions.
+    */
+   public Set<String> getRegisteredNames(String orgID) {
+      getOrgLock(orgID).readLock().lock();
+
+      try {
+         return new HashSet<>(mvs.keySet(orgID));
+      }
+      finally {
+         getOrgLock(orgID).readLock().unlock();
+      }
+   }
+
    public List<MVDef> list(String[] orgIDs) {
       List<MVDef> defs = new ArrayList<>();
 
