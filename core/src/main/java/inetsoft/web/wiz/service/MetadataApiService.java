@@ -1281,20 +1281,38 @@ public class MetadataApiService {
 
          SqlAggregate aggregate = analyzeSqlAggregateSafely(parsed, table);
 
-         // join predicates are not filters (mirrors QueryManagerService.getQueryCondition)
-         parsed.removeAllJoins();
-         boolean[] degraded = { false };
-         XSelection selection = parsed.getSelection();
-         walkSqlCondition(effectiveSqlRoot(parsed.getWhere()), null, null, "pre", 0, selection,
-                          degraded, found);
-         walkSqlCondition(effectiveSqlRoot(parsed.getHaving()), null, null, "post", 0, selection,
-                          degraded, found);
-         out.addAll(found);
-         return new SqlParse(degraded[0] ? "partial" : "full", aggregate.summary(), aggregate.coverage());
+         return sqlParse(aggregate, table.getName(), () -> {
+            // join predicates are not filters (mirrors QueryManagerService.getQueryCondition)
+            parsed.removeAllJoins();
+            boolean[] degraded = { false };
+            XSelection selection = parsed.getSelection();
+            walkSqlCondition(effectiveSqlRoot(parsed.getWhere()), null, null, "pre", 0, selection,
+                             degraded, found);
+            walkSqlCondition(effectiveSqlRoot(parsed.getHaving()), null, null, "post", 0,
+                             selection, degraded, found);
+            out.addAll(found);
+            return degraded[0] ? "partial" : "full";
+         });
       }
       catch(Exception ex) {
          log.debug("Could not extract the SQL conditions of table {}", table.getName(), ex);
          return SqlParse.UNAVAILABLE;
+      }
+   }
+
+   /**
+    * Combines an already-read aggregate with the conditions walk. A walk failure makes only the
+    * conditions coverage "unavailable"; the aggregate read from the same parse is kept.
+    */
+   static SqlParse sqlParse(SqlAggregate aggregate, String tableName,
+                            java.util.concurrent.Callable<String> conditionsWalk)
+   {
+      try {
+         return new SqlParse(conditionsWalk.call(), aggregate.summary(), aggregate.coverage());
+      }
+      catch(Exception ex) {
+         log.debug("Could not extract the SQL conditions of table {}", tableName, ex);
+         return new SqlParse("unavailable", aggregate.summary(), aggregate.coverage());
       }
    }
 
@@ -1317,9 +1335,10 @@ public class MetadataApiService {
     * Reads the aggregate from the parsed select list and GROUP BY, text only (no AST). A select item
     * that is one aggregate call is a measure with its formula; any other item containing an
     * aggregate is an expression measure. GROUP BY items map to select items by ordinal, else alias,
-    * else collapsed text. Each select item maps to a worksheet column by name, else by position when
-    * the column counts are equal; an unmapped item keeps its own name and makes the coverage
-    * "partial". DISTINCT groups
+    * else collapsed text, else unqualified column name. Each select item maps to a worksheet column
+    * by name, else by position when the column counts are equal and that column is not taken (see
+    * sqlOutputColumns); an unmapped item keeps its own name and, when the text aggregates anything,
+    * makes the coverage "partial". DISTINCT groups
     * by every non-aggregate output column; aggregates without GROUP BY are a whole-table aggregate.
     * A window function or a {@code *} / {@code t.*} item, or a GROUP BY item matching no select item,
     * makes the coverage "partial". Null summary when the text aggregates nothing.
@@ -1328,18 +1347,21 @@ public class MetadataApiService {
       XSelection selection = parsed.getSelection();
       int count = selection == null ? 0 : selection.getColumnCount();
       boolean partial = false;
+      // an unmapped output name only matters when something is aggregated
+      boolean mappingPartial = false;
+      List<String> mapped = sqlOutputColumns(selection, worksheetColumns);
       List<String> outputs = new ArrayList<>();
       List<Boolean> measures = new ArrayList<>();
       WorksheetStructure.AggregateSummary summary = new WorksheetStructure.AggregateSummary();
 
       for(int i = 0; i < count; i++) {
          String text = collapseSqlText(selection.getColumn(i));
-         String output = sqlOutputColumn(selection, i, worksheetColumns);
+         String output = mapped.get(i);
 
          if(output == null) {
-            // neither a name match nor a safe positional match: keep the item's own name
+            // neither a name match nor a free positional match: keep the item's own name
             output = sqlItemName(selection, i);
-            partial = true;
+            mappingPartial = true;
          }
 
          outputs.add(output);
@@ -1378,7 +1400,8 @@ public class MetadataApiService {
             grouped.add(outputs.get(index));
          }
          else {
-            grouped.add(groupText);
+            // an out-of-range ordinal names no column; say what it was
+            grouped.add(groupText.matches("\\d{1,9}") ? "GROUP BY ordinal " + groupText : groupText);
             partial = true;
          }
       }
@@ -1398,6 +1421,7 @@ public class MetadataApiService {
       }
 
       boolean aggregated = !summary.getGroupBy().isEmpty() || !summary.getAggregates().isEmpty();
+      partial = partial || aggregated && mappingPartial;
       return new SqlAggregate(aggregated ? summary : null, partial ? "partial" : "full");
    }
 
@@ -1428,28 +1452,69 @@ public class MetadataApiService {
          }
       }
 
-      return -1;
-   }
+      // last: a plain column named without (or with another) qualifier, e.g. GROUP BY region for
+      // a.region; only when exactly one plain select item has that unqualified name
+      if(groupText.contains("(")) {
+         return -1;
+      }
 
-   /**
-    * The worksheet column a select item produces: the worksheet column whose name equals the item's
-    * name (case-insensitive, returned in the worksheet's spelling); else the column at the same
-    * position, only when the worksheet and select-list column counts are equal; else null.
-    */
-   static String sqlOutputColumn(XSelection selection, int index, List<String> worksheetColumns) {
-      String name = sqlItemName(selection, index);
+      String bare = unqualifiedSqlName(groupText);
+      int found = -1;
 
-      for(String column : worksheetColumns) {
-         if(column != null && column.equalsIgnoreCase(name)) {
-            return column;
+      for(int i = 0; i < count; i++) {
+         String text = collapseSqlText(selection.getColumn(i));
+
+         if(!text.contains("(") && unqualifiedSqlName(text).equalsIgnoreCase(bare)) {
+            if(found >= 0) {
+               return -1;
+            }
+
+            found = i;
          }
       }
 
-      if(worksheetColumns.size() == selection.getColumnCount() && worksheetColumns.get(index) != null) {
-         return worksheetColumns.get(index);
+      return found;
+   }
+
+   /**
+    * The worksheet column each select item produces (null when unmapped). Name matches are
+    * resolved first for every item: the worksheet column whose name equals the item's name
+    * (case-insensitive, returned in the worksheet's spelling) and that no earlier item took. Then
+    * a still-unmapped item takes the column at its own position, only when the worksheet and
+    * select-list column counts are equal and that column was not already taken. No two items
+    * ever map to the same column.
+    */
+   static List<String> sqlOutputColumns(XSelection selection, List<String> worksheetColumns) {
+      int count = selection == null ? 0 : selection.getColumnCount();
+      List<String> mapped = new ArrayList<>(Collections.nCopies(count, (String) null));
+      Set<String> taken = new HashSet<>();
+
+      for(int i = 0; i < count; i++) {
+         String name = sqlItemName(selection, i);
+
+         for(String column : worksheetColumns) {
+            if(column != null && column.equalsIgnoreCase(name) &&
+               taken.add(column.toUpperCase(Locale.ROOT)))
+            {
+               mapped.set(i, column);
+               break;
+            }
+         }
       }
 
-      return null;
+      if(worksheetColumns.size() == count) {
+         for(int i = 0; i < count; i++) {
+            String column = worksheetColumns.get(i);
+
+            if(mapped.get(i) == null && column != null &&
+               taken.add(column.toUpperCase(Locale.ROOT)))
+            {
+               mapped.set(i, column);
+            }
+         }
+      }
+
+      return mapped;
    }
 
    /**

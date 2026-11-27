@@ -297,6 +297,54 @@ class MetadataApiServiceSqlAggregateTest {
    }
 
    @Test
+   void aPositionalColumnAlreadyTakenByNameIsNotReusedAndCoverageIsPartial() {
+      // item 1 takes TOTAL by name, so item 0 must not also take TOTAL by position
+      var r = run("SELECT a.region, SUM(a.sales) AS total FROM T a GROUP BY a.region", "TOTAL", "R2");
+
+      assertEquals("partial", r.sqlAggregateCoverage());
+      assertEquals("TOTAL", r.sqlAggregate().getAggregates().get(0).getColumn());
+      assertEquals(1, groupFields(r.sqlAggregate()).size());
+      assertTrue("region".equalsIgnoreCase(groupFields(r.sqlAggregate()).get(0)),
+                 groupFields(r.sqlAggregate()).toString());
+   }
+
+   @Test
+   void aDetailQueryWithoutWorksheetColumnsStaysNullAndFull() {
+      var r = run("SELECT a.x FROM T a");
+
+      assertEquals("full", r.sqlAggregateCoverage());
+      assertNull(r.sqlAggregate());
+   }
+
+   @Test
+   void aConditionsWalkFailureKeepsTheAggregate() {
+      WorksheetStructure.AggregateSummary summary = new WorksheetStructure.AggregateSummary();
+      MetadataApiService.SqlParse parse = MetadataApiService.sqlParse(
+         new MetadataApiService.SqlAggregate(summary, "full"), "t",
+         () -> { throw new IllegalStateException("walk failed"); });
+
+      assertEquals("unavailable", parse.conditionsCoverage());
+      assertSame(summary, parse.sqlAggregate());
+      assertEquals("full", parse.sqlAggregateCoverage());
+   }
+
+   @Test
+   void anUnqualifiedGroupByMatchesAQualifiedSelectItem() {
+      var r = run("SELECT a.region, SUM(a.sales) AS total FROM T a GROUP BY region", "REGION", "TOTAL");
+
+      assertEquals("full", r.sqlAggregateCoverage());
+      assertEquals(List.of("REGION"), groupFields(r.sqlAggregate()));
+   }
+
+   @Test
+   void anOutOfRangeOrdinalIsLabelledAndPartial() {
+      var r = run("SELECT a.region, SUM(a.sales) AS total FROM T a GROUP BY 5", "REGION", "TOTAL");
+
+      assertEquals("partial", r.sqlAggregateCoverage());
+      assertEquals(List.of("GROUP BY ordinal 5"), groupFields(r.sqlAggregate()));
+   }
+
+   @Test
    void aNonSqlTableHasNoSqlAggregate() {
       var r = MetadataApiService.extractStructureConditionsAndCoverage(
          new PhysicalBoundTableAssembly(new Worksheet(), "p"));
