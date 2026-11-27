@@ -1024,7 +1024,7 @@ public class MetadataApiService {
       return ordered;
    }
 
-   private WorksheetStructure.StructureTable buildStructureTable(TableAssembly tableAssembly) {
+   static WorksheetStructure.StructureTable buildStructureTable(TableAssembly tableAssembly) {
       WorksheetStructure.StructureTable table = new WorksheetStructure.StructureTable();
       table.setName(tableAssembly.getName());
       table.setTableType(structureTableType(tableAssembly));
@@ -1037,6 +1037,8 @@ public class MetadataApiService {
       table.setConditions(structureConditions.leaves());
       table.setConditionsCoverage(structureConditions.coverage());
       table.setAggregate(extractStructureAggregate(tableAssembly.getAggregateInfo()));
+      table.setSqlAggregate(structureConditions.sqlAggregate());
+      table.setSqlAggregateCoverage(structureConditions.sqlAggregateCoverage());
       return table;
    }
 
@@ -1203,7 +1205,11 @@ public class MetadataApiService {
     * The condition leaves of one table plus, for free-SQL tables only, how completely the SQL
     * text's WHERE/HAVING could be expressed as leaves ("full", "partial" or "unavailable").
     */
-   record StructureConditions(List<WorksheetStructure.ConditionLeaf> leaves, String coverage) {}
+   record StructureConditions(List<WorksheetStructure.ConditionLeaf> leaves, String coverage,
+                              WorksheetStructure.AggregateSummary sqlAggregate,
+                              String sqlAggregateCoverage)
+   {
+   }
 
    static List<WorksheetStructure.ConditionLeaf> extractStructureConditions(
       TableAssembly tableAssembly)
@@ -1222,27 +1228,42 @@ public class MetadataApiService {
          tableAssembly.getRankingConditionList(), "ranking", conditions,
          tableAssembly.getAggregateInfo());
       String coverage = null;
+      WorksheetStructure.AggregateSummary sqlAggregate = null;
+      String sqlAggregateCoverage = null;
 
       if(tableAssembly instanceof SQLBoundTableAssembly sqlTable) {
-         coverage = collectSqlConditions(sqlTable, conditions);
+         SqlParse parse = collectSqlConditions(sqlTable, conditions);
+         coverage = parse.conditionsCoverage();
+         sqlAggregate = parse.sqlAggregate();
+         sqlAggregateCoverage = parse.sqlAggregateCoverage();
       }
 
-      return new StructureConditions(conditions, coverage);
+      return new StructureConditions(conditions, coverage, sqlAggregate, sqlAggregateCoverage);
    }
 
    /**
-    * Appends the WHERE/HAVING conditions found in a free-SQL table's text. The text is parsed
-    * as a detached copy; the stored definition is never touched (it is saved unparsed on
-    * purpose). Returns the coverage: "full", "partial" (some clause kept as text only) or
-    * "unavailable" (the text could not be parsed completely).
+    * What one parse of a free-SQL table's text yields: the WHERE/HAVING conditions coverage, and the
+    * aggregate the text computes with its own coverage. Each coverage is "full", "partial" or
+    * "unavailable".
     */
-   private static String collectSqlConditions(SQLBoundTableAssembly table,
-                                              List<WorksheetStructure.ConditionLeaf> out)
+   record SqlParse(String conditionsCoverage, WorksheetStructure.AggregateSummary sqlAggregate,
+                   String sqlAggregateCoverage)
+   {
+      static final SqlParse UNAVAILABLE = new SqlParse("unavailable", null, "unavailable");
+   }
+
+   /**
+    * Appends the WHERE/HAVING conditions found in a free-SQL table's text and reads the aggregate
+    * the text computes, from ONE parse. The text is parsed as a detached copy; the stored definition
+    * is never touched (it is saved unparsed on purpose).
+    */
+   private static SqlParse collectSqlConditions(SQLBoundTableAssembly table,
+                                                List<WorksheetStructure.ConditionLeaf> out)
    {
       if(!(table.getInfo() instanceof SQLBoundTableAssemblyInfo sqlInfo) ||
          sqlInfo.getQuery() == null || sqlInfo.getQuery().getSQLDefinition() == null)
       {
-         return "unavailable";
+         return SqlParse.UNAVAILABLE;
       }
 
       List<WorksheetStructure.ConditionLeaf> found = new ArrayList<>();
@@ -1253,9 +1274,12 @@ public class MetadataApiService {
          JDBCDataSource ds = query.getDataSource() instanceof JDBCDataSource jds ? jds : null;
          UniformSQL parsed = UniformSQL.parseSubquery(sqlText, ds);
 
+         // null on any partial or lossy parse, including ROLLUP / CUBE / GROUPING SETS
          if(parsed == null) {
-            return "unavailable";
+            return SqlParse.UNAVAILABLE;
          }
+
+         SqlAggregate aggregate = analyzeSqlAggregateSafely(parsed, table);
 
          // join predicates are not filters (mirrors QueryManagerService.getQueryCondition)
          parsed.removeAllJoins();
@@ -1266,12 +1290,196 @@ public class MetadataApiService {
          walkSqlCondition(effectiveSqlRoot(parsed.getHaving()), null, null, "post", 0, selection,
                           degraded, found);
          out.addAll(found);
-         return degraded[0] ? "partial" : "full";
+         return new SqlParse(degraded[0] ? "partial" : "full", aggregate.summary(), aggregate.coverage());
       }
       catch(Exception ex) {
          log.debug("Could not extract the SQL conditions of table {}", table.getName(), ex);
-         return "unavailable";
+         return SqlParse.UNAVAILABLE;
       }
+   }
+
+   /** The aggregate a free-SQL table's text computes, and how completely it was read. */
+   record SqlAggregate(WorksheetStructure.AggregateSummary summary, String coverage) {
+      static final SqlAggregate UNAVAILABLE = new SqlAggregate(null, "unavailable");
+   }
+
+   private static SqlAggregate analyzeSqlAggregateSafely(UniformSQL parsed, SQLBoundTableAssembly table) {
+      try {
+         return analyzeSqlAggregate(parsed, sqlWorksheetColumns(table));
+      }
+      catch(Exception ex) {
+         log.debug("Could not read the SQL aggregate of table {}", table.getName(), ex);
+         return SqlAggregate.UNAVAILABLE;
+      }
+   }
+
+   /**
+    * Reads the aggregate from the parsed select list and GROUP BY, text only (no AST). A select item
+    * that is one aggregate call is a measure with its formula; any other item containing an
+    * aggregate is an expression measure. GROUP BY items map to select items by ordinal, else alias,
+    * else collapsed text. Each select item maps to a worksheet column by name, else by position when
+    * the column counts are equal; an unmapped item keeps its own name and makes the coverage
+    * "partial". DISTINCT groups
+    * by every non-aggregate output column; aggregates without GROUP BY are a whole-table aggregate.
+    * A window function or a {@code *} / {@code t.*} item, or a GROUP BY item matching no select item,
+    * makes the coverage "partial". Null summary when the text aggregates nothing.
+    */
+   static SqlAggregate analyzeSqlAggregate(UniformSQL parsed, List<String> worksheetColumns) {
+      XSelection selection = parsed.getSelection();
+      int count = selection == null ? 0 : selection.getColumnCount();
+      boolean partial = false;
+      List<String> outputs = new ArrayList<>();
+      List<Boolean> measures = new ArrayList<>();
+      WorksheetStructure.AggregateSummary summary = new WorksheetStructure.AggregateSummary();
+
+      for(int i = 0; i < count; i++) {
+         String text = collapseSqlText(selection.getColumn(i));
+         String output = sqlOutputColumn(selection, i, worksheetColumns);
+
+         if(output == null) {
+            // neither a name match nor a safe positional match: keep the item's own name
+            output = sqlItemName(selection, i);
+            partial = true;
+         }
+
+         outputs.add(output);
+
+         if("*".equals(text) || text.endsWith(".*") ||
+            text.toLowerCase(Locale.ROOT).contains(" over ("))
+         {
+            partial = true;
+         }
+
+         SqlAggregateCall call = sqlAggregateCall(text);
+         boolean expression = call == null && containsSqlAggregate(text);
+         measures.add(call != null || expression);
+
+         if(call != null) {
+            WorksheetStructure.AggMeasure measure = new WorksheetStructure.AggMeasure();
+            measure.setField(call.field());
+            measure.setFormula(call.formula());
+            measure.setColumn(output);
+            summary.getAggregates().add(measure);
+         }
+         else if(expression) {
+            WorksheetStructure.AggMeasure measure = new WorksheetStructure.AggMeasure();
+            measure.setColumn(output);
+            measure.setExpression(text);
+            summary.getAggregates().add(measure);
+         }
+      }
+
+      Set<String> grouped = new LinkedHashSet<>();
+      Object[] groups = parsed.getGroupBy();
+
+      for(int g = 0; groups != null && g < groups.length; g++) {
+         String groupText = collapseSqlText(String.valueOf(groups[g]));
+         int index = sqlGroupByIndex(selection, groupText);
+
+         if(index >= 0) {
+            grouped.add(outputs.get(index));
+         }
+         else {
+            grouped.add(groupText);
+            partial = true;
+         }
+      }
+
+      if(parsed.isDistinct()) {
+         for(int i = 0; i < count; i++) {
+            if(!measures.get(i)) {
+               grouped.add(outputs.get(i));
+            }
+         }
+      }
+
+      for(String field : grouped) {
+         WorksheetStructure.AggGroupBy groupBy = new WorksheetStructure.AggGroupBy();
+         groupBy.setField(field);
+         summary.getGroupBy().add(groupBy);
+      }
+
+      boolean aggregated = !summary.getGroupBy().isEmpty() || !summary.getAggregates().isEmpty();
+      return new SqlAggregate(aggregated ? summary : null, partial ? "partial" : "full");
+   }
+
+   /**
+    * The select item a GROUP BY item names: by ordinal (the text "1" is the first item), else by
+    * alias, else by collapsed text (case-insensitive, as sqlFieldName matches expressions). -1 when
+    * none matches.
+    */
+   static int sqlGroupByIndex(XSelection selection, String groupText) {
+      int count = selection == null ? 0 : selection.getColumnCount();
+
+      if(groupText.matches("\\d{1,9}")) {
+         int ordinal = Integer.parseInt(groupText) - 1;
+         return ordinal >= 0 && ordinal < count ? ordinal : -1;
+      }
+
+      for(int i = 0; i < count; i++) {
+         String alias = selection.getAlias(i);
+
+         if(alias != null && !alias.isEmpty() && alias.equalsIgnoreCase(groupText)) {
+            return i;
+         }
+      }
+
+      for(int i = 0; i < count; i++) {
+         if(collapseSqlText(selection.getColumn(i)).equalsIgnoreCase(groupText)) {
+            return i;
+         }
+      }
+
+      return -1;
+   }
+
+   /**
+    * The worksheet column a select item produces: the worksheet column whose name equals the item's
+    * name (case-insensitive, returned in the worksheet's spelling); else the column at the same
+    * position, only when the worksheet and select-list column counts are equal; else null.
+    */
+   static String sqlOutputColumn(XSelection selection, int index, List<String> worksheetColumns) {
+      String name = sqlItemName(selection, index);
+
+      for(String column : worksheetColumns) {
+         if(column != null && column.equalsIgnoreCase(name)) {
+            return column;
+         }
+      }
+
+      if(worksheetColumns.size() == selection.getColumnCount() && worksheetColumns.get(index) != null) {
+         return worksheetColumns.get(index);
+      }
+
+      return null;
+   }
+
+   /**
+    * A select item's own output name: its alias, else its unqualified column text for a plain
+    * column, else its collapsed text (an unaliased expression).
+    */
+   static String sqlItemName(XSelection selection, int index) {
+      String alias = selection.getAlias(index);
+
+      if(alias != null && !alias.isEmpty()) {
+         return alias;
+      }
+
+      String text = collapseSqlText(selection.getColumn(index));
+      return text.contains("(") ? text : unqualifiedSqlName(text);
+   }
+
+   /** The table's private (full) column list in order: the SQL output columns come first. */
+   private static List<String> sqlWorksheetColumns(SQLBoundTableAssembly table) {
+      List<String> names = new ArrayList<>();
+      ColumnSelection columns = table.getColumnSelection(false);
+
+      for(int i = 0; columns != null && i < columns.getAttributeCount(); i++) {
+         DataRef ref = columns.getAttribute(i);
+         names.add(ref instanceof ColumnRef column ? column.getAttribute() : ref == null ? null : ref.getName());
+      }
+
+      return names;
    }
 
    /**
