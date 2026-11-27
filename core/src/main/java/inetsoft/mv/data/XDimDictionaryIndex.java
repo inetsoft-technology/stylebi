@@ -156,6 +156,11 @@ public class XDimDictionaryIndex extends XDimDictionary {
       return dict.size();
    }
 
+   @Override
+   public int getIndexCount() {
+      return dict.getIndexCount();
+   }
+
    /**
     * Load from binary storage.
     */

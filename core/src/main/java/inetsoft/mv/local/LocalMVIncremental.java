@@ -582,7 +582,9 @@ public class LocalMVIncremental extends MVIncremental {
                continue;
             }
 
-            int length = dict.size();
+            // map every stored index, size() misses the max of an int range with a null
+            // slot (Bug #82473)
+            int length = dict.getIndexCount();
 
             if(dict.isOverflow() || ndict.isOverflow()) {
                continue;

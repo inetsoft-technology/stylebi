@@ -968,6 +968,23 @@ public class XDimDictionary extends XSwappable implements Cloneable {
             : (set != null ? set.size() : dictsize));
    }
 
+   /**
+    * Get the number of indexes this dictionary encodes, so that every index from 0 to
+    * getIndexCount() - 1 can be decoded by getValue(). It differs from size() only for a
+    * byte/short/int range with a null slot, whose max value is at index size().
+    */
+   public int getIndexCount() {
+      int size = size();
+
+      if(!(overflow && rawValues != null) && range != null && isNumberRange() && cnull &&
+         (long) range[0] + 1 <= range[1])
+      {
+         return size + 1;
+      }
+
+      return size;
+   }
+
    private boolean isNumberRange() {
       int dataType = MVTool.getDataTypeIndex(cls);
       return dataType == MVTool.BYTE_TYPE ||
@@ -1116,7 +1133,10 @@ public class XDimDictionary extends XSwappable implements Cloneable {
       // otherwise means something wrong
       if(range != null && mdim.range != null) {
          if(isNumberRange()) {
-            range[0] = cnull ? mdim.range[0]++ : mdim.range[0];
+            // mdim.range[0] was lowered by one for its null slot, complete() lowers the
+            // merged range again. Don't change mdim, it is still used by the old MV
+            // (Bug #82473)
+            range[0] = cnull ? mdim.range[0] + 1 : mdim.range[0];
             range[1] = mdim.range[1];
          }
          else {
