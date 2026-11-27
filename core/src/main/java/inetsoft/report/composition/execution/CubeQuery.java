@@ -758,7 +758,7 @@ public class CubeQuery extends AssetQuery {
    /**
     * Parse a obj to Date with fmt.
     */
-   private static Date parseDate(Object obj, DateFormat fmt) {
+   static Date parseDate(Object obj, DateFormat fmt) {
       if(obj == null) {
          return null;
       }
@@ -767,8 +767,13 @@ public class CubeQuery extends AssetQuery {
          return (Date) obj;
       }
 
+      // Bug #82471: parse the caption, the full caption can be a bracketed unique-name path
       String str = obj instanceof MemberObject ?
-         ((MemberObject) obj).getFullCaption() : obj.toString();
+         ((MemberObject) obj).getDateText() : obj.toString();
+
+      if(str == null) {
+         return null;
+      }
 
       try{
          return fmt.parse(str);
