@@ -50,12 +50,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Bug #80473: finding the owners of a dashboard bookmarks scans every key of the org store, and
- * deleting a folder did that scan once per child dashboard. The scan must return the same owners
- * as before (dash1 must not match dash10), and a folder delete must scan once, whatever the number
- * of dashboards in it.
- */
-/**
  * Bug #82457: removing a folder rewrote the parent folder once per removed child, and the parent
  * of the children of the Recycle Bin is the Recycle Bin itself, so clearing a large bin was
  * quadratic. The parent of a folder that is being removed is removed too, so its blob must not
@@ -126,8 +120,8 @@ class AbstractAssetEngineFolderRemoveTest {
 
       AssetEntry failing = sheets.get(3);
       engine.failOn = failing.getPath();
-      AssetEntry[] order = storage.getXMLSerializable(folder.toIdentifier(), null) == null ? null
-         : ((AssetFolder) storage.getXMLSerializable(folder.toIdentifier(), null)).getEntries();
+      AssetEntry[] order = ((AssetFolder) storage.getXMLSerializable(
+         folder.toIdentifier(), null)).getEntries();
       storage.parentWrites.clear();
 
       assertThrows(Exception.class, () -> engine.removeFolder0(folder, storage, true));
@@ -144,6 +138,34 @@ class AbstractAssetEngineFolderRemoveTest {
       }
 
       assertTrue(left.containsEntry(failing));
+   }
+
+   @Test
+   void aChildThatFailsAfterItsBlobIsGoneIsNotListedAgain() throws Exception {
+      AssetEntry folder = addFolder(null, prefix + "top");
+      List<AssetEntry> sheets = new ArrayList<>();
+
+      for(int i = 0; i < 4; i++) {
+         sheets.add(addSheet(folder, "s" + i));
+      }
+
+      AssetEntry failing = sheets.get(2);
+      engine.failAfter = failing.getPath();
+      storage.parentWrites.clear();
+
+      assertThrows(Exception.class, () -> engine.removeFolder0(folder, storage, true));
+
+      AssetFolder left = (AssetFolder) storage.getXMLSerializable(folder.toIdentifier(), null);
+      assertNotNull(left);
+      assertEquals(1, storage.parentWrites.stream()
+         .filter(folder.toIdentifier()::equals).count());
+      assertFalse(storage.contains(failing.toIdentifier()));
+      assertFalse(left.containsEntry(failing), "deleted child is still listed");
+
+      for(AssetEntry sheet : sheets) {
+         assertEquals(storage.contains(sheet.toIdentifier()), left.containsEntry(sheet),
+                      "folder listing disagrees with storage for " + sheet);
+      }
    }
 
    private int writesWhileRemoving(String name, int count) throws Exception {
@@ -216,7 +238,13 @@ class AbstractAssetEngineFolderRemoveTest {
          }
 
          super.removeSheet0(entry, storage, isFolder);
+
+         if(failAfter != null && failAfter.equals(entry.getPath())) {
+            throw new Exception("injected late failure");
+         }
       }
+
+      volatile String failAfter;
 
       volatile String failOn;
 

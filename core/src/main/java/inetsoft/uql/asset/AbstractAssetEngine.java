@@ -2470,6 +2470,8 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
          // Bug #82457: this folder is removed below, so its children need not each rewrite it
          // (that made clearing a large Recycle Bin quadratic). Write it once if a removal fails.
+         // ASSET_DELETED listeners may therefore see this folder still listing children that
+         // are already deleted until the folder itself is removed.
          Set<String> removing = foldersBeingRemoved.get();
          boolean ownsSet = removing == null;
 
@@ -2493,15 +2495,22 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                removed++;
             }
          }
-         catch(Throwable ex) {
+         catch(Exception ex) {
             for(int i = 0; i < removed; i++) {
                folder.removeEntry(entries[i]);
+            }
+
+            // a child that failed after its blob was removed must not stay listed
+            if(removed < entries.length &&
+               !storage.contains(entries[removed].toIdentifier()))
+            {
+               folder.removeEntry(entries[removed]);
             }
 
             try {
                storage.putXMLSerializable(identifier, folder);
             }
-            catch(Throwable ex2) {
+            catch(Exception ex2) {
                ex.addSuppressed(ex2);
             }
 
@@ -5539,8 +5548,8 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
    // set while a storage refresh event is being fired, see refreshListener
    private final ThreadLocal<Boolean> storageRefreshing = new ThreadLocal<>();
-   // Bug #80473: per-org bookmark path to owners index, live only during a folder delete
    private final ThreadLocal<Set<String>> foldersBeingRemoved = new ThreadLocal<>();
+   // Bug #80473: per-org bookmark path to owners index, live only during a folder delete
    private final ThreadLocal<Map<String, Map<String, List<IdentityID>>>> bookmarkIndex =
       new ThreadLocal<>();
 
