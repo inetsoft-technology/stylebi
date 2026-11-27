@@ -23,13 +23,14 @@ package inetsoft.sree.schedule;
  *
  * The scheduler status table is built from ScheduleClient.getScheduleStartDates(). In a cloud
  * runner cluster every node runs its own scheduler, so the CloudRunnerServerScheduleClient lists
- * all non-client nodes that published a scheduler start time, not only the node that answered.
+ * all live non-client nodes (a stopped one with a null start time), not only the node that answered.
  * Cluster and ScheduleServer are mocks; the node properties are scripted per node.
  *
  * Coverage scope:
  *   [two nodes, serving = A]   rows A, B; A first
  *   [two nodes, serving = B]   same row set; B first
- *   [remote not started]       a remote node without the property is not listed
+ *   [remote not started]       a remote node without the property is listed with a null date
+ *                              (Not ready), the same rows from every serving node
  *   [local not started]        the serving node is still listed, with a null start time
  *   [client member]            client members are never listed (getClusterNodes() excludes them)
  *   [remote start time]        the remote row carries that node's own start time, not the
@@ -112,13 +113,75 @@ class ScheduleStartDatesTest {
    }
 
    @Test
-   void remoteNodeWithoutStartTimeIsNotListed() throws Exception {
+   void remoteNodeWithoutStartTimeIsListedAsNotReady() throws Exception {
       when(cluster.getClusterNodeProperty(NODE_B, Scheduler.SCHEDULER_START_TIME))
          .thenReturn(null);
 
       Map<String, Date> dates = servedBy(NODE_A, START_A).getScheduleStartDates();
 
+      assertEquals(List.of(HOST_A, HOST_B), new ArrayList<>(dates.keySet()));
+      assertEquals(new Date(START_A), dates.get(HOST_A));
+      assertTrue(dates.containsKey(HOST_B));
+      assertNull(dates.get(HOST_B));
+   }
+
+   @Test
+   void stoppedRemoteNodeGivesTheSameRowsFromEveryServingNode() throws Exception {
+      when(cluster.getClusterNodeProperty(NODE_B, Scheduler.SCHEDULER_START_TIME))
+         .thenReturn(null);
+
+      Map<String, Date> servedByA = servedBy(NODE_A, START_A).getScheduleStartDates();
+      Map<String, Date> servedByB = servedBy(NODE_B, null).getScheduleStartDates();
+
+      Map<String, Date> expected = new HashMap<>();
+      expected.put(HOST_A, new Date(START_A));
+      expected.put(HOST_B, null);
+      assertEquals(expected, servedByA);
+      assertEquals(expected, servedByB);
+   }
+
+   @Test
+   void remoteNodeWithoutHostIsNotListed() throws Exception {
+      when(cluster.getClusterNodeHost(NODE_B)).thenReturn(null);
+
+      Map<String, Date> dates = servedBy(NODE_A, START_A).getScheduleStartDates();
+
       assertEquals(List.of(HOST_A), new ArrayList<>(dates.keySet()));
+   }
+
+   @Test
+   void departedNodeWithLeftoverPropertyIsNotListed() throws Exception {
+      String departed = "node-gone";
+      when(cluster.getClusterNodeHost(departed)).thenReturn("172.22.0.8");
+      when(cluster.getClusterNodeProperty(departed, Scheduler.SCHEDULER_START_TIME))
+         .thenReturn(START_B);
+
+      Map<String, Date> dates = servedBy(NODE_A, START_A).getScheduleStartDates();
+
+      assertFalse(dates.containsKey("172.22.0.8"));
+      assertEquals(2, dates.size());
+   }
+
+   @Test
+   void sameHostCollisionPrefersTheNonNullStartTimeInEitherOrder() throws Exception {
+      String stopped = "node-b-stopped";
+      String running = "node-b-running";
+      when(cluster.getClusterNodeHost(stopped)).thenReturn(HOST_B);
+      when(cluster.getClusterNodeHost(running)).thenReturn(HOST_B);
+      when(cluster.getClusterNodeProperty(stopped, Scheduler.SCHEDULER_START_TIME))
+         .thenReturn(null);
+      when(cluster.getClusterNodeProperty(running, Scheduler.SCHEDULER_START_TIME))
+         .thenReturn(START_B);
+
+      for(List<String> order : List.of(List.of(NODE_A, stopped, running),
+                                       List.of(NODE_A, running, stopped)))
+      {
+         when(cluster.getClusterNodes()).thenReturn(new LinkedHashSet<>(order));
+         Map<String, Date> dates = servedBy(NODE_A, START_A).getScheduleStartDates();
+
+         assertEquals(2, dates.size());
+         assertEquals(new Date(START_B), dates.get(HOST_B));
+      }
    }
 
    @Test
