@@ -43,7 +43,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
 import java.security.Principal;
+import java.time.Instant;
+import java.util.Date;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.Vector;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -432,6 +435,247 @@ class WizScheduleServiceTest {
       ViewsheetAction action = (ViewsheetAction) stored.getValue().getAction(0);
       assertEquals("a@x.com", action.getEmails());
       assertEquals("Excel", action.getFileFormat());
+   }
+
+   // Redmine #82494: a schedule field given without 'frequency' changes that field of the stored
+   // schedule and keeps the rest; one that cannot is refused, never answered as updated.
+
+   @Test
+   void aLoneTimeChangesTheTimeAndKeepsIntervalWeekdayOnlyAndZone() throws Exception {
+      TimeCondition stored = TimeCondition.at(8, 30, 0);
+      stored.setInterval(3);
+      stored.setWeekdayOnly(true);
+      stored.setTimeZone(TimeZone.getTimeZone("America/New_York"));
+
+      TimeCondition c = updateSchedule(stored, lone("10:45", null, null, null, null, null, null));
+
+      assertEquals(TimeCondition.EVERY_DAY, c.getType());
+      assertEquals(10, c.getHour());
+      assertEquals(45, c.getMinute());
+      assertEquals(3, c.getInterval());
+      assertTrue(c.isWeekdayOnly());
+      assertEquals("America/New_York", c.getTimeZone().getID());
+   }
+
+   @Test
+   void aLoneWeekdaysChangesTheDaysAndKeepsTimeAndInterval() throws Exception {
+      TimeCondition stored = TimeCondition.atDaysOfWeek(new int[] { 2, 6 }, 9, 15, 0);
+      stored.setInterval(2);
+
+      TimeCondition c = updateSchedule(stored, lone(null, null, List.of(3), null, null, null,
+                                                    null));
+
+      assertEquals(TimeCondition.EVERY_WEEK, c.getType());
+      assertArrayEquals(new int[] { 3 }, c.getDaysOfWeek());
+      assertEquals(9, c.getHour());
+      assertEquals(15, c.getMinute());
+      assertEquals(2, c.getInterval());
+   }
+
+   @Test
+   void aLoneDayOfMonthChangesTheDayAndKeepsTheTime() throws Exception {
+      TimeCondition c = updateSchedule(TimeCondition.atDayOfMonth(5, 7, 20, 0),
+                                       lone(null, null, null, 9, null, null, null));
+
+      assertEquals(TimeCondition.EVERY_MONTH, c.getType());
+      assertEquals(9, c.getDayOfMonth());
+      assertEquals(7, c.getHour());
+      assertEquals(20, c.getMinute());
+   }
+
+   @Test
+   void aLoneIntervalAndAloneWeekdayOnlyChangeOnlyThemselves() throws Exception {
+      TimeCondition stored = TimeCondition.at(8, 30, 0);
+      stored.setInterval(1);
+
+      TimeCondition every3 = updateSchedule(stored, lone(null, null, null, null, 3, null, null));
+      assertEquals(3, every3.getInterval());
+      assertFalse(every3.isWeekdayOnly());
+      assertEquals(8, every3.getHour());
+
+      TimeCondition weekdays = updateSchedule(
+         every3, lone(null, null, null, null, null, true, null));
+      assertTrue(weekdays.isWeekdayOnly());
+      assertEquals(3, weekdays.getInterval());
+   }
+
+   @Test
+   void aLoneWeekdayOnlyFalseTurnsWeekdayOnlyOffAndIsToleratedElsewhere() throws Exception {
+      TimeCondition stored = TimeCondition.at(8, 30, 0);
+      stored.setInterval(2);
+      stored.setWeekdayOnly(true);
+
+      TimeCondition off = updateSchedule(stored, lone(null, null, null, null, null, false, null));
+      assertEquals(TimeCondition.EVERY_DAY, off.getType());
+      assertFalse(off.isWeekdayOnly());
+      assertEquals(2, off.getInterval());
+      assertEquals(8, off.getHour());
+
+      TimeCondition weekly = TimeCondition.atDaysOfWeek(new int[] { 2, 6 }, 9, 15, 0);
+      weekly.setInterval(2);
+      TimeCondition kept = updateSchedule(weekly, lone(null, null, null, null, null, false, null));
+      assertEquals(TimeCondition.EVERY_WEEK, kept.getType());
+      assertArrayEquals(new int[] { 2, 6 }, kept.getDaysOfWeek());
+      assertEquals(2, kept.getInterval());
+      assertEquals(9, kept.getHour());
+   }
+
+   @Test
+   void aLoneRunAtMovesAOnceScheduleInItsOwnZone() throws Exception {
+      TimeCondition stored = TimeCondition.at(Date.from(Instant.parse("2031-01-01T08:30:00Z")));
+      stored.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+      TimeCondition c = updateSchedule(stored, lone(null, "2032-02-02T09:15", null, null, null,
+                                                    null, null));
+
+      assertEquals(TimeCondition.AT, c.getType());
+      assertEquals(Instant.parse("2032-02-02T09:15:00Z"), c.getDate().toInstant());
+   }
+
+   @Test
+   void aLoneTimeZoneKeepsTheWallClockAndMovesTheInstant() throws Exception {
+      TimeCondition once = TimeCondition.at(Date.from(Instant.parse("2031-01-01T08:30:00Z")));
+      once.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+      TimeCondition moved = updateSchedule(
+         once, lone(null, null, null, null, null, null, "America/New_York"));
+      assertEquals("America/New_York", moved.getTimeZone().getID());
+      assertEquals(Instant.parse("2031-01-01T13:30:00Z"), moved.getDate().toInstant());
+
+      TimeCondition daily = updateSchedule(
+         TimeCondition.at(8, 30, 0), lone(null, null, null, null, null, null, "Asia/Tokyo"));
+      assertEquals("Asia/Tokyo", daily.getTimeZone().getID());
+      assertEquals(8, daily.getHour());
+      assertEquals(30, daily.getMinute());
+   }
+
+   @Test
+   void aLoneFieldThatTheStoredScheduleDoesNotUseIsRefusedNamingFieldAndFrequency()
+      throws Exception
+   {
+      Object[][] cases = {
+         { TimeCondition.at(8, 30, 0), lone(null, null, List.of(3), null, null, null, null),
+           "weekdays" },
+         { TimeCondition.at(8, 30, 0), lone(null, null, null, 9, null, null, null), "dayOfMonth" },
+         { TimeCondition.at(8, 30, 0), lone(null, "2032-02-02T09:15", null, null, null, null,
+                                            null), "runAt" },
+         { TimeCondition.atDaysOfWeek(new int[] { 2 }, 8, 30, 0),
+           lone(null, null, null, 9, null, null, null), "dayOfMonth" },
+         { TimeCondition.atDaysOfWeek(new int[] { 2 }, 8, 30, 0),
+           lone(null, null, null, null, null, true, null), "weekdayOnly" },
+         { TimeCondition.atDayOfMonth(5, 8, 30, 0), lone(null, null, null, null, 3, null, null),
+           "interval" },
+         { TimeCondition.at(Date.from(Instant.parse("2031-01-01T08:30:00Z"))),
+           lone("10:45", null, null, null, null, null, null), "time" } };
+
+      for(Object[] c : cases) {
+         Fixture f = new Fixture(BOB);
+         f.store(taskWith("mine", (TimeCondition) c[0]));
+
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> f.service.update("mine", (TaskRequest) c[1], f.wiz, "u/"), "" + c[2]);
+
+         assertTrue(e.getMessage().contains("'" + c[2] + "'"), e.getMessage());
+         assertTrue(e.getMessage().contains("'frequency'"), e.getMessage());
+         verify(f.manager, never()).setScheduleTask(anyString(), any(), any(AssetEntry.class),
+                                                    any());
+      }
+   }
+
+   @Test
+   void aScheduleThisToolDoesNotBuildIsNotChangedFieldByField() throws Exception {
+      TimeCondition nthWeekday = TimeCondition.atWeekOfMonth(2, 3, 8, 30, 0);
+      TimeCondition hourly = TimeCondition.atHours(new int[] { 2 }, 8, 30, 0);
+      ScheduleTask two = taskWith("mine", TimeCondition.at(8, 30, 0));
+      two.addCondition(TimeCondition.at(9, 0, 0));
+      ScheduleTask[] tasks = { taskWith("mine", nthWeekday), taskWith("mine", hourly), two };
+
+      for(ScheduleTask stored : tasks) {
+         Fixture f = new Fixture(BOB);
+         f.store(stored);
+
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> f.service.update("mine", lone("10:45", null, null, null, null, null, null),
+                                   f.wiz, "u/"));
+
+         assertTrue(e.getMessage().contains("'frequency'"), e.getMessage());
+         verify(f.manager, never()).setScheduleTask(anyString(), any(), any(AssetEntry.class),
+                                                    any());
+      }
+   }
+
+   @Test
+   void aFieldTheGivenFrequencyDoesNotUseIsRefusedToo() {
+      String[][] cases = { { "monthly", "interval" }, { "once", "time" }, { "daily", "dayOfMonth" },
+                           { "weekly", "weekdayOnly" }, { "daily", "runAt" } };
+
+      for(String[] c : cases) {
+         TaskRequest request = new TaskRequest(
+            "t", "Sales/Overview", null, null, null, c[0],
+            "08:30",
+            "runAt".equals(c[1]) ? "2030-01-01T08:30" : "once".equals(c[0]) ? "2030-01-01T08:30" :
+               null,
+            "weekly".equals(c[0]) ? List.of(2) : null,
+            "monthly".equals(c[0]) || "dayOfMonth".equals(c[1]) ? 5 : null,
+            "interval".equals(c[1]) ? 3 : null, "weekdayOnly".equals(c[1]) ? true : null, null,
+            List.of("a@x.com"), null, null, null, null, null, null);
+
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> WizScheduleService.buildCondition(request), c[0] + "/" + c[1]);
+
+         assertTrue(e.getMessage().contains("'" + c[1] + "'"), e.getMessage());
+      }
+
+      // false is what every kind of schedule already is
+      assertDoesNotThrow(() -> WizScheduleService.buildCondition(new TaskRequest(
+         "t", "Sales/Overview", null, null, null, "weekly", "08:30", null, List.of(2), null, null,
+         false, null, List.of("a@x.com"), null, null, null, null, null, null)));
+   }
+
+   @Test
+   void aChangeWithoutScheduleFieldsLeavesTheStoredScheduleAlone() throws Exception {
+      TimeCondition stored = TimeCondition.atDaysOfWeek(new int[] { 2, 6 }, 9, 15, 0);
+      Fixture f = new Fixture(BOB);
+      f.store(taskWith("mine", stored));
+
+      f.service.update("mine", lone(null, null, null, null, null, null, null), f.wiz, "u/");
+      ArgumentCaptor<ScheduleTask> captured = ArgumentCaptor.forClass(ScheduleTask.class);
+      verify(f.manager).setScheduleTask(anyString(), captured.capture(), any(), any());
+
+      TimeCondition kept = (TimeCondition) captured.getValue().getCondition(0);
+      assertArrayEquals(new int[] { 2, 6 }, kept.getDaysOfWeek());
+      assertEquals(9, kept.getHour());
+      assertEquals(15, kept.getMinute());
+   }
+
+   /** A request that carries only the given schedule fields. */
+   private static TaskRequest lone(String time, String runAt, List<Integer> weekdays,
+                                   Integer dayOfMonth, Integer interval, Boolean weekdayOnly,
+                                   String zone)
+   {
+      return new TaskRequest(null, null, null, null, null, null, time, runAt, weekdays,
+                             dayOfMonth, interval, weekdayOnly, zone, null, null, null, null,
+                             null, null, null);
+   }
+
+   /** Stores a task with {@code condition}, applies {@code change} and returns the new condition. */
+   private static TimeCondition updateSchedule(TimeCondition condition, TaskRequest change)
+      throws Exception
+   {
+      Fixture f = new Fixture(BOB);
+      f.store(taskWith("mine", condition));
+      f.service.update("mine", change, f.wiz, "u/");
+      ArgumentCaptor<ScheduleTask> captured = ArgumentCaptor.forClass(ScheduleTask.class);
+      verify(f.manager).setScheduleTask(anyString(), captured.capture(), any(), any());
+      assertEquals(1, captured.getValue().getConditionCount());
+      return (TimeCondition) captured.getValue().getCondition(0);
+   }
+
+   private static ScheduleTask taskWith(String name, TimeCondition condition) {
+      ScheduleTask task = task(name, BOB);
+      task.removeCondition(0);
+      task.addCondition(condition);
+      return task;
    }
 
    private static TaskRequest withBookmarks(String... names) {
