@@ -36,6 +36,8 @@ import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.VSAestheticRef;
+import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.web.wiz.model.CreateViewsheetResult;
@@ -161,6 +163,49 @@ class AssemblyStateReaderTest {
    }
 
    @Test
+   void multiStyleChartHighlightsIncludeEachFieldsOwnTextField() {
+      Viewsheet vs = AssemblyStateFixtures.viewsheet(AssemblyStateFixtures.worksheetEntry());
+      ChartVSAssembly chart = AssemblyStateFixtures.chart(vs, "chart1");
+      VSChartAggregateRef label = new VSChartAggregateRef();
+      label.setColumnValue("Profit");
+      label.setFormulaValue("Sum");
+      label.setTextHighlightGroup(AssemblyStateFixtures.group(
+         "loss", AssemblyStateFixtures.condition("Profit", XCondition.LESS_THAN, 0)));
+      VSAestheticRef text = new VSAestheticRef();
+      text.setDataRef(label);
+      AssemblyStateFixtures.measure(chart).setTextField(text);
+
+      assertTrue(AssemblyStateReader.readHighlights(chart).isEmpty(),
+                 "a per-field text field is not in effect on a single-style chart");
+
+      chart.getVSChartInfo().setMultiStyles(true);
+      List<CreateViewsheetResult.AssemblyHighlight> highlights = AssemblyStateReader.readHighlights(chart);
+
+      assertEquals(1, highlights.size());
+      assertEquals("loss", highlights.get(0).name());
+      assertEquals(label.getFullName(), highlights.get(0).target());
+      assertEquals(List.of("Profit LESS_THAN 0"), highlights.get(0).clauses());
+   }
+
+   @Test
+   void markAndTextHighlightsWithTheSameNameOnOneMeasureAreBothListed() {
+      Viewsheet vs = AssemblyStateFixtures.viewsheet(AssemblyStateFixtures.worksheetEntry());
+      ChartVSAssembly chart = AssemblyStateFixtures.chart(vs, "chart1");
+      VSChartAggregateRef measure = AssemblyStateFixtures.measure(chart);
+      measure.setHighlightGroup(AssemblyStateFixtures.group(
+         "big", AssemblyStateFixtures.condition("Sales", XCondition.GREATER_THAN, 100)));
+      measure.setTextHighlightGroup(AssemblyStateFixtures.group(
+         "big", AssemblyStateFixtures.condition("Sales", XCondition.GREATER_THAN, 500)));
+
+      List<CreateViewsheetResult.AssemblyHighlight> highlights = AssemblyStateReader.readHighlights(chart);
+
+      assertEquals(2, highlights.size());
+      assertEquals(List.of("Sales GREATER_THAN 100"), highlights.get(0).clauses());
+      assertEquals(List.of("Sales GREATER_THAN 500"), highlights.get(1).clauses());
+      assertEquals(measure.getFullName(), highlights.get(1).target());
+   }
+
+   @Test
    void crosstabHighlightIsKeyedByItsCellPath() {
       Viewsheet vs = AssemblyStateFixtures.viewsheet(AssemblyStateFixtures.worksheetEntry());
       CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, "crosstab1");
@@ -256,5 +301,15 @@ class AssemblyStateReaderTest {
 
       assertEquals("AND NOT Sales GREATER_THAN_OR_EQUAL 100", AssemblyStateReader.formatClause(leaf));
       assertEquals("Region NULL", AssemblyStateReader.formatClause(isNull));
+   }
+
+   @Test
+   void clauseFormatOmitsAMissingField() {
+      WorksheetStructure.ConditionLeaf leaf = new WorksheetStructure.ConditionLeaf();
+      leaf.setJunction("OR");
+      leaf.setOperation("EQUAL_TO");
+      leaf.setValues(List.of("East"));
+
+      assertEquals("OR EQUAL_TO East", AssemblyStateReader.formatClause(leaf));
    }
 }

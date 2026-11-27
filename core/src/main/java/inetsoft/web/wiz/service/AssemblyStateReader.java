@@ -33,6 +33,7 @@ import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.AestheticRef;
+import inetsoft.uql.viewsheet.graph.ChartBindable;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.HighlightRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -44,8 +45,9 @@ import inetsoft.web.wiz.model.CreateViewsheetResult;
 import inetsoft.web.wiz.model.WorksheetStructure;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Enumeration;
-import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -106,13 +108,15 @@ final class AssemblyStateReader {
 
    /**
     * Every highlight the assembly holds. A chart: its chart-level group, then the group and text
-    * group of every design binding ref and of the text aesthetic ref, keyed by the ref's full name.
+    * group of every design binding ref and of the text aesthetic ref (the chart's own, plus each
+    * binding ref's own text field on a multi-style chart), keyed by the ref's full name.
     * A table or crosstab: every cell path of its highlight attribute, keyed by the path's last
-    * segment ("row" for a row path). An output: its one group.
+    * segment ("row" for a row path). An output: its one group. A group reached twice (the same
+    * group object) is listed once; distinct groups are always listed, even under the same name.
     */
    static List<CreateViewsheetResult.AssemblyHighlight> readHighlights(VSAssembly assembly) {
       List<CreateViewsheetResult.AssemblyHighlight> out = new ArrayList<>();
-      Set<String> seen = new HashSet<>();
+      Set<HighlightGroup> seen = Collections.newSetFromMap(new IdentityHashMap<>());
       VSAssemblyInfo info = assembly == null ? null : assembly.getVSAssemblyInfo();
 
       if(assembly instanceof ChartVSAssembly chart) {
@@ -120,15 +124,22 @@ final class AssemblyStateReader {
 
          if(chartInfo != null) {
             addGroup(out, seen, chartInfo.getHighlightGroup(), null);
+            ChartRef[] refs = chartInfo.getBindingRefs(false);
 
-            for(ChartRef ref : chartInfo.getBindingRefs(false)) {
+            for(ChartRef ref : refs) {
                addRef(out, seen, ref);
             }
 
-            AestheticRef text = chartInfo.getTextField();
+            addText(out, seen, chartInfo.getTextField());
 
-            if(text != null && text.getDataRef() instanceof ChartRef textRef) {
-               addRef(out, seen, textRef);
+            // Multi-style charts (and gantt, which is always multi-aesthetic) keep a text field,
+            // with its own text highlight group, on each binding ref.
+            if(chartInfo.isMultiAesthetic()) {
+               for(ChartRef ref : refs) {
+                  if(ref instanceof ChartBindable bindable) {
+                     addText(out, seen, bindable.getTextField());
+                  }
+               }
             }
          }
       }
@@ -197,7 +208,11 @@ final class AssemblyStateReader {
          operation += "_OR_EQUAL";
       }
 
-      out.append(leaf.getField()).append(' ').append(operation);
+      if(leaf.getField() != null) {
+         out.append(leaf.getField()).append(' ');
+      }
+
+      out.append(operation);
 
       if(leaf.getValues() != null && !leaf.getValues().isEmpty()) {
          out.append(' ').append(String.join(", ", leaf.getValues()));
@@ -206,8 +221,16 @@ final class AssemblyStateReader {
       return out.toString();
    }
 
-   private static void addRef(List<CreateViewsheetResult.AssemblyHighlight> out, Set<String> seen,
-                              ChartRef ref)
+   private static void addText(List<CreateViewsheetResult.AssemblyHighlight> out,
+                               Set<HighlightGroup> seen, AestheticRef text)
+   {
+      if(text != null && text.getDataRef() instanceof ChartRef textRef) {
+         addRef(out, seen, textRef);
+      }
+   }
+
+   private static void addRef(List<CreateViewsheetResult.AssemblyHighlight> out,
+                              Set<HighlightGroup> seen, ChartRef ref)
    {
       if(ref instanceof HighlightRef highlightRef) {
          String target = ref.getFullName();
@@ -216,10 +239,10 @@ final class AssemblyStateReader {
       }
    }
 
-   private static void addGroup(List<CreateViewsheetResult.AssemblyHighlight> out, Set<String> seen,
-                                HighlightGroup group, String target)
+   private static void addGroup(List<CreateViewsheetResult.AssemblyHighlight> out,
+                                Set<HighlightGroup> seen, HighlightGroup group, String target)
    {
-      if(group == null) {
+      if(group == null || !seen.add(group)) {
          return;
       }
 
@@ -227,7 +250,7 @@ final class AssemblyStateReader {
          for(String name : group.getNames(level)) {
             Highlight highlight = group.getHighlight(level, name);
 
-            if(highlight == null || !seen.add(name + '\u0000' + target)) {
+            if(highlight == null) {
                continue;
             }
 
