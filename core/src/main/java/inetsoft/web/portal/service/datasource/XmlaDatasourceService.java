@@ -1019,6 +1019,29 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
    }
 
    /**
+    * Convert a member of an as-date level to the date value shown in the preview, "" if it
+    * can not be parsed.
+    */
+   private static Object convertDateCell(Object data, SimpleDateFormat parseDateFormat) {
+      if(data instanceof MemberObject) {
+         // Bug #82471: parse the caption, the full caption can be a bracketed unique-name path
+         data = ((MemberObject) data).getDateText();
+      }
+
+      if(parseDateFormat != null && data != null) {
+         try {
+            return parseDateFormat.parse(data.toString());
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to parse date: {}", data, ex);
+            return "";
+         }
+      }
+
+      return "";
+   }
+
+   /**
     * Add in dimension node.
     */
    private void addInDimNode(String cubeName, Dimension dimension,
@@ -1103,25 +1126,7 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       SimpleDateFormat parseDateFormat =
          createParseDateFormat(convertToMetaInfo(member.getMetaInfo()));
       PreviewTableCellModel[][] cellModels = new PreviewTableCellModel[rowCount][2];
-      Function<Object, Object> cellConvertor = (data) -> {
-         if(data instanceof MemberObject) {
-            data = ((MemberObject) data).getFullCaption();
-         }
-
-         if(parseDateFormat != null && data != null) {
-            try {
-               data = parseDateFormat.parse(data.toString());
-            }
-            catch(Exception ex) {
-               data = "";
-            }
-         }
-         else {
-            data = "";
-         }
-
-         return data;
-      };
+      Function<Object, Object> cellConvertor = (data) -> convertDateCell(data, parseDateFormat);
 
       Function<Object, Object> dateTitleConvertor =
          (data) -> Catalog.getCatalog().getString("Date Value");
