@@ -25,6 +25,7 @@ import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
@@ -104,7 +105,9 @@ class ViewsheetActionSandboxDisposeTest {
       VSAssemblyInfo info = mock(VSAssemblyInfo.class);
       when(info.isScriptEnabled()).thenReturn(true);
       when(info.getScript()).thenReturn("x = 1;");
-      Assembly assembly = mock(Assembly.class);
+      // a VSAssembly, as in a viewsheet: executeViewsheet() runs only a VSAssembly's script,
+      // through ViewsheetSandbox.executeScript (Bug #82103)
+      VSAssembly assembly = mock(VSAssembly.class);
       when(assembly.getName()).thenReturn("Text1");
       when(assembly.getInfo()).thenReturn(info);
       ViewsheetAction action = alertAction(new Assembly[] { assembly });
