@@ -260,7 +260,8 @@ class SQLBoundQueryMergeQuotedColumnTest {
 
    // ---- aggregates (mergeAggregates) and group by (mergeGroupBy) ----
 
-   // sum("Mixed") by amt. Merged into the sql with the table metadata resolved, otherwise
+   // sum("Mixed") by amt (widened to BIGINT on Derby, Bug #82390: the quote repair is kept inside
+   // the cast, so the quoted text is asserted). Merged into the sql with the table metadata resolved, otherwise
    // aggregated after the query, which then selects the column
    @ParameterizedTest(name = "metadata={0}")
    @ValueSource(booleans = { false, true })
@@ -270,7 +271,7 @@ class SQLBoundQueryMergeQuotedColumnTest {
                         t -> aggregate(t, "amt", "Mixed"));
          assertEquals(List.of(List.of(100, 10), List.of(200, 20)),
                       sorted(r, meta, "Mixed", "amt"), r.msg(meta));
-         assertTrue(!meta || r.sql.contains("SUM(o.\"Mixed\")"), r.msg(meta));
+         assertTrue(!meta || r.sql.contains("SUM(CAST(o.\"Mixed\" AS BIGINT))"), r.msg(meta));
 
          r = run("select o.\"Mixed\", o.amt from tw o", "tw", meta,
                  t -> aggregate(t, null, "Mixed"));
@@ -293,7 +294,8 @@ class SQLBoundQueryMergeQuotedColumnTest {
 
    // ---- no quote record: the merged sql is the same as before the fix ----
 
-   // the sql is the same as before the fix (captured with the PreAssetQuery of main)
+   // the sql is the same as before the fix (captured with the PreAssetQuery of main), except that
+   // SUM of an integer column on Derby is cast to BIGINT (Bug #82390)
    @ParameterizedTest(name = "metadata={0}")
    @ValueSource(booleans = { false, true })
    void unquotedQueryUnchanged(boolean meta) throws Exception {
@@ -309,11 +311,11 @@ class SQLBoundQueryMergeQuotedColumnTest {
       assertEquals(List.of(List.of(-5)), rows(r, meta, "mixed"), r.msg(meta));
 
       r = run(sql, "tw", meta, t -> aggregate(t, "mixed", "amt"));
-      assertEquals(meta ? "select SUM(o.AMT) as AMT, o.Mixed from tw o group by o.Mixed" :
+      assertEquals(meta ? "select SUM(CAST(o.AMT AS BIGINT)) as AMT, o.Mixed from tw o group by o.Mixed" :
                       "select o.amt, o.mixed from tw o order by o.mixed asc", r.sql);
 
       r = run(sql, "tw", meta, t -> aggregate(t, "amt", "mixed"));
-      assertEquals(meta ? "select SUM(o.Mixed) as Mixed, o.AMT from tw o group by o.AMT" :
+      assertEquals(meta ? "select SUM(CAST(o.Mixed AS BIGINT)) as Mixed, o.AMT from tw o group by o.AMT" :
                       "select o.amt, o.mixed from tw o order by o.amt asc", r.sql);
    }
 
