@@ -1752,7 +1752,7 @@ public final class SelectionUpTransformer extends AbstractTransformer {
                if(result == null) {
                   // only distinct union could move up selection
                   result = !op.isDistinct() ? Boolean.FALSE :
-                     Boolean.valueOf(isMoveableToUnionTable(ptbl2));
+                     Boolean.valueOf(isMoveableToUnionTable(ptbl2, desc));
                   umap.put(pname, result);
                }
 
@@ -1895,7 +1895,9 @@ public final class SelectionUpTransformer extends AbstractTransformer {
     * Check if the selections defined on tbl can be moved up to its parent
     * as a union table.
     */
-   private boolean isMoveableToUnionTable(ConcatenatedTableAssembly ptable) {
+   private boolean isMoveableToUnionTable(ConcatenatedTableAssembly ptable,
+                                          TransformationDescriptor desc)
+   {
       TableAssembly[] tarr = ptable.getTableAssemblies(false);
 
       if(tarr == null) {
@@ -1927,6 +1929,31 @@ public final class SelectionUpTransformer extends AbstractTransformer {
          return false;
       }
 
+      if(!isUnionSelectionAligned(tarr, attrcnt, false)) {
+         return false;
+      }
+
+      // at runtime, a child that only carries the pseudo condition (nothing selected) is
+      // not restricted. The pseudo condition is removed after the transformation, so a
+      // union condition made of a real condition OR a pseudo one would be applied as the
+      // real condition alone and drop all rows of the unrestricted child (bug #82210).
+      // Neither the moved up MV nor a recreated MV can answer that, so do not use the MV
+      // for this query.
+      if(desc.isRuntime() && !isUnionSelectionAligned(tarr, attrcnt, true)) {
+         recreate = false;
+         return false;
+      }
+
+      return true;
+   }
+
+   /**
+    * Check if every child of a union has, or none has, a selection on each column.
+    *
+    * @param strict true if a pseudo condition (nothing selected) in the runtime
+    *               conditions does not count as a selection.
+    */
+   private boolean isUnionSelectionAligned(TableAssembly[] tarr, int attrcnt, boolean strict) {
       for(int i = 0; i < attrcnt; i++) {
 	 String[] condTypes = {"pre", "post", "update", "delete"};
 
@@ -1953,7 +1980,9 @@ public final class SelectionUpTransformer extends AbstractTransformer {
 		  break;
 	       }
 
-	       boolean temp = isSelectionDefined(tarr[j], attr, wrapper);
+	       boolean temp = isSelectionDefined(
+                          tarr[j], attr, wrapper,
+                          strict && ("pre".equals(condType) || "post".equals(condType)));
 
 	       if(j == 0) {
 		  defined = temp;
@@ -1973,7 +2002,7 @@ public final class SelectionUpTransformer extends AbstractTransformer {
     * Check if selection is defined.
     */
    private boolean isSelectionDefined(TableAssembly table, DataRef ref,
-                                      ConditionListWrapper wrapper)
+                                      ConditionListWrapper wrapper, boolean ignorePseudo)
    {
       ConditionList conds = wrapper == null ? null : wrapper.getConditionList();
 
@@ -1988,6 +2017,13 @@ public final class SelectionUpTransformer extends AbstractTransformer {
          DataRef attr = citem.getAttribute();
 
          if(ref.equals(attr)) {
+            XCondition cond = citem.getXCondition();
+
+            // pseudo condition is created for a selection that has nothing selected
+            if(ignorePseudo && cond != null && cond.getOperation() == XCondition.PSEUDO) {
+               continue;
+            }
+
             return true;
          }
       }
