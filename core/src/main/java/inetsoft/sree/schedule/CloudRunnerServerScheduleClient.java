@@ -101,11 +101,12 @@ public class CloudRunnerServerScheduleClient extends ScheduleClient {
    }
 
    /**
-    * Lists every non-client cluster node whose scheduler has started, not only the serving node,
-    * because in this mode each node runs its own in-process scheduler. The serving node is always
-    * listed first, as {@link #getScheduleServers()} does; the other nodes follow in host order. A
-    * remote node that has not published a scheduler start time has no scheduler running and is
-    * not listed.
+    * Lists every live non-client cluster node, not only the serving node, because in this mode
+    * each node runs its own in-process scheduler. The serving node is always listed first, as
+    * {@link #getScheduleServers()} does; the other nodes follow in host order. A node whose
+    * scheduler is stopped or not yet started has no published start time and is listed with a
+    * {@code null} date ("Not ready"), so every node reports the same rows. When several nodes
+    * share one host, a non-null start time wins over a null one.
     */
    @Override
    public Map<String, Date> getScheduleStartDates() {
@@ -132,8 +133,13 @@ public class CloudRunnerServerScheduleClient extends ScheduleClient {
          String host = cluster.getClusterNodeHost(node);
          Object startTime = cluster.getClusterNodeProperty(node, Scheduler.SCHEDULER_START_TIME);
 
-         if(host != null && !startDates.containsKey(host) && startTime instanceof Number) {
-            remoteDates.put(host, new Date(((Number) startTime).longValue()));
+         if(host != null && !startDates.containsKey(host)) {
+            Date date = startTime instanceof Number ?
+               new Date(((Number) startTime).longValue()) : null;
+
+            if(date != null || !remoteDates.containsKey(host)) {
+               remoteDates.put(host, date);
+            }
          }
       }
 

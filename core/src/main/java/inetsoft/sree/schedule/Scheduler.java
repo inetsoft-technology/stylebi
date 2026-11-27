@@ -839,7 +839,7 @@ public class Scheduler {
    /**
     * Publishes the time this scheduler started as a property of the local cluster node, so the
     * other nodes can list this scheduler in the status table of a cloud runner cluster. Removes
-    * the property when the scheduler stops, so a stopped scheduler is not listed.
+    * the property when the scheduler stops, so a stopped scheduler is listed as Not ready.
     *
     * @param time the start time, or {@code null} when the scheduler stopped.
     */

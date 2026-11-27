@@ -32,6 +32,7 @@ package inetsoft.web.admin.schedule;
  *   [restart]               same wait as start
  *   [stop]                  no wait, no start
  *   [cluster status table]  getStatus() lists one row per node of getScheduleStartDates(), in order
+ *   [stopped node]          a node with a null start time is listed as "Not ready" (Bug #82276)
  *   [clock skew]            a node whose start time is in the future gets a zero uptime, and the
  *                           other rows are still returned (Bug #82269)
  */
@@ -158,6 +159,27 @@ class SchedulerConfigurationServiceStatusTest {
          assertEquals(List.of("172.22.0.3", "172.22.0.4"),
                       rows.stream().map(ScheduleClusterStatusModel::server)
                          .collect(Collectors.toList()));
+      }
+   }
+
+   @Test
+   void clusterStatusTableShowsNodeWithNullStartTimeAsNotReady() {
+      ExternalStorageService storage = mock(ExternalStorageService.class);
+      when(storage.getStorageLocation()).thenReturn("local");
+      Map<String, Date> startDates = new LinkedHashMap<>();
+      startDates.put("172.22.0.3", new Date(System.currentTimeMillis() - 90_000L));
+      startDates.put("172.22.0.4", null);
+      when(scheduleClient.getScheduleStartDates()).thenReturn(startDates);
+      service = new SchedulerConfigurationService(scheduleClient, null, null, storage);
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class)) {
+         sutil.when(SUtil::isCluster).thenReturn(true);
+
+         List<ScheduleClusterStatusModel> rows = service.getStatus().clusterStatusTable();
+
+         assertEquals(2, rows.size());
+         assertEquals("172.22.0.4", rows.get(1).server());
+         assertEquals("Not ready", rows.get(1).uptime());
       }
    }
 
