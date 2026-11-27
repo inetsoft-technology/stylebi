@@ -45,9 +45,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.io.FileNotFoundException;
 import java.io.Serializable;
 import java.lang.SecurityException;
 import java.security.Principal;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -969,6 +971,118 @@ public class MVSupportService {
          .map(Map.Entry::getKey)
          .toList() // copy to temp list before removing
          .forEach(key -> removeAnalysisEntry(map, key));
+
+      try {
+         sweepOrphanWorksheets();
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to sweep orphan MV worksheets", e);
+      }
+   }
+
+   /**
+    * Deletes the persisted worksheets that no registered MV and no live analysis references,
+    * e.g. those left by analyses discarded before they were cleaned up, or lost with the
+    * analysis map. Aborts without deleting anything if the set of references cannot be built.
+    */
+   void sweepOrphanWorksheets() {
+      Set<String> orgIDs;
+      Set<String> referenced = new HashSet<>();
+
+      try {
+         orgIDs = new HashSet<>(Arrays.asList(securityEngine.getOrganizations()));
+
+         // analysis map first, then registered MVs: a create registers an MV while its
+         // analysis entry is still in the map
+         Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
+
+         for(AnalysisStatus status : new ArrayList<>(map.values())) {
+            List<MVStatus> results = status.getResults();
+
+            if(results != null) {
+               for(MVStatus result : results) {
+                  if(result.getDefinition() != null) {
+                     referenced.add(result.getDefinition().getWorksheetPath());
+                  }
+               }
+            }
+         }
+
+         // references are unioned over all organizations, the storage organization of a
+         // worksheet is not necessarily the organization of its registration key
+         for(String orgID : orgIDs) {
+            for(String key : mvManager.getRegisteredNames(orgID)) {
+               referenced.add(MVDef.getWorksheetPath(key));
+
+               try {
+                  MVDef def = mvManager.get(key, orgID);
+
+                  if(def != null) {
+                     referenced.add(def.getWorksheetPath());
+                  }
+               }
+               catch(Exception e) {
+                  LOG.debug("Failed to read MV definition {}, keeping its name based worksheet",
+                            key, e);
+               }
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Skipped the orphan MV worksheet sweep, failed to collect references", e);
+         return;
+      }
+
+      Instant limit = Instant.now().minusMillis(ORPHAN_WORKSHEET_GRACE_PERIOD);
+      MVWorksheetStorage storage = MVWorksheetStorage.getInstance();
+
+      for(String orgID : orgIDs) {
+         Map<String, Instant> files;
+
+         try {
+            files = storage.listWorksheets(orgID);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to list MV worksheets of organization {}", orgID, e);
+            continue;
+         }
+
+         for(Map.Entry<String, Instant> file : files.entrySet()) {
+            String path = file.getKey();
+
+            if(referenced.contains(path) || !file.getValue().isBefore(limit)) {
+               continue;
+            }
+
+            try {
+               // checked right before the delete, a registered MV owns its worksheet
+               if(isRegisteredWorksheet(orgIDs, path)) {
+                  continue;
+               }
+
+               storage.removeWorksheet(path, orgID);
+               LOG.info("Removed orphan MV worksheet {} of organization {}", path, orgID);
+            }
+            catch(FileNotFoundException ignore) {
+               // already removed
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to remove orphan MV worksheet {}", path, e);
+            }
+         }
+      }
+   }
+
+   private boolean isRegisteredWorksheet(Set<String> orgIDs, String path) {
+      for(String orgID : orgIDs) {
+         for(String key : mvManager.getRegisteredNames(orgID)) {
+            if(MVDef.getWorksheetPath(key).equals(path)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -1913,6 +2027,8 @@ public class MVSupportService {
    private static final String ANALYSIS_STATUS_MAP =
       MVSupportService.class.getName() + ".analysisStatusMap";
    private static final long ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL = 1200000L; // 20 min
+   // covers the window between persisting an analysis worksheet and publishing its status
+   private static final long ORPHAN_WORKSHEET_GRACE_PERIOD = 2400000L; // 40 min
 
    private static final Logger LOG = LoggerFactory.getLogger(MVSupportService.class);
 

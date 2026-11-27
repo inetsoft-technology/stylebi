@@ -2819,7 +2819,14 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    /**
     * Get the worksheet file name.
     */
-   private String getWorksheetPath() {
+   public String getWorksheetPath() {
+      return getWorksheetPath(mvname);
+   }
+
+   /**
+    * Get the worksheet file name of the MV with the specified name.
+    */
+   public static String getWorksheetPath(String mvname) {
       return Tool.getUniqueName(mvname, 61) + ".ws";
    }
 
