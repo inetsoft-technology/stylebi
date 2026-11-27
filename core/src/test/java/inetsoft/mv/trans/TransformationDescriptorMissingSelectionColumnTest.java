@@ -18,6 +18,7 @@
 package inetsoft.mv.trans;
 
 import inetsoft.test.*;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.ExpressionRef;
@@ -50,7 +51,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class TransformationDescriptorMissingSelectionColumnTest {
    @BeforeEach
    void setUp() throws Exception {
-      Worksheet ws = new Worksheet();
+      ws = new Worksheet();
       EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, TABLE);
       table.setEmbeddedData(new XEmbeddedTable(
          new String[] { XSchema.STRING, XSchema.STRING, XSchema.INTEGER },
@@ -122,6 +123,29 @@ class TransformationDescriptorMissingSelectionColumnTest {
       assertEquals(Set.of("calc1", AMOUNT), names(desc.getAssociatedSelectionColumns(TABLE)));
    }
 
+   @Test
+   void calcFieldNotYetInTheTableIsStillRegistered() {
+      // the calc field is not in the column selection of the worksheet table the descriptor
+      // is built on (it is appended to the selection table only at runtime, Bug #25590)
+      ExpressionRef exp = new ExpressionRef(null, "calc1");
+      exp.setExpression("field['" + AMOUNT + "'] * 2");
+      CalculateRef calc = new CalculateRef(true);
+      calc.setDataRef(exp);
+      vs.addCalcField(TABLE, calc);
+      addList("L_calc", (CalculateRef) calc.clone());
+      addList("L_miss", ref("CUSTOMER_ID"));
+      TableAssembly table = (TableAssembly) ws.getAssembly(TABLE);
+      ColumnSelection columns = table.getColumnSelection(false);
+      columns.removeAttribute(columns.getAttribute("calc1"));
+      table.setColumnSelection(columns, false);
+      assertNull(table.getColumnSelection(false).getAttribute("calc1"));
+
+      TransformationDescriptor desc =
+         new TransformationDescriptor(vs, ws, TransformationDescriptor.RUN_MODE);
+
+      assertEquals(Set.of("calc1"), names(desc.getAssociatedSelectionColumns(TABLE)));
+   }
+
    private void addList(String name, ColumnRef ref) {
       SelectionListVSAssembly list = new SelectionListVSAssembly(vs, name);
       SelectionListVSAssemblyInfo info = (SelectionListVSAssemblyInfo) list.getInfo();
@@ -151,5 +175,6 @@ class TransformationDescriptorMissingSelectionColumnTest {
    private static final String STATE = "State";
    private static final String AMOUNT = "Amount";
 
+   private Worksheet ws;
    private Viewsheet vs;
 }

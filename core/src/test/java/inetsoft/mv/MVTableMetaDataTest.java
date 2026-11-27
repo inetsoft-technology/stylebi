@@ -20,6 +20,7 @@ package inetsoft.mv;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.*;
 import inetsoft.test.*;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
@@ -27,6 +28,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.uql.viewsheet.ColumnNotFoundException;
 import inetsoft.uql.viewsheet.SelectionVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.SelectionSet;
@@ -38,6 +40,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -158,6 +162,56 @@ class MVTableMetaDataTest {
       assertEquals(30.0, sum(aggregation, "East"));
       assertEquals(30.0, sum(aggregation, "West"));
       assertEquals(4.0, sum(aggregation, "North"));
+   }
+
+   // Bug #82492: a selection on a column the table doesn't have (e.g. removed from the
+   // worksheet after the value was selected) is ignored, as RealtimeTableMetaData does
+   @Test
+   void selectionOnAColumnMissingFromTheTableIsIgnored() throws Exception {
+      SelectionSet values = metaData().getAssociatedValues(
+         "List1", Map.of("Region", List.of("East"), "CUSTOMER_ID", List.of("1")),
+         refs("Product"), null, aggregation());
+
+      assertEquals(Set.of("Chair", "Desk"), singles(values));
+   }
+
+   // Bug #82492: a tree with a level the table doesn't have is ignored as a whole, as
+   // RealtimeTableMetaData does, including a fully selected parent (no level-2 value)
+   @Test
+   void treeSelectionWithALevelMissingFromTheTableIsIgnored() throws Exception {
+      String key = SelectionVSAssembly.SELECTION_PATH + "Region^/^CUSTOMER_ID";
+      SelectionSet values = metaData().getAssociatedValues(
+         "List1", Map.of(key, List.of("West")), refs("Product"), null, aggregation());
+
+      assertEquals(Set.of("Chair", "Desk", "Lamp", "Desk/Pro"), singles(values));
+   }
+
+   // Bug #82492: a selection column that is in the table but not in the table the conditions
+   // are built for (a stale association MV) is not ignored: ColumnNotFoundException makes
+   // getAssociatedValues try the full MV
+   @Test
+   void selectionOnAColumnMissingOnlyFromTheMVTableIsNotIgnored() throws Exception {
+      MVTableMetaData meta = metaData();
+      Worksheet ws = sandbox.getWorksheet();
+      TableAssembly mirror = (TableAssembly) ((TableAssembly) ws.getAssembly(
+         Assembly.SELECTION + "T")).copyAssembly("ASSOCIATION_MIRROR");
+      ColumnSelection columns = (ColumnSelection) mirror.getColumnSelection().clone();
+      columns.removeAttribute(columns.getAttribute("Product"));
+      mirror.setColumnSelection(columns);
+      Method method = MVTableMetaData.class.getDeclaredMethod(
+         "getConditionList", Map.class, DataRef[].class, TableAssembly.class);
+      method.setAccessible(true);
+
+      InvocationTargetException ex = assertThrows(InvocationTargetException.class, () ->
+         method.invoke(meta, Map.of("Product", List.of("Chair")), refs("Region"), mirror));
+      assertInstanceOf(ColumnNotFoundException.class, ex.getCause());
+
+      // a column that is not in the table at all is still ignored on that table
+      Object conds = method.invoke(meta, Map.of("Region", List.of("East"),
+                                                "CUSTOMER_ID", List.of("1")),
+                                   refs("Product"), mirror);
+      String text = String.valueOf(conds);
+      assertTrue(text.contains("Region") && !text.contains("CUSTOMER_ID"), text);
    }
 
    // ---------------------------------------------------------------- fixture

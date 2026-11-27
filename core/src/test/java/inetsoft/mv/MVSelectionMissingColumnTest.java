@@ -27,6 +27,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.test.*;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
@@ -35,6 +36,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSUtil;
 import inetsoft.util.ThreadContext;
+import inetsoft.util.Tool;
 import inetsoft.web.admin.content.repository.MVSupportService;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.*;
@@ -89,12 +91,20 @@ class MVSelectionMissingColumnTest {
       finally {
          runtimeId = null;
 
-         if(!mvNames.isEmpty()) {
-            mvSupport.dispose(new ArrayList<>(mvNames));
-            mvNames.clear();
-         }
+         try {
+            if(!mvNames.isEmpty()) {
+               mvSupport.dispose(new ArrayList<>(mvNames));
+               mvNames.clear();
+            }
 
-         ThreadContext.setContextPrincipal(oldPrincipal);
+            if(entry != null) {
+               AssetUtil.getAssetRepository(false).removeSheet(entry, user, true);
+               entry = null;
+            }
+         }
+         finally {
+            ThreadContext.setContextPrincipal(oldPrincipal);
+         }
       }
    }
 
@@ -183,6 +193,92 @@ class MVSelectionMissingColumnTest {
 
       click(box, names, "ALBERTO-1988");
       assertOnlyCompatible(years, "1988");
+   }
+
+   /**
+    * A list on a column of the table is added after the MVs were built, so the association MV
+    * doesn't have its column, and the viewsheet is saved with a value of it selected. That
+    * selection is not a missing column: it must still restrict the other lists (the full MV is
+    * used for it), not be ignored.
+    */
+   @Test
+   void selectionOnColumnMissingFromStaleAssociationMVIsApplied() throws Exception {
+      List<MVDef> defs = materialize("82492_assoc", vs -> {
+         addList(vs, "L_name", "name");
+         addList(vs, "L_year", "year");
+         addList(vs, "L_miss", "CUSTOMER_ID");
+      });
+      assertTrue(defs.stream().anyMatch(MVDef::isAssociationMV),
+                 "an association MV must be created: " + defs);
+
+      // a wind value that only some years have
+      AssetRepository repository = AssetUtil.getAssetRepository(false);
+      Viewsheet vs = (Viewsheet) repository.getSheet(entry, user, false, AssetContent.ALL);
+      List<Map<String, String>> rows = getRows(vs);
+      Set<String> allYears = new TreeSet<>();
+      Map<String, Set<String>> yearsOfWind = new TreeMap<>();
+      rows.forEach(r -> {
+         allYears.add(r.get("year"));
+         yearsOfWind.computeIfAbsent(r.get("wind"), k -> new TreeSet<>()).add(r.get("year"));
+      });
+      String wind = yearsOfWind.entrySet().stream()
+         .filter(e -> e.getValue().size() > 1 && e.getValue().size() < allYears.size())
+         .map(Map.Entry::getKey).findFirst().orElseThrow();
+      Set<String> expected = yearsOfWind.get(wind);
+
+      // add the list after the MVs were built (no new analysis) with the value selected
+      vs = (Viewsheet) vs.clone();
+      SelectionListVSAssembly winds = addList(vs, "L_wind", "wind");
+      SelectionList slist = new SelectionList();
+      SelectionValue value = new SelectionValue(wind, wind);
+      value.setSelected(true);
+      slist.setSelectionValues(new SelectionValue[] { value });
+      winds.setStateSelectionList(slist);
+      repository.setSheet(entry, vs, user, true);
+
+      ViewsheetSandbox box = open();
+      SelectionListVSAssembly years =
+         (SelectionListVSAssembly) box.getViewsheet().getAssembly("L_year");
+      Set<String> compatible = new TreeSet<>();
+      getStates(years).forEach((v, state) -> {
+         if((state & SelectionValue.STATE_COMPATIBLE) != 0) {
+            compatible.add(v);
+         }
+      });
+
+      assertEquals(expected, compatible, "L_year must be restricted by wind " + wind);
+   }
+
+   private static List<Map<String, String>> getRows(Viewsheet vs) {
+      Object assembly = vs.getBaseWorksheet().getAssembly(getTable(vs));
+
+      while(assembly instanceof MirrorTableAssembly) {
+         assembly = ((MirrorTableAssembly) assembly).getTableAssembly();
+      }
+
+      XTable data = ((EmbeddedTableAssembly) assembly).getEmbeddedData();
+      Map<String, Integer> cols = new HashMap<>();
+
+      for(int c = 0; c < data.getColCount(); c++) {
+         cols.put(String.valueOf(data.getObject(0, c)), c);
+      }
+
+      List<Map<String, String>> rows = new ArrayList<>();
+
+      for(int r = 1; data.moreRows(r); r++) {
+         Map<String, String> row = new HashMap<>();
+
+         for(String col : new String[] { "wind", "year" }) {
+            Object value = data.getObject(r, cols.get(col));
+            row.put(col, value == null ? null : Tool.getDataString(value));
+         }
+
+         if(!row.containsValue(null)) {
+            rows.add(row);
+         }
+      }
+
+      return rows;
    }
 
    /**
