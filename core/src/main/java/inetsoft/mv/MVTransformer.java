@@ -443,7 +443,22 @@ public final class MVTransformer {
                                                   rmv.getMVLastUpdateTime(), rmv.getParentVsIds()));
             }
 
-            addSubMV(user, rmv, mvtable, desc, true, rmv.isPhysical());
+            // a union with a selection on only some of its children (bug #82210): the top
+            // mv must not be attached to the children (it has the columns of the union, not
+            // of a child), and a failure to find a usable sub mv must fall back to a query
+            // without mv, not ask for a recreation
+            boolean mixed = stransformer.isMixedUnionSelection();
+
+            try {
+               addSubMV(user, rmv, mvtable, desc, true, rmv.isPhysical() && !mixed);
+            }
+            catch(MVExecutionException mex) {
+               if(mixed) {
+                  mex.setNeedRecreate(false);
+               }
+
+               throw mex;
+            }
 
             if(!containsRuntimeMV(mvtable, true)) {
                String msg = "No sub-mv found for: " + rmv + ".";
