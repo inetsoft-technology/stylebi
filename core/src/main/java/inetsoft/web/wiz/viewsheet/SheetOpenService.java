@@ -51,6 +51,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -387,6 +388,14 @@ public class SheetOpenService {
       // The Composer allows one tab per asset, so a second runtime of an asset the browser
       // already holds would be edited out of sight while the tab switches to the first one.
       RuntimeSheet existingRuntime = findOpenRuntime(entry, isViewsheet, browserUser);
+      List<String> staleNotes = new ArrayList<>();
+
+      if(existingRuntime != null) {
+         // Bug #82106: a data source move/rename rewrites the STORED sheet but only parks the
+         // rename on an open runtime; attaching as is would keep the old data source path.
+         existingRuntime = applyPendingRename(existingRuntime, isViewsheet, staleNotes);
+      }
+
       String existingRuntimeId = existingRuntime == null ? null : existingRuntime.getID();
 
       try {
@@ -431,6 +440,12 @@ public class SheetOpenService {
          warnings = previewMirrorUpdate(existingRuntime, browserUser);
       }
 
+      if(!staleNotes.isEmpty()) {
+         List<String> merged = new ArrayList<>(staleNotes);
+         merged.addAll(warnings);
+         warnings = List.copyOf(merged);
+      }
+
       // Checked before the session below binds the runtime to the agent. A runtime an agent
       // session already holds has no tab of the user's own (a page reload leaves exactly that
       // behind), so the tab this attach creates for it is the only thing that can end it.
@@ -457,6 +472,66 @@ public class SheetOpenService {
       broadcast.sendToComposer(actingSession.socketSessionId(), command);
 
       return new OpenedSheet(session, warnings);
+   }
+
+   /**
+    * Brings an open runtime in line with storage before an agent attaches to it (Bug #82106).
+    * Moving or renaming a data source (or any dependency) rewrites the stored dependent sheets
+    * and only parks the rename on the sheets that are open; the Composer applies it when its
+    * user answers the "dependency changed" prompt, which an agent never does. Attaching as is
+    * leaves the agent on a sheet that still names the old path and fails to run queries.
+    *
+    * <p>A viewsheet is re-read from storage in place (same runtime id). A worksheet has no such
+    * in-place reload, so a clean one that no session is bound to is closed and
+    * {@code null} is returned, which makes the caller load it from storage. A runtime with
+    * unsaved edits, or one other sessions use, is kept (nothing is discarded behind the user's
+    * back) and a note says that it still names the old path.
+    *
+    * @return the runtime to attach to, or {@code null} when it was discarded and the sheet must
+    *         be loaded from storage.
+    */
+   private RuntimeSheet applyPendingRename(RuntimeSheet runtime, boolean isViewsheet,
+                                           List<String> notes)
+   {
+      String id = runtime.getID();
+      WorksheetService service = isViewsheet ? viewsheetService : worksheetService;
+
+      try {
+         if(!service.needRenameDep(id)) {
+            return runtime;
+         }
+
+         String name = runtime.getEntry().getPath();
+
+         if(isViewsheet) {
+            if(runtime instanceof RuntimeViewsheet rvs && StaleViewsheetReloader.isReloadable(rvs) &&
+               StaleViewsheetReloader.reload(rvs, service.getAssetRepository()))
+            {
+               service.clearRenameDep(id);
+               return runtime;
+            }
+         }
+         else if(runtime.getSavePoint() == runtime.getCurrent() &&
+            sheetSessions.findAllOnRuntime(id).isEmpty())
+         {
+            service.closeWorksheet(id, runtime.getUser());
+            service.clearRenameDep(id);
+            return null;
+         }
+
+         notes.add("The open " + (isViewsheet ? "viewsheet" : "worksheet") + " '" + name +
+                   "' has a pending rename of something it depends on (for example a moved or " +
+                   "renamed data source) that was not applied because it has unsaved edits or " +
+                   "is in use elsewhere. It may still refer to the old name; save or close it, " +
+                   "then open it again.");
+      }
+      catch(Exception e) {
+         LOG.warn("Unable to apply the pending rename to the open sheet {}", id, e);
+         notes.add("The open sheet could not be refreshed after a rename of something it " +
+                   "depends on (" + e.getMessage() + "); it may still refer to the old name.");
+      }
+
+      return runtime;
    }
 
    /**
