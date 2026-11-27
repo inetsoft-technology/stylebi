@@ -117,6 +117,38 @@ class LocalMVIncrementalIntNullAppendTest {
    }
 
    @Test
+   void appendsToALastBlockWhoseIntColumnIsAllNull() throws Exception {
+      MVDef def = newDef();
+      List<Object[]> src = new ArrayList<>();
+
+      for(int i = 0; i < 10; i++) {
+         src.add(new Object[] { 20 + i, 30 + i });
+      }
+
+      // last block: n3 holds only NULLs, so its dictionary range is empty
+      Object[][] last = { { null, 9 }, { null, 50 }, { null, 99 } };
+      src.addAll(Arrays.asList(last));
+      List<BlockFile> blocks = new ArrayList<>();
+      MV mv = build(def, null, src.toArray(new Object[0][]), blocks);
+      assertEquals(2, mv.getBlockSize());
+      lastFile = blocks.get(1);
+      List<Object[]> rows = new ArrayList<>(Arrays.asList(last));
+      assertBlock("base", mv, lastFile, rows);
+
+      Object[][][] appends = {
+         { { 11, 60 } },   // first value of n3 in the block
+         { { 5, null } },  // n3 below the new min
+         { { null, 1 } }   // another NULL
+      };
+
+      for(int u = 0; u < appends.length; u++) {
+         mv = update(def, mv, appends[u]);
+         rows.addAll(Arrays.asList(appends[u]));
+         assertBlock("all-null update " + (u + 1), mv, lastFile, rows);
+      }
+   }
+
+   @Test
    void appendBelowTheMinRemapsTheTopIndex() throws Exception {
       MVDef def = newDef();
       List<Object[]> src = new ArrayList<>();
