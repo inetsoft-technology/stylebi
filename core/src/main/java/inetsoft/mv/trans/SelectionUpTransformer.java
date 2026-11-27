@@ -1941,6 +1941,7 @@ public final class SelectionUpTransformer extends AbstractTransformer {
       // for this query.
       if(desc.isRuntime() && !isUnionSelectionAligned(tarr, attrcnt, true)) {
          recreate = false;
+         mixedUnionSelection = true;
          return false;
       }
 
@@ -2090,6 +2091,14 @@ public final class SelectionUpTransformer extends AbstractTransformer {
       return recreate;
    }
 
+   /**
+    * Check if the selections were not moved up because a union has a selection on only some
+    * of its children at runtime. The MV can not answer such a query (bug #82210).
+    */
+   public boolean isMixedUnionSelection() {
+      return mixedUnionSelection;
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(SelectionUpTransformer.class);
 
    private List<XNode> list = new ArrayList<>();
@@ -2099,4 +2108,5 @@ public final class SelectionUpTransformer extends AbstractTransformer {
    private Set uset = new HashSet();
    private String rootMirror = null;
    private boolean recreate = true;
+   private boolean mixedUnionSelection = false;
 }
