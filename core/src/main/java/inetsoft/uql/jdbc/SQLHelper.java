@@ -5919,6 +5919,67 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Check if a LIKE condition value must be escaped with {@link #escapeLikePattern(String)}
+    * to be matched like the in-memory LIKE does (Condition.getLikePattern), where only
+    * {@code %}, {@code _} and {@code ?} are wildcards and every other character, including a
+    * backslash, is literal. That is the case when the value has the escape character, a
+    * backslash (the default LIKE escape of dialects whose ESCAPE clause is not otherwise
+    * present, which an ESCAPE clause turns off) or a character that is special besides the
+    * wildcards (a {@code [} on SQL Server). Always false when {@link #getLikeEscapeChar()}
+    * is {@code null}.
+    */
+   public boolean isLikePatternEscapeNeeded(String value) {
+      Character esc = getLikeEscapeChar();
+
+      if(esc == null || value == null) {
+         return false;
+      }
+
+      String special = getLikeSpecialChars();
+
+      for(int i = 0; i < value.length(); i++) {
+         char c = value.charAt(i);
+
+         if(c == '\\' || c == esc || c != '%' && c != '_' && special.indexOf(c) >= 0) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Escape a LIKE condition value (a pattern) so that only {@code %} and {@code _} stay
+    * wildcards: the escape character and the other special characters besides the wildcards
+    * ({@code [} on SQL Server) are escaped. For a dialect whose escape character is the
+    * backslash (ClickHouse) this doubles the backslash. When
+    * {@link #isLikePatternEscapeNeeded(String)} is true the pattern must be followed by
+    * {@link #getLikeEscapeClause(char)}, which also makes a backslash literal.
+    */
+   public String escapeLikePattern(String value) {
+      Character esc = getLikeEscapeChar();
+
+      if(esc == null || value == null) {
+         return value;
+      }
+
+      String special = getLikeSpecialChars();
+      StringBuilder escaped = new StringBuilder(value.length() + 4);
+
+      for(int i = 0; i < value.length(); i++) {
+         char c = value.charAt(i);
+
+         if(c == esc || c != '%' && c != '_' && special.indexOf(c) >= 0) {
+            escaped.append(esc.charValue());
+         }
+
+         escaped.append(c);
+      }
+
+      return escaped.toString();
+   }
+
+   /**
     * Get the text to append to a statement StyleBI generated, right before it runs, or null
     * to run it as generated. It is not part of generateSentence because StyleBI's parser can't
     * read it back (e.g. a ClickHouse SETTINGS clause, Bug #82305).
