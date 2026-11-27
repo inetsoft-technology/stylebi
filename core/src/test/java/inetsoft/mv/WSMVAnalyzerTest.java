@@ -185,9 +185,52 @@ class WSMVAnalyzerTest {
 
    @Test
    void aCrosstabTableKeepsItsDetailData() {
-      // pinned: the analyzer clears the grouping and the conditions of the worksheet it is
-      // given, so the MV holds the detail rows
-      PhysicalBoundTableAssembly t1 = bound("T1");
+      // the analyzer works on its own copy: the MV holds the detail rows, the caller's
+      // worksheet is left as it was
+      PhysicalBoundTableAssembly t1 = crosstab("T1");
+      ColumnSelection pubBefore = t1.getColumnSelection(true);
+      int privateCount = t1.getColumnSelection(false).getAttributeCount();
+
+      MVDef[] defs = analyzer(false).analyze();
+
+      assertEquals(List.of("T1"), boundTables(defs));
+      assertTrue(t1.isCrosstab());
+      assertFalse(t1.getAggregateInfo().isEmpty());
+      assertEquals(1, size(t1.getPreConditionList()));
+      assertEquals(1, size(t1.getPostConditionList()));
+      assertEquals(1, size(t1.getRankingConditionList()));
+      assertSame(pubBefore, t1.getColumnSelection(true));
+      assertEquals(privateCount, t1.getColumnSelection(false).getAttributeCount());
+
+      TableAssembly wrapped = (TableAssembly) defs[0].getWorksheet().getAssembly("T1");
+      assertTrue(wrapped.getAggregateInfo().isEmpty());
+      assertEquals(0, size(wrapped.getPreConditionList()));
+   }
+
+   @Test
+   void theClearedCrosstabColumnsAreRemovedColumns() {
+      crosstab("T1");
+
+      List<String> removed = removedColumns(analyzer(false).analyze()[0]);
+
+      assertEquals(List.of("PivotA", "PivotB"), removed);
+   }
+
+   @Test
+   void twoIdentitiesAnalysedInARowGetTheSameDef() {
+      crosstab("T1");
+
+      MVDef first = analyzer(false).analyze()[0];
+      MVDef second = analyzer(false).analyze()[0];
+
+      assertEquals(columnNames(first), columnNames(second));
+      assertEquals(removedColumns(first), removedColumns(second));
+      assertEquals(List.of("PivotA", "PivotB"), removedColumns(second));
+   }
+
+   /** A crosstab whose public (pivoted) columns differ from its detail columns. */
+   private PhysicalBoundTableAssembly crosstab(String name) {
+      PhysicalBoundTableAssembly t1 = bound(name);
       AggregateInfo crosstab = new AggregateInfo();
       // a crosstab has a row and a column group
       crosstab.addGroup(new GroupRef(column(t1, "Region")));
@@ -198,15 +241,33 @@ class WSMVAnalyzerTest {
       t1.setPreConditionList(condition(t1));
       t1.setPostConditionList(condition(t1));
       t1.setRankingConditionList(condition(t1));
+      ColumnSelection pub = new ColumnSelection();
+      pub.addAttribute(typed(new AttributeRef(name, "PivotA"), XSchema.DOUBLE));
+      pub.addAttribute(typed(new AttributeRef(name, "PivotB"), XSchema.DOUBLE));
+      pub.addAttribute(column(t1, "Region"));
+      t1.setColumnSelection(pub, true);
       assertTrue(t1.isCrosstab());
+      return t1;
+   }
 
-      MVDef[] defs = analyzer(false).analyze();
+   private static List<String> removedColumns(MVDef def) {
+      List<String> names = new ArrayList<>();
 
-      assertEquals(List.of("T1"), boundTables(defs));
-      assertTrue(t1.getAggregateInfo().isEmpty());
-      assertEquals(0, size(t1.getPreConditionList()));
-      assertEquals(0, size(t1.getPostConditionList()));
-      assertEquals(0, size(t1.getRankingConditionList()));
+      for(MVColumn col : def.getContainer().rcolumns) {
+         names.add(col.getName());
+      }
+
+      return names;
+   }
+
+   private static List<String> columnNames(MVDef def) {
+      List<String> names = new ArrayList<>();
+
+      for(MVColumn col : def.getColumns()) {
+         names.add(col.getName());
+      }
+
+      return names;
    }
 
    // ---------------------------------------------------------------- helpers
