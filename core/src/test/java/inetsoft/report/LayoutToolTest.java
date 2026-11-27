@@ -326,6 +326,28 @@ class LayoutToolTest {
       assertFalse(cond.contains("$g2[\"*\"]"), cond);
    }
 
+   @Test
+   void quoteValueKeepsPlainStringsAsLiteralsAndEncodesTheOthers() throws Exception {
+      // #82483: the member values and names of a named group spec are in several escape contexts
+      assertEquals("\"plain text-1.x_y\"", quoteValue("plain text-1.x_y"));
+      assertEquals("\"\"", quoteValue(""));
+      assertEquals("String.fromCharCode(97,39,98)", quoteValue("a'b"));
+      assertEquals("String.fromCharCode(97,58,98,59,63,10,92,34)", quoteValue("a:b;?\n\\\""));
+      assertEquals("String.fromCharCode(94,95,94)", quoteValue("^_^"));
+      assertEquals("String.fromCharCode(55357,56832)", quoteValue("😀"));
+      // other types keep their form
+      assertEquals("Number(5)", quoteValue(5));
+      assertEquals("Boolean(true)", quoteValue(true));
+      assertEquals("new Date(0)", quoteValue(new java.util.Date(0)));
+      assertEquals("String.fromCharCode(97,58),\"b\"", quoteValue(new String[] { "a:", "b" }));
+   }
+
+   private static String quoteValue(Object value) throws Exception {
+      Method method = LayoutTool.class.getDeclaredMethod("quoteValue", Object.class);
+      method.setAccessible(true);
+      return (String) method.invoke(null, value);
+   }
+
    private static String escapeColName(String name) throws Exception {
       Method method = LayoutTool.class.getDeclaredMethod("escapeColName", String.class);
       method.setAccessible(true);

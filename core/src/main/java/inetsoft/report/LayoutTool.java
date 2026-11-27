@@ -2024,14 +2024,10 @@ public class LayoutTool {
                spec += ",";
             }
 
-            String value = quoteValue(values.get(i));
-            value = Tool.replaceAll(value,":", LayoutTool.SCRIPT_ESCAPED_COLON);
-            spec += value;
+            spec += quoteValue(values.get(i));
          }
 
-         String groupStr = Tool.escapeJavascript(group);
-         groupStr = Tool.replaceAll(groupStr,":", LayoutTool.SCRIPT_ESCAPED_COLON);
-         spec += "],\"" + Tool.escapeJavascript(groupStr) + "\"";
+         spec += "]," + encodeString(group);
       }
 
       return "[" + spec + "]";
@@ -2096,7 +2092,40 @@ public class LayoutTool {
          return Tool.escapeJavascript(val + "");
       }
 
-      return '"' + Tool.escapeJavascript(val + "") + '"';
+      return encodeString(val + "");
+   }
+
+   /**
+    * Convert a string to a script expression that is safe in every escape context of a named
+    * group spec (the group cell script, the data['..'] key, NamedCellRange and the evaluated
+    * script). A string of plain characters stays a quoted literal; any other string is written
+    * as String.fromCharCode(..), which holds no quote, backslash, ':', ';', '?', '@' or newline.
+    */
+   private static String encodeString(String str) {
+      boolean safe = true;
+
+      for(int i = 0; i < str.length(); i++) {
+         char c = str.charAt(i);
+
+         if(!(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' ||
+            c == ' ' || c == '_' || c == '.' || c == '-'))
+         {
+            safe = false;
+            break;
+         }
+      }
+
+      if(safe) {
+         return '"' + str + '"';
+      }
+
+      StringBuilder buf = new StringBuilder("String.fromCharCode(");
+
+      for(int i = 0; i < str.length(); i++) {
+         buf.append(i > 0 ? "," : "").append((int) str.charAt(i));
+      }
+
+      return buf.append(')').toString();
    }
 
    /**
