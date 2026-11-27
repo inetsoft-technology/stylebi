@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
 import java.util.Vector;
+import java.util.stream.IntStream;
 
 /**
  * Creates, lists, updates and deletes the caller's own dashboard schedule tasks for the
@@ -598,6 +599,9 @@ public class WizScheduleService {
          }
 
          condition = TimeCondition.atDayOfMonth(day, time.getHour(), time.getMinute(), 0);
+         // Bug #82496, no selected month means the task is never scheduled; run every month as
+         // the Viewer Schedule tab's monthly option does
+         condition.setMonthsOfYear(IntStream.range(0, 12).toArray());
       }
       default -> throw new IllegalArgumentException(
          "'frequency' must be one of once, daily, weekly, monthly (got \"" +
