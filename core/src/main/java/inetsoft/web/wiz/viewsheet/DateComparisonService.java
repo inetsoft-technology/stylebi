@@ -188,7 +188,17 @@ public class DateComparisonService {
    public Map<String, Object> read(String sessionToken, Principal user, String assemblyName)
       throws Exception
    {
-      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      return read(sessions.resolve(sessionToken, user), assemblyName, user);
+   }
+
+   /**
+    * The same read for a runtime the caller already holds, with no pairing session: the wiz
+    * mutation endpoints report the assembly's comparison on their own response
+    * ({@code CreateViewsheetResult.assemblyState}).
+    */
+   public Map<String, Object> read(RuntimeViewsheet rvs, String assemblyName, Principal user)
+      throws Exception
+   {
       requireAssembly(rvs.getViewsheet(), assemblyName);
       String runtimeId = rvs.getID();
       DateComparisonPaneModel model =
