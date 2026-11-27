@@ -23,6 +23,7 @@ package inetsoft.web.wiz.model;
  *
  * @param ok        whether the cubes were loaded and saved.
  * @param reason    null when ok; otherwise {@code DATASOURCE_LOST}, {@code CONNECTION_FAILED},
+ *                  {@code ENDPOINT_ERROR} (the endpoint answered with an HTTP error),
  *                  {@code NO_CUBES}, {@code CATALOG_REQUIRED} or {@code PERSIST_FAILED}.
  * @param cubeCount the number of cubes saved, null unless ok.
  * @param url       the endpoint that was contacted, null when none was.
