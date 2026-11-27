@@ -66,12 +66,25 @@ class ConditionListHandlerNumericPatternTest {
    }
 
    private static final Integer[] ROWS = { null, 0, 2, 20, 21, 11 };
+   private static final Long[] REPORTER_L = { 2L, 12L, 20L, 25L, 102L, null, 0L, 21L, 11L, 1L, 32L };
+   private static final Double[] REPORTER_D =
+      { 1d, 10d, 129d, 1.5d, 21d, null, 0d, 12.5d, 120d, 2d, 129.5d };
    private static Connection conn;
 
    @BeforeAll
    static void createTable() throws Exception {
       conn = DriverManager.getConnection("jdbc:derby:memory:numpattern;create=true");
       conn.createStatement().execute("create table n(i int)");
+      // the reporter's long (as bigint) and double columns
+      conn.createStatement().execute("create table r(l bigint, d double)");
+
+      for(int i = 0; i < REPORTER_L.length; i++) {
+         try(PreparedStatement ps = conn.prepareStatement("insert into r values(?, ?)")) {
+            ps.setObject(1, REPORTER_L[i], Types.BIGINT);
+            ps.setObject(2, REPORTER_D[i], Types.DOUBLE);
+            ps.execute();
+         }
+      }
 
       for(Integer row : ROWS) {
          try(PreparedStatement ps = conn.prepareStatement("insert into n values(?)")) {
@@ -111,8 +124,55 @@ class ConditionListHandlerNumericPatternTest {
       assertFalse(stmt.sql().contains("<>"), stmt.sql());
    }
 
+   /**
+    * The reporter's patterns on a long and a double column, also after the condition is saved
+    * and reloaded (the save wrote "0" before the fix, so the 0 row matched).
+    */
+   @ParameterizedTest
+   @CsvSource({
+      "l, long, LIKE, 2%", "l, long, LIKE, _1", "l, long, CONTAINS, 2%",
+      "d, double, LIKE, 12%", "d, double, LIKE, 2%", "d, double, STARTING_WITH, _1"
+   })
+   void reporterLongAndDoubleColumnsMatchNoRow(String col, String type, String opName,
+                                               String value) throws Exception
+   {
+      int op = (Integer) XCondition.class.getField(opName).get(null);
+
+      for(boolean saved : new boolean[] { false, true }) {
+         Condition cond = condition(type, op, value, false);
+         cond = saved ? roundTrip(cond) : cond;
+         Statement0 stmt = generate(cond, "r", col);
+
+         assertFalse(stmt.sql().toUpperCase().contains("LIKE"), stmt.sql());
+         assertEquals(List.of(), sqlRows(stmt), "saved " + saved + ": " + stmt.sql());
+
+         Condition negated = condition(type, op, value, true);
+         negated = saved ? roundTrip(negated) : negated;
+         Statement0 nstmt = generate(negated, "r", col);
+         assertEquals(10, sqlRows(nstmt).size(), "saved " + saved + ": " + nstmt.sql());
+      }
+   }
+
+   private static Condition roundTrip(Condition cond) throws Exception {
+      java.io.StringWriter sw = new java.io.StringWriter();
+      java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+      cond.writeXML(pw);
+      pw.flush();
+      org.w3c.dom.Document doc = javax.xml.parsers.DocumentBuilderFactory.newInstance()
+         .newDocumentBuilder().parse(new java.io.ByteArrayInputStream(
+            sw.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+      Condition loaded = new Condition();
+      loaded.parseXML(doc.getDocumentElement());
+      assertEquals(cond.getValues().get(0), loaded.getValues().get(0), sw.toString());
+      return loaded;
+   }
+
    private static Condition condition(int op, String value, boolean negated) {
-      Condition cond = new Condition(XSchema.INTEGER);
+      return condition(XSchema.INTEGER, op, value, negated);
+   }
+
+   private static Condition condition(String type, int op, String value, boolean negated) {
+      Condition cond = new Condition(type);
       cond.setOperation(op);
       cond.addValue(value);
       cond.setNegated(negated);
@@ -123,6 +183,12 @@ class ConditionListHandlerNumericPatternTest {
    }
 
    private static Statement0 generate(Condition cond) throws Exception {
+      return generate(cond, "n", "i");
+   }
+
+   private static Statement0 generate(Condition cond, String table, String col)
+      throws Exception
+   {
       JDBCDataSource ds = new JDBCDataSource();
       ds.setName("numpattern-derby");
       ds.setDriver("org.apache.derby.jdbc.EmbeddedDriver");
@@ -134,13 +200,13 @@ class ConditionListHandlerNumericPatternTest {
       sql.setParseSQL(true);
 
       synchronized(sql) {
-         sql.setSQLString("select n.i from n");
+         sql.setSQLString("select " + table + "." + col + " from " + table);
          // bounded wait so a parse failure does not hang the whole surefire fork
          sql.wait(30000);
       }
 
       ConditionList list = new ConditionList();
-      list.append(new ConditionItem(new AttributeRef("n", "i"), cond, 0));
+      list.append(new ConditionItem(new AttributeRef(table, col), cond, 0));
       VariableTable vars = new VariableTable();
       XFilterNode node = new ConditionListHandler().createXFilterNode(list, sql, vars);
       sql.setWhere(node);
@@ -154,8 +220,8 @@ class ConditionListHandlerNumericPatternTest {
       return new Statement0(text, varsql.getParameterValues());
    }
 
-   private static List<Integer> sqlRows(Statement0 statement) throws Exception {
-      List<Integer> rows = new ArrayList<>();
+   private static List<Object> sqlRows(Statement0 statement) throws Exception {
+      List<Object> rows = new ArrayList<>();
 
       try(PreparedStatement ps = conn.prepareStatement(statement.sql())) {
          for(int i = 0; i < statement.parameters().size(); i++) {
@@ -164,12 +230,12 @@ class ConditionListHandlerNumericPatternTest {
 
          try(ResultSet rs = ps.executeQuery()) {
             while(rs.next()) {
-               rows.add((Integer) rs.getObject(1));
+               rows.add(rs.getObject(1));
             }
          }
       }
 
-      rows.sort(Comparator.nullsFirst(Comparator.naturalOrder()));
+      rows.sort(Comparator.nullsFirst(Comparator.<Object, Double>comparing(v -> ((Number) v).doubleValue())));
       return rows;
    }
 }
