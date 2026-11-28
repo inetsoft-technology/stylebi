@@ -1221,10 +1221,12 @@ public class MetadataApiService {
    {
       List<WorksheetStructure.ConditionLeaf> conditions = new ArrayList<>();
       ColumnSelection selection = tableAssembly.getColumnSelection(true);
+      ColumnSelection privateSelection = tableAssembly.getColumnSelection(false);
       collectStructureConditions(
-         tableAssembly.getPreConditionList(), "pre", conditions, null, selection);
+         tableAssembly.getPreConditionList(), "pre", conditions, null, privateSelection);
       collectStructureConditions(
-         tableAssembly.getPreRuntimeConditionList(), "preRuntime", conditions, null, selection);
+         tableAssembly.getPreRuntimeConditionList(), "preRuntime", conditions, null,
+         privateSelection);
       collectStructureConditions(
          tableAssembly.getPostConditionList(), "post", conditions, null, selection);
       collectStructureConditions(
@@ -2205,7 +2207,8 @@ public class MetadataApiService {
       }
 
       String name = ref.getAttribute();
-      return name != null && !name.isEmpty() ? name : ref.getName();
+      name = name != null && !name.isEmpty() ? name : ref.getName();
+      return name != null && !name.isEmpty() ? name : null;
    }
 
    /** The column the table exposes for a condition ref; null when it equals field or is unknown. */
@@ -2216,10 +2219,12 @@ public class MetadataApiService {
          return null;
       }
 
-      String column = refAlias(ref);
+      DataRef base = ref instanceof AggregateRef aggregate && aggregate.getDataRef() != null ?
+         aggregate.getDataRef() : ref;
+      String column = refAlias(base);
 
       if(column == null && selection != null) {
-         column = refAlias(selection.findAttribute(ref));
+         column = refAlias(selection.findAttribute(base));
       }
 
       return column != null && !column.equals(field) ? column : null;
@@ -2227,14 +2232,23 @@ public class MetadataApiService {
 
    private static WorksheetStructure.Operand structureOperand(Object value) {
       if(value instanceof SubQueryValue sub) {
+         String column = sub.getAttribute() != null ? exposedName(sub.getAttribute()) : null;
+
+         if(sub.getQuery() == null || sub.getQuery().isEmpty() || column == null) {
+            return null;
+         }
+
          StringBuilder text = new StringBuilder("(SELECT ");
-         text.append(sub.getAttribute() != null ? exposedName(sub.getAttribute()) : "");
-         text.append(" FROM ").append(sub.getQuery());
+         text.append(column).append(" FROM ").append(sub.getQuery());
 
          if(sub.getSubAttribute() != null && sub.getMainAttribute() != null) {
-            text.append(" WHERE ").append(sub.getQuery()).append('.')
-               .append(exposedName(sub.getSubAttribute())).append(" = ")
-               .append(exposedName(sub.getMainAttribute()));
+            String subName = exposedName(sub.getSubAttribute());
+            String mainName = exposedName(sub.getMainAttribute());
+
+            if(subName != null && mainName != null) {
+               text.append(" WHERE ").append(sub.getQuery()).append('.')
+                  .append(subName).append(" = ").append(mainName);
+            }
          }
 
          text.append(')');
@@ -2242,7 +2256,8 @@ public class MetadataApiService {
       }
 
       if(value instanceof DataRef ref) {
-         return new WorksheetStructure.Operand("field", exposedName(ref), null);
+         String name = exposedName(ref);
+         return name == null ? null : new WorksheetStructure.Operand("field", name, null);
       }
 
       if(value instanceof inetsoft.uql.schema.UserVariable variable) {
@@ -2250,14 +2265,14 @@ public class MetadataApiService {
       }
 
       if(value instanceof ExpressionValue expression) {
-         return new WorksheetStructure.Operand(
+         return expression.getExpression() == null ? null : new WorksheetStructure.Operand(
             "expression", expression.getExpression(), expression.getType());
       }
 
       if(value != null) {
          String text = String.valueOf(value);
 
-         if(!text.matches("(?s).*@[0-9a-fA-F]+.*")) {
+         if(!text.matches("[\\w.$]+@[0-9a-fA-F]+")) {
             return new WorksheetStructure.Operand("expression", text, null);
          }
       }

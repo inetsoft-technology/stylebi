@@ -18,6 +18,9 @@
 
 package inetsoft.web.wiz.service;
 
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.Condition;
 import inetsoft.uql.ConditionItem;
@@ -26,15 +29,21 @@ import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.AggregateInfo;
 import inetsoft.uql.asset.AggregateRef;
+import inetsoft.uql.asset.BoundTableAssembly;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.asset.SubQueryValue;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.web.wiz.model.WorksheetStructure;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +56,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Condition leaves keep non-literal operands and the column the table exposes; worksheet
  * aggregates report the column they read (sourceField).
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 @Tag("core")
 class StructureConditionOperandsTest {
    private static ConditionList list(DataRef ref, int operation, Object... values) {
@@ -212,6 +225,71 @@ class StructureConditionOperandsTest {
 
       assertEquals("CATEGORY_ID", aggregates.get(0).getSourceField());
       assertNull(aggregates.get(1).getSourceField());
+   }
+
+   @Test
+   void aggregateRefConditionResolvesColumnFromPublicSelection() {
+      ColumnRef column = new ColumnRef(new AttributeRef("Orders", "CATEGORY_ID"));
+      column.setAlias("DISTINCT_CATEGORY_COUNT");
+      ColumnSelection selection = new ColumnSelection();
+      selection.addAttribute(column);
+
+      AggregateRef ref = new AggregateRef(
+         new ColumnRef(new AttributeRef("Orders", "CATEGORY_ID")), AggregateFormula.COUNT_DISTINCT);
+
+      WorksheetStructure.ConditionLeaf leaf = collect(
+         list(ref, XCondition.EQUAL_TO, "5"), selection);
+      assertEquals("CATEGORY_ID", leaf.getField());
+      assertEquals("DISTINCT_CATEGORY_COUNT", leaf.getColumn());
+
+      AggregateRef aliasedRef = new AggregateRef(column, AggregateFormula.COUNT_DISTINCT);
+      leaf = collect(list(aliasedRef, XCondition.EQUAL_TO, "5"), selection);
+      assertEquals("CATEGORY_ID", leaf.getField());
+      assertEquals("DISTINCT_CATEGORY_COUNT", leaf.getColumn());
+   }
+
+   @Test
+   void preConditionColumnResolvesAgainstThePrivateSelection() {
+      BoundTableAssembly table = new BoundTableAssembly(new Worksheet(), "t");
+      ColumnSelection privateSelection = new ColumnSelection();
+      ColumnRef column = new ColumnRef(new AttributeRef("Orders", "CAT"));
+      column.setAlias("Category");
+      privateSelection.addAttribute(column);
+      table.setColumnSelection(privateSelection, false);
+      table.setColumnSelection(new ColumnSelection(), true);
+      table.setPreConditionList(list(
+         new ColumnRef(new AttributeRef("Orders", "CAT")), XCondition.EQUAL_TO, "x"));
+
+      List<WorksheetStructure.ConditionLeaf> leaves =
+         MetadataApiService.extractStructureConditions(table);
+
+      assertEquals(1, leaves.size());
+      assertEquals("Category", leaves.get(0).getColumn());
+   }
+
+   @Test
+   void operandsWithNoUsableTextAreSkipped() {
+      SubQueryValue noQuery = new SubQueryValue();
+      noQuery.setAttribute(new AttributeRef(null, "T"));
+      SubQueryValue noAttribute = new SubQueryValue();
+      noAttribute.setQuery("Q");
+      ExpressionValue emptyExpression = new ExpressionValue();
+
+      WorksheetStructure.ConditionLeaf leaf = collect(
+         list(new AttributeRef(null, "N"), XCondition.BETWEEN, noQuery, noAttribute,
+              emptyExpression), null);
+
+      assertNull(leaf.getOperands());
+   }
+
+   @Test
+   void emailLikeTextIsKeptButIdentityToStringIsSkipped() {
+      WorksheetStructure.ConditionLeaf leaf = collect(
+         list(new AttributeRef(null, "N"), XCondition.EQUAL_TO, new StringBuilder("a@b.com"),
+              new Object()), null);
+
+      assertEquals(1, leaf.getOperands().size());
+      assertEquals("a@b.com", leaf.getOperands().get(0).getText());
    }
 
    @Test
