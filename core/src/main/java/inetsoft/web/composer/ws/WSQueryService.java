@@ -126,12 +126,12 @@ public class WSQueryService extends WorksheetControllerService {
             tableLens, CancellableTableLens.class);
 
          if(cancelTable != null) {
+            // only the data of this table, not the other tables that are loading
             cancelTable.cancel();
          }
-
-         // the statements that are still executing are reached only through the query manager
-         // (this cancels the other running queries of the worksheet too, as cancel loading does)
-         if(box.getQueryManager() != null) {
+         // a statement still executing is reached only through the query manager (this
+         // cancels the other queries of the worksheet that are running too)
+         else if(box.getQueryManager() != null) {
             box.getQueryManager().cancel();
          }
 

@@ -939,13 +939,6 @@ public abstract class AssetQuery extends PreAssetQuery {
       }
       // live/runtime mode?
       else {
-         // the user stopped the query of this table: until the table is run again, give the
-         // columns without data instead of running (or waiting for) the query again
-         // (Bug #82529)
-         if(box != null && box.isQueryStopped(getTable().getName(), mode)) {
-            return getDesignTableLens(vars, true);
-         }
-
          DataKey key = null;
 
          try {

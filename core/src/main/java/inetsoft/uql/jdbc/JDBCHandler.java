@@ -1404,6 +1404,8 @@ public class JDBCHandler extends XHandler {
          // stays borrowed, in an aborted transaction, until the node is finalized (Bug #82529)
          if(berror && tnode != null) {
             tnode.close();
+            // the node released the connection, don't release it twice
+            conn = null;
          }
 
          if(tnode == null || berror) {

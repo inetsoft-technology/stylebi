@@ -202,31 +202,14 @@ class WSQueryServiceStopTest {
 
    private void assertStopCancelsExecutingQuery(boolean runtime) throws Exception {
       Worksheet ws = new Worksheet();
-      SQLBoundTableAssembly table = sqlTable(ws, "S1", "select pa.id, pa.g from pa where " +
-         MARK + " and pa.id > -" + RUN.incrementAndGet(), "id", "g");
-      table.setLiveData(true);
+      SQLBoundTableAssembly table = slowTable(ws, "S1");
       table.setRuntime(runtime);
       int mode = WorksheetEventUtil.getMode(table);
       AssetQuerySandbox box = new AssetQuerySandbox(ws);
       box.setQueryManager(new QueryManager());
-      ExecutorService pool = Executors.newSingleThreadExecutor();
 
       try {
-         // the request that shows the table runs its query
-         Future<TableLens> run = pool.submit(() -> box.getTableLens("S1", mode));
-         assertTrue(ENTERED.get().await(30, TimeUnit.SECONDS), "the query never executed");
-
-         long start = System.nanoTime();
-         stopQuery(box, ws, "S1");
-         long millis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
-
-         assertTrue(millis < BLOCK_SECONDS * 1000 / 2,
-                    "stop waited " + millis + " ms for the executing query instead of " +
-                    "cancelling it");
-         // the request that ran the query ends with it, without the rows of the query
-         TableLens lens = run.get(10, TimeUnit.SECONDS);
-         assertTrue(lens == null || Util.getNestedTable(lens, XNodeMetaTable.class) != null,
-                    "the stopped query gives no data");
+         startAndStop(box, ws, "S1", mode);
 
          // a later read of the table (the client loads its data) doesn't run it again
          box.getTableLens("S1", mode);
@@ -236,46 +219,145 @@ class WSQueryServiceStopTest {
          // Run Query resets the table and runs it again
          BLOCK.set(false);
          box.resetTableLens("S1", mode);
-         lens = box.getTableLens("S1", mode);
-         assertEquals(2, EXECUTED.get(), "the table runs again after it was reset");
-         lens.moreRows(Integer.MAX_VALUE);
-         assertEquals(4, lens.getRowCount(), "header plus three rows");
+         assertRunsAgain(box, "S1", mode);
       }
       finally {
          BLOCK.set(false);
-         pool.shutdownNow();
          box.dispose();
       }
    }
 
-   // stop of a table whose result is already there (rows loading) cancels it as before and
-   // doesn't run the query again
+   // after a stop, switching the table to meta view and back to live data (or any other mode
+   // change of the table) asks for its data again and runs the query
    @Test
-   void stopOfALoadedTableCancelsItWithoutRunningItAgain() throws Exception {
-      BLOCK.set(false);
+   void modeChangeAfterStopRunsTheQueryAgain() throws Exception {
       Worksheet ws = new Worksheet();
-      SQLBoundTableAssembly table = sqlTable(ws, "S2", "select pa.id, pa.g from pa where " +
-         MARK + " and pa.id > -" + RUN.incrementAndGet(), "id", "g");
-      table.setLiveData(true);
-      int mode = WorksheetEventUtil.getMode(table);
+      slowTable(ws, "S3");
       AssetQuerySandbox box = new AssetQuerySandbox(ws);
       box.setQueryManager(new QueryManager());
 
       try {
-         TableLens lens = box.getTableLens("S2", mode);
-         assertNotNull(lens);
-         assertSame(lens, box.getCachedTableLens("S2", mode));
-         assertEquals(1, EXECUTED.get());
+         startAndStop(box, ws, "S3", AssetQuerySandbox.LIVE_MODE);
+         BLOCK.set(false);
 
-         stopQuery(box, ws, "S2");
+         TableModeService service = new TableModeService(
+            engine(box, ws), mock(AssetDataCache.class), mock(DataSourceRegistry.class));
+         withRefresh(box, ws, "S3", () -> {
+            service.setDefaultMode("ws1", event("S3"), USER, mock(CommandDispatcher.class));
+            service.setLiveMode("ws1", event("S3"), USER, mock(CommandDispatcher.class));
+         });
 
-         assertFalse(box.isQueryStopped("S2", mode), "a loaded table is not marked stopped");
-         assertSame(lens, box.getTableLens("S2", mode), "the loaded table is kept");
-         assertEquals(1, EXECUTED.get(), "the query must not run again");
+         assertEquals(2, EXECUTED.get(), "show live data after the stop runs the query again");
+         assertRunsAgain(box, "S3", AssetQuerySandbox.LIVE_MODE);
       }
       finally {
          box.dispose();
       }
+   }
+
+   // the stop of a runtime table T applies to reading T only: a mirror of T runs T's query and
+   // gets its rows
+   @Test
+   void stopInRuntimeModeDoesNotEmptyATableBuiltOnTheStoppedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly table = slowTable(ws, "S4");
+      table.setRuntime(true);
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "M4", table);
+      ws.addAssembly(mirror);
+      mirror.update();
+      mirror.setLiveData(true);
+      mirror.setRuntime(true);
+      int mode = AssetQuerySandbox.RUNTIME_MODE;
+      AssetQuerySandbox box = new AssetQuerySandbox(ws);
+      box.setQueryManager(new QueryManager());
+
+      try {
+         startAndStop(box, ws, "S4", mode);
+         box.getTableLens("S4", mode);
+         assertEquals(1, EXECUTED.get(), "the stopped table must not run again");
+
+         BLOCK.set(false);
+         TableLens lens = box.getTableLens("M4", mode);
+         assertNotNull(lens);
+         lens.moreRows(Integer.MAX_VALUE);
+         assertEquals(4, lens.getRowCount(), "the mirror has the rows of the table");
+         assertEquals(2, EXECUTED.get(), "the mirror ran the query of the table");
+      }
+      finally {
+         box.dispose();
+      }
+   }
+
+   // stop of a table whose result is already there (rows loading) cancels that table only, as
+   // before: not the other tables of the worksheet that are loading, and it reads nothing
+   @Test
+   void stopOfALoadedTableCancelsOnlyItsData() throws Exception {
+      Worksheet ws = new Worksheet();
+      slowTable(ws, "S2");
+      int mode = AssetQuerySandbox.LIVE_MODE;
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      CloseWorksheetCancelTest.Cancellable loading = new CloseWorksheetCancelTest.Cancellable();
+      CloseWorksheetCancelTest.Cancellable other = new CloseWorksheetCancelTest.Cancellable();
+      QueryManager qmgr = new QueryManager();
+      qmgr.addPending(other);
+      when(box.getCachedTableLens("S2", mode)).thenReturn(loading);
+      when(box.getQueryManager()).thenReturn(qmgr);
+      // only the refresh after the cancel reads the table
+      AtomicInteger cancelsAtRead = new AtomicInteger(-1);
+      when(box.getTableLens(anyString(), anyInt())).thenAnswer(inv -> {
+         cancelsAtRead.set(loading.cancels.get());
+         return loading;
+      });
+
+      stopQuery(box, ws, "S2");
+
+      assertEquals(1, loading.cancels.get(), "the data of the table is cancelled");
+      assertEquals(0, other.cancels.get(), "another loading table is not cancelled");
+      assertEquals(1, cancelsAtRead.get(), "the table is read only after it was cancelled");
+      verify(box, never()).getTableLens(anyString(), anyInt(), any());
+      verify(box, never()).setQueryStopped(anyString(), anyInt());
+   }
+
+   // runs the slow query of the table on another thread, stops it while it executes and waits
+   // for the run to end
+   private static void startAndStop(AssetQuerySandbox box, Worksheet ws, String name, int mode)
+      throws Exception
+   {
+      ExecutorService pool = Executors.newSingleThreadExecutor();
+
+      try {
+         // the request that shows the table runs its query
+         Future<TableLens> run = pool.submit(() -> box.getTableLens(name, mode));
+         assertTrue(ENTERED.get().await(30, TimeUnit.SECONDS), "the query never executed");
+
+         long start = System.nanoTime();
+         stopQuery(box, ws, name);
+         long millis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+         assertTrue(millis < BLOCK_SECONDS * 1000 / 2,
+                    "stop waited " + millis + " ms for the executing query instead of " +
+                    "cancelling it");
+         // the request that ran the query ends with it, without the rows of the query
+         TableLens lens = run.get(10, TimeUnit.SECONDS);
+         assertTrue(lens == null || Util.getNestedTable(lens, XNodeMetaTable.class) != null,
+                    "the stopped query gives no data");
+         assertEquals(1, EXECUTED.get(), "the stopped query must not run again");
+      }
+      finally {
+         BLOCK.set(false);
+         pool.shutdownNow();
+      }
+   }
+
+   // the table gives its three rows, from a new run of its query
+   private static void assertRunsAgain(AssetQuerySandbox box, String name, int mode)
+      throws Exception
+   {
+      TableLens lens = box.getTableLens(name, mode);
+      assertNotNull(lens);
+      lens.moreRows(Integer.MAX_VALUE);
+      assertEquals(4, lens.getRowCount(), "header plus three rows");
+      assertEquals(2, EXECUTED.get(), "the table ran again once");
    }
 
    /**
@@ -285,17 +367,17 @@ class WSQueryServiceStopTest {
    private static void stopQuery(AssetQuerySandbox box, Worksheet ws, String name)
       throws Exception
    {
-      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
-      when(rws.getWorksheet()).thenReturn(ws);
-      when(rws.getAssetQuerySandbox()).thenReturn(box);
-      ViewsheetService engine = mock(ViewsheetService.class);
-      Principal user = mock(Principal.class);
-      when(engine.getWorksheet("ws1", user)).thenReturn(rws);
       WSQueryService service = new WSQueryService(
-         engine, mock(AssetDataCache.class), mock(DataSourceRegistry.class));
-      WSAssemblyEvent event = mock(WSAssemblyEvent.class);
-      when(event.getAssemblyName()).thenReturn(name);
+         engine(box, ws), mock(AssetDataCache.class), mock(DataSourceRegistry.class));
+      withRefresh(box, ws, name, () -> service.stopQuery(
+         "ws1", event(name), USER, mock(CommandDispatcher.class)));
+   }
 
+   // runs the request with refreshAssembly reading the table like the table model, no layout
+   private static void withRefresh(AssetQuerySandbox box, Worksheet ws, String name,
+                                   Request request)
+      throws Exception
+   {
       try(MockedStatic<WorksheetEventUtil> util =
              mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS))
       {
@@ -307,9 +389,39 @@ class WSQueryServiceStopTest {
                box.getColumnInfos(name, mode);
                return null;
             });
+         util.when(() -> WorksheetEventUtil.layout(any(), any())).thenAnswer(inv -> null);
 
-         service.stopQuery("ws1", event, user, mock(CommandDispatcher.class));
+         request.run();
       }
+   }
+
+   private static ViewsheetService engine(AssetQuerySandbox box, Worksheet ws)
+      throws Exception
+   {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      ViewsheetService engine = mock(ViewsheetService.class);
+      when(engine.getWorksheet("ws1", USER)).thenReturn(rws);
+      return engine;
+   }
+
+   private static WSAssemblyEvent event(String name) {
+      WSAssemblyEvent event = mock(WSAssemblyEvent.class);
+      when(event.getAssemblyName()).thenReturn(name);
+      return event;
+   }
+
+   // a live table whose query blocks in execute while BLOCK is on
+   private static SQLBoundTableAssembly slowTable(Worksheet ws, String name) throws Exception {
+      SQLBoundTableAssembly table = sqlTable(ws, name, "select pa.id, pa.g from pa where " +
+         MARK + " and pa.id > -" + RUN.incrementAndGet(), "id", "g");
+      table.setLiveData(true);
+      return table;
+   }
+
+   private interface Request {
+      void run() throws Exception;
    }
 
    private static SQLBoundTableAssembly sqlTable(Worksheet ws, String name, String text,
@@ -448,6 +560,7 @@ class WSQueryServiceStopTest {
       Object handle(Method method, Object[] args, Object target) throws Throwable;
    }
 
+   private static final Principal USER = mock(Principal.class);
    private static final AtomicBoolean BLOCK = new AtomicBoolean();
    private static final AtomicInteger EXECUTED = new AtomicInteger();
    private static final AtomicInteger RUN = new AtomicInteger();

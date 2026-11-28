@@ -954,10 +954,30 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
             table2 = (TableAssembly) table.clone();
          }
 
+         // the user stopped the query of this table: until the table is run again or its mode
+         // changes, its columns without data instead of running (or waiting for) the query
+         // again. Only this read of the table, not the tables built on it (Bug #82529)
+         if(isQueryStopped(name, mode)) {
+            return getStoppedTableLens(table2, mode, vars);
+         }
+
          data = executeQuery(table, table2, name, mode, pub, vars);
       }
 
       return data;
+   }
+
+   /**
+    * The data of a table whose query the user stopped: the design table, as a cancelled
+    * query gives. It is not cached, so a run of the table is not kept from running.
+    */
+   private TableLens getStoppedTableLens(TableAssembly table, int mode, VariableTable vars)
+      throws Exception
+   {
+      AssetQuery query = AssetQuery.createAssetQuery(table, mode, this, false, -1L, true, false);
+      VariableTable vars2 = vars != null ? vars :
+         this.vars != null ? this.vars.clone() : new VariableTable();
+      return query.getDesignTableLens(vars2, true);
    }
 
    /**
@@ -1542,7 +1562,8 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
 
    /**
     * Mark the query of a table as stopped by the user. Until the table is reset (run again,
-    * refreshed or changed), reading it gives no data instead of running the query again.
+    * refreshed or changed) or its mode changes, reading it gives no data instead of running
+    * the query again. Tables built on it still run its query.
     * @param name the specified table name.
     * @param mode the specified mode.
     */
@@ -1571,6 +1592,15 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    public boolean isQueryStopped(String name, int mode) {
       Set<StoppedQuery> stopped = stoppedQueries;
       return stopped != null && stopped.contains(new StoppedQuery(name, mode));
+   }
+
+   /**
+    * Clear the stop of the query of a table (see {@link #setQueryStopped(String, int)}), e.g.
+    * when the user changes the mode of the table and so asks for its data again.
+    * @param name the specified table name.
+    */
+   public void clearQueryStopped(String name) {
+      clearQueryStopped(name, null);
    }
 
    // the table is run again (or changed), so its stop no longer applies
