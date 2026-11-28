@@ -954,10 +954,30 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
             table2 = (TableAssembly) table.clone();
          }
 
+         // the user stopped the query of this table: until the table is run again or its mode
+         // changes, its columns without data instead of running (or waiting for) the query
+         // again. Only this read of the table, not the tables built on it (Bug #82529)
+         if(isQueryStopped(name, mode)) {
+            return getStoppedTableLens(table2, mode, vars);
+         }
+
          data = executeQuery(table, table2, name, mode, pub, vars);
       }
 
       return data;
+   }
+
+   /**
+    * The data of a table whose query the user stopped: the design table, as a cancelled
+    * query gives. It is not cached, so a run of the table is not kept from running.
+    */
+   private TableLens getStoppedTableLens(TableAssembly table, int mode, VariableTable vars)
+      throws Exception
+   {
+      AssetQuery query = AssetQuery.createAssetQuery(table, mode, this, false, -1L, true, false);
+      VariableTable vars2 = vars != null ? vars :
+         this.vars != null ? this.vars.clone() : new VariableTable();
+      return query.getDesignTableLens(vars2, true);
    }
 
    /**
@@ -1418,7 +1438,8 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
          vars2.put(XQuery.HINT_PREVIEW, isLiveMode(mode) + "");
          base = cacheNormalizer.transformTableLens(query.getTableLens(vars2));
 
-         if(table.isLiveData()) {
+         // no data if the query was cancelled (e.g. stopped by the user)
+         if(table.isLiveData() && base != null) {
             base = getColumnLimitTableLens(base, table instanceof UnpivotTableAssembly);
          }
 
@@ -1492,6 +1513,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
     */
    public void resetTableLens() {
       ArrayList<TableLens> disposeList = new ArrayList<>();
+      clearQueryStopped(null, null);
 
       synchronized(this) {
          if(tmap != null) {
@@ -1509,6 +1531,85 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       // Intentionally left outside synchronization block to avoid deadlock.
       for(TableLens lens : disposeList) {
          lens.dispose();
+      }
+   }
+
+   /**
+    * Get the data of a table in one mode if it is already cached, without running its query
+    * or waiting for a query that is running.
+    * @param name the specified table name.
+    * @param mode the specified mode.
+    * @return the cached data, or {@code null} if there is none (e.g. the query is still
+    * running).
+    */
+   public TableLens getCachedTableLens(String name, int mode) {
+      Map<TableEntry, TableLens> tmap = this.tmap;
+      Worksheet ws = this.ws;
+
+      if(tmap == null || ws == null) {
+         return null;
+      }
+
+      Assembly assembly = ws.getAssembly(name);
+
+      if(!(assembly instanceof TableAssembly)) {
+         return null;
+      }
+
+      // an entry without a column hash matches the entry of any column selection
+      return tmap.get(new TableEntry(name, mode, ((TableAssembly) assembly).isAggregate()));
+   }
+
+   /**
+    * Mark the query of a table as stopped by the user. Until the table is reset (run again,
+    * refreshed or changed) or its mode changes, reading it gives no data instead of running
+    * the query again. Tables built on it still run its query.
+    * @param name the specified table name.
+    * @param mode the specified mode.
+    */
+   public void setQueryStopped(String name, int mode) {
+      Set<StoppedQuery> stopped = stoppedQueries;
+
+      if(stopped == null) {
+         synchronized(this) {
+            stopped = stoppedQueries;
+
+            if(stopped == null) {
+               stopped = stoppedQueries = ConcurrentHashMap.newKeySet();
+            }
+         }
+      }
+
+      stopped.add(new StoppedQuery(name, mode));
+   }
+
+   /**
+    * Check if the query of a table was stopped by the user, see
+    * {@link #setQueryStopped(String, int)}.
+    * @param name the specified table name.
+    * @param mode the specified mode.
+    */
+   public boolean isQueryStopped(String name, int mode) {
+      Set<StoppedQuery> stopped = stoppedQueries;
+      return stopped != null && stopped.contains(new StoppedQuery(name, mode));
+   }
+
+   /**
+    * Clear the stop of the query of a table (see {@link #setQueryStopped(String, int)}), e.g.
+    * when the user changes the mode of the table and so asks for its data again.
+    * @param name the specified table name.
+    */
+   public void clearQueryStopped(String name) {
+      clearQueryStopped(name, null);
+   }
+
+   // the table is run again (or changed), so its stop no longer applies
+   private void clearQueryStopped(String name, Integer mode) {
+      Set<StoppedQuery> stopped = stoppedQueries;
+
+      if(stopped != null) {
+         stopped.removeIf(q -> (name == null || q.name().equals(name)) &&
+            (mode == null || q.mode() == mode));
       }
    }
 
@@ -1542,6 +1643,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
     * @param table the specified table.
     */
    public void resetTableLens(String table) {
+      clearQueryStopped(table, null);
       Iterator<TableEntry> keys = tmap.keySet().iterator();
       List<TableEntry> removed = new ArrayList<>();
 
@@ -1570,6 +1672,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
     * <code>RUNTIME_MODE</code>.
     */
    public void resetTableLens(String table, int mode) {
+      clearQueryStopped(table, mode);
       resetTableLens0(table, mode, true);
       resetTableLens0(table, mode, false);
    }
@@ -2253,6 +2356,10 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       private final int chash;
    }
 
+   // a table query the user stopped, see setQueryStopped
+   private record StoppedQuery(String name, int mode) {
+   }
+
    // marker class for clean up
    private static class CachedVariableTable extends VariableTable {
       public CachedVariableTable() {
@@ -2434,6 +2541,8 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    private VariableTable vars = new VariableTable(); // box variable table
    private transient VariableTable ovars; // old box variable table
    private Map<TableEntry, TableLens> tmap; // data map, TableEntry -> TableLens
+   // the table queries the user stopped, not run again until the table is reset (Bug #82529)
+   private transient volatile Set<StoppedQuery> stoppedQueries;
    // default column selection map, name -> ColumnSelection
    private Map<String, ColumnSelection> cmap;
    private Hashtable<String, SelectionVSAssembly> selections; // selection assembly map,

@@ -409,6 +409,14 @@ public class TableModeService extends WorksheetControllerService {
       CommandDispatcher commandDispatcher, RuntimeWorksheet rws, String tableName,
       Principal principal, boolean recursive, boolean reset) throws Exception
    {
+      AssetQuerySandbox box = rws.getAssetQuerySandbox();
+
+      // a change of the table's mode asks for its data again, a stopped query runs again
+      // (Bug #82529)
+      if(box != null) {
+         box.clearQueryStopped(tableName);
+      }
+
       WorksheetEventUtil.loadTableData(rws, tableName, recursive, reset);
       WorksheetEventUtil.refreshAssembly(rws, tableName, recursive, commandDispatcher, principal);
       WorksheetEventUtil.layout(rws, commandDispatcher);

@@ -112,14 +112,26 @@ public class WSQueryService extends WorksheetControllerService {
       if(table != null) {
          final AssetQuerySandbox box = rws.getAssetQuerySandbox();
          final int mode = WorksheetEventUtil.getMode(table);
-         final TableLens tableLens = box.getTableLens(table.getName(), mode);
+         // only the data that is already there: getTableLens would wait for a query that is
+         // still executing (or run it again) and cancel only after it ended (Bug #82529)
+         final TableLens tableLens = box.getCachedTableLens(table.getName(), mode);
+
+         if(tableLens == null) {
+            // the query is still executing, so reading the table (the refresh below, the
+            // request that runs it) must not run it again
+            box.setQueryStopped(table.getName(), mode);
+         }
+
          final CancellableTableLens cancelTable = (CancellableTableLens) Util.getNestedTable(
             tableLens, CancellableTableLens.class);
 
          if(cancelTable != null) {
+            // only the data of this table, not the other tables that are loading
             cancelTable.cancel();
          }
-         else {
+         // a statement still executing is reached only through the query manager (this
+         // cancels the other queries of the worksheet that are running too)
+         else if(box.getQueryManager() != null) {
             box.getQueryManager().cancel();
          }
 

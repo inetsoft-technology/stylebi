@@ -1399,6 +1399,15 @@ public class JDBCHandler extends XHandler {
          }
       }
       finally {
+         // a node that took the connection is not returned on an error (e.g. a query
+         // cancelled during execute), so close it here. Otherwise the pooled connection
+         // stays borrowed, in an aborted transaction, until the node is finalized (Bug #82529)
+         if(berror && tnode != null) {
+            tnode.close();
+            // the node released the connection, don't release it twice
+            conn = null;
+         }
+
          if(tnode == null || berror) {
             // release the connection directly
             Tool.closeQuietly(conn);
