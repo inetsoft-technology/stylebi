@@ -146,6 +146,24 @@ public class WorksheetStructure {
       private Integer junctionLevel;
       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
       public Integer getJunctionLevel() { return junctionLevel; } public void setJunctionLevel(Integer v) { this.junctionLevel = v; }
+      // the column of this table/assembly the condition is on, as it exposes it (alias); only when it differs from `field`
+      private String column;
+      // every non-literal value (sub-query, field, variable, expression), in value order; null when none
+      private List<Operand> operands;
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public String getColumn() { return column; } public void setColumn(String v) { this.column = v; }
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public List<Operand> getOperands() { return operands; } public void setOperands(List<Operand> v) { this.operands = v; }
+   }
+
+   public static class Operand {
+      private String kind; private String text; private String language;
+      public Operand() {}
+      public Operand(String kind, String text, String language) { this.kind = kind; this.text = text; this.language = language; }
+      public String getKind() { return kind; } public void setKind(String v) { this.kind = v; }
+      public String getText() { return text; } public void setText(String v) { this.text = v; }
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public String getLanguage() { return language; } public void setLanguage(String v) { this.language = v; }
    }
 
    public static class AggregateSummary {
@@ -173,5 +191,8 @@ public class WorksheetStructure {
       public String getColumn() { return column; } public void setColumn(String v) { this.column = v; }
       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
       public String getExpression() { return expression; } public void setExpression(String v) { this.expression = v; }
+      private String sourceField; // worksheet aggregate only: the underlying column read, when it differs from `field`
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      public String getSourceField() { return sourceField; } public void setSourceField(String v) { this.sourceField = v; }
    }
 }
