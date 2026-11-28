@@ -227,14 +227,28 @@ final class AssemblyStateReader {
          operation += "_OR_EQUAL";
       }
 
-      if(leaf.getField() != null) {
-         out.append(leaf.getField()).append(' ');
+      String subject = leaf.getColumn() != null ? leaf.getColumn() : leaf.getField();
+
+      if(subject != null) {
+         out.append(subject).append(' ');
       }
 
       out.append(operation);
 
-      if(leaf.getValues() != null && !leaf.getValues().isEmpty()) {
-         out.append(' ').append(String.join(", ", leaf.getValues()));
+      List<String> objects = new ArrayList<>();
+
+      if(leaf.getValues() != null) {
+         objects.addAll(leaf.getValues());
+      }
+
+      if(leaf.getOperands() != null) {
+         for(WorksheetStructure.Operand operand : leaf.getOperands()) {
+            objects.add(operand.getText());
+         }
+      }
+
+      if(!objects.isEmpty()) {
+         out.append(' ').append(String.join(", ", objects));
       }
 
       return out.toString();

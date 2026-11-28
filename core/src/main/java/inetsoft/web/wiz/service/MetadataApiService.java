@@ -1220,13 +1220,18 @@ public class MetadataApiService {
    static StructureConditions extractStructureConditionsAndCoverage(TableAssembly tableAssembly)
    {
       List<WorksheetStructure.ConditionLeaf> conditions = new ArrayList<>();
-      collectStructureConditions(tableAssembly.getPreConditionList(), "pre", conditions);
+      ColumnSelection selection = tableAssembly.getColumnSelection(true);
+      ColumnSelection privateSelection = tableAssembly.getColumnSelection(false);
       collectStructureConditions(
-         tableAssembly.getPreRuntimeConditionList(), "preRuntime", conditions);
-      collectStructureConditions(tableAssembly.getPostConditionList(), "post", conditions);
+         tableAssembly.getPreConditionList(), "pre", conditions, null, privateSelection);
+      collectStructureConditions(
+         tableAssembly.getPreRuntimeConditionList(), "preRuntime", conditions, null,
+         privateSelection);
+      collectStructureConditions(
+         tableAssembly.getPostConditionList(), "post", conditions, null, selection);
       collectStructureConditions(
          tableAssembly.getRankingConditionList(), "ranking", conditions,
-         tableAssembly.getAggregateInfo());
+         tableAssembly.getAggregateInfo(), selection);
       String coverage = null;
       WorksheetStructure.AggregateSummary sqlAggregate = null;
       String sqlAggregateCoverage = null;
@@ -2096,6 +2101,17 @@ public class MetadataApiService {
                                           List<WorksheetStructure.ConditionLeaf> out,
                                           AggregateInfo aggregateInfo)
    {
+      collectStructureConditions(wrapper, phase, out, aggregateInfo, null);
+   }
+
+   /**
+    * @param selection the owning table's column selection, used to resolve the exposed
+    *                  {@code column} of a condition whose own ref carries no alias; may be null.
+    */
+   static void collectStructureConditions(ConditionListWrapper wrapper, String phase,
+                                          List<WorksheetStructure.ConditionLeaf> out,
+                                          AggregateInfo aggregateInfo, ColumnSelection selection)
+   {
       if(wrapper == null || wrapper.getConditionList() == null) {
          return;
       }
@@ -2119,6 +2135,7 @@ public class MetadataApiService {
          leaf.setOperation(structureOperationName(xCondition.getOperation()));
          leaf.setNegated(xCondition.isNegated());
          leaf.setPhase(phase);
+         leaf.setColumn(exposedConditionColumn(item.getAttribute(), leaf.getField(), selection));
 
          if(xCondition instanceof Condition eqCondition) {
             leaf.setEqual(eqCondition.isEqual());
@@ -2139,6 +2156,7 @@ public class MetadataApiService {
 
          if(xCondition instanceof Condition condition) {
             List<String> values = new ArrayList<>();
+            List<WorksheetStructure.Operand> operands = new ArrayList<>();
 
             for(int v = 0; v < condition.getValueCount(); v++) {
                Object value = condition.getValue(v);
@@ -2150,13 +2168,116 @@ public class MetadataApiService {
                {
                   values.add(String.valueOf(value));
                }
+               else {
+                  WorksheetStructure.Operand operand = structureOperand(value);
+
+                  if(operand != null) {
+                     operands.add(operand);
+                  }
+               }
             }
 
             leaf.setValues(values);
+
+            if(!operands.isEmpty()) {
+               leaf.setOperands(operands);
+            }
          }
 
          out.add(leaf);
       }
+   }
+
+   /** The ref's own exposed name: its alias when it is a ColumnRef with one, else null. */
+   private static String refAlias(DataRef ref) {
+      if(ref instanceof ColumnRef column && column.getAlias() != null &&
+         !column.getAlias().isEmpty())
+      {
+         return column.getAlias();
+      }
+
+      return null;
+   }
+
+   private static String exposedName(DataRef ref) {
+      String alias = refAlias(ref);
+
+      if(alias != null) {
+         return alias;
+      }
+
+      String name = ref.getAttribute();
+      name = name != null && !name.isEmpty() ? name : ref.getName();
+      return name != null && !name.isEmpty() ? name : null;
+   }
+
+   /** The column the table exposes for a condition ref; null when it equals field or is unknown. */
+   private static String exposedConditionColumn(DataRef ref, String field,
+                                                ColumnSelection selection)
+   {
+      if(ref == null) {
+         return null;
+      }
+
+      DataRef base = ref instanceof AggregateRef aggregate && aggregate.getDataRef() != null ?
+         aggregate.getDataRef() : ref;
+      String column = refAlias(base);
+
+      if(column == null && selection != null) {
+         column = refAlias(selection.findAttribute(base));
+      }
+
+      return column != null && !column.equals(field) ? column : null;
+   }
+
+   private static WorksheetStructure.Operand structureOperand(Object value) {
+      if(value instanceof SubQueryValue sub) {
+         String column = sub.getAttribute() != null ? exposedName(sub.getAttribute()) : null;
+
+         if(sub.getQuery() == null || sub.getQuery().isEmpty() || column == null) {
+            return null;
+         }
+
+         StringBuilder text = new StringBuilder("(SELECT ");
+         text.append(column).append(" FROM ").append(sub.getQuery());
+
+         if(sub.getSubAttribute() != null && sub.getMainAttribute() != null) {
+            String subName = exposedName(sub.getSubAttribute());
+            String mainName = exposedName(sub.getMainAttribute());
+
+            if(subName != null && mainName != null) {
+               text.append(" WHERE ").append(sub.getQuery()).append('.')
+                  .append(subName).append(" = ").append(mainName);
+            }
+         }
+
+         text.append(')');
+         return new WorksheetStructure.Operand("subquery", text.toString(), null);
+      }
+
+      if(value instanceof DataRef ref) {
+         String name = exposedName(ref);
+         return name == null ? null : new WorksheetStructure.Operand("field", name, null);
+      }
+
+      if(value instanceof inetsoft.uql.schema.UserVariable variable) {
+         return new WorksheetStructure.Operand("variable", "$(" + variable.getName() + ")", null);
+      }
+
+      if(value instanceof ExpressionValue expression) {
+         return expression.getExpression() == null ? null : new WorksheetStructure.Operand(
+            "expression", expression.getExpression(), expression.getType());
+      }
+
+      if(value != null) {
+         String text = String.valueOf(value);
+
+         if(!text.matches("[\\w.$]+@[0-9a-fA-F]+")) {
+            return new WorksheetStructure.Operand("expression", text, null);
+         }
+      }
+
+      return null;
    }
 
    /**
@@ -2208,6 +2329,15 @@ public class MetadataApiService {
       for(AggregateRef aggregateRef : aggregateInfo.getAggregates()) {
          WorksheetStructure.AggMeasure measure = new WorksheetStructure.AggMeasure();
          measure.setField(aggregateRef.getName());
+
+         if(refAlias(aggregateRef.getDataRef()) != null) {
+            String source = aggregateRef.getDataRef().getAttribute();
+
+            if(source != null && !source.isEmpty() && !source.equals(measure.getField())) {
+               measure.setSourceField(source);
+            }
+         }
+
          measure.setFormula(
             aggregateRef.getFormula() != null ? aggregateRef.getFormula().getName() : null);
 
