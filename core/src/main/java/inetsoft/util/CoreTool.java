@@ -270,6 +270,10 @@ public class CoreTool {
                return ((Number) obj).longValue() == ((Number) obj2).longValue();
             }
 
+            if(isExactBig((Number) obj, (Number) obj2)) {
+               return toBigDecimal((Number) obj).compareTo(toBigDecimal((Number) obj2)) == 0;
+            }
+
             return ((Number) obj).doubleValue() == ((Number) obj2).doubleValue();
          }
          else if(obj instanceof Date && obj2 instanceof Date) {
@@ -2930,6 +2934,11 @@ public class CoreTool {
             return Long.compare(((Number) v1).longValue(), ((Number) v2).longValue());
          }
 
+         if(isExactBig((Number) v1, (Number) v2)) {
+            return Integer.signum(
+               toBigDecimal((Number) v1).compareTo(toBigDecimal((Number) v2)));
+         }
+
          double d1 = ((Number) v1).doubleValue();
          double d2 = ((Number) v2).doubleValue();
          return Double.compare(d1, d2);
@@ -2965,6 +2974,32 @@ public class CoreTool {
       else {
          return v1.toString().compareTo(v2.toString());
       }
+   }
+
+   private static boolean isBig(Object value) {
+      return value instanceof java.math.BigDecimal || value instanceof java.math.BigInteger;
+   }
+
+   /**
+    * Check if two numbers must be compared exactly: both are exact (integral, BigDecimal or
+    * BigInteger) and at least one is arbitrary precision, so a double cannot tell apart values
+    * that differ beyond 2^53.
+    */
+   private static boolean isExactBig(Number n1, Number n2) {
+      return (isBig(n1) || isBig(n2)) && (isBig(n1) || isIntegral(n1)) &&
+         (isBig(n2) || isIntegral(n2));
+   }
+
+   private static java.math.BigDecimal toBigDecimal(Number n) {
+      if(n instanceof java.math.BigDecimal) {
+         return (java.math.BigDecimal) n;
+      }
+
+      if(n instanceof java.math.BigInteger) {
+         return new java.math.BigDecimal((java.math.BigInteger) n);
+      }
+
+      return java.math.BigDecimal.valueOf(n.longValue());
    }
 
    private static boolean isIntegral(Object value) {
